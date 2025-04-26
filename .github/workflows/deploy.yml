@@ -1,0 +1,98 @@
+name: Deploy Clubinho API
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build project
+        run: npm run build
+
+      - name: Archive build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build Docker image
+        run: docker build -t diegoseven/clubinho-api:latest -f DockerFile .
+
+      - name: Push Docker image
+        run: docker push diegoseven/clubinho-api:latest
+
+  deploy:
+    needs: build
+    runs-on: self-hosted
+
+    steps:
+      - name: Start Docker if not running
+        run: |
+          sudo systemctl start docker
+
+      - name: Remove old container if exists
+        run: |
+          if sudo docker ps -a --format '{{.Names}}' | grep -Eq "^clubinho-api$"; then
+            echo "🧼 Removendo container antigo..."
+            sudo docker rm -f clubinho-api
+          else
+            echo "✅ Nenhum container antigo encontrado"
+          fi
+
+      - name: Remove old image if exists
+        run: |
+          if sudo docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "^diegoseven/clubinho-api:latest$"; then
+            echo "🧼 Removendo imagem antiga..."
+            sudo docker rmi -f diegoseven/clubinho-api:latest
+          else
+            echo "✅ Nenhuma imagem antiga encontrada"
+          fi
+
+      - name: Pull new image from Docker Hub
+        run: sudo docker pull diegoseven/clubinho-api:latest
+
+      - name: Run new container
+        run: |
+          sudo docker run -d -p 3000:3000 \
+            -e DB_HOST=${{ secrets.DB_HOST }} \
+            -e DB_PORT=${{ secrets.DB_PORT }} \
+            -e DB_USERNAME=${{ secrets.DB_USERNAME }} \
+            -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
+            -e DB_NAME=${{ secrets.DB_NAME }} \
+            -e AWS_REGION=${{ secrets.AWS_REGION }} \
+            -e AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }} \
+            -e AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
+            -e AWS_S3_BUCKET_NAME=${{ secrets.AWS_S3_BUCKET_NAME }} \
+            -e SES_DEFAULT_FROM=${{ secrets.SES_DEFAULT_FROM }} \
+            -e SES_DEFAULT_TO=${{ secrets.SES_DEFAULT_TO }} \
+            -e JWT_SECRET=${{ secrets.JWT_SECRET }} \
+            -e JWT_EXPIRES_IN=${{ secrets.JWT_EXPIRES_IN }} \
+            -e JWT_REFRESH_SECRET=${{ secrets.JWT_REFRESH_SECRET }} \
+            -e JWT_REFRESH_EXPIRES_IN=${{ secrets.JWT_REFRESH_EXPIRES_IN }} \
+            -e TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }} \
+            -e TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }} \
+            -e TWILIO_WHATSAPP_FROM=${{ secrets.TWILIO_WHATSAPP_FROM }} \
+            -e TWILIO_WHATSAPP_TO=${{ secrets.TWILIO_WHATSAPP_TO }} \
+            --name clubinho-api diegoseven/clubinho-api:latest
