@@ -1,4 +1,4 @@
-name: Deploy Clubinho API
+name: Deploy Prod Clubinho API
 
 on:
   push:
@@ -38,19 +38,17 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build Docker image
-        run: docker build -t diegoseven/clubinho-api:latest -f DockerFile .
+        run: docker build -t diegoseven/clubinho-api:prod -f DockerFile .
 
       - name: Push Docker image
-        run: docker push diegoseven/clubinho-api:latest
+        run: docker push diegoseven/clubinho-api:prod
 
   deploy:
     needs: build
-    runs-on: self-hosted
-
+    runs-on: [self-hosted, production]
     steps:
       - name: Start Docker if not running
-        run: |
-          sudo systemctl start docker
+        run: sudo systemctl start docker
 
       - name: Remove old container if exists
         run: |
@@ -63,36 +61,37 @@ jobs:
 
       - name: Remove old image if exists
         run: |
-          if sudo docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "^diegoseven/clubinho-api:latest$"; then
+          if sudo docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "^diegoseven/clubinho-api:prod$"; then
             echo "🧼 Removendo imagem antiga..."
-            sudo docker rmi -f diegoseven/clubinho-api:latest
+            sudo docker rmi -f diegoseven/clubinho-api:prod
           else
             echo "✅ Nenhuma imagem antiga encontrada"
           fi
 
       - name: Pull new image from Docker Hub
-        run: sudo docker pull diegoseven/clubinho-api:latest
+        run: sudo docker pull diegoseven/clubinho-api:prod
 
       - name: Run new container
         run: |
           sudo docker run -d -p 3000:3000 \
+            -e EVERIMONT=${{ secrets.PROD_EVERIMONT }} \
             -e DB_HOST=${{ secrets.DB_HOST }} \
             -e DB_PORT=${{ secrets.DB_PORT }} \
             -e DB_USERNAME=${{ secrets.DB_USERNAME }} \
             -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
-            -e DB_NAME=${{ secrets.DB_NAME }} \
+            -e DB_NAME=${{ secrets.PROD_DB_NAME }} \
             -e AWS_REGION=${{ secrets.AWS_REGION }} \
             -e AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }} \
             -e AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
             -e AWS_S3_BUCKET_NAME=${{ secrets.AWS_S3_BUCKET_NAME }} \
-            -e SES_DEFAULT_FROM=${{ secrets.SES_DEFAULT_FROM }} \
-            -e SES_DEFAULT_TO=${{ secrets.SES_DEFAULT_TO }} \
+            -e SES_DEFAULT_FROM=${{ secrets.PROD_SES_DEFAULT_FROM }} \
+            -e SES_DEFAULT_TO=${{ secrets.PROD_SES_DEFAULT_TO }} \
             -e JWT_SECRET=${{ secrets.JWT_SECRET }} \
             -e JWT_EXPIRES_IN=${{ secrets.JWT_EXPIRES_IN }} \
             -e JWT_REFRESH_SECRET=${{ secrets.JWT_REFRESH_SECRET }} \
             -e JWT_REFRESH_EXPIRES_IN=${{ secrets.JWT_REFRESH_EXPIRES_IN }} \
-            -e TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }} \
-            -e TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }} \
-            -e TWILIO_WHATSAPP_FROM=${{ secrets.TWILIO_WHATSAPP_FROM }} \
-            -e TWILIO_WHATSAPP_TO=${{ secrets.TWILIO_WHATSAPP_TO }} \
-            --name clubinho-api diegoseven/clubinho-api:latest
+            -e TWILIO_ACCOUNT_SID=${{ secrets.PROD_TWILIO_ACCOUNT_SID }} \
+            -e TWILIO_AUTH_TOKEN=${{ secrets.PROD_TWILIO_AUTH_TOKEN }} \
+            -e TWILIO_WHATSAPP_FROM=${{ secrets.PROD_TWILIO_WHATSAPP_FROM }} \
+            -e TWILIO_WHATSAPP_TO=${{ secrets.PROD_TWILIO_WHATSAPP_TO }} \
+            --name clubinho-api diegoseven/clubinho-api:prod
