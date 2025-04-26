@@ -17,12 +17,14 @@ export class AwsS3Service {
   private readonly sesClient: SESClient;
   private readonly bucketName: string;
   private readonly region: string;
+  private readonly environment: string;
 
   constructor(private readonly configService: ConfigService) {
     this.region = this.configService.get<string>('AWS_REGION') || 'us-east-2';
 
     const accessKeyId = this.configService.get<string>('AWS_ACCESS_KEY_ID') ?? '';
     const secretAccessKey = this.configService.get<string>('AWS_SECRET_ACCESS_KEY') ?? '';
+    this.environment = this.configService.get<string>('ENVIRONMENT') ?? '';
 
     this.bucketName = this.configService.get<string>('AWS_S3_BUCKET_NAME') || '';
     if (!this.bucketName) {
@@ -47,7 +49,9 @@ export class AwsS3Service {
   }
 
   async upload(file: Express.Multer.File): Promise<string> {
-    const key = `uploads/${Date.now()}_${file.originalname}`;
+    const sanitizedFilename = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+
+    const key = `${this.environment}/uploads/${Date.now()}_${sanitizedFilename}`;
     const command = new PutObjectCommand({
       Bucket: this.bucketName,
       Key: key,
@@ -93,7 +97,7 @@ export class AwsS3Service {
   ): Promise<void> {
     const from =
       this.configService.get<string>('SES_DEFAULT_FROM') ?? 'no-reply@rodolfo-silva.com';
-  
+
     const command = new SendEmailCommand({
       Destination: {
         ToAddresses: [to],
@@ -115,7 +119,7 @@ export class AwsS3Service {
       },
       Source: from,
     });
-  
+
     try {
       await this.sesClient.send(command);
       this.logger.log(`📨 E-mail enviado via SES para ${to}`);
@@ -124,5 +128,5 @@ export class AwsS3Service {
       throw new Error('Erro ao enviar e-mail');
     }
   }
-  
+
 }
