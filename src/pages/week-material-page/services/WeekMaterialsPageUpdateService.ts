@@ -279,7 +279,7 @@ export class WeekMaterialsPageUpdateService {
       media.isLocalFile = videoInput.isLocalFile;
       media.originalName = file.originalname;
       media.size = file.size;
-      media.platformType = undefined; // Corrige para não usar plataforma
+      media.platformType = undefined;
       this.logger.debug(`✅ Upload concluído. URL=${media.url}`);
     } else {
       media.title = videoInput.title || media.title;
@@ -313,7 +313,7 @@ export class WeekMaterialsPageUpdateService {
       MediaTargetType.WeekMaterialsPage,
     );
 
-    if (documentInput.uploadType === 'upload' || documentInput.isLocalFile === true) {
+    if (documentInput.uploadType === UploadType.UPLOAD || documentInput.isLocalFile === true) {
       media.platformType = undefined;
       const file = filesDict[documentInput.fieldKey];
       if (!file) {
@@ -358,7 +358,7 @@ export class WeekMaterialsPageUpdateService {
       MediaTargetType.WeekMaterialsPage,
     );
 
-    if (imageInput.uploadType === 'upload' || imageInput.isLocalFile === true) {
+    if (imageInput.uploadType === UploadType.UPLOAD || imageInput.isLocalFile === true) {
       media.platformType = undefined;
       const file = filesDict[imageInput.fieldKey];
       if (!file) {
@@ -404,7 +404,7 @@ export class WeekMaterialsPageUpdateService {
       MediaTargetType.WeekMaterialsPage,
     );
 
-    if (audioInput.uploadType === 'upload' || audioInput.isLocalFile === true) {
+    if (audioInput.uploadType === UploadType.UPLOAD || audioInput.isLocalFile === true) {
       media.platformType = undefined;
       const file = filesDict[audioInput.fieldKey];
       if (!file) {

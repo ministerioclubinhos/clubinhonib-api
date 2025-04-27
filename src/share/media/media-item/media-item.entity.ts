@@ -1,12 +1,8 @@
 import { BaseEntity } from 'src/share/share-entity/base.entity';
 import {
   Entity,
-  PrimaryColumn,
   Column,
-  CreateDateColumn,
-  UpdateDateColumn,
 } from 'typeorm';
-import { v4 as uuidv4 } from 'uuid';
 
 export enum MediaType {
   VIDEO = 'video',
