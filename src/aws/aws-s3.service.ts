@@ -17,14 +17,14 @@ export class AwsS3Service {
   private readonly sesClient: SESClient;
   private readonly bucketName: string;
   private readonly region: string;
-  private readonly everimont: string;
+  private readonly environment: string;
 
   constructor(private readonly configService: ConfigService) {
     this.region = this.configService.get<string>('AWS_REGION') || 'us-east-2';
 
     const accessKeyId = this.configService.get<string>('AWS_ACCESS_KEY_ID') ?? '';
     const secretAccessKey = this.configService.get<string>('AWS_SECRET_ACCESS_KEY') ?? '';
-    const everimont = this.configService.get<string>('EVERIMONT') ?? '';
+    this.environment = this.configService.get<string>('ENVIRONMENT') ?? '';
 
     this.bucketName = this.configService.get<string>('AWS_S3_BUCKET_NAME') || '';
     if (!this.bucketName) {
@@ -51,7 +51,7 @@ export class AwsS3Service {
   async upload(file: Express.Multer.File): Promise<string> {
     const sanitizedFilename = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_');
 
-    const key = `${this.everimont}/uploads/${Date.now()}_${sanitizedFilename}`;
+    const key = `${this.environment}/uploads/${Date.now()}_${sanitizedFilename}`;
     const command = new PutObjectCommand({
       Bucket: this.bucketName,
       Key: key,

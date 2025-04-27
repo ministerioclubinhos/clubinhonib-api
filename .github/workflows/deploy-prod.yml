@@ -74,7 +74,7 @@ jobs:
       - name: Run new container
         run: |
           sudo docker run -d -p 3000:3000 \
-            -e EVERIMONT=${{ secrets.PROD_EVERIMONT }} \
+            -e ENVIRONMENT=${{ secrets.PROD_ENVIRONMENT }} \
             -e DB_HOST=${{ secrets.DB_HOST }} \
             -e DB_PORT=${{ secrets.DB_PORT }} \
             -e DB_USERNAME=${{ secrets.DB_USERNAME }} \

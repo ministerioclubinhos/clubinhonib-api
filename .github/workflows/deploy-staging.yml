@@ -78,7 +78,7 @@ jobs:
       - name: 🏃 Run new container
         run: |
           sudo docker run -d -p 3001:3000 \
-            -e EVERIMONT=${{ secrets.STAGING_EVERIMONT }} \
+            -e ENVIRONMENT=${{ secrets.STAGING_ENVIRONMENT }} \
             -e DB_HOST=${{ secrets.DB_HOST }} \
             -e DB_PORT=${{ secrets.DB_PORT }} \
             -e DB_USERNAME=${{ secrets.DB_USERNAME }} \
