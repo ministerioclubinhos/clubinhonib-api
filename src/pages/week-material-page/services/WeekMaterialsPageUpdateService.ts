@@ -84,11 +84,12 @@ export class WeekMaterialsPageUpdateService {
         }
       }
 
-      await this.upsertRoute(existingRoute.id, { pageTitle, pageSubtitle, pageDescription }, existingPage.id);
+      const routeUpsert = await this.upsertRoute(existingRoute.id, { pageTitle, pageSubtitle, pageDescription }, existingPage.id);
 
       existingPage.title = pageTitle;
       existingPage.subtitle = pageSubtitle;
       existingPage.description = pageDescription;
+      existingPage.route = routeUpsert;
       const updatedPage = await queryRunner.manager.save(WeekMaterialsPageEntity, existingPage);
 
       await queryRunner.commitTransaction();
