@@ -6,7 +6,7 @@ import { MediaItemRepository } from './media-item-repository';
 export class MediaItemProcessor {
   private readonly logger = new Logger(MediaItemProcessor.name);
 
-  constructor(private readonly mediaRepo: MediaItemRepository) {}
+  constructor(private readonly mediaRepo: MediaItemRepository) { }
 
   async findMediaItemsByTarget(targetId: string, targetType: string): Promise<MediaItemEntity[]> {
     return this.mediaRepo.findByTarget(targetId, targetType);

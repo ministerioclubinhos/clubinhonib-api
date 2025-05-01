@@ -73,7 +73,7 @@ jobs:
 
       - name: Run new container
         run: |
-          sudo docker run -d -p 3000:3000 \
+          sudo docker run -d --restart=always -p 3000:3000 \
             -e ENVIRONMENT=${{ secrets.PROD_ENVIRONMENT }} \
             -e DB_HOST=${{ secrets.DB_HOST }} \
             -e DB_PORT=${{ secrets.DB_PORT }} \
@@ -86,12 +86,10 @@ jobs:
             -e AWS_S3_BUCKET_NAME=${{ secrets.AWS_S3_BUCKET_NAME }} \
             -e SES_DEFAULT_FROM=${{ secrets.PROD_SES_DEFAULT_FROM }} \
             -e SES_DEFAULT_TO=${{ secrets.PROD_SES_DEFAULT_TO }} \
-
             -e JWT_SECRET=${{ secrets.JWT_SECRET }} \
             -e JWT_EXPIRES_IN=${{ secrets.JWT_EXPIRES_IN }} \
             -e JWT_REFRESH_SECRET=${{ secrets.JWT_REFRESH_SECRET }} \
             -e JWT_REFRESH_EXPIRES_IN=${{ secrets.JWT_REFRESH_EXPIRES_IN }} \
-
             -e TWILIO_ACCOUNT_SID=${{ secrets.PROD_TWILIO_ACCOUNT_SID }} \
             -e TWILIO_AUTH_TOKEN=${{ secrets.PROD_TWILIO_AUTH_TOKEN }} \
             -e TWILIO_WHATSAPP_FROM=${{ secrets.PROD_TWILIO_WHATSAPP_FROM }} \
