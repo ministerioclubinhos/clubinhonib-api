@@ -8,6 +8,7 @@ import { MediaItemProcessor } from 'src/share/media/media-item-processor';
 import { MeditationRepository } from '../meditation.repository';
 import { WeekMeditationResponseDto } from '../dto/meditation-response-dto';
 import { MeditationEntity } from '../entities/meditation.entity';
+import { MediaTargetType } from 'src/share/media/media-target-type.enum';
 
 @Injectable()
 export class GetMeditationService {
@@ -72,7 +73,7 @@ export class GetMeditationService {
 
       if (todayLocal >= start && todayLocal <= end) {
         this.logger.log(`✅ Meditação da semana encontrada: ${m.topic} (${m.id})`);
-        const mediaList = await this.mediaItemProcessor.findMediaItemsByTarget(m.id, 'meditation');
+        const mediaList = await this.mediaItemProcessor.findMediaItemsByTarget(m.id,  MediaTargetType.Meditation);
         const media = mediaList?.[0];
 
         if (!media) {

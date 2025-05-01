@@ -435,11 +435,12 @@ export class IdeasPageUpdateService {
       subtitle: pageData.subtitle,
       description: pageData.description,
       idToFetch: ideasPageId,
-      entityType: 'IdeasPage',
+      entityType: MediaTargetType.IdeasPage,
       entityId: ideasPageId,
       type: RouteType.PAGE,
       path: 'galeria_ideias_',
-      image: 'https://bucket-clubinho-galeria.s3.amazonaws.com/uploads/img_card.jpg',
+      image: 'https://clubinho-nib.s3.us-east-1.amazonaws.com/production/cards/card_ideias.png',
+      public: false,
     };
     this.logger.debug(`📋 Dados da rota preparados: ${JSON.stringify(routeData)}`);
     this.logger.debug(`💾 Iniciando salvamento da rota no banco`);

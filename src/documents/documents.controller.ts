@@ -64,7 +64,7 @@ export class DocumentsController {
       this.logger.warn(`⚠️ Nenhum arquivo encontrado com fieldname: ${dto.media.fileField}`);
     }
 
-    const result = await this.createService.execute(dto, file);
+    const result = await this.createService.createDocument(dto, file);
     this.logger.log('✅ Documento criado com sucesso');
     return result;
   }

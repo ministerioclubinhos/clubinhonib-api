@@ -60,15 +60,15 @@ export class ImagePageCreateService {
             this.logger.debug(`📝 Criando rota: path="${path}"`);
             const route = await this.routeService.createRouteWithManager(queryRunner.manager, {
                 title,
-                public: isPublic,
                 subtitle: 'Página de galeria de imagens',
                 idToFetch: savedGallery.id,
                 path,
-                entityType: 'ImagesPage',
+                entityType: MediaTargetType.ImagesPage,
                 description,
                 entityId: savedGallery.id,
                 type: RouteType.PAGE,
-                image: 'https://bucket-clubinho-galeria.s3.us-east-2.amazonaws.com/uploads/img_card.jpg',
+                image: 'https://clubinho-nib.s3.us-east-1.amazonaws.com/production/cards/card_imagens.png',                
+                public: isPublic,
             });
             this.logger.debug(`✅ Rota criada com ID: ${route.id}`);
 

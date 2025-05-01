@@ -18,7 +18,7 @@ import {
   
     constructor(
       private readonly dataSource: DataSource,
-      private readonly s3: AwsS3Service,
+      private readonly awsS3Service: AwsS3Service,
       private readonly routeService: RouteService,
       private readonly mediaItemProcessor: MediaItemProcessor,
     ) {}
@@ -29,17 +29,14 @@ import {
       await queryRunner.startTransaction();
   
       try {
-        // Validar a página
         const page = await this.validatePage(id, queryRunner);
         
-        // Validar e remover mídias associadas
         const mediaItems = await this.validateMedia(page.id, queryRunner);
         if (mediaItems.length > 0) {
-          await this.mediaItemProcessor.deleteMediaItems(mediaItems, this.s3.delete.bind(this.s3));
+          await this.mediaItemProcessor.deleteMediaItems(mediaItems, this.awsS3Service.delete.bind(this.awsS3Service));
           this.logger.debug(`🗑️ Removidas ${mediaItems.length} mídias associadas à página ID=${id}`);
         }
   
-        // Remover a rota associada, se existir
         if (page.route?.id) {
           const route = await this.routeService.findById(page.route.id);
           if (route) {
@@ -50,11 +47,9 @@ import {
           }
         }
   
-        // Remover a página
         await queryRunner.manager.remove(WeekMaterialsPageEntity, page);
         this.logger.debug(`🗑️ Página ID=${id} removida do banco`);
   
-        // Commit da transação
         await queryRunner.commitTransaction();
         this.logger.debug(`✅ Página removida com sucesso. ID=${id}`);
       } catch (error) {

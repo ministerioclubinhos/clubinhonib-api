@@ -11,6 +11,7 @@ import { MeditationRepository } from '../meditation.repository';
 import { UpdateMeditationDto } from '../dto/update-meditation.dto';
 import { MeditationEntity } from '../entities/meditation.entity';
 import { DayEntity } from '../entities/day.entity';
+import { MediaTargetType } from 'src/share/media/media-target-type.enum';
 
 @Injectable()
 export class UpdateMeditationService {
@@ -93,19 +94,20 @@ export class UpdateMeditationService {
             size: dto.media.size,
             isLocalFile: dto.media.isLocalFile,
             fileField: dto.media.fieldKey ?? 'file',
+            public: false
           },
         ];
 
         const filesDict = file ? { [dto.media.fieldKey ?? 'file']: file } : {};
         const existingMedia = await this.mediaItemProcessor.findMediaItemsByTarget(
           savedMeditation.id,
-          'meditation',
+          MediaTargetType.Meditation,
         );
 
         const [mediaEntity] = await this.mediaItemProcessor.cleanAndReplaceMediaItems(
           mediaItemsInput,
           savedMeditation.id,
-          'meditation',
+          MediaTargetType.Meditation,
           filesDict,
           existingMedia,
           (url) => this.s3Service.delete(url),

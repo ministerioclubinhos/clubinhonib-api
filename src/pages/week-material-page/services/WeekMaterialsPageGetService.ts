@@ -80,12 +80,15 @@ export class WeekMaterialsPageGetService {
       if (weekPageCurrent && weekPageCurrent.id !== weekPage.id) {
         this.logger.debug(`🧼 Limpando flag "currentWeek" da página anterior: ${weekPageCurrent.id}`);
         weekPageCurrent.currentWeek = false;
+        weekPageCurrent.route.current = false;
         await this.repo.savePage(weekPageCurrent);
         this.logger.debug(`✅ Página ${weekPageCurrent.id} atualizada com currentWeek=false`);
       }
 
       this.logger.debug(`🏁 Atualizando página ${weekPage.id} para currentWeek=true`);
       weekPage.currentWeek = true;
+      weekPage.route.current = true;
+
       await this.repo.savePage(weekPage);
       this.logger.debug(`✅ Página ${weekPage.id} marcada como material da semana atual.`);
 

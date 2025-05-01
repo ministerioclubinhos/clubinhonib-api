@@ -4,7 +4,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { DataSource, In } from 'typeorm';
+import { DataSource, In, QueryRunner } from 'typeorm';
 import { AwsS3Service } from 'src/aws/aws-s3.service';
 import { RouteService } from 'src/route/route.service';
 import { MediaItemProcessor } from 'src/share/media/media-item-processor';
@@ -12,6 +12,7 @@ import { IdeasPageRepository } from '../repositories/ideas-page.repository';
 import { IdeasSectionEntity } from '../entities/ideas-section.entity';
 import { IdeasPageEntity } from '../entities/ideas-page.entity';
 import { RouteEntity } from 'src/route/route-page.entity';
+import { MediaItemEntity } from 'src/share/media/media-item/media-item.entity';
 
 @Injectable()
 export class IdeasPageRemoveService {
@@ -51,10 +52,11 @@ export class IdeasPageRemoveService {
 
       if (sectionIds.length > 0) {
         this.logger.debug(`🔍 Buscando mídias associadas às seções`);
-        const media = await this.mediaItemProcessor.findManyMediaItemsByTargets(sectionIds, 'IdeasPage');
-        this.logger.debug(`🗑️ Iniciando exclusão de ${media.length} mídias`);
-        await this.mediaItemProcessor.deleteMediaItems(media, this.awsS3Service.delete.bind(this.awsS3Service));
-        this.logger.debug(`✅ ${media.length} mídias excluídas`);
+        const mediaItems = await this.validateMedia(sectionIds);
+
+        this.logger.debug(`🗑️ Iniciando exclusão de ${mediaItems.length} mídias`);
+        await this.mediaItemProcessor.deleteMediaItems(mediaItems, this.awsS3Service.delete.bind(this.awsS3Service));
+        this.logger.debug(`✅ ${mediaItems.length} mídias excluídas`);
       } else {
         this.logger.debug('ℹ️ Nenhuma seção encontrada, pulando exclusão de mídias');
       }
@@ -99,5 +101,11 @@ export class IdeasPageRemoveService {
       await queryRunner.release();
       this.logger.debug('✅ QueryRunner liberado');
     }
+  }
+
+  private async validateMedia(sectionIds: string[]): Promise<MediaItemEntity[]> {
+    const mediaItems = await this.mediaItemProcessor.findManyMediaItemsByTargets(sectionIds, 'IdeasSection');
+
+    return mediaItems;
   }
 }

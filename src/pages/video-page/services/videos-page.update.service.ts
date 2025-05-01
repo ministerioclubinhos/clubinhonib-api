@@ -19,6 +19,7 @@ import { UpdateVideosPageDto } from '../dto/update-videos-page.dto';
 import { VideosPageResponseDto } from '../dto/videos-page-response.dto';
 import { VideosPageRepository } from '../video-page.repository';
 import { MediaItemDto } from 'src/share/share-dto/media-item-dto';
+import { MediaTargetType } from 'src/share/media/media-target-type.enum';
 
 @Injectable()
 export class UpdateVideosPageService {
@@ -124,13 +125,13 @@ export class UpdateVideosPageService {
       title: pageData.title,
       subtitle: 'Página de vídeos',
       idToFetch: videoPageId,
-      entityType: 'VideosPage',
+      entityType:MediaTargetType.VideosPage,
       entityId: videoPageId,
-      public: pageData.public,
       type: RouteType.PAGE,
       description: pageData.description,
       path: 'galeria_videos_',
-      image: 'https://bucket-clubinho-galeria.s3.us-east-2.amazonaws.com/uploads/img_card.jpg',
+      image: 'https://clubinho-nib.s3.us-east-1.amazonaws.com/production/cards/card_videos.png',      
+      public: pageData.public,
     };
     this.logger.debug(`📋 Dados da rota preparados: title="${routeData.title}", path="${routeData.path}"`);
     this.logger.debug(`💾 Salvando rota no banco`);
@@ -225,7 +226,7 @@ export class UpdateVideosPageService {
         platformType: mediaInput.platformType as PlatformType,
       },
       targetId,
-      'VideosPage',
+      MediaTargetType.VideosPage,
     ));
     this.logger.debug(`✅ Base da mídia construída`);
 

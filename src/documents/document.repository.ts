@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { DocumentEntity } from 'src/documents/entities/document.entity';
 import { DataSource, Repository } from 'typeorm';
+import { DocumentEntity } from 'src/documents/entities/document.entity';
 
 @Injectable()
 export class DocumentRepository extends Repository<DocumentEntity> {
@@ -10,18 +10,27 @@ export class DocumentRepository extends Repository<DocumentEntity> {
 
   async findAllSorted(): Promise<DocumentEntity[]> {
     return this.find({
-      order: { createdAt: 'DESC' },
+      order: {
+        createdAt: 'DESC',
+      },
     });
   }
 
   async findOneById(id: string): Promise<DocumentEntity | null> {
-    return this.findOne({ where: { id } });
+    return this.findOne({
+      where: { id },
+    });
   }
 
-  async upsertOne(document: Partial<DocumentEntity>): Promise<DocumentEntity> {
-    // Caso o documento tenha `id`, atualiza, senão cria novo
-    const entity = this.create(document);
-    const result = await this.save(entity);
-    return result;
+  async findOneWithRelations(id: string): Promise<DocumentEntity | null> {
+    return this.findOne({
+      where: { id },
+      relations: ['route'],
+    });
+  }
+
+  async upsertOne(data: Partial<DocumentEntity>): Promise<DocumentEntity> {
+    const entity = this.create(data);
+    return this.save(entity);
   }
 }
