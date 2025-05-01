@@ -17,6 +17,9 @@ export class RouteEntity extends BaseEntity {
 
   @Column({ default: true })
   public: boolean;
+
+  @Column({ default: false })
+  current?: boolean;
   
   @Column({ type: 'varchar', nullable: true })
   image: string;

@@ -17,6 +17,7 @@ import { ImageSectionEntity } from '../entity/Image-section.entity';
 import { MediaItemEntity } from 'src/share/media/media-item/media-item.entity';
 import { ImagePageEntity } from '../entity/Image-page.entity';
 import { MediaItemDto } from 'src/share/share-dto/media-item-dto';
+import { MediaTargetType } from 'src/share/media/media-target-type.enum';
 
 @Injectable()
 export class ImagePageUpdateService {
@@ -359,14 +360,15 @@ export class ImagePageUpdateService {
             title: pageData.title,
             subtitle: 'Página de galeria de imagens',
             idToFetch: imagePageId,
-            entityType: 'ImagesPage',
+            entityType: MediaTargetType.ImagesPage,
             entityId: imagePageId,
-            public: pageData.public,
             type: RouteType.PAGE,
             description: pageData.description,
             path: 'galeria_imagens_',
-            image: 'https://bucket-clubinho-galeria.s3.us-east-2.amazonaws.com/uploads/img_card.jpg'
+            image: 'https://clubinho-nib.s3.us-east-1.amazonaws.com/production/cards/card_imagens.png',
+            public: pageData.public
         };
+
         this.logger.debug(`📋 Dados da rota preparados: title="${routeData.title}", path="${routeData.path}"`);
         this.logger.debug(`💾 Salvando rota no banco`);
         const savedRoute = await this.routeService.upsertRoute(routeId, routeData);

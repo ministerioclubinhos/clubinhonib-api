@@ -52,11 +52,12 @@ import { MediaTargetType } from 'src/share/media/media-target-type.enum';
           subtitle: 'Página de galeria de vídeos',
           idToFetch: savedPage.id,
           path,
-          entityType: 'VideosPage',
+          entityType: MediaTargetType.VideosPage,
           entityId: savedPage.id,
           type: RouteType.PAGE,
           description,
-          image: 'https://bucket-clubinho-galeria.s3.us-east-2.amazonaws.com/uploads/img_card.jpg',
+          image: 'https://clubinho-nib.s3.us-east-1.amazonaws.com/production/cards/card_videos.png',
+          public: isPublic,
         });
   
         savedPage.route = route;

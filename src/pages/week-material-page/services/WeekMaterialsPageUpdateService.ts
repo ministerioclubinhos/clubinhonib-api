@@ -119,7 +119,7 @@ export class WeekMaterialsPageUpdateService {
       public: false,
       type: RouteType.PAGE,
       path: 'material_semanal_',
-      image: 'https://bucket-clubinho-galeria.s3.us-east-2.amazonaws.com/uploads/img_card.jpg',
+      image: 'https://clubinho-nib.s3.us-east-1.amazonaws.com/production/cards/card_materiais.png',
     };
     const savedRoute = await this.routeService.upsertRoute(routeId, routeData);
     this.logger.debug(`✅ Rota upsertada: ${savedRoute.id}, path: ${savedRoute.path}`);

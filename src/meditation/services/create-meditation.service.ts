@@ -12,6 +12,7 @@ import { MeditationRepository } from '../meditation.repository';
 import { AwsS3Service } from 'src/aws/aws-s3.service';
 import { CreateMeditationDto } from '../dto/create-meditation.dto';
 import { MeditationEntity } from '../entities/meditation.entity';
+import { MediaTargetType } from 'src/share/media/media-target-type.enum';
 
 @Injectable()
 export class CreateMeditationService {
@@ -91,7 +92,7 @@ export class CreateMeditationService {
           size,
         },
         savedMeditation.id,
-        'meditation',
+        MediaTargetType.Meditation,
       );
 
       const savedMedia = await this.mediaItemProcessor.saveMediaItem(mediaEntity);
@@ -101,13 +102,13 @@ export class CreateMeditationService {
         title: savedMeditation.topic,
         subtitle: '',
         idToFetch: savedMeditation.id,
-        entityType: 'meditation',
+        entityType:  MediaTargetType.Meditation,
         description: `Meditação semanal de ${dto.startDate} a ${dto.endDate}`,
         entityId: savedMeditation.id,
         type: RouteType.DOC,
         prefix: 'meditacao_',
         image: 'https://bucket-clubinho-galeria.s3.amazonaws.com/uploads/img_card.jpg',
-        public: true,
+        public: false,
       });
 
       this.logger.log(`🛤️ Rota criada com path: ${route.path}`);
