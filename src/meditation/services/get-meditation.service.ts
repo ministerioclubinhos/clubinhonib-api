@@ -17,7 +17,7 @@ export class GetMeditationService {
   constructor(
     private readonly meditationRepo: MeditationRepository,
     private readonly mediaItemProcessor: MediaItemProcessor,
-  ) {}
+  ) { }
 
   async findAll(): Promise<WeekMeditationResponseDto[]> {
     const meditations = await this.meditationRepo.findAllWithRelations();
@@ -27,7 +27,7 @@ export class GetMeditationService {
     }
 
     const ids = meditations.map((m) => m.id);
-    const mediaItems = await this.mediaItemProcessor.findManyMediaItemsByTargets(ids, 'meditation');
+    const mediaItems = await this.mediaItemProcessor.findManyMediaItemsByTargets(ids, MediaTargetType.Meditation);
 
     const mediaMap = new Map<string, typeof mediaItems[number][]>();
     mediaItems.forEach((item) => {
@@ -45,7 +45,7 @@ export class GetMeditationService {
     });
   }
 
-  async findOne(id: string): Promise<MeditationEntity> {
+  async findOne(id: string): Promise<WeekMeditationResponseDto> {
     if (!id || typeof id !== 'string') {
       throw new BadRequestException('ID inválido fornecido');
     }
@@ -55,8 +55,8 @@ export class GetMeditationService {
       this.logger.warn(`⚠️ Meditação não encontrada: ID=${id}`);
       throw new NotFoundException('Meditação não encontrada');
     }
-
-    return meditation;
+    const media = await this.mediaItemProcessor.findMediaItemByTarget(meditation.id, MediaTargetType.Meditation);
+    return WeekMeditationResponseDto.success(meditation, media);
   }
 
   async getThisWeekMeditation(): Promise<WeekMeditationResponseDto> {
@@ -73,7 +73,7 @@ export class GetMeditationService {
 
       if (todayLocal >= start && todayLocal <= end) {
         this.logger.log(`✅ Meditação da semana encontrada: ${m.topic} (${m.id})`);
-        const mediaList = await this.mediaItemProcessor.findMediaItemsByTarget(m.id,  MediaTargetType.Meditation);
+        const mediaList = await this.mediaItemProcessor.findMediaItemsByTarget(m.id, MediaTargetType.Meditation);
         const media = mediaList?.[0];
 
         if (!media) {

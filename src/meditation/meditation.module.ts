@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { MeditationController } from './meditation.controller';
@@ -15,8 +15,8 @@ import { GetMeditationService } from './services/get-meditation.service';
 @Module({
   imports: [
     TypeOrmModule.forFeature([MeditationEntity, DayEntity]),
-    RouteModule,
-    MediaModule
+    forwardRef(() => RouteModule),
+        MediaModule
   ],
   controllers: [MeditationController],
   providers: [
@@ -34,6 +34,9 @@ import { GetMeditationService } from './services/get-meditation.service';
       useFactory: (dataSource: DataSource) => new MeditationRepository(dataSource),
       inject: [DataSource],
     },
+  ],
+  exports: [
+    GetMeditationService
   ],
 })
 export class MeditationModule {}
