@@ -2,12 +2,17 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { RouteRepository } from './route-page.repository';
 import { RouteEntity, RouteType } from './route-page.entity';
 import { EntityManager } from 'typeorm';
+import { GetMeditationService } from 'src/meditation/services/get-meditation.service';
 
 @Injectable()
 export class RouteService {
   private readonly logger = new Logger(RouteService.name);
 
-  constructor(private readonly routeRepo: RouteRepository) {}
+  constructor(
+    private readonly routeRepo: RouteRepository,
+    private readonly getMeditationService: GetMeditationService
+
+  ) { }
 
   generateRoute(title: string, prefix: string): string {
     const route = (
@@ -93,8 +98,34 @@ export class RouteService {
 
   async findAllRoutes(): Promise<RouteEntity[]> {
     this.logger.debug(`📄 Buscando todas as rotas`);
-    return this.routeRepo.find();
+
+    const meditation = await this.getMeditationService.getThisWeekMeditation();
+    const routes = await this.routeRepo.find();
+
+    const meditationData = meditation.meditation;
+    if (!meditationData) return routes;
+
+    const dayRoutes = meditationData.days.map((day) => ({
+      id: day.id,
+      title: day.topic,
+      subtitle: day.verse,
+      description: day.verse,
+      path: day.day,
+      public: false,
+      current: false,
+      image: meditationData.media?.url,
+      idToFetch: meditationData.id,
+      entityType: 'MeditationDay',
+      entityId: meditationData.id,
+      type: 'page',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as RouteEntity));
+
+    routes.push(...dayRoutes);
+    return routes;
   }
+
 
   async findById(id: string): Promise<RouteEntity | null> {
     this.logger.debug(`🔍 Buscando rota ID=${id}`);

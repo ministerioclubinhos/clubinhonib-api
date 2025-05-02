@@ -12,11 +12,13 @@ import { DocumentRepository } from './document.repository';
 import { DataSource } from 'typeorm';
 import { RouteService } from 'src/route/route.service';
 import { RouteRepository } from 'src/route/route-page.repository';
+import { MeditationModule } from 'src/meditation/meditation.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([DocumentEntity]),
     MediaModule,
+    MeditationModule
   ],
   controllers: [DocumentsController],
   providers: [
