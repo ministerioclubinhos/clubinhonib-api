@@ -76,7 +76,7 @@ export class MeditationController {
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string): Promise<MeditationEntity> {
+  async findOne(@Param('id') id: string): Promise<WeekMeditationResponseDto> {
     this.logger.log(`🔍 [GET /meditations/${id}] Buscando meditação`);
     return this.getService.findOne(id);
   }
