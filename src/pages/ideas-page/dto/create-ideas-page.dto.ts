@@ -77,9 +77,10 @@ import {
   export class CreateIdeasPageDto {
     @IsString({ message: 'O campo "title" deve ser uma string.' })
     title: string;
-  
+    
+    @IsOptional()
     @IsString({ message: 'O campo "subtitle" deve ser uma string.' })
-    subtitle: string;
+    subtitle?: string;
   
     @IsString({ message: 'O campo "description" deve ser uma string.' })
     description: string;

@@ -120,7 +120,7 @@ export class IdeasPageResponseDto {
     return {
       id: page.id,
       title: page.title,
-      subtitle: page.subtitle,
+      subtitle: page.subtitle || '',
       description: page.description,
       public: page.public,
       createdAt: page.createdAt,

@@ -8,8 +8,8 @@ export class IdeasPageEntity extends BaseEntity {
   @Column({ length: 255 })
   title: string;
 
-  @Column({ length: 255 })
-  subtitle: string;
+  @Column({ length: 255, default: '' })
+  subtitle?: string;
 
   @Column('text')
   description: string;
