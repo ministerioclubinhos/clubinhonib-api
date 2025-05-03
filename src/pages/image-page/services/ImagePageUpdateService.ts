@@ -14,7 +14,7 @@ import { MediaItemProcessor } from 'src/share/media/media-item-processor';
 import { UpdateImagePageDto, UpdateSectionDto } from '../dto/update-image.dto';
 import { ImagePageResponseDto } from '../dto/image-page-response.dto';
 import { ImageSectionEntity } from '../entity/Image-section.entity';
-import { MediaItemEntity } from 'src/share/media/media-item/media-item.entity';
+import { MediaItemEntity, UploadType } from 'src/share/media/media-item/media-item.entity';
 import { ImagePageEntity } from '../entity/Image-page.entity';
 import { MediaItemDto } from 'src/share/share-dto/media-item-dto';
 import { MediaTargetType } from 'src/share/media/media-target-type.enum';
@@ -325,7 +325,8 @@ export class ImagePageUpdateService {
         this.logger.debug(`🔄 Iniciando upsert de mídia: ID=${mediaInput.id}, fieldKey="${mediaInput.fieldKey || 'não fornecido'}"`);
         this.logger.debug(`📋 Construindo base da mídia para targetId: ${targetId}`);
         const media = this.mediaItemProcessor.buildBaseMediaItem(mediaInput, targetId, 'ImagesPage');
-        if (mediaInput.isLocalFile && !mediaInput.id) {
+
+        if (mediaInput.isLocalFile && !mediaInput.id && mediaInput.uploadType === UploadType.UPLOAD) {
             this.logger.debug(`🔍 Verificando arquivo para upload: fieldKey=${mediaInput.fieldKey || mediaInput.url}`);
             const key = mediaInput.fieldKey ?? mediaInput.url;
             if (!key) {
@@ -343,7 +344,19 @@ export class ImagePageUpdateService {
             media.originalName = file.originalname;
             media.size = file.size;
             this.logger.debug(`✅ Upload concluído, URL: ${media.url}`);
+        } else {
+            media.title = mediaInput.title || media.title;
+            media.description = mediaInput.description || media.description;
+            media.uploadType = mediaInput.uploadType || media.uploadType;
+            media.platformType = mediaInput.platformType || media.platformType;
+            media.mediaType = mediaInput.mediaType || media.mediaType;
+            media.url = mediaInput.url?.trim() || media.url;
+            media.originalName = mediaInput.originalName || media.originalName;
+            media.isLocalFile = mediaInput.isLocalFile || media.isLocalFile;
+            media.size = mediaInput.size || media.size;
+            this.logger.debug(`🔗 Usando URL externa para imagem: "${media.url}"`);
         }
+
         this.logger.debug(`💾 Salvando mídia no banco`);
         const savedMedia = await queryRunner.manager.save(MediaItemEntity, { ...media, id: mediaInput.id });
         this.logger.debug(`✅ Mídia upsertada: ID=${savedMedia.id}`);

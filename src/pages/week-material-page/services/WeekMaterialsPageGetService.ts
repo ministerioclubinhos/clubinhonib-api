@@ -88,6 +88,7 @@ export class WeekMaterialsPageGetService {
       this.logger.debug(`🏁 Atualizando página ${weekPage.id} para currentWeek=true`);
       weekPage.currentWeek = true;
       weekPage.route.current = true;
+      weekPage.route.public = true;
 
       await this.repo.savePage(weekPage);
       this.logger.debug(`✅ Página ${weekPage.id} marcada como material da semana atual.`);
