@@ -6,5 +6,6 @@ export enum MediaTargetType {
   IdeasSection = 'IdeasSection',
   IdeasPage = 'IdeasPage',
   Document = 'Document',
-  Event='Event'
+  Event='Event',  
+  Informative='Informative'
 }

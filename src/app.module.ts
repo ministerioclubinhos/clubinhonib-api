@@ -14,6 +14,7 @@ import { EventModule } from './pages/event-page/event.module';
 import { CommentModule } from './comment/comment.module';
 import { DocumentModule } from './documents/documents.module';
 import { IdeasPageModule } from './pages/ideas-page/ideas-page.module';
+import { InformativeModule } from './informative/informative.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { IdeasPageModule } from './pages/ideas-page/ideas-page.module';
     CommentModule,
     DocumentModule,
     IdeasPageModule,
+    InformativeModule
   ],
 })
 export class AppModule {}
