@@ -1,4 +1,3 @@
-// contact.repository.ts
 import { Injectable } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
 import { ContactEntity } from './contact.entity';
@@ -13,4 +12,17 @@ export class ContactRepository extends Repository<ContactEntity> {
     const entity = this.create(data);
     return this.save(entity);
   }
+
+  async getAll(): Promise<ContactEntity[]> {
+    return this.find({
+      order: {        createdAt: 'DESC',      },
+    });
+  }
+
+  async findOneById(id: string): Promise<ContactEntity | null> {
+    return this.findOne({
+      where: { id },
+    });
+  }
+  
 }
