@@ -175,6 +175,7 @@ export class RouteService {
       entityId: string;
       type: RouteType;
       image?: string;
+      current?: boolean
     },
   ): Promise<RouteEntity> {
     const route = manager.create(RouteEntity, {

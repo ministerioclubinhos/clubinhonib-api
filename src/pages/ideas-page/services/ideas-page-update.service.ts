@@ -39,8 +39,6 @@ export class IdeasPageUpdateService {
     filesDict: Record<string, Express.Multer.File>,
   ): Promise<IdeasPageEntity> {
     this.logger.log(`🚀 Iniciando atualização da página de ideias com ID: ${id}`);
-    this.logger.debug(`📋 Dados recebidos: ${JSON.stringify(pageData, null, 2)}`);
-    this.logger.debug(`📂 Arquivos recebidos: ${Object.keys(filesDict).join(', ') || 'nenhum'}`);
     const queryRunner = this.dataSource.createQueryRunner();
     this.logger.debug('🔗 Conectando ao QueryRunner');
     await queryRunner.connect();

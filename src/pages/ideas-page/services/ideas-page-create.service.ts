@@ -109,7 +109,7 @@ export class IdeasPageCreateService {
       runner.manager,
       {
         title: dto.title,
-        subtitle: dto.subtitle,
+        subtitle: dto.subtitle || '',
         description: dto.description,
         path,
         type: RouteType.PAGE,

@@ -84,7 +84,7 @@ export class WeekMaterialsPageUpdateService {
         }
       }
 
-      const routeUpsert = await this.upsertRoute(existingRoute.id, { pageTitle, pageSubtitle, pageDescription }, existingPage.id);
+      const routeUpsert = await this.upsertRoute(existingRoute.id, { pageTitle, pageSubtitle, pageDescription }, existingPage.id, existingRoute.public, existingRoute.current || true);
 
       existingPage.title = pageTitle;
       existingPage.subtitle = pageSubtitle;
@@ -108,6 +108,8 @@ export class WeekMaterialsPageUpdateService {
     routeId: string,
     pageData: { pageTitle: string; pageSubtitle: string; pageDescription: string },
     weekMaterialsPageId: string,
+    existingRoutePublic: boolean,
+    existingRouteCurrent: boolean,
   ): Promise<RouteEntity> {
     this.logger.debug(`🔄 Iniciando upsert da rota ID: ${routeId}`);
     const routeData: Partial<RouteEntity> = {
@@ -117,7 +119,8 @@ export class WeekMaterialsPageUpdateService {
       idToFetch: weekMaterialsPageId,
       entityType: 'WeekMaterialsPage',
       entityId: weekMaterialsPageId,
-      public: false,
+      public: existingRoutePublic,
+      current: existingRouteCurrent,
       type: RouteType.PAGE,
       path: 'material_semanal_',
       image: 'https://clubinho-nib.s3.us-east-1.amazonaws.com/production/cards/card_materiais.png',
