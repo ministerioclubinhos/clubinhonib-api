@@ -18,6 +18,7 @@ import { CommentEntity } from 'src/comment/entity/comment.entity';
 import { DocumentEntity } from 'src/documents/entities/document.entity';
 import { IdeasSectionEntity } from 'src/pages/ideas-page/entities/ideas-section.entity';
 import { IdeasPageEntity } from 'src/pages/ideas-page/entities/ideas-page.entity';
+import { InformativeEntity } from 'src/informative/entities/informative.entity';
 ;
 
 @Module({
@@ -51,7 +52,9 @@ import { IdeasPageEntity } from 'src/pages/ideas-page/entities/ideas-page.entity
             ContactEntity,
             CommentEntity,
             DocumentEntity,
-            IdeasPageEntity, IdeasSectionEntity
+            IdeasPageEntity,
+            IdeasSectionEntity,
+            InformativeEntity
           ],
           synchronize: true,
         };

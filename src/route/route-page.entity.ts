@@ -4,7 +4,8 @@ import { Entity, Column } from 'typeorm';
 export enum RouteType {
   PAGE = 'page',
   DOC = 'doc',
-  IMAGE = 'image',
+  IMAGE = 'image',  
+  OTHER = 'other',
 }
 
 @Entity('routes')
@@ -12,7 +13,7 @@ export class RouteEntity extends BaseEntity {
   @Column()
   title: string;
 
-  @Column()
+  @Column({ type: 'text' })
   subtitle: string;
 
   @Column({ default: true })
