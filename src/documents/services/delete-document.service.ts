@@ -8,6 +8,8 @@ import {
 import { AwsS3Service } from 'src/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/share/media/media-item-processor';
 import { DocumentRepository } from '../document.repository';
+import { RouteService } from 'src/route/route.service';
+import { MediaTargetType } from 'src/share/media/media-target-type.enum';
 
 @Injectable()
 export class DeleteDocumentService {
@@ -17,8 +19,10 @@ export class DeleteDocumentService {
     @Inject(DocumentRepository)
     private readonly documentRepo: DocumentRepository,
     private readonly s3Service: AwsS3Service,
+    private readonly routeService: RouteService,
+
     private readonly mediaItemProcessor: MediaItemProcessor,
-  ) {}
+  ) { }
 
   async execute(id: string): Promise<void> {
     this.logger.log(`🗑️ [DELETE] Iniciando remoção do documento ID=${id}`);
@@ -37,6 +41,9 @@ export class DeleteDocumentService {
       }
 
       await this.documentRepo.remove(document);
+      await this.routeService.removeRouteByEntity(MediaTargetType.Document, id);
+      this.logger.log(`🛤️ Rota removida`);
+
       this.logger.log(`✅ Documento removido com sucesso: ID=${id}`);
     } catch (error) {
       this.logger.error(`❌ Erro ao remover documento ID=${id}`, error.stack);

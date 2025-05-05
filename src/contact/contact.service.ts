@@ -2,6 +2,7 @@ import {
   Injectable,
   Logger,
   InternalServerErrorException,
+  NotFoundException,
 } from '@nestjs/common';
 import { ContactRepository } from './contact.repository';
 import { AwsS3Service } from 'src/aws/aws-s3.service';
@@ -37,10 +38,10 @@ export class ContactService {
 
     const htmlBody = this.generateContactEmailTemplate(contact);
     const subject = 'Novo contato do site';
-    const to = process.env.SES_DEFAULT_TO ?? 'contato@rodolfo-silva.com';
+    const to = process.env.SES_DEFAULT_TO;
 
     try {
-      await this.awsService.sendEmailViaSES(to, subject, '', htmlBody);
+      await this.awsService.sendEmailViaSES(to || '', subject, '', htmlBody);
       this.logger.log(`📧 E-mail enviado com sucesso para: ${to}`);
     } catch (error) {
       this.logger.error(`❌ Erro ao enviar e-mail: ${error.message}`, error.stack);
@@ -53,11 +54,7 @@ export class ContactService {
     if (whatsappFrom && whatsappTo) {
       const message = this.generateWhatsappMessage(contact);
       try {
-        const result = await this.twilio.messages.create({
-          body: message,
-          from: whatsappFrom,
-          to: whatsappTo,
-        });
+        const result = await this.twilio.messages.create({ body: message, from: whatsappFrom, to: whatsappTo, });
         this.logger.log(`📲 WhatsApp enviado com sucesso! SID: ${result.sid}`);
       } catch (err) {
         this.logger.error(`❌ Erro ao enviar WhatsApp: ${err.message}`, err.stack);
@@ -130,5 +127,59 @@ ${contact.message}
         </tr>
       </table>
     `;
+  }
+
+  async getAllContacts(): Promise<ContactEntity[]> {
+    try {
+      this.logger.log('📥 Buscando todos os contatos...');
+      const contacts = await this.contactRepo.getAll();
+      this.logger.log(`✅ ${contacts.length} contato(s) encontrados`);
+      return contacts;
+    } catch (error) {
+      this.logger.error('❌ Erro ao buscar contatos', error.stack);
+      throw new InternalServerErrorException('Erro ao buscar contatos');
+    }
+  }
+
+  async setReadOnContact(id: string): Promise<ContactEntity> {
+    try {
+      this.logger.log('📥 Buscando contato...');
+      const contact = await this.contactRepo.findOneById(id);
+
+      if (!contact) {
+        this.logger.warn(`⚠️ Contato não encontrado com id: ${id}`);
+        throw new NotFoundException('Contato não encontrado');
+      }
+
+      contact.read = true;
+
+      this.logger.log(`📥 Atualizando contato...`);
+      await this.contactRepo.save(contact);
+
+      return contact;
+    } catch (error) {
+      this.logger.error('❌ Erro ao buscar ou atualizar contato', error.stack);
+      throw new InternalServerErrorException('Erro ao buscar ou atualizar contato');
+    }
+  }
+
+  async deleteContact(id: string): Promise<void> {
+    try {
+      this.logger.log(`🗑️ Iniciando exclusão do contato ID=${id}`);
+
+      const contact = await this.contactRepo.findOneById(id);
+
+      if (!contact) {
+        this.logger.warn(`⚠️ Contato não encontrado: ID=${id}`);
+        throw new NotFoundException('Contato não encontrado');
+      }
+
+      await this.contactRepo.remove(contact);
+
+      this.logger.log(`✅ Contato excluído com sucesso: ID=${id}`);
+    } catch (error) {
+      this.logger.error(`❌ Erro ao excluir contato ID=${id}`, error.stack);
+      throw new InternalServerErrorException('Erro ao excluir contato');
+    }
   }
 }
