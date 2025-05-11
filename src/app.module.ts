@@ -15,6 +15,7 @@ import { CommentModule } from './comment/comment.module';
 import { DocumentModule } from './documents/documents.module';
 import { IdeasPageModule } from './pages/ideas-page/ideas-page.module';
 import { InformativeModule } from './informative/informative.module';
+import { SseModule } from './see/sse.module';
 
 @Module({
   imports: [
@@ -33,7 +34,8 @@ import { InformativeModule } from './informative/informative.module';
     CommentModule,
     DocumentModule,
     IdeasPageModule,
-    InformativeModule
+    InformativeModule,
+    SseModule
   ],
 })
 export class AppModule {}
