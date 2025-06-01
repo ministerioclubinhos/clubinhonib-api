@@ -1,5 +1,6 @@
 import {
   IsArray,
+  IsBoolean,
   IsOptional,
   IsString,
   ValidateNested,
@@ -19,6 +20,9 @@ export class UpdateWeekMaterialsPageDto {
 
   @IsString({ message: 'O campo "pageDescription" da página deve ser uma string.' })
   pageDescription: string;
+  
+  @IsBoolean({ message: 'O campo "currentWeek" da página deve ser uma boolean.' })
+  currentWeek: boolean;
 
   @IsOptional()
   @IsArray({ message: 'O campo "videos" deve ser um array.' })
