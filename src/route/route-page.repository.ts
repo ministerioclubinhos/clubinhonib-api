@@ -9,7 +9,9 @@ export class RouteRepository extends Repository<RouteEntity> {
   }
 
   async findAllRoutes(): Promise<RouteEntity[]> {
-    return this.find();
+    return this.find({
+      order: { createdAt: 'ASC' },
+    });
   }
 
   async findById(id: string): Promise<RouteEntity | null> {
@@ -43,16 +45,10 @@ export class RouteRepository extends Repository<RouteEntity> {
   }
 
   async upsertRoute(routeId: string, updateData: Partial<RouteEntity>): Promise<RouteEntity> {
-    // Atualiza ou insere a rota com base no `id`
     const route = await this.save({
-      ...updateData,  // Propaga os dados de atualização
-      id: routeId,  // Garantimos que o ID será o fornecido
+      ...updateData,
+      id: routeId,
     });
-  
-    //this.logger.debug(`🛠️ Rota atualizada/criada com ID=${route.id}`);
-    
     return route;
-  }
-  
-  
+  }  
 }

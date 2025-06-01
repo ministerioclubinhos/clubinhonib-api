@@ -47,7 +47,7 @@ export class WeekMaterialsPageUpdateService {
       const existingImages = await this.validateImageMedia(existingPage.id);
       const existingAudios = await this.validateAudioMedia(existingPage.id);
 
-      const { pageTitle, pageSubtitle, pageDescription, videos, documents, images, audios } = dto;
+      const { pageTitle, pageSubtitle, pageDescription, videos, documents, images, audios, currentWeek } = dto;
       this.logger.debug(`📋 Dados extraídos: title="${pageTitle}", subtitle="${pageSubtitle}", vídeos=${videos?.length || 0}, documentos=${documents?.length || 0}, imagens=${images?.length || 0}, áudios=${audios?.length || 0}`);
 
       await this.deleteVideoMedia(existingVideos, videos);
@@ -84,11 +84,12 @@ export class WeekMaterialsPageUpdateService {
         }
       }
 
-      const routeUpsert = await this.upsertRoute(existingRoute.id, { pageTitle, pageSubtitle, pageDescription }, existingPage.id, existingRoute.public, existingRoute.current || true);
+      const routeUpsert = await this.upsertRoute(existingRoute.id, { pageTitle, pageSubtitle, pageDescription, currentWeek }, existingPage.id, existingRoute.public, existingRoute.current);
 
       existingPage.title = pageTitle;
       existingPage.subtitle = pageSubtitle;
       existingPage.description = pageDescription;
+      existingPage.currentWeek = currentWeek;
       existingPage.route = routeUpsert;
       const updatedPage = await queryRunner.manager.save(WeekMaterialsPageEntity, existingPage);
 
@@ -106,10 +107,10 @@ export class WeekMaterialsPageUpdateService {
 
   private async upsertRoute(
     routeId: string,
-    pageData: { pageTitle: string; pageSubtitle: string; pageDescription: string },
+    pageData: { pageTitle: string; pageSubtitle: string; pageDescription: string, currentWeek: boolean },
     weekMaterialsPageId: string,
     existingRoutePublic: boolean,
-    existingRouteCurrent: boolean,
+    existingRouteCurrent?: boolean,
   ): Promise<RouteEntity> {
     this.logger.debug(`🔄 Iniciando upsert da rota ID: ${routeId}`);
     const routeData: Partial<RouteEntity> = {
@@ -122,7 +123,7 @@ export class WeekMaterialsPageUpdateService {
       public: existingRoutePublic,
       current: existingRouteCurrent,
       type: RouteType.PAGE,
-      path: 'material_semanal_',
+      path: 'materiais_semanal_',
       image: 'https://clubinho-nib.s3.us-east-1.amazonaws.com/production/cards/card_materiais.png',
     };
     const savedRoute = await this.routeService.upsertRoute(routeId, routeData);
