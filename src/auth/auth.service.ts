@@ -32,41 +32,34 @@ export class AuthService {
   }
 
   async login({ email, password }: LoginDto) {
-    this.logger.debug(`🔐 Tentando login para: ${email}`);
+    this.logger.debug(`🔐 Login attempt for: ${email}`);
 
     const user = await this.authRepo.validateUser(email, password);
-    if (!user) {
-      this.logger.warn(`❗ Usuário não encontrado: ${email}`);
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      this.logger.warn(`❗ Invalid credentials for: ${email}`);
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const passwordValid = await bcrypt.compare(password, user.password);
-    if (!passwordValid) {
-      this.logger.warn(`❗ Senha inválida para: ${email}`);
-      throw new UnauthorizedException('Invalid credentials');
-    }
+    const tokens = this.generateTokens(user);
+    await this.userService.updateRefreshToken(user.id, tokens.refreshToken);
 
-    const { accessToken, refreshToken } = this.generateTokens(user);
-    await this.userService.updateRefreshToken(user.id, refreshToken);
-
-    this.logger.log(`✅ Login bem-sucedido: ${email}`);
+    this.logger.log(`✅ Successful login: ${email}`);
 
     return {
       message: 'Login successful',
       user: this.buildUserResponse(user),
-      accessToken,
-      refreshToken,
+      ...tokens,
     };
   }
 
   async refreshToken(token: string) {
     if (!token) {
-      this.logger.warn('❗ Refresh token não fornecido');
+      this.logger.warn('❗ Refresh token not provided');
       throw new UnauthorizedException('Refresh token is required');
     }
 
     try {
-      this.logger.debug('🔄 Tentando refresh token');
+      this.logger.debug('🔄 Attempting refresh token');
 
       const payload = this.jwtService.verify(token, {
         secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
@@ -74,35 +67,35 @@ export class AuthService {
 
       const user = await this.userService.findOne(payload.sub);
       if (!user || user.refreshToken !== token) {
-        this.logger.warn(`❗ Refresh token inválido para user ID: ${payload.sub}`);
+        this.logger.warn(`❗ Invalid refresh token for user ID: ${payload.sub}`);
         throw new UnauthorizedException('Invalid refresh token');
       }
 
-      const { accessToken, refreshToken: newRefreshToken } = this.generateTokens(user);
-      await this.userService.updateRefreshToken(user.id, newRefreshToken);
+      const tokens = this.generateTokens(user);
+      await this.userService.updateRefreshToken(user.id, tokens.refreshToken);
 
-      this.logger.log(`✅ Refresh token renovado para user ID: ${user.id}`);
+      this.logger.log(`✅ Refresh token renewed for user ID: ${user.id}`);
 
-      return { accessToken, refreshToken: newRefreshToken };
+      return tokens;
     } catch (error) {
-      this.logger.error('❌ Erro ao renovar refresh token', error.stack);
+      this.logger.error('❌ Error renewing refresh token', error.stack);
       throw new UnauthorizedException('Invalid refresh token');
     }
   }
 
   async logout(userId: string) {
-    this.logger.debug(`🚪 Logout para user ID: ${userId}`);
+    this.logger.debug(`🚪 Logout for user ID: ${userId}`);
     await this.userService.updateRefreshToken(userId, null);
-    this.logger.log(`✅ Logout concluído para user ID: ${userId}`);
+    this.logger.log(`✅ Logout completed for user ID: ${userId}`);
     return { message: 'User logged out' };
   }
 
   async getMe(userId: string): Promise<Partial<User>> {
-    this.logger.debug(`🔎 Buscando dados do user ID: ${userId}`);
+    this.logger.debug(`🔎 Fetching user data for ID: ${userId}`);
 
     const user = await this.userService.findOne(userId);
     if (!user) {
-      this.logger.warn(`❗ Usuário não encontrado: ${userId}`);
+      this.logger.warn(`❗ User not found: ${userId}`);
       throw new UnauthorizedException('User not found');
     }
 
