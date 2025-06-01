@@ -23,6 +23,7 @@ export class weekRouteResponseDTO {
   subtitle: string;
   description: string;
   type: RouteType;
+  public: boolean;
 }
 
 export class WeekMaterialsPageResponseDTO {
@@ -64,6 +65,7 @@ export class WeekMaterialsPageResponseDTO {
       subtitle: entity.route.subtitle,
       description: entity.route.description,
       type: entity.route.type,
+      public: entity.route.public,
     };
 
     const mapItem = (item: MediaItemEntity): weekMediaItemResponseDTO => {
