@@ -50,5 +50,5 @@ export class RouteRepository extends Repository<RouteEntity> {
       id: routeId,
     });
     return route;
-  }  
+  }
 }
