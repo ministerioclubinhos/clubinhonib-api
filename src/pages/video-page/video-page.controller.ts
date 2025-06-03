@@ -24,6 +24,7 @@ import { CreateVideosPageService } from './services/videos-page.create.service';
 import { UpdateVideosPageService } from './services/videos-page.update.service';
 import { GetVideosPageService } from './services/videos-page.get.service';
 import { DeleteVideosPageService } from './services/videos-page.delete.service';
+import { RoleGuard } from 'src/auth/guards/role-guard';
 
 @Controller('video-pages')
 export class VideosPageController {
@@ -36,14 +37,14 @@ export class VideosPageController {
     private readonly deleteService: DeleteVideosPageService,
   ) {}
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RoleGuard)
   @Post()
   @UseInterceptors(AnyFilesInterceptor())
   async create(
     @UploadedFiles() files: Express.Multer.File[],
     @Body('videosPageData') raw: string,
   ): Promise<VideosPageResponseDto> {
-    this.logger.debug('🚀 Recebendo requisição para criar uma nova página de vídeos');
+    this.logger.debug('📥 [POST /video-pages] Criando nova página de vídeos');
 
     try {
       const parsedData = JSON.parse(raw);
@@ -55,7 +56,7 @@ export class VideosPageController {
       });
 
       if (validationErrors.length > 0) {
-        this.logger.error('❌ Erros de validação no DTO:', JSON.stringify(validationErrors, null, 2));
+        this.logger.error('❌ Erros de validação:', JSON.stringify(validationErrors, null, 2));
         throw new BadRequestException('Dados inválidos na requisição');
       }
 
@@ -66,11 +67,12 @@ export class VideosPageController {
       this.logger.log(`✅ Página de vídeos criada com sucesso: ID=${result.id}`);
       return result;
     } catch (error) {
-      this.logger.error('Erro ao criar página de vídeos', error);
+      this.logger.error('❌ Erro ao criar página de vídeos', error);
       throw new BadRequestException('Erro ao criar a página de vídeos.');
     }
   }
 
+  @UseGuards(JwtAuthGuard, RoleGuard)
   @Patch(':id')
   @UseInterceptors(AnyFilesInterceptor())
   async update(
@@ -78,7 +80,7 @@ export class VideosPageController {
     @UploadedFiles() files: Express.Multer.File[],
     @Body('videosPageData') raw: string,
   ): Promise<VideosPageResponseDto> {
-    this.logger.debug(`🚀 Recebendo requisição para atualizar página de vídeos com ID: ${id}`);
+    this.logger.debug(`✏️ [PATCH /video-pages/${id}] Atualizando página de vídeos`);
 
     try {
       const parsedData = JSON.parse(raw);
@@ -90,7 +92,7 @@ export class VideosPageController {
       });
 
       if (validationErrors.length > 0) {
-        this.logger.error('❌ Erros de validação no DTO:', JSON.stringify(validationErrors, null, 2));
+        this.logger.error('❌ Erros de validação:', JSON.stringify(validationErrors, null, 2));
         throw new BadRequestException('Dados inválidos na requisição');
       }
 
@@ -101,29 +103,35 @@ export class VideosPageController {
       this.logger.log(`✅ Página de vídeos atualizada com sucesso: ID=${result.id}`);
       return result;
     } catch (error) {
-      this.logger.error('Erro ao atualizar página de vídeos', error);
+      this.logger.error('❌ Erro ao atualizar página de vídeos', error);
       throw new BadRequestException('Erro ao atualizar a página de vídeos.');
     }
   }
 
   @Get()
   async findAll(): Promise<VideosPageResponseDto[]> {
+    this.logger.debug('📄 [GET /video-pages] Listando todas as páginas de vídeos');
     return this.getService.findAll();
   }
 
   @Get(':id')
   async findOne(@Param('id') id: string): Promise<VideosPageResponseDto> {
+    this.logger.debug(`🔍 [GET /video-pages/${id}] Buscando página de vídeos`);
     try {
       return await this.getService.findOne(id);
     } catch (err) {
       if (err instanceof NotFoundException) throw err;
+      this.logger.error('❌ Erro ao buscar página de vídeos', err);
       throw new BadRequestException('Erro ao buscar página de vídeos.');
     }
   }
 
+  @UseGuards(JwtAuthGuard, RoleGuard)
   @Delete(':id')
   async remove(@Param('id') id: string): Promise<{ message: string }> {
+    this.logger.debug(`🗑️ [DELETE /video-pages/${id}] Removendo página de vídeos`);
     await this.deleteService.execute(id);
+    this.logger.log(`✅ Página de vídeos removida com sucesso: ID=${id}`);
     return { message: 'Página de vídeos removida com sucesso' };
   }
 }
