@@ -33,12 +33,4 @@ export class RouteController {
     }
     return route;
   }
-
-  @UseGuards(JwtAuthGuard)
-  @Delete(':id')
-  async removeRoute(@Param('id') id: string) {
-    await this.routeService.removeRoute(id);
-    this.logger.log(`🗑️ Rota ID=${id} removida`);
-    return { message: `Rota ID=${id} removida com sucesso` };
-  }
 }

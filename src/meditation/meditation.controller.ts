@@ -11,6 +11,7 @@ import {
   UseInterceptors,
   BadRequestException,
   Logger,
+  UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { plainToInstance } from 'class-transformer';
@@ -26,6 +27,9 @@ import { UpdateMeditationDto } from './dto/update-meditation.dto';
 import { MeditationEntity } from './entities/meditation.entity';
 import { WeekMeditationResponseDto } from './dto/meditation-response-dto';
 
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { RoleGuard } from 'src/auth/guards/role-guard';
+
 @Controller('meditations')
 export class MeditationController {
   private readonly logger = new Logger(MeditationController.name);
@@ -37,6 +41,7 @@ export class MeditationController {
     private readonly getService: GetMeditationService,
   ) {}
 
+  @UseGuards(JwtAuthGuard, RoleGuard)
   @Post()
   @UseInterceptors(FileInterceptor('file'))
   async create(
@@ -81,6 +86,7 @@ export class MeditationController {
     return this.getService.findOne(id);
   }
 
+  @UseGuards(JwtAuthGuard, RoleGuard)
   @Patch(':id')
   @UseInterceptors(FileInterceptor('file'))
   async update(
@@ -113,6 +119,7 @@ export class MeditationController {
     return result;
   }
 
+  @UseGuards(JwtAuthGuard, RoleGuard)
   @Delete(':id')
   @HttpCode(204)
   async remove(@Param('id') id: string): Promise<void> {

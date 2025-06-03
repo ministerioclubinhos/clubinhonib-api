@@ -11,6 +11,7 @@ import {
   HttpCode,
   Logger,
   BadRequestException,
+  UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { plainToInstance } from 'class-transformer';
@@ -24,6 +25,9 @@ import { DeleteEventService } from './services/delete-event-service';
 import { GetEventService } from './services/get-event-service';
 import { EventResponseDto } from './dto/event-response-dto';
 
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { RoleGuard } from 'src/auth/guards/role-guard';
+
 @Controller('events')
 export class EventController {
   private readonly logger = new Logger(EventController.name);
@@ -35,6 +39,7 @@ export class EventController {
     private readonly getService: GetEventService,
   ) {}
 
+  @UseGuards(JwtAuthGuard, RoleGuard)
   @Post()
   @UseInterceptors(FileInterceptor('file'))
   async create(
@@ -79,6 +84,7 @@ export class EventController {
     return this.getService.findOne(id);
   }
 
+  @UseGuards(JwtAuthGuard, RoleGuard)
   @Patch(':id')
   @UseInterceptors(FileInterceptor('file'))
   async update(
@@ -111,6 +117,7 @@ export class EventController {
     return result;
   }
 
+  @UseGuards(JwtAuthGuard, RoleGuard)
   @Delete(':id')
   @HttpCode(204)
   async remove(@Param('id') id: string): Promise<void> {
