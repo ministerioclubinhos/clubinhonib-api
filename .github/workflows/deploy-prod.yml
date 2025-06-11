@@ -94,4 +94,5 @@ jobs:
             -e TWILIO_AUTH_TOKEN=${{ secrets.PROD_TWILIO_AUTH_TOKEN }} \
             -e TWILIO_WHATSAPP_FROM=${{ secrets.PROD_TWILIO_WHATSAPP_FROM }} \
             -e TWILIO_WHATSAPP_TO=${{ secrets.PROD_TWILIO_WHATSAPP_TO }} \
+            -e FEED_CLUBINHO_PAGE_ID=${{ secrets.PROD_FEED_CLUBINHO_PAGE_ID }} \
             --name clubinho-api diegoseven/clubinho-api:prod

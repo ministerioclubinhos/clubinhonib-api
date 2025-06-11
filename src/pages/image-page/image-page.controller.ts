@@ -12,6 +12,7 @@ import {
   Logger,
   UseGuards,
   NotFoundException,
+  Query,
 } from '@nestjs/common';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
@@ -25,6 +26,7 @@ import { ImagePageUpdateService } from './services/ImagePageUpdateService';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { RoleGuard } from 'src/auth/guards/role-guard';
+import { PaginatedImageSectionResponseDto } from './dto/paginated-image-section.dto';
 
 @Controller('image-pages')
 export class ImageController {
@@ -35,7 +37,7 @@ export class ImageController {
     private readonly deleteService: ImagePageDeleteService,
     private readonly getService: ImagePageGetService,
     private readonly updateService: ImagePageUpdateService,
-  ) {}
+  ) { }
 
   @UseGuards(JwtAuthGuard, RoleGuard)
   @Post()
@@ -91,6 +93,20 @@ export class ImageController {
   @Get()
   async findAll(): Promise<ImagePageResponseDto[]> {
     return this.getService.findAll();
+  }
+
+  @Get(':id/sections')
+  async getPaginatedSections(
+    @Param('id') pageId: string,
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '2',
+  ): Promise<PaginatedImageSectionResponseDto> {
+    const pageNumber = Number(page);
+    const limitNumber = Number(limit);
+
+    this.logger.debug(`📥 Requisição recebida para seções paginadas — pageId=${pageId}, page=${pageNumber}, limit=${limitNumber}`);
+
+    return this.getService.findSectionsPaginated(pageId, pageNumber, limitNumber);
   }
 
   @Get(':id')
