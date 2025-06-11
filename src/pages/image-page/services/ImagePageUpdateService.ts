@@ -9,7 +9,7 @@ import { AwsS3Service } from 'src/aws/aws-s3.service';
 import { RouteService } from 'src/route/route.service';
 import { RouteEntity, RouteType } from 'src/route/route-page.entity';
 import { ImagePageRepository } from '../repository/image-page.repository';
-import { ImageSectionRepository } from '../repository/image-section.repository';
+import { ImageSectionRepository } from '../../image-section/repository/image-section.repository';
 import { MediaItemProcessor } from 'src/share/media/media-item-processor';
 import { UpdateImagePageDto, UpdateSectionDto } from '../dto/update-image.dto';
 import { ImagePageResponseDto } from '../dto/image-page-response.dto';

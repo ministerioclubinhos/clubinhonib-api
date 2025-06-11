@@ -7,6 +7,8 @@ import { MediaItemProcessor } from 'src/share/media/media-item-processor';
 import { MediaItemEntity } from 'src/share/media/media-item/media-item.entity';
 import { ImagePageRepository } from '../repository/image-page.repository';
 import { ImagePageResponseDto } from '../dto/image-page-response.dto';
+import { PaginatedImageSectionResponseDto } from '../dto/paginated-image-section.dto';
+import { ImageSectionRepository } from 'src/pages/image-section/repository/image-section.repository';
 
 @Injectable()
 export class ImagePageGetService {
@@ -14,6 +16,7 @@ export class ImagePageGetService {
 
     constructor(
         private readonly imagePageRepository: ImagePageRepository,
+        private readonly sectionRepository: ImageSectionRepository,
         private readonly mediaItemProcessor: MediaItemProcessor,
     ) {
         this.logger.debug('🛠️ ImagePageGetService inicializado');
@@ -75,5 +78,55 @@ export class ImagePageGetService {
         const result = ImagePageResponseDto.fromEntity(page, mediaMap);
         this.logger.log(`✅ Página de imagens retornada com sucesso: ID=${id}`);
         return result;
+    }
+
+    async findSectionsPaginated(
+        pageId: string,
+        page: number,
+        limit: number,
+    ): Promise<PaginatedImageSectionResponseDto> {
+        const offset = (page - 1) * limit;
+
+        this.logger.debug(`🔄 Buscando seções paginadas: pageId=${pageId}, page=${page}, limit=${limit}`);
+
+        const imagePage = await this.imagePageRepository.findById(pageId);
+        if (!imagePage) {
+            this.logger.warn(`⚠️ Página com ID ${pageId} não encontrada`);
+            throw new NotFoundException(`Página de galeria com ID ${pageId} não encontrada.`);
+        }
+
+        const [sections, total] = await this.sectionRepository.findAndCount({
+            where: { page: { id: pageId } },
+            order: { createdAt: 'DESC' },
+            skip: offset,
+            take: limit,
+        });
+
+        const sectionIds = sections.map(section => section.id);
+        const mediaItems = await this.mediaItemProcessor.findManyMediaItemsByTargets(sectionIds, 'ImagesPage');
+        const mediaMap = this.groupMediaBySectionId(mediaItems);
+
+        return PaginatedImageSectionResponseDto.fromEntities(
+            imagePage,
+            sections,
+            mediaMap,
+            page,
+            limit,
+            total,
+        );
+    }
+
+
+    private groupMediaBySectionId(mediaItems: MediaItemEntity[]): Map<string, MediaItemEntity[]> {
+        const map = new Map<string, MediaItemEntity[]>();
+
+        for (const item of mediaItems) {
+            if (!map.has(item.targetId)) {
+                map.set(item.targetId, []);
+            }
+            map.get(item.targetId)!.push(item);
+        }
+
+        return map;
     }
 }
