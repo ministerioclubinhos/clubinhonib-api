@@ -11,7 +11,14 @@ export class ImagePageRepository extends Repository<ImagePageEntity> {
   async findByIdWithSections(id: string): Promise<ImagePageEntity | null> {
     return this.findOne({
       where: { id },
+      order: { createdAt: 'ASC' },
       relations: ['sections'],
+    });
+  }
+
+    async findById(id: string): Promise<ImagePageEntity | null> {
+    return this.findOne({
+      where: { id },
     });
   }
 

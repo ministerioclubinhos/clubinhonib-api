@@ -14,6 +14,6 @@ export class ImageSectionEntity extends BaseEntity {
   @Column({ default: true })
   public: boolean;
 
-  @ManyToOne(() => ImagePageEntity, (page) => page.sections, { onDelete: 'CASCADE' })
-  page: ImagePageEntity;
+  @ManyToOne(() => ImagePageEntity, (page) => page.sections, { onDelete: 'CASCADE', nullable: true })
+  page?: ImagePageEntity | null;
 }
