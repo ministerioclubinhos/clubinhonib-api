@@ -1,6 +1,8 @@
-import { Body, Controller, Post, Get, Patch, Param, Logger, Delete } from '@nestjs/common';
+import { Body, Controller, Post, Get, Patch, Param, Logger, Delete, UseGuards } from '@nestjs/common';
 import { ContactService } from './contact.service';
 import { ContactEntity } from './contact.entity';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { RoleGuard } from 'src/auth/guards/role-guard';
 
 @Controller('contact')
 export class ContactController {
@@ -22,6 +24,7 @@ export class ContactController {
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard, RoleGuard)
   async getAll(): Promise<ContactEntity[]> {
     this.logger.debug('📥 Requisição para listar todos os contatos');
     const contacts = await this.contactService.getAllContacts();
@@ -30,6 +33,7 @@ export class ContactController {
   }
 
   @Patch(':id/read')
+  @UseGuards(JwtAuthGuard, RoleGuard)
   async setRead(@Param('id') id: string): Promise<ContactEntity> {
     this.logger.debug(`📥 Marcando contato como lido: ID=${id}`);
     const contact = await this.contactService.setReadOnContact(id);
@@ -38,6 +42,7 @@ export class ContactController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, RoleGuard)
   async delete(@Param('id') id: string): Promise<void> {
     this.logger.debug(`🗑️ Requisição para deletar contato ID=${id}`);
     await this.contactService.deleteContact(id);
