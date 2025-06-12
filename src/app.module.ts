@@ -16,6 +16,7 @@ import { DocumentModule } from './documents/documents.module';
 import { IdeasPageModule } from './pages/ideas-page/ideas-page.module';
 import { InformativeModule } from './informative/informative.module';
 import { ImageSectionModule } from './pages/image-section/image-section.module';
+import { SiteFeedbackModule } from './feedback/site-feedback.module';
 
 @Module({
   imports: [
@@ -35,7 +36,8 @@ import { ImageSectionModule } from './pages/image-section/image-section.module';
     DocumentModule,
     IdeasPageModule,
     InformativeModule,
-    ImageSectionModule
+    ImageSectionModule,
+    SiteFeedbackModule
   ],
 })
-export class AppModule {}
+export class AppModule { }
