@@ -39,7 +39,7 @@ export class MeditationController {
     private readonly updateService: UpdateMeditationService,
     private readonly deleteService: DeleteMeditationService,
     private readonly getService: GetMeditationService,
-  ) {}
+  ) { }
 
   @UseGuards(JwtAuthGuard, RoleGuard)
   @Post()
@@ -69,18 +69,21 @@ export class MeditationController {
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard)
   async findAll(): Promise<WeekMeditationResponseDto[]> {
     this.logger.log('📦 [GET /meditations] Listando todas as meditações');
     return this.getService.findAll();
   }
 
   @Get('/this-week')
+  @UseGuards(JwtAuthGuard)
   async getThisWeek(): Promise<WeekMeditationResponseDto> {
     this.logger.log('📆 [GET /meditations/this-week] Buscando meditação da semana');
     return this.getService.getThisWeekMeditation();
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard)
   async findOne(@Param('id') id: string): Promise<WeekMeditationResponseDto> {
     this.logger.log(`🔍 [GET /meditations/${id}] Buscando meditação`);
     return this.getService.findOne(id);

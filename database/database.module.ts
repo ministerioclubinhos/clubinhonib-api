@@ -19,6 +19,7 @@ import { DocumentEntity } from 'src/documents/entities/document.entity';
 import { IdeasSectionEntity } from 'src/pages/ideas-page/entities/ideas-section.entity';
 import { IdeasPageEntity } from 'src/pages/ideas-page/entities/ideas-page.entity';
 import { InformativeEntity } from 'src/informative/entities/informative.entity';
+import { SiteFeedbackEntity } from 'src/feedback/entity/site-feedback.entity';
 ;
 
 @Module({
@@ -54,7 +55,8 @@ import { InformativeEntity } from 'src/informative/entities/informative.entity';
             DocumentEntity,
             IdeasPageEntity,
             IdeasSectionEntity,
-            InformativeEntity
+            InformativeEntity,
+            SiteFeedbackEntity
           ],
           synchronize: true,
         };
