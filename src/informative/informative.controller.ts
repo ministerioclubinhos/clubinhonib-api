@@ -30,7 +30,7 @@ export class InformativeController {
     private readonly getService: GetInformativeService,
     private readonly updateService: UpdateInformativeService,
     private readonly deleteService: DeleteInformativeService,
-  ) {}
+  ) { }
 
   @UseGuards(JwtAuthGuard, RoleGuard)
   @Post()
@@ -42,6 +42,7 @@ export class InformativeController {
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard)
   async findOne(@Param('id') id: string): Promise<InformativeResponseDto> {
     this.logger.log(`🔎 [GET /informatives/${id}] Buscando banner`);
     const found = await this.getService.findOne(id);
@@ -75,6 +76,7 @@ export class InformativeController {
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard)
   async findAll(): Promise<InformativeResponseDto[]> {
     this.logger.log('📄 [GET /informatives] Listando todos os banners');
     return this.getService.findAll();

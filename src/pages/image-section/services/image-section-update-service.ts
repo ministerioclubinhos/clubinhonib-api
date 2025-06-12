@@ -27,7 +27,7 @@ export class ImageSectionUpdateService {
     private readonly mediaItemProcessor: MediaItemProcessor,
     private readonly sectionRepo: ImageSectionRepository,
     private readonly pageRepo: ImagePageRepository,
-  ) {}
+  ) { }
 
   async updateSection(
     id: string,
@@ -51,19 +51,18 @@ export class ImageSectionUpdateService {
         throw new NotFoundException('Página padrão não encontrada');
       }
 
-      section.caption = dto.caption;
-      section.description = dto.description;
-      section.public = dto.public || false; // Define public como false se não for fornecido
-      section.page = page;
-      const savedSection = await queryRunner.manager.save(section);
-
       const existingMedia = await this.mediaItemProcessor.findManyMediaItemsByTargets(
         [section.id],
         MediaTargetType.ImagesPage,
       );
 
       await this.deleteObsoleteMedia(existingMedia, dto.mediaItems, queryRunner);
-      const processedMedia = await this.processMedia(dto.mediaItems, section.id, existingMedia, filesDict, queryRunner);
+      const processedMedia = await this.processMedia(dto.mediaItems, section.id, filesDict, queryRunner);
+      section.caption = dto.caption;
+      section.description = dto.description;
+      section.public = dto.public || false;
+      section.page = page;
+      const savedSection = await queryRunner.manager.save(section);
 
       await queryRunner.commitTransaction();
       return ImageSectionResponseDto.fromEntity(savedSection, processedMedia);
@@ -80,22 +79,20 @@ export class ImageSectionUpdateService {
     existingMedia: MediaItemEntity[],
     incomingMedia: MediaItemDto[],
     queryRunner: QueryRunner,
-  ) {
+  ): Promise<void> {
     const incomingIds = incomingMedia.map(m => m.id).filter((id): id is string => !!id);
     const toRemove = existingMedia.filter(m => !incomingIds.includes(m.id));
 
-    for (const media of toRemove) {
-      if (media.isLocalFile && media.url) {
-        await this.awsS3Service.delete(media.url);
-      }
-      await queryRunner.manager.remove(MediaItemEntity, media);
+    if (toRemove.length > 0) {
+      await this.mediaItemProcessor.deleteMediaItems(toRemove, async (url) => {
+        await this.awsS3Service.delete(url);
+      });
     }
   }
 
   private async processMedia(
     mediaItems: MediaItemDto[],
     sectionId: string,
-    existingMedia: MediaItemEntity[],
     filesDict: Record<string, Express.Multer.File>,
     queryRunner: QueryRunner,
   ): Promise<MediaItemEntity[]> {
@@ -127,7 +124,9 @@ export class ImageSectionUpdateService {
 
     if (mediaInput.uploadType === UploadType.UPLOAD && mediaInput.isLocalFile) {
       const file = filesDict[mediaInput.fieldKey ?? ''];
-      if (!file) throw new BadRequestException('Arquivo não encontrado para upload');
+      if (!file) {
+        throw new BadRequestException('Arquivo não encontrado para upload');
+      }
       media.url = await this.awsS3Service.upload(file);
       media.isLocalFile = true;
       media.originalName = file.originalname;
@@ -137,7 +136,7 @@ export class ImageSectionUpdateService {
       media.isLocalFile = false;
     }
 
-    return await queryRunner.manager.save(MediaItemEntity, media);
+    return await this.mediaItemProcessor.saveMediaItem(media);
   }
 
   private async upsertMedia(
@@ -146,32 +145,37 @@ export class ImageSectionUpdateService {
     filesDict: Record<string, Express.Multer.File>,
     queryRunner: QueryRunner,
   ): Promise<MediaItemEntity> {
-    const existingMedia = await queryRunner.manager.findOneBy(MediaItemEntity, { id: mediaInput.id });
-    if (!existingMedia) throw new NotFoundException(`Mídia com id=${mediaInput.id} não encontrada.`);
 
-    const media = this.mediaItemProcessor.buildBaseMediaItem(
+    const existingMedia = await queryRunner.manager.findOneBy(MediaItemEntity, { id: mediaInput.id });
+    if (!existingMedia) {
+      throw new NotFoundException(`Mídia com id=${mediaInput.id} não encontrada`);
+    }
+
+    const updatedMedia = this.mediaItemProcessor.buildBaseMediaItem(
       mediaInput,
       sectionId,
       MediaTargetType.ImagesPage,
     );
+    updatedMedia.id = existingMedia.id;
+
     if (mediaInput.uploadType === UploadType.UPLOAD && mediaInput.isLocalFile) {
       const file = filesDict[mediaInput.fieldKey ?? ''];
       if (file) {
-        media.url = await this.awsS3Service.upload(file);
-        media.isLocalFile = true;
-        media.originalName = file.originalname;
-        media.size = file.size;
+        updatedMedia.url = await this.awsS3Service.upload(file);
+        updatedMedia.isLocalFile = true;
+        updatedMedia.originalName = file.originalname;
+        updatedMedia.size = file.size;
       } else {
-        media.url = existingMedia.url;
-        media.isLocalFile = existingMedia.isLocalFile;
-        media.originalName = existingMedia.originalName;
-        media.size = existingMedia.size;
+        updatedMedia.url = existingMedia.url;
+        updatedMedia.isLocalFile = existingMedia.isLocalFile;
+        updatedMedia.originalName = existingMedia.originalName;
+        updatedMedia.size = existingMedia.size;
       }
     } else {
-      media.url = mediaInput.url?.trim() || '';
-      media.isLocalFile = false;
+      updatedMedia.url = mediaInput.url?.trim() || existingMedia.url;
+      updatedMedia.isLocalFile = false;
     }
 
-    return await queryRunner.manager.save(MediaItemEntity, media);
+    return await this.mediaItemProcessor.upsertMediaItem(mediaInput.id, updatedMedia);
   }
 }
