@@ -15,7 +15,19 @@ export class User extends BaseEntity {
   password: string;
 
   @Column()
+  phone: string;
+
+  @Column()
   name: string;
+
+  @Column({ type: 'boolean', default: false })
+  active: boolean;
+
+  @Column({ type: 'boolean', default: false })
+  completed: boolean;
+
+  @Column({ type: 'boolean', default: true })
+  commonUser: boolean;
 
   @Column({ type: 'enum', enum: UserRole, default: UserRole.USER })
   role: UserRole;
