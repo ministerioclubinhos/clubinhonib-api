@@ -7,7 +7,7 @@ import { DayEntity } from 'src/meditation/entities/day.entity';
 import { ImagePageEntity } from 'src/pages/image-page/entity/Image-page.entity';
 import { ImageSectionEntity } from 'src/pages/image-page/entity/Image-section.entity';
 import { RouteEntity } from 'src/route/route-page.entity';
-import { User } from 'src/user/user.entity';
+import { UserEntity } from 'src/user/user.entity';
 import { VideosPage } from 'src/pages/video-page/entities/video-page.entity';
 
 import { WeekMaterialsPageEntity } from 'src/pages/week-material-page/entities/week-material-page.entity';
@@ -20,6 +20,10 @@ import { IdeasSectionEntity } from 'src/pages/ideas-page/entities/ideas-section.
 import { IdeasPageEntity } from 'src/pages/ideas-page/entities/ideas-page.entity';
 import { InformativeEntity } from 'src/informative/entities/informative.entity';
 import { SiteFeedbackEntity } from 'src/feedback/entity/site-feedback.entity';
+import { ClubEntity } from 'src/modules/clubs/entities/club.entity/club.entity';
+import { TeacherProfileEntity } from 'src/modules/teacher-profiles/entities/teacher-profile.entity/teacher-profile.entity';
+import { CoordinatorProfileEntity } from 'src/modules/coordinator-profiles/entities/coordinator-profile.entity/coordinator-profile.entity';
+import { AddressEntity } from 'src/modules/addresses/entities/address.entity/address.entity';
 ;
 
 @Module({
@@ -44,7 +48,7 @@ import { SiteFeedbackEntity } from 'src/feedback/entity/site-feedback.entity';
             ImagePageEntity,
             ImageSectionEntity,
             RouteEntity,
-            User,
+            UserEntity,
             VideosPage,
             WeekMaterialsPageEntity,
             MeditationEntity,
@@ -56,7 +60,12 @@ import { SiteFeedbackEntity } from 'src/feedback/entity/site-feedback.entity';
             IdeasPageEntity,
             IdeasSectionEntity,
             InformativeEntity,
-            SiteFeedbackEntity
+            SiteFeedbackEntity,
+            ClubEntity,
+            TeacherProfileEntity,
+            CoordinatorProfileEntity,
+            AddressEntity
+            
           ],
           synchronize: true,
         };
