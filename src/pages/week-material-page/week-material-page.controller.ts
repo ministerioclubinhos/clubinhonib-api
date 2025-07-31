@@ -26,7 +26,7 @@ import { UpdateWeekMaterialsPageDto } from './dto/update-week-material.dto';
 import { CreateWeekMaterialsPageDto } from './dto/create-week-material.dto';
 
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
-import { RoleGuard } from 'src/auth/guards/role-guard';
+import { AdminRoleGuard } from 'src/auth/guards/role-guard';
 
 @Controller('week-material-pages')
 export class WeekMaterialsPageController {
@@ -39,7 +39,7 @@ export class WeekMaterialsPageController {
     private readonly getService: WeekMaterialsPageGetService,
   ) {}
 
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Post()
   @UseInterceptors(AnyFilesInterceptor())
   async create(
@@ -68,7 +68,7 @@ export class WeekMaterialsPageController {
     }
   }
 
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Patch(':id')
   @UseInterceptors(AnyFilesInterceptor())
   async update(
@@ -98,7 +98,7 @@ export class WeekMaterialsPageController {
     }
   }
 
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Delete(':id')
   async remove(@Param('id') id: string): Promise<void> {
     this.logger.debug(`🗑️ [DELETE /week-material-pages/${id}] Removendo página de materiais`);
@@ -129,7 +129,7 @@ export class WeekMaterialsPageController {
     return this.getService.findPageWithMedia(id);
   }
 
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Post('/current-week/:id')
   async setCurrentWeek(@Param('id') id: string): Promise<any> {
     this.logger.debug(`📌 [POST /week-material-pages/current-week/${id}] Definindo página atual`);

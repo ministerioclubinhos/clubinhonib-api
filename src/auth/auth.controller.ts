@@ -1,7 +1,9 @@
 import { Controller, Post, Body, Request, UseGuards, Get } from '@nestjs/common';
-import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { RegisterUserDto } from './dto/register.dto';
+import { CompleteUserDto } from './dto/complete-register.dto';
+import { AuthService } from './services/auth.service';
 
 @Controller('auth')
 export class AuthController {
@@ -10,6 +12,11 @@ export class AuthController {
   @Post('login')
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  @Post('google')
+  googleLogin(@Body() body: { token: string }) {
+    return this.authService.googleLogin(body.token);
   }
 
   @Post('refresh')
@@ -27,5 +34,15 @@ export class AuthController {
   @Get('me')
   getMe(@Request() req) {
     return this.authService.getMe(req.user.userId);
+  }
+
+  @Post('complete-register')
+  async completeRegister(@Body() data: CompleteUserDto) {
+    return this.authService.completeRegister(data);
+  }
+
+  @Post('register')
+  async register(@Body() data: RegisterUserDto) {
+    return this.authService.register(data);
   }
 }

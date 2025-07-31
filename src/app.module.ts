@@ -17,6 +17,12 @@ import { IdeasPageModule } from './pages/ideas-page/ideas-page.module';
 import { InformativeModule } from './informative/informative.module';
 import { ImageSectionModule } from './pages/image-section/image-section.module';
 import { SiteFeedbackModule } from './feedback/site-feedback.module';
+import { AddressesModule } from './modules/addresses/addresses.module';
+import { CoordinatorProfilesModule } from './modules/coordinator-profiles/coordinator-profiles.module';
+import { TeacherProfilesModule } from './modules/teacher-profiles/teacher-profiles.module';
+import { ClubsModule } from './modules/clubs/clubs.module';
+import { ChildrenModule } from './modules/children/children.module';
+import { PagelasModule } from './modules/pagelas/pagelas.module';
 
 @Module({
   imports: [
@@ -37,7 +43,13 @@ import { SiteFeedbackModule } from './feedback/site-feedback.module';
     IdeasPageModule,
     InformativeModule,
     ImageSectionModule,
-    SiteFeedbackModule
+    SiteFeedbackModule,
+    AddressesModule,
+    CoordinatorProfilesModule,
+    TeacherProfilesModule,
+    ClubsModule,
+    ChildrenModule,
+    PagelasModule
   ],
 })
 export class AppModule { }

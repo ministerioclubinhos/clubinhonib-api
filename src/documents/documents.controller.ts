@@ -26,7 +26,7 @@ import { GetDocumentService } from './services/get-document.service';
 import { DeleteDocumentService } from './services/delete-document.service';
 
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
-import { RoleGuard } from 'src/auth/guards/role-guard';
+import { AdminRoleGuard } from 'src/auth/guards/role-guard';
 
 @Controller('documents')
 export class DocumentsController {
@@ -39,7 +39,7 @@ export class DocumentsController {
     private readonly deleteService: DeleteDocumentService,
   ) {}
 
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Post()
   @UseInterceptors(AnyFilesInterceptor())
   async create(
@@ -88,7 +88,7 @@ export class DocumentsController {
     return this.getService.findOne(id);
   }
 
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Patch(':id')
   @UseInterceptors(AnyFilesInterceptor())
   async update(
@@ -127,7 +127,7 @@ export class DocumentsController {
     return result;
   }
 
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Delete(':id')
   async remove(@Param('id', ParseUUIDPipe) id: string) {
     this.logger.log(`🗑️ [DELETE /documents/${id}] Removendo documento`);

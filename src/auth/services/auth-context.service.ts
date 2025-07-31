@@ -1,0 +1,117 @@
+// src/modules/auth/auth-context.service.ts
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Request } from 'express';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { JwtPayload, RoleUser } from '../auth.types';
+
+@Injectable()
+export class AuthContextService {
+  constructor(
+    private readonly jwt: JwtService,
+    private readonly config: ConfigService,
+  ) {}
+
+  /** Lê o token do request (Authorization, cookies ou query). */
+  getTokenFromRequest(req: Request): string | null {
+    const auth = req.headers['authorization'] || req.headers['Authorization'];
+    if (typeof auth === 'string') {
+      const [scheme, token] = auth.split(' ');
+      if (scheme?.toLowerCase() === 'bearer' && token) return token.trim();
+    }
+
+    // cookies comuns
+    const cookies = (req as any).cookies || {};
+    if (cookies['access_token']) return String(cookies['access_token']);
+    if (cookies['auth_token']) return String(cookies['auth_token']);
+
+    // fallback via query string (ex.: /route?access_token=xxx)
+    const q: any = (req as any).query || {};
+    if (q['access_token']) return String(q['access_token']);
+
+    return null;
+    }
+
+  /** Verifica e decodifica o token. Lança em caso de inválido/expirado. */
+  async verifyToken(token: string): Promise<JwtPayload> {
+    const secret =
+      this.config.get<string>('JWT_SECRET') ??
+      process.env.JWT_SECRET ??
+      '';
+    if (!secret) {
+      // se você usa RS256, troque para publicKey/privateKey do JwtModule
+      throw new UnauthorizedException('JWT secret não configurado');
+    }
+    const payload = await this.jwt.verifyAsync<JwtPayload>(token, { secret });
+    return this.normalizePayload(payload);
+  }
+
+  /** Apenas decodifica, sem validar assinatura/expiração (use com cuidado). */
+  decodeToken(token: string): JwtPayload | null {
+    const payload = this.jwt.decode(token) as JwtPayload | null;
+    return payload ? this.normalizePayload(payload) : null;
+  }
+
+  /** Extrai payload verificado a partir do Request. */
+  async getPayloadFromRequest(req: Request): Promise<JwtPayload> {
+    const token = this.getTokenFromRequest(req);
+    if (!token) throw new UnauthorizedException('Token ausente');
+    return this.verifyToken(token);
+  }
+
+  /** Tenta extrair; se falhar, retorna null em vez de lançar. */
+  async tryGetPayload(req: Request): Promise<JwtPayload | null> {
+    try {
+      return await this.getPayloadFromRequest(req);
+    } catch {
+      return null;
+    }
+  }
+
+  /** Helpers de acesso direto */
+  async getUserId(req: Request): Promise<string | null> {
+    const p = await this.tryGetPayload(req);
+    return p?.sub ?? null;
+  }
+
+  async getEmail(req: Request): Promise<string | null> {
+    const p = await this.tryGetPayload(req);
+    return p?.email ?? null;
+  }
+
+  async getRole(req: Request): Promise<RoleUser | null> {
+    const p = await this.tryGetPayload(req);
+    return (p?.role as RoleUser) ?? null;
+  }
+
+  /** Roles helpers */
+  async isAdmin(req: Request): Promise<boolean> {
+    const role = await this.getRole(req);
+    return role === RoleUser.ADMIN;
+  }
+
+  async isTeacher(req: Request): Promise<boolean> {
+    const role = await this.getRole(req);
+    return role === RoleUser.TEACHER;
+  }
+
+  async isCoordinator(req: Request): Promise<boolean> {
+    const role = await this.getRole(req);
+    return role === RoleUser.COORDINATOR;
+  }
+
+  /** Normaliza o payload (principalmente role). */
+  private normalizePayload(payload: JwtPayload): JwtPayload {
+    const role = this.normalizeRole(payload.role);
+    return { ...payload, role };
+  }
+
+  private normalizeRole(role?: string | RoleUser): RoleUser | undefined {
+    if (!role) return undefined;
+    const r = String(role).toLowerCase();
+    if (r === RoleUser.ADMIN) return RoleUser.ADMIN;
+    if (r === RoleUser.TEACHER) return RoleUser.TEACHER;
+    if (r === RoleUser.COORDINATOR) return RoleUser.COORDINATOR;
+    return undefined;
+  }
+}
