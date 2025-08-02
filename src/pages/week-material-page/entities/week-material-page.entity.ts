@@ -7,7 +7,7 @@ export class WeekMaterialsPageEntity extends BaseEntity {
   @Column()
   title: string;
 
-  @Column()
+  @Column({ type: 'text' })
   subtitle: string;
 
   @Column({ default: false })
