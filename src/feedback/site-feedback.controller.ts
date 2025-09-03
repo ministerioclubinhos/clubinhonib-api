@@ -18,7 +18,7 @@ import { CreateSiteFeedbackDto } from './dto/create-site-feedback.dto';
 import { SiteFeedbackResponseDto } from './dto/site-feedback-response.dto';
 import { UpdateSiteFeedbackDto } from './dto/update-site-feedback.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
-import { RoleGuard } from 'src/auth/guards/role-guard';
+import { AdminRoleGuard } from 'src/auth/guards/role-guard';
 
 @Controller('site-feedbacks')
 export class SiteFeedbackController {
@@ -37,7 +37,7 @@ export class SiteFeedbackController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   async findAll(): Promise<SiteFeedbackResponseDto[]> {
     this.logger.debug('📄 Buscando todos os feedbacks do site');
     const feedbacks = await this.siteFeedbackService.findAll();
@@ -46,7 +46,7 @@ export class SiteFeedbackController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   async findOne(@Param('id') id: string): Promise<SiteFeedbackResponseDto> {
     this.logger.debug(`🔍 Buscando feedback do site por ID: ${id}`);
     const feedback = await this.siteFeedbackService.findOne(id);
@@ -55,7 +55,7 @@ export class SiteFeedbackController {
   }
 
   @Put(':id')
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateSiteFeedbackDto,
@@ -67,7 +67,7 @@ export class SiteFeedbackController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   async remove(@Param('id') id: string): Promise<void> {
     this.logger.debug(`🗑️ Removendo feedback do site ID: ${id}`);
     await this.siteFeedbackService.remove(id);
@@ -75,7 +75,7 @@ export class SiteFeedbackController {
   }
 
   @Patch(':id/read')
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   async setRead(@Param('id') id: string): Promise<SiteFeedbackResponseDto> {
     this.logger.debug(`📥 Marcando feedback do site como lido: ID=${id}`);
     const feedback = await this.siteFeedbackService.setReadOnFeedback(id);

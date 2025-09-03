@@ -15,7 +15,7 @@ import {
 } from '@nestjs/common';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
-import { RoleGuard } from 'src/auth/guards/role-guard';
+import { AdminRoleGuard } from 'src/auth/guards/role-guard';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { ImageSectionUpdateService } from './services/image-section-update-service';

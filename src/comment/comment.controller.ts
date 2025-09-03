@@ -17,7 +17,7 @@ import { CommentResponseDto } from './dto/comment-response.dto';
 import { plainToInstance } from 'class-transformer';
 import { UpdateCommentDto } from './dto/update-comment.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
-import { RoleGuard } from 'src/auth/guards/role-guard';
+import { AdminRoleGuard } from 'src/auth/guards/role-guard';
 
 @Controller('comments')
 export class CommentController {
@@ -36,7 +36,7 @@ export class CommentController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   async findAll(): Promise<CommentResponseDto[]> {
     this.logger.debug('📄 Buscando todos os comentários');
     const comments = await this.commentService.findAll();
@@ -53,7 +53,7 @@ export class CommentController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   async findOne(@Param('id') id: string): Promise<CommentResponseDto> {
     this.logger.debug(`🔍 Buscando comentário por ID: ${id}`);
     const comment = await this.commentService.findOne(id);
@@ -62,7 +62,7 @@ export class CommentController {
   }
 
   @Put(':id')
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateCommentDto,
@@ -74,7 +74,7 @@ export class CommentController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   async remove(@Param('id') id: string): Promise<void> {
     this.logger.debug(`🗑️ Removendo comentário ID: ${id}`);
     await this.commentService.remove(id);

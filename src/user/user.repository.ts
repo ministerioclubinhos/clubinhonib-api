@@ -1,36 +1,36 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User } from './user.entity';
+import { UserEntity } from './user.entity';
 
 @Injectable()
 export class UserRepository {
   constructor(
-    @InjectRepository(User)
-    private readonly repo: Repository<User>,
+    @InjectRepository(UserEntity)
+    private readonly repo: Repository<UserEntity>,
   ) {}
 
-  async create(user: Partial<User>): Promise<User> {
+  async create(user: Partial<UserEntity>): Promise<UserEntity> {
     const newUser = this.repo.create(user);
     return this.repo.save(newUser);
   }
 
-  async findAll(): Promise<User[]> {
+  async findAll(): Promise<UserEntity[]> {
     return this.repo.find();
   }
 
-  async findById(id: string): Promise<User | null> {
+  async findById(id: string): Promise<UserEntity | null> {
     return this.repo.findOne({ where: { id } });
   }
 
-  async findByEmail(email: string): Promise<User | null> {
+  async findByEmail(email: string): Promise<UserEntity | null> {
     return this.repo.findOne({ where: { email } });
   }
 
-  async update(id: string, data: Partial<User>): Promise<User> {
+  async update(id: string, data: Partial<UserEntity>): Promise<UserEntity> {
     await this.repo.update(id, data);
     const updated = await this.findById(id);
-    if (!updated) throw new Error('User not found after update');
+    if (!updated) throw new Error('UserEntity not found after update');
     return updated;
   }
 

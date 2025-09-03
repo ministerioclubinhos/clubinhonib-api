@@ -25,7 +25,7 @@ import { ImagePageGetService } from './services/ImagePageGetService';
 import { ImagePageUpdateService } from './services/ImagePageUpdateService';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { RoleGuard } from 'src/auth/guards/role-guard';
+import { AdminRoleGuard } from 'src/auth/guards/role-guard';
 import { PaginatedImageSectionResponseDto } from './dto/paginated-image-section.dto';
 
 @Controller('image-pages')
@@ -39,7 +39,7 @@ export class ImageController {
     private readonly updateService: ImagePageUpdateService,
   ) { }
 
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Post()
   @UseInterceptors(AnyFilesInterceptor())
   async create(
@@ -64,7 +64,7 @@ export class ImageController {
     }
   }
 
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Patch(':id')
   @UseInterceptors(AnyFilesInterceptor())
   async update(
@@ -119,7 +119,7 @@ export class ImageController {
     }
   }
 
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Delete(':id')
   async remove(@Param('id') id: string) {
     await this.deleteService.removePage(id);

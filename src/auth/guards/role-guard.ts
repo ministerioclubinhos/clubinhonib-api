@@ -9,8 +9,8 @@ import { Reflector } from '@nestjs/core';
 import { UserRole } from 'src/user/user.entity';
 
 @Injectable()
-export class RoleGuard implements CanActivate {
-  private readonly logger = new Logger(RoleGuard.name);
+export class AdminRoleGuard implements CanActivate {
+  private readonly logger = new Logger(AdminRoleGuard.name);
 
   constructor(private readonly reflector: Reflector) {}
 
@@ -18,7 +18,7 @@ export class RoleGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const user = request.user;
 
-    this.logger.debug('🔒 RoleGuard: verificando permissões');
+    this.logger.debug('🔒 AdminRoleGuard: verificando permissões');
 
     if (!user) {
       this.logger.warn('❌ Acesso negado: usuário não autenticado');
