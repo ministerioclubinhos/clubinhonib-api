@@ -75,6 +75,7 @@ jobs:
         run: |
           sudo docker run -d --restart=always -p 3000:3000 \
             -e ENVIRONMENT=${{ secrets.PROD_ENVIRONMENT }} \
+            -e PORT=${{ secrets.PORT }} \
             -e DB_HOST=${{ secrets.DB_HOST }} \
             -e DB_PORT=${{ secrets.DB_PORT }} \
             -e DB_USERNAME=${{ secrets.DB_USERNAME }} \
@@ -95,4 +96,5 @@ jobs:
             -e TWILIO_WHATSAPP_FROM=${{ secrets.PROD_TWILIO_WHATSAPP_FROM }} \
             -e TWILIO_WHATSAPP_TO=${{ secrets.PROD_TWILIO_WHATSAPP_TO }} \
             -e FEED_CLUBINHO_PAGE_ID=${{ secrets.PROD_FEED_CLUBINHO_PAGE_ID }} \
+            -e GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }} \
             --name clubinho-api diegoseven/clubinho-api:prod

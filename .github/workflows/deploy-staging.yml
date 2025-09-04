@@ -79,6 +79,7 @@ jobs:
         run: |
           sudo docker run -d --restart=always -p 3001:3000 \
             -e ENVIRONMENT=${{ secrets.STAGING_ENVIRONMENT }} \
+            -e PORT=${{ secrets.PORT }} \
             -e DB_HOST=${{ secrets.DB_HOST }} \
             -e DB_PORT=${{ secrets.DB_PORT }} \
             -e DB_USERNAME=${{ secrets.DB_USERNAME }} \
@@ -99,4 +100,5 @@ jobs:
             -e TWILIO_WHATSAPP_FROM=${{ secrets.STAGING_TWILIO_WHATSAPP_FROM }} \
             -e TWILIO_WHATSAPP_TO=${{ secrets.STAGING_TWILIO_WHATSAPP_TO }} \
             -e FEED_CLUBINHO_PAGE_ID=${{ secrets.STAGING_FEED_CLUBINHO_PAGE_ID }} \
+            -e GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }} \
             --name clubinho-api-staging diegoseven/clubinho-api:staging

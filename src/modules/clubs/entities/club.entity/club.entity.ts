@@ -16,9 +16,10 @@ import { ChildEntity } from 'src/modules/children/entities/child.entity';
 
 @Entity('clubs')
 export class ClubEntity extends BaseEntity {
-  @Column({ type: 'int', unique: true })
-  @Index({ unique: true })
+
+  @Column({ type: 'int' })
   number: number;
+
 
   @Column({ type: 'enum', enum: Weekday })
   weekday: Weekday;
@@ -41,7 +42,7 @@ export class ClubEntity extends BaseEntity {
   @JoinColumn({ name: 'coordinator_profile_id' })
   coordinator: CoordinatorProfileEntity | null;
 
-  
+
   @OneToMany(() => ChildEntity, (child) => child.club, { cascade: false })
   children: ChildEntity[];
 

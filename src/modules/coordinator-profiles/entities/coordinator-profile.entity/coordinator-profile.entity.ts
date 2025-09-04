@@ -24,7 +24,6 @@ export class CoordinatorProfileEntity extends BaseEntity {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'user_id' })
-  @Index()
   user: UserEntity;
 
   // 1:N — um coordinator profile possui vários Clubs

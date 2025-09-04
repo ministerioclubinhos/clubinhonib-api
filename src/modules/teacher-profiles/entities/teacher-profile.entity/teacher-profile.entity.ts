@@ -24,6 +24,5 @@ export class TeacherProfileEntity extends BaseEntity {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'user_id' })
-  @Index() // índice normal (NÃO único)
   user: UserEntity;
 }

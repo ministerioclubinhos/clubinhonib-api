@@ -29,17 +29,47 @@ export class PagelasRepository {
       .addSelect(['teacher.id']);
   }
 
-  private applyFilters(qb: SelectQueryBuilder<PagelaEntity>, f?: PagelaFiltersDto) {
-    if (!f) return qb;
-    if (f.childId) qb.andWhere('child.id = :childId', { childId: f.childId });
-    if (typeof f.year === 'number') qb.andWhere('p.year = :year', { year: f.year });
-    if (typeof f.week === 'number') qb.andWhere('p.week = :week', { week: f.week });
-    if (f.present) qb.andWhere('p.present = :present', { present: f.present === 'true' });
-    if (f.didMeditation) qb.andWhere('p.didMeditation = :didMeditation', { didMeditation: f.didMeditation === 'true' });
-    if (f.recitedVerse) qb.andWhere('p.recitedVerse = :recitedVerse', { recitedVerse: f.recitedVerse === 'true' });
+private applyFilters(
+  qb: SelectQueryBuilder<PagelaEntity>,
+  f?: PagelaFiltersDto,
+) {
+  if (!f) return qb;
 
-    return qb;
+  if (f.childId) {
+    qb.andWhere('child.id = :childId', { childId: f.childId });
   }
+
+  if (f.year != null) {
+    qb.andWhere('p.year = :year', { year: f.year });
+  }
+
+  if (f.week != null) {
+    console.log('f.week', f.week);
+    
+    qb.andWhere('p.week = :week', { week: f.week });
+  }
+
+  if (f.present) {
+    qb.andWhere('p.present = :present', {
+      present: f.present === 'true',
+    });
+  }
+
+  if (f.didMeditation) {
+    qb.andWhere('p.didMeditation = :didMeditation', {
+      didMeditation: f.didMeditation === 'true',
+    });
+  }
+
+  if (f.recitedVerse) {
+    qb.andWhere('p.recitedVerse = :recitedVerse', {
+      recitedVerse: f.recitedVerse === 'true',
+    });
+  }
+
+  return qb;
+}
+
 
   /* READs */
 
