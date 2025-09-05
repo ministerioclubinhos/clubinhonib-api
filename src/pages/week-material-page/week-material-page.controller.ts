@@ -29,6 +29,7 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { AdminRoleGuard } from 'src/auth/guards/role-guard';
 
 @Controller('week-material-pages')
+@UseGuards(JwtAuthGuard)
 export class WeekMaterialsPageController {
   private readonly logger = new Logger(WeekMaterialsPageController.name);
 
@@ -37,9 +38,9 @@ export class WeekMaterialsPageController {
     private readonly updateService: WeekMaterialsPageUpdateService,
     private readonly removeService: WeekMaterialsPageRemoveService,
     private readonly getService: WeekMaterialsPageGetService,
-  ) {}
+  ) { }
 
-  @UseGuards(JwtAuthGuard, AdminRoleGuard)
+  @UseGuards(AdminRoleGuard)
   @Post()
   @UseInterceptors(AnyFilesInterceptor())
   async create(
@@ -68,7 +69,7 @@ export class WeekMaterialsPageController {
     }
   }
 
-  @UseGuards(JwtAuthGuard, AdminRoleGuard)
+  @UseGuards(AdminRoleGuard)
   @Patch(':id')
   @UseInterceptors(AnyFilesInterceptor())
   async update(
@@ -98,7 +99,7 @@ export class WeekMaterialsPageController {
     }
   }
 
-  @UseGuards(JwtAuthGuard, AdminRoleGuard)
+  @UseGuards(AdminRoleGuard)
   @Delete(':id')
   async remove(@Param('id') id: string): Promise<void> {
     this.logger.debug(`🗑️ [DELETE /week-material-pages/${id}] Removendo página de materiais`);

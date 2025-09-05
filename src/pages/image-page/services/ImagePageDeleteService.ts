@@ -21,7 +21,6 @@ export class ImagePageDeleteService {
         private readonly awsS3Service: AwsS3Service,
         private readonly mediaItemProcessor: MediaItemProcessor,
     ) {
-        this.logger.debug('🛠️ ImagePageDeleteService inicializado');
     }
 
     async removePage(id: string): Promise<void> {

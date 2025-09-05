@@ -31,7 +31,6 @@ export class AuthService {
     this.googleClient = new OAuth2Client(
       configService.getOrThrow<string>('GOOGLE_CLIENT_ID'),
     );
-    this.logger.log('AuthService inicializado (Google OAuth habilitado)');
   }
 
   private generateTokens(user: UserEntity) {
@@ -92,6 +91,8 @@ export class AuthService {
           name,
           password: '',
           phone: '',
+          active: false,
+          completed: false,
           commonUser: false,
           role: UserRole.USER,
         });

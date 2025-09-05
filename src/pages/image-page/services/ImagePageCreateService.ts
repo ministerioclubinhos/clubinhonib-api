@@ -26,7 +26,6 @@ export class ImagePageCreateService {
         private readonly awsS3Service: AwsS3Service,
         private readonly mediaItemProcessor: MediaItemProcessor,
     ) {
-        this.logger.debug('🛠️ ImagePageCreateService inicializado');
     }
 
     async createImagePage(
@@ -67,7 +66,7 @@ export class ImagePageCreateService {
                 description,
                 entityId: savedGallery.id,
                 type: RouteType.PAGE,
-                image: 'https://clubinho-nib.s3.us-east-1.amazonaws.com/production/cards/card_imagens.png',                
+                image: 'https://clubinho-nib.s3.us-east-1.amazonaws.com/production/cards/card_imagens.png',
                 public: isPublic,
             });
             this.logger.debug(`✅ Rota criada com ID: ${route.id}`);

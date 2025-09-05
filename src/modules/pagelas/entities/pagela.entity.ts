@@ -1,13 +1,12 @@
-// src/modules/pagelas/entities/pagela.entity.ts
 import { BaseEntity } from 'src/share/share-entity/base.entity';
-import { Entity, Column, ManyToOne, JoinColumn, Index, Unique } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, Unique } from 'typeorm';
 import { ChildEntity } from 'src/modules/children/entities/child.entity';
 import { TeacherProfileEntity } from 'src/modules/teacher-profiles/entities/teacher-profile.entity/teacher-profile.entity';
 
 @Entity('pagelas')
-@Index(['child'])
 @Unique('UQ_pagela_child_year_week', ['child', 'year', 'week'])
 export class PagelaEntity extends BaseEntity {
+  
   @Column({ type: 'tinyint', unsigned: true })
   week: number;
 

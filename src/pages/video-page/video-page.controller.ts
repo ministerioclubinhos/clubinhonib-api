@@ -35,7 +35,7 @@ export class VideosPageController {
     private readonly updateService: UpdateVideosPageService,
     private readonly getService: GetVideosPageService,
     private readonly deleteService: DeleteVideosPageService,
-  ) {}
+  ) { }
 
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Post()

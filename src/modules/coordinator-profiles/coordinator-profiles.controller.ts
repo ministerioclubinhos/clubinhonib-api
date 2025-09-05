@@ -1,4 +1,3 @@
-// src/modules/coordinator-profiles/coordinator-profiles.controller.ts
 import {
   Controller,
   Get,
@@ -7,19 +6,20 @@ import {
   Patch,
   Body,
   Query,
+  UseGuards,
 } from '@nestjs/common';
-
 import { CoordinatorProfilesService } from './services/coordinator-profiles.service';
 import { CoordinatorResponseDto } from './dto/coordinator-profile.response.dto';
 import { AssignClubDto, MoveClubDto, UnassignClubDto } from './dto/add-club.dto';
 import { CoordinatorSimpleListDto } from './dto/coordinator-simple-list.dto';
 import { CoordinatorProfilesQueryDto, PageDto } from './dto/coordinator-profiles.query.dto';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 
 @Controller('coordinator-profiles')
+@UseGuards(JwtAuthGuard)
 export class CoordinatorProfilesController {
   constructor(private readonly service: CoordinatorProfilesService) { }
 
-  /** Lista paginada de coordenadores (com clubs + teachers), com filtros */
   @Get()
   findPage(
     @Query() query: CoordinatorProfilesQueryDto,
@@ -32,20 +32,16 @@ export class CoordinatorProfilesController {
     return this.service.list();
   }
 
-
-  /** Busca um coordinator por id (com clubs + teachers) */
   @Get(':id')
   findOne(@Param('id', new ParseUUIDPipe()) id: string): Promise<CoordinatorResponseDto> {
     return this.service.findOne(id);
   }
 
-  /** Retorna o coordinator de um club específico */
   @Get('by-club/:clubId')
   findByClubId(@Param('clubId', new ParseUUIDPipe()) clubId: string): Promise<CoordinatorResponseDto> {
     return this.service.findByClubId(clubId);
   }
 
-  /** Atribui um club a este coordinator */
   @Patch(':coordinatorId/assign-club')
   async assignClub(
     @Param('coordinatorId', new ParseUUIDPipe()) coordinatorId: string,
@@ -55,7 +51,6 @@ export class CoordinatorProfilesController {
     return { message: 'Club atribuído ao coordenador com sucesso' };
   }
 
-  /** Remove um club deste coordinator (coordinator do club fica null) */
   @Patch(':coordinatorId/unassign-club')
   async unassignClub(
     @Param('coordinatorId', new ParseUUIDPipe()) coordinatorId: string,
@@ -65,7 +60,6 @@ export class CoordinatorProfilesController {
     return { message: 'Club removido do coordenador com sucesso' };
   }
 
-  /** Move um club deste coordinator para outro coordinator */
   @Patch(':fromCoordinatorId/move-club')
   async moveClub(
     @Param('fromCoordinatorId', new ParseUUIDPipe()) fromCoordinatorId: string,

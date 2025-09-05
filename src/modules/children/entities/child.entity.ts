@@ -1,4 +1,3 @@
-// src/modules/children/entities/child.entity.ts
 import { BaseEntity } from 'src/share/share-entity/base.entity';
 import {
   Entity,
@@ -6,7 +5,6 @@ import {
   OneToOne,
   JoinColumn,
   ManyToOne,
-  Index,
   OneToMany,
 } from 'typeorm';
 import { AddressEntity } from 'src/modules/addresses/entities/address.entity/address.entity';
@@ -14,7 +12,6 @@ import { ClubEntity } from 'src/modules/clubs/entities/club.entity/club.entity';
 import { PagelaEntity } from 'src/modules/pagelas/entities/pagela.entity';
 
 @Entity('children')
-@Index(['name'])
 export class ChildEntity extends BaseEntity {
   @Column({ length: 255 })
   name: string;

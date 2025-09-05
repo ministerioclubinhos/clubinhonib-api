@@ -32,7 +32,6 @@ export class UpdateVideosPageService {
     private readonly mediaItemProcessor: MediaItemProcessor,
     private readonly videosPageRepo: VideosPageRepository,
   ) {
-    this.logger.debug('🛠️ UpdateVideosPageService inicializado');
   }
 
   async execute(

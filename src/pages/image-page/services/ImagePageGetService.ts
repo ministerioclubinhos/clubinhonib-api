@@ -19,7 +19,6 @@ export class ImagePageGetService {
         private readonly sectionRepository: ImageSectionRepository,
         private readonly mediaItemProcessor: MediaItemProcessor,
     ) {
-        this.logger.debug('🛠️ ImagePageGetService inicializado');
     }
 
     async findAll(): Promise<ImagePageResponseDto[]> {

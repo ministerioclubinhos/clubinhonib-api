@@ -1,4 +1,3 @@
-// src/modules/clubs/clubs.controller.ts
 import {
   Controller,
   Get,
@@ -10,6 +9,7 @@ import {
   Query,
   ParseUUIDPipe,
   Req,
+  UseGuards,
 } from '@nestjs/common';
 import { Request } from 'express';
 
@@ -23,8 +23,10 @@ import { CreateClubsService } from './services/create-clubs.service';
 import { Paginated } from 'src/share/dto/paginated.dto';
 import { ClubResponseDto, ClubSimpleResponseDto } from './dto/club.response.dto';
 import { ClubSelectOptionDto } from './dto/club-select-option.dto';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 
 @Controller('clubs')
+@UseGuards(JwtAuthGuard)
 export class ClubsController {
   constructor(
     private readonly deleteService: DeleteClubsService,

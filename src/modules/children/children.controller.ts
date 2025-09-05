@@ -1,4 +1,3 @@
-// src/modules/children/children.controller.ts
 import {
   Body,
   Controller,
@@ -10,6 +9,7 @@ import {
   Put,
   Query,
   Req,
+  UseGuards,
 } from '@nestjs/common';
 import { Request } from 'express';
 
@@ -18,12 +18,13 @@ import { CreateChildDto } from './dto/create-child.dto';
 import { UpdateChildDto } from './dto/update-child.dto';
 import { QueryChildrenDto, QueryChildrenSimpleDto } from './dto/query-children.dto';
 import { PaginatedResponseDto, ChildResponseDto, ChildListItemDto } from './dto/child-response.dto';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 
 @Controller('children')
+@UseGuards(JwtAuthGuard)
 export class ChildrenController {
-  constructor(private readonly service: ChildrenService) {}
+  constructor(private readonly service: ChildrenService) { }
 
-  // GET /children?searchString=&clubId=&city=&state=&birthDateFrom=&birthDateTo=&joinedFrom=&joinedTo=&orderBy=&order=&page=&limit=
   @Get()
   async findAll(
     @Query() query: QueryChildrenDto,
@@ -32,7 +33,6 @@ export class ChildrenController {
     return this.service.findAll(query, req);
   }
 
-  // GET /children/simple?searchString=&limit=
   @Get('simple')
   async findAllSimples(
     @Query() query: QueryChildrenSimpleDto,
@@ -41,7 +41,6 @@ export class ChildrenController {
     return this.service.findAllSimples(query, req);
   }
 
-  // GET /children/:id
   @Get(':id')
   async findOne(
     @Param('id', new ParseUUIDPipe()) id: string,
@@ -50,7 +49,6 @@ export class ChildrenController {
     return this.service.findOne(id, req);
   }
 
-  // POST /children
   @Post()
   async create(
     @Body() dto: CreateChildDto,
@@ -59,7 +57,6 @@ export class ChildrenController {
     return this.service.create(dto, req);
   }
 
-  // PUT /children/:id
   @Put(':id')
   async update(
     @Param('id', new ParseUUIDPipe()) id: string,
@@ -69,7 +66,6 @@ export class ChildrenController {
     return this.service.update(id, dto, req);
   }
 
-  // DELETE /children/:id
   @Delete(':id')
   async remove(
     @Param('id', new ParseUUIDPipe()) id: string,
