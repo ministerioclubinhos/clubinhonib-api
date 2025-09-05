@@ -1,5 +1,4 @@
-// src/modules/pagelas/dto/pagela-filters.dto.ts
-import { IsBooleanString, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { IsBooleanString, IsInt, IsOptional, IsUUID, Max, Min, IsString, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class PagelaFiltersDto {
@@ -21,7 +20,6 @@ export class PagelaFiltersDto {
   @Max(53)
   week?: number;
 
-  // para filtros rápidos via querystring (?present=true)
   @IsOptional()
   @IsBooleanString()
   present?: 'true' | 'false';
@@ -33,4 +31,9 @@ export class PagelaFiltersDto {
   @IsOptional()
   @IsBooleanString()
   recitedVerse?: 'true' | 'false';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  searchString?: string;
 }

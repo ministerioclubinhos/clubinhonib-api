@@ -27,6 +27,16 @@ export class UserRepository {
     return this.repo.findOne({ where: { email } });
   }
 
+  async findByIdWithProfiles(id: string): Promise<UserEntity | null> {
+    return this.repo.findOne({
+      where: { id },
+      relations: {
+        teacherProfile: { club: true },
+        coordinatorProfile: { clubs: true },
+      },
+    });
+  }
+
   async update(id: string, data: Partial<UserEntity>): Promise<UserEntity> {
     await this.repo.update(id, data);
     const updated = await this.findById(id);
