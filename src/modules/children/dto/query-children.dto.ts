@@ -1,13 +1,10 @@
-// src/modules/children/dto/query-children.dto.ts
 import { IsIn, IsInt, IsOptional, IsString, IsUUID, Min, IsNumber } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class QueryChildrenDto {
-  // busca em name e guardianName
   @IsOptional() @IsString()
   searchString?: string;
 
-  // ainda aceita clubId se quiser, mas o novo filtro principal é o número do clube
   @IsOptional() @IsUUID()
   clubId?: string;
 
@@ -21,7 +18,6 @@ export class QueryChildrenDto {
   @IsOptional() @IsString()
   state?: string;
 
-  // filtros de data (DATE - 'YYYY-MM-DD')
   @IsOptional() @IsString()
   birthDate?: string;
 

@@ -10,6 +10,7 @@ import {
 import { AddressEntity } from 'src/modules/addresses/entities/address.entity/address.entity';
 import { ClubEntity } from 'src/modules/clubs/entities/club.entity/club.entity';
 import { PagelaEntity } from 'src/modules/pagelas/entities/pagela.entity';
+import { AcceptedChristEntity } from 'src/modules/accepted-christs/entities/accepted-christ.entity';
 
 @Entity('children')
 export class ChildEntity extends BaseEntity {
@@ -49,4 +50,7 @@ export class ChildEntity extends BaseEntity {
 
   @OneToMany(() => PagelaEntity, (p) => p.child, { cascade: false })
   pagelas: PagelaEntity[];
+
+  @OneToMany(() => AcceptedChristEntity, (ac) => ac.child, { cascade: true })
+  acceptedChrists: AcceptedChristEntity[];
 }

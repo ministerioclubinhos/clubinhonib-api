@@ -23,6 +23,7 @@ import { TeacherProfilesModule } from './modules/teacher-profiles/teacher-profil
 import { ClubsModule } from './modules/clubs/clubs.module';
 import { ChildrenModule } from './modules/children/children.module';
 import { PagelasModule } from './modules/pagelas/pagelas.module';
+import { AcceptedChristsModule } from './modules/accepted-christs/accepted-christs.module';
 
 @Module({
   imports: [
@@ -49,7 +50,8 @@ import { PagelasModule } from './modules/pagelas/pagelas.module';
     TeacherProfilesModule,
     ClubsModule,
     ChildrenModule,
-    PagelasModule
+    PagelasModule,
+    AcceptedChristsModule
   ],
 })
 export class AppModule { }

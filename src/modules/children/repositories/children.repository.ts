@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, SelectQueryBuilder } from 'typeorm';
 import { ChildEntity } from '../entities/child.entity';
-import { QueryChildrenDto, QueryChildrenSimpleDto } from '../dto/query-children.dto';
+import { QueryChildrenDto } from '../dto/query-children.dto';
 import { ClubEntity } from 'src/modules/clubs/entities/club.entity/club.entity';
 
 export type PaginatedRows<T> = { items: T[]; total: number };
@@ -15,7 +15,7 @@ export class ChildrenRepository {
     private readonly repo: Repository<ChildEntity>,
     @InjectRepository(ClubEntity)
     private readonly clubRepo: Repository<ClubEntity>,
-  ) {}
+  ) { }
 
   private baseQB(): SelectQueryBuilder<ChildEntity> {
     return this.repo
@@ -23,12 +23,6 @@ export class ChildrenRepository {
       .leftJoinAndSelect('c.club', 'club')
       .leftJoinAndSelect('c.address', 'addr');
   }
-
-  /** Papel:
-   *  - admin: sem filtro
-   *  - coordinator: club.coordinator.user.id = :userId
-   *  - teacher: club.teachers.user.id = :userId
-   */
   private applyRoleFilter(qb: SelectQueryBuilder<ChildEntity>, ctx?: RoleCtx) {
     const role = ctx?.role?.toLowerCase();
     const userId = ctx?.userId;
@@ -53,7 +47,6 @@ export class ChildrenRepository {
 
     const qb = this.baseQB();
 
-    // busca por nome/resp./telefone (LOWER + LIKE para MySQL)
     if (q.searchString) {
       const s = `%${q.searchString.trim().toLowerCase()}%`;
       qb.andWhere(
@@ -62,31 +55,25 @@ export class ChildrenRepository {
       );
     }
 
-    // clubNumber tem precedência; depois clubId
     if (q.clubNumber !== undefined) {
       qb.andWhere('club.number = :clubNumber', { clubNumber: q.clubNumber });
     } else if (q.clubId) {
       qb.andWhere('club.id = :clubId', { clubId: q.clubId });
     }
 
-    // endereço
     if (q.city) qb.andWhere('LOWER(addr.city) LIKE :city', { city: `%${q.city.toLowerCase()}%` });
     if (q.state) qb.andWhere('LOWER(addr.state) LIKE :state', { state: `%${q.state.toLowerCase()}%` });
 
-    // datas de nascimento
     if (q.birthDate) qb.andWhere('c.birthDate = :b', { b: q.birthDate });
     if (q.birthDateFrom) qb.andWhere('c.birthDate >= :bf', { bf: q.birthDateFrom });
     if (q.birthDateTo) qb.andWhere('c.birthDate <= :bt', { bt: q.birthDateTo });
 
-    // datas de entrada
     if (q.joinedAt) qb.andWhere('c.joinedAt = :j', { j: q.joinedAt });
     if (q.joinedFrom) qb.andWhere('c.joinedAt >= :jf', { jf: q.joinedFrom });
     if (q.joinedTo) qb.andWhere('c.joinedAt <= :jt', { jt: q.joinedTo });
 
-    // regra por papel
     this.applyRoleFilter(qb, ctx);
 
-    // ordenação
     const orderByMap: Record<string, string> = {
       name: 'c.name',
       birthDate: 'c.birthDate',
@@ -103,36 +90,36 @@ export class ChildrenRepository {
     return { items, total };
   }
 
-  async findAllSimple(q: QueryChildrenSimpleDto, ctx?: RoleCtx): Promise<ChildEntity[]> {
+  async findAllSimple(ctx?: RoleCtx): Promise<ChildEntity[]> {
     const qb = this.repo
       .createQueryBuilder('c')
       .leftJoin('c.club', 'club')
-      .select(['c.id', 'c.name', 'c.guardianName', 'c.guardianPhone', 'club.id', 'c.gender']);
+      .leftJoin('c.acceptedChrists', 'acceptedChrists')
+      .select([
+        'c.id',
+        'c.name',
+        'c.guardianName',
+        'c.guardianPhone',
+        'c.gender',
+        'club.id',
+        'acceptedChrists.id',
+        'acceptedChrists.decision',
+        'acceptedChrists.createdAt',
+        'acceptedChrists.updatedAt',
+      ]);
 
-    if (q.limit) qb.limit(q.limit);
-
-    if (q.searchString) {
-      const s = `%${q.searchString.trim().toLowerCase()}%`;
-      qb.where(
-        'LOWER(c.name) LIKE :s OR LOWER(c.guardianName) LIKE :s OR LOWER(c.guardianPhone) LIKE :s',
-        { s },
-      );
-    }
-
-    // mesma regra de papel
     this.applyRoleFilter(qb as any as SelectQueryBuilder<ChildEntity>, ctx);
 
     qb.distinct(true);
     return qb.getMany();
   }
 
+
   async findOneForResponse(id: string, ctx?: RoleCtx): Promise<ChildEntity | null> {
     const qb = this.baseQB().where('c.id = :id', { id });
     this.applyRoleFilter(qb, ctx);
     return qb.getOne();
   }
-
-  /* ===== Helpers de acesso ao club ===== */
 
   async userHasAccessToClub(clubId: string, ctx?: RoleCtx): Promise<boolean> {
     const role = ctx?.role?.toLowerCase();
@@ -154,12 +141,9 @@ export class ChildrenRepository {
       return false;
     }
 
-    // TypeORM 0.3+: getExists() (fallback: getCount() > 0)
     const hasGetExists = typeof (qb as any).getExists === 'function';
     return hasGetExists ? !!(await (qb as any).getExists()) : (await qb.getCount()) > 0;
   }
-
-  /* ===== CRUD utilitários ===== */
 
   create(partial: Partial<ChildEntity>): ChildEntity {
     return this.repo.create(partial);

@@ -1,4 +1,5 @@
-// src/modules/children/dto/child-response.dto.ts
+import { AcceptedChristShortDto } from "src/modules/accepted-christs/dtos/accepted-christ-short.dto";
+
 export class ChildListItemDto {
   id: string;
   name: string;
@@ -6,6 +7,7 @@ export class ChildListItemDto {
   gender: string;
   guardianPhone: string;
   clubId?: string | null;
+  acceptedChrists?: AcceptedChristShortDto[];
 }
 
 export class AddressResponseDto {

@@ -36,7 +36,7 @@ export class ChildrenService {
     private readonly addressesService: AddressesService,
     private readonly getClubsService: GetClubsService,
     private readonly authContextService: AuthContextService,
-  ) {}
+  ) { }
 
   /** Extrai role/userId do request (tolerante a ausência de token). */
   private async getCtx(request: Request): Promise<AccessCtx> {
@@ -72,12 +72,9 @@ export class ChildrenService {
     };
   }
 
-  async findAllSimples(
-    query: QueryChildrenSimpleDto,
-    request: Request,
-  ): Promise<ChildListItemDto[]> {
+  async findAllSimples(request: Request,): Promise<ChildListItemDto[]> {
     const ctx = await this.getCtx(request);
-    const rows = await this.childrenRepo.findAllSimple(query, ctx);
+    const rows = await this.childrenRepo.findAllSimple(ctx);
     return rows.map(toChildListItemDto);
   }
 

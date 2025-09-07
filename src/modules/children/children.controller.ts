@@ -34,11 +34,8 @@ export class ChildrenController {
   }
 
   @Get('simple')
-  async findAllSimples(
-    @Query() query: QueryChildrenSimpleDto,
-    @Req() req: Request,
-  ): Promise<ChildListItemDto[]> {
-    return this.service.findAllSimples(query, req);
+  async findAllSimples(@Req() req: Request,): Promise<ChildListItemDto[]> {
+    return this.service.findAllSimples(req);
   }
 
   @Get(':id')

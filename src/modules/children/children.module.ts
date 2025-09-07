@@ -1,4 +1,3 @@
-// src/modules/children/children.module.ts
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ChildrenController } from './children.controller';

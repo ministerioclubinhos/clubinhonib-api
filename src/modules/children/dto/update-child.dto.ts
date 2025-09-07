@@ -1,4 +1,3 @@
-// src/modules/children/dto/update-child.dto.ts
 import {
   IsDateString,
   IsOptional,
@@ -29,10 +28,10 @@ export class UpdateChildDto {
 
   @IsOptional() @IsDateString() joinedAt?: string;
 
-  @IsOptional() @IsUUID() clubId?: string | null; // passe null para desvincular do clube
+  @IsOptional() @IsUUID() clubId?: string | null;
 
   @IsOptional()
   @ValidateNested()
   @Type(() => AddressUpdateDto)
-  address?: AddressUpdateDto | null; // null para remover endereço
+  address?: AddressUpdateDto | null;
 }
