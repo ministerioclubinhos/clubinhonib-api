@@ -23,8 +23,8 @@ export class AuthService {
     private readonly authRepo: AuthRepository,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    private readonly createUserService: CreateUserService, 
-    private readonly updateUserService: UpdateUserService, 
+    private readonly createUserService: CreateUserService,
+    private readonly updateUserService: UpdateUserService,
     private readonly getUsersService: GetUsersService,
     private readonly userRepo: UserRepository
   ) {
@@ -54,6 +54,7 @@ export class AuthService {
       this.logger.warn(`Credenciais inválidas: ${email}`);
       throw new UnauthorizedException('Invalid credentials');
     }
+
 
     const tokens = this.generateTokens(user);
     await this.updateRefreshToken(user.id, tokens.refreshToken);
@@ -172,29 +173,29 @@ export class AuthService {
       role: user.role,
       teacherProfile: user.teacherProfile
         ? {
-            id: user.teacherProfile.id,
-            active: user.teacherProfile.active,
-            club: user.teacherProfile.club
-              ? {
-                  id: user.teacherProfile.club.id,
-                  number: user.teacherProfile.club.number,
-                  weekday: user.teacherProfile.club.weekday,
-                }
-              : null,
-          }
+          id: user.teacherProfile.id,
+          active: user.teacherProfile.active,
+          club: user.teacherProfile.club
+            ? {
+              id: user.teacherProfile.club.id,
+              number: user.teacherProfile.club.number,
+              weekday: user.teacherProfile.club.weekday,
+            }
+            : null,
+        }
         : null,
       coordinatorProfile: user.coordinatorProfile
         ? {
-            id: user.coordinatorProfile.id,
-            active: user.coordinatorProfile.active,
-            clubs: Array.isArray(user.coordinatorProfile.clubs)
-              ? user.coordinatorProfile.clubs.map((c) => ({
-                  id: c.id,
-                  number: c.number,
-                  weekday: c.weekday,
-                }))
-              : [],
-          }
+          id: user.coordinatorProfile.id,
+          active: user.coordinatorProfile.active,
+          clubs: Array.isArray(user.coordinatorProfile.clubs)
+            ? user.coordinatorProfile.clubs.map((c) => ({
+              id: c.id,
+              number: c.number,
+              weekday: c.weekday,
+            }))
+            : [],
+        }
         : null,
     };
   }
@@ -275,7 +276,7 @@ export class AuthService {
     };
   }
 
-    async updateRefreshToken(userId: string, token: string | null): Promise<void> {
+  async updateRefreshToken(userId: string, token: string | null): Promise<void> {
     this.logger.debug(`Updating refresh token for user ID: ${userId}`);
     await this.userRepo.updateRefreshToken(userId, token);
   }

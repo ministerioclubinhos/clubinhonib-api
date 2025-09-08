@@ -20,6 +20,7 @@ import { GetUsersService } from './services/get-user.service';
 import { DeleteUserService } from './services/delete-user.service';
 import { UpdateUserService } from './services/update-user.service';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UserEntity } from './user.entity';
 
 @Controller('users')
 export class UserController {
@@ -30,14 +31,14 @@ export class UserController {
     private readonly deleteUserService: DeleteUserService,
     private readonly updateUserService: UpdateUserService,
     private readonly getUsersService: GetUsersService
-  ) {}
+  ) { }
 
   @Post()
   async create(@Body() dto: CreateUserDto) {
     this.logger.debug('📥 [POST /users] Criando novo usuário');
     const result = await this.createUserService.create(dto);
     this.logger.log(`✅ Usuário criado: ID=${result.id}`);
-    return result; // já sem campos sensíveis (service/repo não seleciona password nas respostas públicas)
+    return result;
   }
 
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
@@ -54,12 +55,16 @@ export class UserController {
 
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Put(':id')
-  async update(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: UpdateUserDto) {
+  async update(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateUserDto
+  ): Promise<UserEntity> {
     this.logger.debug(`✏️ [PUT /users/${id}] Atualizando usuário`);
     const result = await this.updateUserService.update(id, dto);
     this.logger.log(`✅ Usuário atualizado: ID=${id}`);
     return result;
   }
+
 
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Delete(':id')
