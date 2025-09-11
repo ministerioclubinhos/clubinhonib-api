@@ -1,4 +1,3 @@
-// src/user/services/update-user.service.ts
 import {
   Injectable,
   NotFoundException,
@@ -28,36 +27,30 @@ export class UpdateUserService {
     const current = await this.userRepo.findById(id);
     if (!current) throw new NotFoundException('UserEntity not found');
 
-    if (dto.password) {
+    if (dto.password) {      
       dto.password = await bcrypt.hash(dto.password, 10);
     }
 
     const willChangeRole = !!dto.role && dto.role !== current.role;
 
     if (willChangeRole && dto.role === UserRole.TEACHER) {
-      // virar TEACHER: remove coordinator profile e garante teacher profile
       await this.coordinatorService.removeByUserId(id);
       try {
-        await this.teacherService.createForUser(id); // idempotente no repo
+        await this.teacherService.createForUser(id); 
       } catch { /* já existe */ }
     }
 
     if (willChangeRole && dto.role === UserRole.COORDINATOR) {
-      // virar COORDINATOR: remove teacher profile e garante coordinator profile
       await this.teacherService.removeByUserId(id);
       try {
-        await this.coordinatorService.createForUser(id); // idempotente no repo
+        await this.coordinatorService.createForUser(id); 
       } catch { /* já existe */ }
     }
 
     if (willChangeRole && (dto.role === UserRole.USER || dto.role === UserRole.ADMIN)) {
-      // USER/ADMIN: sem perfis
       await this.teacherService.removeByUserId(id);
       await this.coordinatorService.removeByUserId(id);
     }
-
-    // ⚠️ Sem qualquer gestão de club quando a role não muda
-
     const user = await this.userRepo.update(id, dto);
     this.logger.log(`User updated: ${id}`);
     return user;

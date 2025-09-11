@@ -1,4 +1,3 @@
-// src/user/services/delete-user.service.ts
 import { Injectable, Logger } from '@nestjs/common';
 import { UserRepository } from '../user.repository';
 import { TeacherProfilesService } from 'src/modules/teacher-profiles/services/teacher-profiles.service';

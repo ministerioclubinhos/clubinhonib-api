@@ -22,6 +22,7 @@ import { UpdateUserService } from './services/update-user.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserEntity } from './user.entity';
 
+@UseGuards(JwtAuthGuard, AdminRoleGuard)
 @Controller('users')
 export class UserController {
   private readonly logger = new Logger(UserController.name);
@@ -41,7 +42,6 @@ export class UserController {
     return result;
   }
 
-  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Get()
   findAll(@Query() query: GetUsersQueryDto) {
     return this.getUsersService.findAllPaginated(query);
@@ -53,7 +53,6 @@ export class UserController {
     return this.getUsersService.findOne(id);
   }
 
-  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Put(':id')
   async update(
     @Param('id', new ParseUUIDPipe()) id: string,
@@ -65,8 +64,6 @@ export class UserController {
     return result;
   }
 
-
-  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Delete(':id')
   async remove(@Param('id', new ParseUUIDPipe()) id: string) {
     this.logger.debug(`🗑️ [DELETE /users/${id}] Removendo usuário`);

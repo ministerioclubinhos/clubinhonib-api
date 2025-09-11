@@ -1,4 +1,3 @@
-// src/modules/coordinator-profiles/services/coordinator-profiles.service.ts
 import { Injectable } from '@nestjs/common';
 import { CoordinatorProfilesRepository } from '../repositories/coordinator-profiles.repository';
 import {
@@ -58,8 +57,6 @@ export class CoordinatorProfilesService {
   async createForUser(userId: string) {
     return this.repo.createForUser(userId);
   }
-
-  /** remove coordinator profile do usuário (e zera seus clubs no próprio repo) */
   async removeByUserId(userId: string) {
     return this.repo.removeByUserId(userId);
   }
