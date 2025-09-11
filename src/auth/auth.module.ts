@@ -8,8 +8,6 @@ import { AuthRepository } from './auth.repository';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { AuthService } from './services/auth.service';
 import { AuthContextService } from './services/auth-context.service';
-
-// ⚠️ Se o caminho do UserModule for diferente, ajuste aqui:
 import { UserModule } from 'src/user/user.module';
 
 @Module({

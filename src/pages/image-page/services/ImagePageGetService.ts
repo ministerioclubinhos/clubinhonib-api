@@ -9,6 +9,8 @@ import { ImagePageRepository } from '../repository/image-page.repository';
 import { ImagePageResponseDto } from '../dto/image-page-response.dto';
 import { PaginatedImageSectionResponseDto } from '../dto/paginated-image-section.dto';
 import { ImageSectionRepository } from 'src/pages/image-section/repository/image-section.repository';
+import { Request } from 'express';
+import { AuthContextService } from 'src/auth/services/auth-context.service';
 
 @Injectable()
 export class ImagePageGetService {
@@ -18,6 +20,8 @@ export class ImagePageGetService {
         private readonly imagePageRepository: ImagePageRepository,
         private readonly sectionRepository: ImageSectionRepository,
         private readonly mediaItemProcessor: MediaItemProcessor,
+        private readonly authContext: AuthContextService,
+
     ) {
     }
 
@@ -83,26 +87,43 @@ export class ImagePageGetService {
         pageId: string,
         page: number,
         limit: number,
+        req: Request,
     ): Promise<PaginatedImageSectionResponseDto> {
         const offset = (page - 1) * limit;
 
-        this.logger.debug(`🔄 Buscando seções paginadas: pageId=${pageId}, page=${page}, limit=${limit}`);
+        const loggedIn = await this.authContext.isLoggedIn(req);
+
+        this.logger.debug(
+            `🔄 Buscando seções paginadas: pageId=${pageId}, page=${page}, limit=${limit}, loggedIn=${loggedIn}`,
+        );
 
         const imagePage = await this.imagePageRepository.findById(pageId);
         if (!imagePage) {
             this.logger.warn(`⚠️ Página com ID ${pageId} não encontrada`);
-            throw new NotFoundException(`Página de galeria com ID ${pageId} não encontrada.`);
+            throw new NotFoundException(
+                `Página de galeria com ID ${pageId} não encontrada.`,
+            );
+        }
+
+        const where: any = { page: { id: pageId } };
+
+        if (!loggedIn) {
+            where.public = true;
         }
 
         const [sections, total] = await this.sectionRepository.findAndCount({
-            where: { page: { id: pageId } },
+            where,
             order: { createdAt: 'DESC' },
             skip: offset,
             take: limit,
         });
 
-        const sectionIds = sections.map(section => section.id);
-        const mediaItems = await this.mediaItemProcessor.findManyMediaItemsByTargets(sectionIds, 'ImagesPage');
+        const sectionIds = sections.map((section) => section.id);
+        const mediaItems =
+            await this.mediaItemProcessor.findManyMediaItemsByTargets(
+                sectionIds,
+                'ImagesPage',
+            );
         const mediaMap = this.groupMediaBySectionId(mediaItems);
 
         return PaginatedImageSectionResponseDto.fromEntities(

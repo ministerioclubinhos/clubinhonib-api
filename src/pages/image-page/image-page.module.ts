@@ -12,12 +12,14 @@ import { ImagePageCreateService } from './services/ImagePageCreateService';
 import { ImagePageGetService } from './services/ImagePageGetService';
 import { ImagePageDeleteService } from './services/ImagePageDeleteService';
 import { ImagePageUpdateService } from './services/ImagePageUpdateService';
+import { AuthModule } from 'src/auth/auth.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([ImagePageEntity, ImageSectionEntity, ImagePageEntity]),
     RouteModule,
-    MediaModule
+    MediaModule,
+    AuthModule
   ],
   controllers: [ImageController],
   providers: [
