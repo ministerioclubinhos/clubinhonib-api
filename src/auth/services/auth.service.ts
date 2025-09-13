@@ -3,16 +3,16 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { CreateUserService } from 'src/user/services/create-user.service';
-import { UserEntity, UserRole } from 'src/user/user.entity';
+import { UserEntity } from 'src/user/user.entity';
 import { OAuth2Client } from 'google-auth-library';
 import { UserRepository } from 'src/user/user.repository';
 import { GetUsersService } from 'src/user/services/get-user.service';
-import { DeleteUserService } from 'src/user/services/delete-user.service';
 import { UpdateUserService } from 'src/user/services/update-user.service';
 import { AuthRepository } from '../auth.repository';
 import { CompleteUserDto } from '../dto/complete-register.dto';
 import { RegisterUserDto } from '../dto/register.dto';
 import { LoginDto } from '../dto/login.dto';
+import { UserRole } from '../auth.types';
 
 @Injectable()
 export class AuthService {
@@ -95,7 +95,7 @@ export class AuthService {
           active: false,
           completed: false,
           commonUser: false,
-          role: UserRole.USER,
+          role: UserRole.TEACHER,
         });
 
         return { email, name, completed: user.completed, commonUser: user.commonUser, newUser: true };
@@ -231,6 +231,7 @@ export class AuthService {
       phone: data.phone,
       password: data.password,
       completed: true,
+      role: data.role,
     });
 
     this.logger.log(`Cadastro completado para: ${data.email}`);

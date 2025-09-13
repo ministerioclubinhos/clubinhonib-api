@@ -1,4 +1,5 @@
-import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
+import { UserRole } from '../auth.types';
 
 export class CompleteUserDto {
 
@@ -10,7 +11,7 @@ export class CompleteUserDto {
   @IsString()
   @IsNotEmpty()
   name: string;
-  
+
   @IsString()
   @IsNotEmpty()
   phone: string;
@@ -18,4 +19,8 @@ export class CompleteUserDto {
   @IsOptional()
   @MinLength(6)
   password?: string;
+
+  @IsOptional()
+  @IsEnum(UserRole)
+  role?: UserRole;
 }

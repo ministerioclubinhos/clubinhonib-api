@@ -6,13 +6,13 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { UserRole } from 'src/user/user.entity';
+import { UserRole } from '../auth.types';
 
 @Injectable()
 export class AdminRoleGuard implements CanActivate {
   private readonly logger = new Logger(AdminRoleGuard.name);
 
-  constructor(private readonly reflector: Reflector) {}
+  constructor(private readonly reflector: Reflector) { }
 
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();

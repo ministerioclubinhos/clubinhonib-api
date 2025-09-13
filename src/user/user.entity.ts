@@ -1,14 +1,9 @@
+import { UserRole } from 'src/auth/auth.types';
 import { CoordinatorProfileEntity } from 'src/modules/coordinator-profiles/entities/coordinator-profile.entity/coordinator-profile.entity';
 import { TeacherProfileEntity } from 'src/modules/teacher-profiles/entities/teacher-profile.entity/teacher-profile.entity';
 import { BaseEntity } from 'src/share/share-entity/base.entity';
 import { Entity, Column, OneToOne } from 'typeorm';
 
-export enum UserRole {
-  ADMIN = 'admin',
-  USER = 'user',
-  COORDINATOR = 'coordinator',
-  TEACHER = 'teacher',
-}
 
 @Entity('users')
 export class UserEntity extends BaseEntity {
@@ -33,13 +28,12 @@ export class UserEntity extends BaseEntity {
   @Column({ type: 'boolean', default: true })
   commonUser: boolean;
 
-  @Column({ type: 'enum', enum: UserRole, default: UserRole.USER })
+  @Column({ type: 'enum', enum: UserRole, default: UserRole.TEACHER })
   role: UserRole;
 
   @Column({ nullable: true, type: 'text' })
   refreshToken: string | null;
 
-  // Inverses (opcionais — não criam FK aqui)
   @OneToOne(() => TeacherProfileEntity, (p) => p.user)
   teacherProfile?: TeacherProfileEntity | null;
 

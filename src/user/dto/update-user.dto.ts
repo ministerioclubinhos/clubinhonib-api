@@ -1,5 +1,5 @@
 import { IsEmail, IsEnum, IsOptional, IsString, MinLength, IsBoolean } from "class-validator";
-import { UserRole } from "../user.entity";
+import { UserRole } from "src/auth/auth.types";
 
 export class UpdateUserDto {
   @IsOptional() @IsString()
@@ -14,7 +14,8 @@ export class UpdateUserDto {
   @IsOptional() @IsString()
   phone?: string;
 
-  @IsOptional() @IsEnum(UserRole)
+  @IsOptional()
+  @IsEnum(UserRole)
   role?: UserRole;
 
   @IsOptional() @IsBoolean()

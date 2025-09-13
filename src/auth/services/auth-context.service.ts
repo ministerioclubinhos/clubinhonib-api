@@ -2,7 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { Request } from 'express';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { JwtPayload, RoleUser } from '../auth.types';
+import { JwtPayload, UserRole } from '../auth.types';
 
 @Injectable()
 export class AuthContextService {
@@ -69,24 +69,24 @@ export class AuthContextService {
     return p?.email ?? null;
   }
 
-  async getRole(req: Request): Promise<RoleUser | null> {
+  async getRole(req: Request): Promise<UserRole | null> {
     const p = await this.tryGetPayload(req);
-    return (p?.role as RoleUser) ?? null;
+    return (p?.role as UserRole) ?? null;
   }
 
   async isAdmin(req: Request): Promise<boolean> {
     const role = await this.getRole(req);
-    return role === RoleUser.ADMIN;
+    return role === UserRole.ADMIN;
   }
 
   async isTeacher(req: Request): Promise<boolean> {
     const role = await this.getRole(req);
-    return role === RoleUser.TEACHER;
+    return role === UserRole.TEACHER;
   }
 
   async isCoordinator(req: Request): Promise<boolean> {
     const role = await this.getRole(req);
-    return role === RoleUser.COORDINATOR;
+    return role === UserRole.COORDINATOR;
   }
 
     async isLoggedIn(req: Request): Promise<boolean> {
@@ -106,12 +106,12 @@ export class AuthContextService {
     return { ...payload, role };
   }
 
-  private normalizeRole(role?: string | RoleUser): RoleUser | undefined {
+  private normalizeRole(role?: string | UserRole): UserRole | undefined {
     if (!role) return undefined;
     const r = String(role).toLowerCase();
-    if (r === RoleUser.ADMIN) return RoleUser.ADMIN;
-    if (r === RoleUser.TEACHER) return RoleUser.TEACHER;
-    if (r === RoleUser.COORDINATOR) return RoleUser.COORDINATOR;
+    if (r === UserRole.ADMIN) return UserRole.ADMIN;
+    if (r === UserRole.TEACHER) return UserRole.TEACHER;
+    if (r === UserRole.COORDINATOR) return UserRole.COORDINATOR;
     return undefined;
   }
 }

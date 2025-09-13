@@ -1,4 +1,4 @@
-import { UserRole } from 'src/user/user.entity';
+import { UserRole } from "../auth.types";
 
 export type ClubLite = {
   id: string;

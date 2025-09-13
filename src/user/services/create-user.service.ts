@@ -6,10 +6,11 @@ import * as bcrypt from 'bcryptjs';
 
 import { UserRepository } from '../user.repository';
 import { CreateUserDto } from '../dto/create-user.dto';
-import { UserEntity, UserRole } from '../user.entity';
+import { UserEntity } from '../user.entity';
 
 import { TeacherProfilesService } from 'src/modules/teacher-profiles/services/teacher-profiles.service';
 import { CoordinatorProfilesService } from 'src/modules/coordinator-profiles/services/coordinator-profiles.service';
+import { UserRole } from 'src/auth/auth.types';
 
 @Injectable()
 export class CreateUserService {

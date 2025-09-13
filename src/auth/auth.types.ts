@@ -1,5 +1,4 @@
-// src/modules/auth/auth.types.ts
-export enum RoleUser {
+export enum UserRole {
   ADMIN = 'admin',
   TEACHER = 'teacher',
   COORDINATOR = 'coordinator',
@@ -8,7 +7,7 @@ export enum RoleUser {
 export type JwtPayload = {
   sub: string;
   email?: string;
-  role?: RoleUser | string;
+  role?: UserRole | string;
   iat?: number;
   exp?: number;
 };
