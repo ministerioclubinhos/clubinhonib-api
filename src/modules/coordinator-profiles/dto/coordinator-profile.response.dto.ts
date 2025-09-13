@@ -14,7 +14,6 @@ class UserMiniDto {
   @Expose() commonUser!: boolean;
 }
 
-/** Teacher “mini” com user aninhado (mantém o nome exportado) */
 @Exclude()
 export class TeacherMiniDto {
   @Expose() id!: string;
@@ -25,7 +24,6 @@ export class TeacherMiniDto {
   user!: UserMiniDto;
 }
 
-/** Club com lista de teachers (cada teacher com user) */
 @Exclude()
 export class ClubWithTeachersDto {
   @Expose() id!: string;
@@ -38,7 +36,6 @@ export class ClubWithTeachersDto {
   teachers!: TeacherMiniDto[];
 }
 
-/** Coordinator “mini” com user (mantém o nome exportado) */
 @Exclude()
 export class CoordinatorMiniDto {
   @Expose() id!: string;
@@ -49,7 +46,6 @@ export class CoordinatorMiniDto {
   user!: UserMiniDto;
 }
 
-/** Resposta completa do Coordinator (com user + clubs + teachers[user]) */
 @Exclude()
 export class CoordinatorResponseDto {
   @Expose() id!: string;
@@ -63,9 +59,11 @@ export class CoordinatorResponseDto {
   @Type(() => ClubWithTeachersDto)
   @Transform(({ value }) => (Array.isArray(value) ? value : []))
   clubs!: ClubWithTeachersDto[];
+
+  @Expose() createdAt!: Date;
+  @Expose() updatedAt!: Date;
 }
 
-/* Helpers */
 export function toCoordinatorDto(entity: CoordinatorProfileEntity): CoordinatorResponseDto {
   return plainToInstance(CoordinatorResponseDto, entity, { excludeExtraneousValues: true });
 }

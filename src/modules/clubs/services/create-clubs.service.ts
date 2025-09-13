@@ -1,4 +1,3 @@
-// src/modules/clubs/services/create-clubs.service.ts
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { Request } from 'express';
 import { ClubsRepository } from '../repositories/clubs.repository';
@@ -12,12 +11,11 @@ export class CreateClubsService {
   constructor(
     private readonly clubsRepository: ClubsRepository,
     private readonly authCtx: AuthContextService,
-  ) {}
+  ) { }
 
   private async getCtx(req: Request): Promise<Ctx> {
     const p = await this.authCtx.tryGetPayload(req);
     return { role: p?.role?.toLowerCase(), userId: p?.sub ?? null };
-    // sem token => role undefined -> cairá em Forbidden
   }
 
   async create(dto: CreateClubDto, req: Request) {
@@ -27,11 +25,9 @@ export class CreateClubsService {
     }
 
     if (ctx.role === 'coordinator') {
-      // coordinator só cria clube sob seu próprio profile
       const myCoordId = await this.clubsRepository.getCoordinatorProfileIdByUserId(ctx.userId!);
       if (!myCoordId) throw new ForbiddenException('Acesso negado');
 
-      // força vincular ao seu profile (se vier outro ID, bloqueia)
       if (dto.coordinatorProfileId && dto.coordinatorProfileId !== myCoordId) {
         throw new ForbiddenException('Não é permitido atribuir outro coordenador');
       }

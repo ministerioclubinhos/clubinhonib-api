@@ -1,4 +1,3 @@
-// src/modules/clubs/dto/club-select-option.dto.ts
 import { Exclude, Expose } from 'class-transformer';
 import { ClubEntity } from '../entities/club.entity/club.entity';
 
@@ -18,7 +17,7 @@ export function toClubSelectOption(entity: ClubEntity): ClubSelectOptionDto {
   const bairro = entity.address?.district?.trim();
   return {
     id: entity.id,
-    detalhe: `Clubinho ${entity.number} : ${bairro || '—'}`, // 👈 formato novo
+    detalhe: `Clubinho ${entity.number} : ${bairro || '—'}`,
     coordinator: !!entity.coordinator,
   };
 }

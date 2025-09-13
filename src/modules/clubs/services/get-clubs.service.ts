@@ -1,4 +1,3 @@
-// src/modules/clubs/services/get-clubs.service.ts
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { Request } from 'express';
 import { ClubsRepository } from '../repositories/clubs.repository';
@@ -39,8 +38,6 @@ export class GetClubsService {
 
   async findAllSimple(req: Request): Promise<ClubSimpleResponseDto[]> {
     const ctx = await this.getCtx(req);
-   // if (!ctx.role || ctx.role === 'teacher') throw new ForbiddenException('Acesso negado');
-
     const clubs = await this.clubsRepository.findAllSimple(ctx);
     return clubs.map(toClubSimpleDto);
   }
@@ -54,8 +51,6 @@ export class GetClubsService {
 
   async list(req: Request): Promise<ClubSelectOptionDto[]> {
     const ctx = await this.getCtx(req);
-   // if (!ctx.role || ctx.role === 'teacher') throw new ForbiddenException('Acesso negado');
-
     return await this.clubsRepository.list(ctx);
   }
 }

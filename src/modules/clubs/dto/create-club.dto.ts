@@ -1,4 +1,3 @@
-// src/modules/clubs/dto/create-club.dto.ts
 import {
   IsEnum,
   IsInt,

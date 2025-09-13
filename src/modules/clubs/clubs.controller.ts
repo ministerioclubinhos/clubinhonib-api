@@ -33,7 +33,7 @@ export class ClubsController {
     private readonly updateService: UpdateClubsService,
     private readonly getService: GetClubsService,
     private readonly createService: CreateClubsService,
-  ) {}
+  ) { }
 
   @Post()
   create(@Body() dto: CreateClubDto, @Req() req: Request) {

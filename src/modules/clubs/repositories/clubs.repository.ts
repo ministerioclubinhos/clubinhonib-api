@@ -1,4 +1,3 @@
-// src/modules/clubs/repositories/clubs.repository.ts
 import {
   BadRequestException,
   ConflictException,
@@ -42,9 +41,8 @@ export class ClubsRepository {
 
     @InjectRepository(TeacherProfileEntity)
     private readonly teacherProfileRepo: Repository<TeacherProfileEntity>,
-  ) {}
+  ) { }
 
-  /* ========== helpers de seleção segura ========== */
 
   private buildClubBaseQB(manager?: EntityManager): SelectQueryBuilder<ClubEntity> {
     const repo = manager ? manager.getRepository(ClubEntity) : this.clubRepo;
@@ -75,30 +73,19 @@ export class ClubsRepository {
       ]);
   }
 
-  /** Aplica filtro por papel (para GETs):
-   *  - admin: sem filtro
-   *  - coordinator: club.coordinator.user.id = :userId
-   *  - teacher: (service bloqueia com 403), mas por segurança podemos garantir vazio
-   */
-// src/modules/clubs/repositories/clubs.repository.ts
+  private applyRoleFilter(qb: SelectQueryBuilder<ClubEntity>, ctx?: RoleCtx) {
+    const role = ctx?.role?.toLowerCase();
+    const userId = ctx?.userId;
+    if (!role || role === 'admin' || !userId) return;
 
-private applyRoleFilter(qb: SelectQueryBuilder<ClubEntity>, ctx?: RoleCtx) {
-  const role = ctx?.role?.toLowerCase();
-  const userId = ctx?.userId;
-  if (!role || role === 'admin' || !userId) return;
-
-  if (role === 'coordinator') {
-    qb.andWhere('coord_user.id = :uid', { uid: userId }).distinct(true);
-  } else if (role === 'teacher') {
-    // ✅ retorna somente o(s) club(s) ao qual o professor está vinculado
-    qb.andWhere('teacher_user.id = :uid', { uid: userId }).distinct(true);
-  } else {
-    // papéis desconhecidos: sem acesso
-    qb.andWhere('1 = 0');
+    if (role === 'coordinator') {
+      qb.andWhere('coord_user.id = :uid', { uid: userId }).distinct(true);
+    } else if (role === 'teacher') {
+      qb.andWhere('teacher_user.id = :uid', { uid: userId }).distinct(true);
+    } else {
+      qb.andWhere('1 = 0');
+    }
   }
-}
-
-  /* ========== READS ========== */
 
   async findByIdWithRelationsOrFail(id: string): Promise<ClubEntity> {
     const club = await this.clubRepo.findOne({
@@ -121,7 +108,7 @@ private applyRoleFilter(qb: SelectQueryBuilder<ClubEntity>, ctx?: RoleCtx) {
       .addOrderBy('teachers.createdAt', 'ASC');
     this.applyRoleFilter(qb, ctx);
 
-    return qb.getOne(); // retorna null se coord sem acesso
+    return qb.getOne();
   }
 
   async findAllPaginated(
@@ -140,10 +127,8 @@ private applyRoleFilter(qb: SelectQueryBuilder<ClubEntity>, ctx?: RoleCtx) {
 
     const qb = this.buildClubBaseQB().distinct(true);
 
-    // filtro por papel
     this.applyRoleFilter(qb, ctx);
 
-    // 1) Endereço
     if (addressSearchString?.trim()) {
       const like = `%${addressSearchString.trim()}%`;
       qb.andWhere(
@@ -158,7 +143,6 @@ private applyRoleFilter(qb: SelectQueryBuilder<ClubEntity>, ctx?: RoleCtx) {
       );
     }
 
-    // 2) Usuários (coord e teachers)
     if (userSearchString?.trim()) {
       const like = `%${userSearchString.trim()}%`;
       qb.andWhere(
@@ -174,7 +158,6 @@ private applyRoleFilter(qb: SelectQueryBuilder<ClubEntity>, ctx?: RoleCtx) {
       );
     }
 
-    // 3) Clube
     if (clubSearchString?.trim()) {
       const raw = clubSearchString.trim();
       const n = Number(raw);
@@ -188,7 +171,6 @@ private applyRoleFilter(qb: SelectQueryBuilder<ClubEntity>, ctx?: RoleCtx) {
       }
     }
 
-    // ordenação segura
     const sortMap: Record<string, string> = {
       number: 'club.number',
       weekday: 'club.weekday',
@@ -201,16 +183,13 @@ private applyRoleFilter(qb: SelectQueryBuilder<ClubEntity>, ctx?: RoleCtx) {
     const orderDir = (order || 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
     qb.orderBy(orderBy, orderDir as 'ASC' | 'DESC');
 
-    // paginação
     qb.skip((page - 1) * limit).take(limit);
 
     const [items, total] = await qb.getManyAndCount();
     return { items, total };
   }
 
-  /** GET /all — versão simples (sem users; só endereço básico) */
   async findAllSimple(ctx?: RoleCtx): Promise<ClubEntity[]> {
-    // para manter a filtragem por papel, vamos usar o baseQB com select reduzido
     const qb = this.buildClubBaseQB()
       .select([
         'club.id',
@@ -237,8 +216,6 @@ private applyRoleFilter(qb: SelectQueryBuilder<ClubEntity>, ctx?: RoleCtx) {
     return items.map(toClubSelectOption);
   }
 
-  /* ========== WRITES ========== */
-
   async createClub(dto: CreateClubDto): Promise<ClubEntity> {
     return this.dataSource.transaction(async (manager) => {
       const clubRepo = manager.withRepository(this.clubRepo);
@@ -246,11 +223,9 @@ private applyRoleFilter(qb: SelectQueryBuilder<ClubEntity>, ctx?: RoleCtx) {
       const coordRepo = manager.withRepository(this.coordRepo);
       const teacherRepo = manager.withRepository(this.teacherProfileRepo);
 
-      // Address
       const address = addressRepo.create(dto.address);
       await addressRepo.save(address);
 
-      // Coordinator (opcional)
       let coordinator: CoordinatorProfileEntity | null = null;
       if (dto.coordinatorProfileId) {
         coordinator = await coordRepo.findOne({
@@ -261,7 +236,6 @@ private applyRoleFilter(qb: SelectQueryBuilder<ClubEntity>, ctx?: RoleCtx) {
         }
       }
 
-      // Cria Club
       const club = clubRepo.create({
         number: dto.number,
         weekday: dto.weekday,
@@ -278,7 +252,6 @@ private applyRoleFilter(qb: SelectQueryBuilder<ClubEntity>, ctx?: RoleCtx) {
         throw e;
       }
 
-      // Teachers (opcional)
       if (dto.teacherProfileIds?.length) {
         const ids = Array.from(new Set(dto.teacherProfileIds));
         const teachers = await teacherRepo.find({
@@ -306,7 +279,6 @@ private applyRoleFilter(qb: SelectQueryBuilder<ClubEntity>, ctx?: RoleCtx) {
         await teacherRepo.update({ id: In(ids) }, { club: { id: club.id } as any });
       }
 
-      // Retorna com joins completos
       return this.findOneOrFailForResponseTx(manager, club.id);
     });
   }
@@ -393,9 +365,9 @@ private applyRoleFilter(qb: SelectQueryBuilder<ClubEntity>, ctx?: RoleCtx) {
 
     const attachProfiles = toAttach.length
       ? await txTeacherRepo.find({
-          where: { id: In(toAttach) },
-          relations: { club: true },
-        })
+        where: { id: In(toAttach) },
+        relations: { club: true },
+      })
       : [];
 
     if (attachProfiles.length !== toAttach.length) {
@@ -462,9 +434,6 @@ private applyRoleFilter(qb: SelectQueryBuilder<ClubEntity>, ctx?: RoleCtx) {
     });
   }
 
-  /* ===== Helpers de acesso ===== */
-
-  /** true se usuário (admin or coordinator) pode acessar esse club */
   async userHasAccessToClub(clubId: string, ctx?: RoleCtx): Promise<boolean> {
     const role = ctx?.role?.toLowerCase();
     const userId = ctx?.userId;
@@ -484,7 +453,6 @@ private applyRoleFilter(qb: SelectQueryBuilder<ClubEntity>, ctx?: RoleCtx) {
     return hasGetExists ? !!(await (qb as any).getExists()) : (await qb.getCount()) > 0;
   }
 
-  /** retorna o coordinatorProfileId do usuário (ou null) */
   async getCoordinatorProfileIdByUserId(userId: string): Promise<string | null> {
     const coord = await this.coordRepo.findOne({
       where: { user: { id: userId } as any },

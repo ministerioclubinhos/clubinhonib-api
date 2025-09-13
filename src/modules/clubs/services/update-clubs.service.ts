@@ -1,4 +1,3 @@
-// src/modules/clubs/services/update-clubs.service.ts
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Request } from 'express';
 import { ClubsRepository } from '../repositories/clubs.repository';
@@ -12,7 +11,7 @@ export class UpdateClubsService {
   constructor(
     private readonly clubsRepository: ClubsRepository,
     private readonly authCtx: AuthContextService,
-  ) {}
+  ) { }
 
   private async getCtx(req: Request): Promise<Ctx> {
     const p = await this.authCtx.tryGetPayload(req);
@@ -24,18 +23,15 @@ export class UpdateClubsService {
     if (!ctx.role || ctx.role === 'teacher') throw new ForbiddenException('Acesso negado');
 
     if (ctx.role === 'coordinator') {
-      // só pode alterar clubs sob seu guarda-chuva
       const allowed = await this.clubsRepository.userHasAccessToClub(id, ctx);
       if (!allowed) throw new NotFoundException('Club não encontrado');
 
-      // não pode trocar o coordenador para outra pessoa
       if (dto.coordinatorProfileId !== undefined) {
         const myCoordId = await this.clubsRepository.getCoordinatorProfileIdByUserId(ctx.userId!);
         if (!myCoordId) throw new ForbiddenException('Acesso negado');
         if (dto.coordinatorProfileId !== null && dto.coordinatorProfileId !== myCoordId) {
           throw new ForbiddenException('Não é permitido atribuir outro coordenador');
         }
-        // opcional: forçar a manter o próprio ID
         if (dto.coordinatorProfileId === undefined) {
           dto.coordinatorProfileId = myCoordId;
         }

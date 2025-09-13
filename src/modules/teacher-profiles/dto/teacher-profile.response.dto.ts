@@ -2,7 +2,6 @@ import { Exclude, Expose, Type, Transform, plainToInstance } from 'class-transfo
 import { Weekday } from 'src/modules/clubs/enums/weekday.enum/weekday.enum';
 import { TeacherProfileEntity } from '../entities/teacher-profile.entity/teacher-profile.entity';
 
-/** Mini do User (sem campos sensíveis) */
 @Exclude()
 class UserMiniDto {
   @Expose() id!: string;
@@ -14,7 +13,6 @@ class UserMiniDto {
   @Expose() commonUser!: boolean;
 }
 
-/** ✅ Teacher mini exportado, agora com user */
 @Exclude()
 export class TeacherMiniDto {
   @Expose() id!: string;
@@ -25,7 +23,6 @@ export class TeacherMiniDto {
   user!: UserMiniDto;
 }
 
-/** Coordinator mini com user (para aparecer dentro do club) */
 @Exclude()
 export class CoordinatorMiniDto {
   @Expose() id!: string;
@@ -36,7 +33,6 @@ export class CoordinatorMiniDto {
   user!: UserMiniDto;
 }
 
-/** Club do teacher, contendo o coordinator (com user) */
 @Exclude()
 export class ClubMiniWithCoordinatorDto {
   @Expose() id!: string;
@@ -49,7 +45,6 @@ export class ClubMiniWithCoordinatorDto {
   coordinator!: CoordinatorMiniDto | null;
 }
 
-/** Resposta completa do Teacher (com seu user + club[coordinator[user]]) */
 @Exclude()
 export class TeacherResponseDto {
   @Expose() id!: string;
@@ -63,6 +58,9 @@ export class TeacherResponseDto {
   @Type(() => ClubMiniWithCoordinatorDto)
   @Transform(({ value }) => value ?? null)
   club!: ClubMiniWithCoordinatorDto | null;
+
+  @Expose() createdAt!: Date;
+  @Expose() updatedAt!: Date;
 }
 
 export function toTeacherDto(entity: TeacherProfileEntity): TeacherResponseDto {

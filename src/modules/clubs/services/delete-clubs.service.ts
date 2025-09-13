@@ -1,4 +1,3 @@
-// src/modules/clubs/services/delete-clubs.service.ts
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Request } from 'express';
 import { ClubsRepository } from '../repositories/clubs.repository';

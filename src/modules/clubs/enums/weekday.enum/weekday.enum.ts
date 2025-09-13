@@ -1,4 +1,3 @@
-// src/modules/clubs/enums/weekday.enum.ts
 export enum Weekday {
   MONDAY = 'monday',
   TUESDAY = 'tuesday',
