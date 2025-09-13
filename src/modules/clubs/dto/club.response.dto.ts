@@ -39,6 +39,10 @@ export class ClubMiniDto {
   @Expose() id!: string;
   @Expose() number!: number;
   @Expose() weekday!: Weekday;
+
+  @Expose()
+  @Transform(({ value }) => (typeof value === 'string' ? value.slice(0, 5) : null))
+  time!: string | null;
 }
 
 @Exclude()
@@ -46,6 +50,10 @@ export class ClubSimpleResponseDto {
   @Expose() id!: string;
   @Expose() number!: number;
   @Expose() weekday!: Weekday;
+
+  @Expose()
+  @Transform(({ value }) => (typeof value === 'string' ? value.slice(0, 5) : null))
+  time!: string | null;
 
   @Expose()
   @Type(() => AddressResponseDto)
@@ -59,6 +67,10 @@ export class ClubSimpleResponseDto {
 export class ClubResponseDto {
   @Expose() id!: string;
   @Expose() number!: number;
+
+  @Expose()
+  @Transform(({ value }) => (typeof value === 'string' ? value.slice(0, 5) : null))
+  time!: string | null;
 
   @Expose()
   @Type(() => AddressResponseDto)

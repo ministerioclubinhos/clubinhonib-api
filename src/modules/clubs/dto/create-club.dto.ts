@@ -8,6 +8,7 @@ import {
   Min,
   IsArray,
   ArrayUnique,
+  Matches,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { Weekday } from '../enums/weekday.enum/weekday.enum';
@@ -28,6 +29,10 @@ export class CreateClubDto {
 
   @IsEnum(Weekday)
   weekday!: Weekday;
+
+  @IsOptional()
+  @Matches(/^([01]?\d|2[0-3]):([0-5]\d)$/, { message: 'time deve ser H:mm ou HH:mm (0:00–23:59)' })
+  time?: string;
 
   @ValidateNested()
   @Type(() => AddressInputDto)

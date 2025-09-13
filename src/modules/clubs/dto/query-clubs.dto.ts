@@ -17,8 +17,9 @@ export class QueryClubsDto {
   @IsOptional() @IsString()
   clubSearchString?: string;
 
-  @IsOptional() @IsIn(['number', 'weekday', 'createdAt', 'updatedAt', 'city', 'state'])
-  sort?: 'number' | 'weekday' | 'createdAt' | 'updatedAt' | 'city' | 'state' = 'number';
+  @IsOptional()
+  @IsIn(['number', 'weekday', 'time', 'createdAt', 'updatedAt', 'city', 'state'])
+  sort?: 'number' | 'weekday' | 'time' | 'createdAt' | 'updatedAt' | 'city' | 'state' = 'number';
 
   @IsOptional() @IsIn(['ASC', 'DESC', 'asc', 'desc'])
   order?: 'ASC' | 'DESC' | 'asc' | 'desc' = 'ASC';

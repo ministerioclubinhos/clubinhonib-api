@@ -43,7 +43,6 @@ export class ClubsRepository {
     private readonly teacherProfileRepo: Repository<TeacherProfileEntity>,
   ) { }
 
-
   private buildClubBaseQB(manager?: EntityManager): SelectQueryBuilder<ClubEntity> {
     const repo = manager ? manager.getRepository(ClubEntity) : this.clubRepo;
     return repo
@@ -126,7 +125,6 @@ export class ClubsRepository {
     } = q;
 
     const qb = this.buildClubBaseQB().distinct(true);
-
     this.applyRoleFilter(qb, ctx);
 
     if (addressSearchString?.trim()) {
@@ -162,8 +160,12 @@ export class ClubsRepository {
       const raw = clubSearchString.trim();
       const n = Number(raw);
       const isNum = Number.isInteger(n) && n > 0;
+      const isTime = /^([01]?\d|2[0-3]):[0-5]\d$/.test(raw);
+
       if (isNum) {
         qb.andWhere('club.number = :clubNum', { clubNum: n });
+      } else if (isTime) {
+        qb.andWhere('club.time LIKE :tlike', { tlike: `${raw}%` });
       } else {
         qb.andWhere('LOWER(CAST(club.weekday as char)) LIKE LOWER(:wdLike)', {
           wdLike: `%${raw}%`,
@@ -174,6 +176,7 @@ export class ClubsRepository {
     const sortMap: Record<string, string> = {
       number: 'club.number',
       weekday: 'club.weekday',
+      time: 'club.time',
       createdAt: 'club.createdAt',
       updatedAt: 'club.updatedAt',
       city: 'address.city',
@@ -195,6 +198,7 @@ export class ClubsRepository {
         'club.id',
         'club.number',
         'club.weekday',
+        'club.time',
         'address.id',
         'address.city',
         'address.state',
@@ -207,11 +211,8 @@ export class ClubsRepository {
   }
 
   async list(ctx?: RoleCtx): Promise<ClubSelectOptionDto[]> {
-    const qb = this.buildClubBaseQB()
-      .orderBy('club.number', 'ASC');
-
+    const qb = this.buildClubBaseQB().orderBy('club.number', 'ASC');
     this.applyRoleFilter(qb, ctx);
-
     const items = await qb.getMany();
     return items.map(toClubSelectOption);
   }
@@ -222,7 +223,6 @@ export class ClubsRepository {
       const addressRepo = manager.withRepository(this.addressRepo);
       const coordRepo = manager.withRepository(this.coordRepo);
       const teacherRepo = manager.withRepository(this.teacherProfileRepo);
-
       const address = addressRepo.create(dto.address);
       await addressRepo.save(address);
 
@@ -239,6 +239,7 @@ export class ClubsRepository {
       const club = clubRepo.create({
         number: dto.number,
         weekday: dto.weekday,
+        time: dto.time ?? null,
         address,
         coordinator: coordinator ?? null,
       });
@@ -263,7 +264,7 @@ export class ClubsRepository {
           const found = new Set(teachers.map((t) => t.id));
           const missing = ids.filter((id) => !found.has(id));
           throw new NotFoundException(
-            `TeacherProfile(s) não encontrado(s): ${missing.join(', ')}`
+            `TeacherProfile(s) não encontrado(s): ${missing.join(', ')}`,
           );
         }
 
@@ -272,13 +273,12 @@ export class ClubsRepository {
           throw new BadRequestException(
             `Alguns TeacherProfiles já estão vinculados a outro Club: ${alreadyAssigned
               .map((t) => t.id)
-              .join(', ')}`
+              .join(', ')}`,
           );
         }
 
         await teacherRepo.update({ id: In(ids) }, { club: { id: club.id } as any });
       }
-
       return this.findOneOrFailForResponseTx(manager, club.id);
     });
   }
@@ -298,6 +298,10 @@ export class ClubsRepository {
 
       if (dto.number !== undefined) club.number = dto.number as any;
       if (dto.weekday !== undefined) club.weekday = dto.weekday as any;
+
+      if (dto.time !== undefined) {
+        club.time = dto.time as any;
+      }
 
       if (dto.address) {
         if (club.address) {
