@@ -1,4 +1,3 @@
-// src/modules/pagelas/dto/pagela-response.dto.ts
 import { PagelaEntity } from '../entities/pagela.entity';
 
 export class PagelaResponseDto {

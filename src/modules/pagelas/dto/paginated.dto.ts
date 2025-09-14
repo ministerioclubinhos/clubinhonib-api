@@ -1,4 +1,3 @@
-// src/modules/pagelas/dto/paginated.dto.ts
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 

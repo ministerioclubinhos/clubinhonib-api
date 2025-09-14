@@ -1,4 +1,3 @@
-// src/modules/pagelas/pagelas.module.ts
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { PagelaEntity } from './entities/pagela.entity';
@@ -14,4 +13,4 @@ import { PagelasController } from './pagelas.controller';
   providers: [PagelasRepository, PagelasService],
   exports: [PagelasService, PagelasRepository],
 })
-export class PagelasModule {}
+export class PagelasModule { }

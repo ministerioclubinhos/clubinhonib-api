@@ -1,4 +1,3 @@
-// src/modules/coordinator-profiles/repositories/coordinator-profiles.repository.ts
 import {
   BadRequestException,
   Injectable,
@@ -35,9 +34,7 @@ export class CoordinatorProfilesRepository {
     private readonly clubRepo: Repository<ClubEntity>,
   ) {}
 
-  /* ============================ Helpers ============================ */
 
-  /** QB completo para montar a resposta (inclui clubs, teachers e users enxutos) */
   private buildCoordinatorBaseQB(
     manager?: EntityManager,
   ): SelectQueryBuilder<CoordinatorProfileEntity> {
@@ -49,7 +46,6 @@ export class CoordinatorProfilesRepository {
       .createQueryBuilder('coord')
       .leftJoinAndSelect('coord.clubs', 'club')
       .leftJoinAndSelect('club.teachers', 'teachers')
-      // user do coordinator (apenas campos seguros)
       .leftJoin('coord.user', 'coord_user')
       .addSelect([
         'coord_user.id',
@@ -60,7 +56,6 @@ export class CoordinatorProfilesRepository {
         'coord_user.completed',
         'coord_user.commonUser',
       ])
-      // user dos teachers (apenas campos seguros)
       .leftJoin('teachers.user', 'teacher_user')
       .addSelect([
         'teacher_user.id',
@@ -71,20 +66,16 @@ export class CoordinatorProfilesRepository {
         'teacher_user.completed',
         'teacher_user.commonUser',
       ])
-      // 🔒 Somente coordenadores cujo usuário está ativo
       .where('coord_user.active = true');
   }
 
-  /** Base para consulta de IDs (só join com user — evita duplicação por clubs) */
   private baseIdsQuery(): SelectQueryBuilder<CoordinatorProfileEntity> {
     return this.coordRepo
       .createQueryBuilder('coord')
       .leftJoin('coord.user', 'coord_user')
-      // 🔒 Somente coordenadores cujo usuário está ativo
       .where('coord_user.active = true');
   }
 
-  /** Coluna de ordenação segura */
   private resolveSort(sort?: string) {
     const map: Record<string, string> = {
       createdAt: 'coord.createdAt',
@@ -94,21 +85,13 @@ export class CoordinatorProfilesRepository {
     return map[sort ?? 'updatedAt'] ?? 'coord.updatedAt';
   }
 
-  /** Converte clubNumber vindo como string/number para number | undefined */
   private coerceClubNumber(input: unknown): number | undefined {
     if (input === undefined || input === null || input === '') return undefined;
     const n = Number(String(input).trim());
     return Number.isInteger(n) ? n : undefined;
   }
 
-  /**
-   * Aplica filtros:
-   * - searchString/q: em coord_user e em qualquer teacher_user de clubes do coord (via EXISTS)
-   * - active
-   * - clubNumber (tem precedência sobre hasClubs)
-   * - hasClubs (EXISTS / NOT EXISTS)
-   * Obs.: coord_user.active = true já está aplicado nas bases (baseIdsQuery/buildCoordinatorBaseQB)
-   */
+
   private applyFilters(
     qb: SelectQueryBuilder<CoordinatorProfileEntity>,
     params: CoordinatorProfilesQueryDto,
@@ -117,7 +100,6 @@ export class CoordinatorProfilesRepository {
     const { active, hasClubs } = params;
     const clubNumber = this.coerceClubNumber((params as any).clubNumber);
 
-    // Texto (coord user + qualquer teacher user vinculado a um club do coord)
     if (text) {
       const like = `%${text.toLowerCase()}%`;
       const likeRaw = `%${text}%`;
@@ -147,7 +129,6 @@ export class CoordinatorProfilesRepository {
       qb.andWhere('coord.active = :active', { active });
     }
 
-    // clubNumber tem precedência sobre hasClubs
     if (clubNumber !== undefined) {
       qb.andWhere(
         `EXISTS (
@@ -401,7 +382,6 @@ export class CoordinatorProfilesRepository {
       .leftJoin('coord.user', 'user')
       .addSelect(['user.id', 'user.name'])
       .leftJoinAndSelect('coord.clubs', 'club')
-      // 🔒 Somente coordenadores cujo usuário está ativo
       .where('user.active = true')
       .orderBy('coord.createdAt', 'ASC')
       .addOrderBy('club.number', 'ASC')

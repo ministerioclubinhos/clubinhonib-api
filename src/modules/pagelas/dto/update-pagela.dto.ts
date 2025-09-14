@@ -1,4 +1,3 @@
-// src/modules/pagelas/dto/update-pagela.dto.ts
 import { IsBoolean, IsDateString, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -16,14 +15,14 @@ export class UpdatePagelaDto {
   @IsInt()
   @Min(1)
   @Max(53)
-  week?: number; // <-- permitir atualizar a semana
+  week?: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(2000)
   @Max(9999)
-  year?: number; // <-- e/ou o ano
+  year?: number;
 
   @IsOptional()
   @IsBoolean()

@@ -1,4 +1,3 @@
-// src/modules/coordinator-profiles/dto/coordinator-profiles.query.dto.ts
 import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
@@ -10,7 +9,6 @@ import {
   Min,
 } from 'class-validator';
 
-/* ---------- helpers ---------- */
 const toBool = (v: any): boolean | undefined => {
   if (v === undefined || v === null || v === '') return undefined;
   const s = String(v).trim().toLowerCase();
@@ -30,38 +28,32 @@ const trimOrUndef = (v: any): string | undefined => {
 };
 
 export class CoordinatorProfilesQueryDto {
-  /** Busca textual (principal) */
   @IsOptional()
   @Transform(({ value }) => trimOrUndef(value))
   @IsString()
   searchString?: string;
 
-  /** Alias compatível (q) */
   @IsOptional()
   @Transform(({ value }) => trimOrUndef(value))
   @IsString()
   q?: string;
 
-  /** Filtra por ativo (campo do profile) */
   @IsOptional()
   @Transform(({ value }) => toBool(value))
   @IsBoolean()
   active?: boolean;
 
-  /** true: só quem tem clube; false: só quem NÃO tem clube */
   @IsOptional()
   @Transform(({ value }) => toBool(value))
   @IsBoolean()
   hasClubs?: boolean;
 
-  /** Filtra coordenadores que possuem o clube com este número */
   @IsOptional()
   @Transform(({ value }) => toInt(value))
   @Type(() => Number)
   @IsInt()
   clubNumber?: number;
 
-  /** Paginação */
   @IsOptional()
   @Transform(({ value }) => toInt(value))
   @Type(() => Number)
@@ -77,7 +69,6 @@ export class CoordinatorProfilesQueryDto {
   @Max(100)
   limit: number = 12;
 
-  /** Ordenação */
   @IsOptional()
   @IsIn(['updatedAt', 'createdAt', 'name'])
   sort: 'updatedAt' | 'createdAt' | 'name' = 'updatedAt';
@@ -87,7 +78,6 @@ export class CoordinatorProfilesQueryDto {
   order: 'asc' | 'desc' = 'desc';
 }
 
-/** ✅ Exporte isto para satisfazer os imports no controller/service */
 export class PageDto<T> {
   items!: T[];
   total!: number;

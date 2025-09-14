@@ -1,4 +1,3 @@
-// src/modules/pagelas/pagelas.repository.ts
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository, SelectQueryBuilder } from 'typeorm';
@@ -6,7 +5,6 @@ import { PagelaEntity } from './entities/pagela.entity';
 import { ChildEntity } from 'src/modules/children/entities/child.entity';
 import { TeacherProfileEntity } from 'src/modules/teacher-profiles/entities/teacher-profile.entity/teacher-profile.entity';
 import { PagelaFiltersDto } from './dto/pagela-filters.dto';
-import { PaginationQueryDto } from './dto/paginated.dto';
 
 @Injectable()
 export class PagelasRepository {
@@ -18,7 +16,7 @@ export class PagelasRepository {
     private readonly childRepo: Repository<ChildEntity>,
     @InjectRepository(TeacherProfileEntity)
     private readonly teacherRepo: Repository<TeacherProfileEntity>,
-  ) {}
+  ) { }
 
   private baseQB(): SelectQueryBuilder<PagelaEntity> {
     return this.repo
@@ -29,49 +27,46 @@ export class PagelasRepository {
       .addSelect(['teacher.id']);
   }
 
-private applyFilters(
-  qb: SelectQueryBuilder<PagelaEntity>,
-  f?: PagelaFiltersDto,
-) {
-  if (!f) return qb;
+  private applyFilters(
+    qb: SelectQueryBuilder<PagelaEntity>,
+    f?: PagelaFiltersDto,
+  ) {
+    if (!f) return qb;
 
-  if (f.childId) {
-    qb.andWhere('child.id = :childId', { childId: f.childId });
+    if (f.childId) {
+      qb.andWhere('child.id = :childId', { childId: f.childId });
+    }
+
+    if (f.year != null) {
+      qb.andWhere('p.year = :year', { year: f.year });
+    }
+
+    if (f.week != null) {
+      console.log('f.week', f.week);
+
+      qb.andWhere('p.week = :week', { week: f.week });
+    }
+
+    if (f.present) {
+      qb.andWhere('p.present = :present', {
+        present: f.present === 'true',
+      });
+    }
+
+    if (f.didMeditation) {
+      qb.andWhere('p.didMeditation = :didMeditation', {
+        didMeditation: f.didMeditation === 'true',
+      });
+    }
+
+    if (f.recitedVerse) {
+      qb.andWhere('p.recitedVerse = :recitedVerse', {
+        recitedVerse: f.recitedVerse === 'true',
+      });
+    }
+
+    return qb;
   }
-
-  if (f.year != null) {
-    qb.andWhere('p.year = :year', { year: f.year });
-  }
-
-  if (f.week != null) {
-    console.log('f.week', f.week);
-    
-    qb.andWhere('p.week = :week', { week: f.week });
-  }
-
-  if (f.present) {
-    qb.andWhere('p.present = :present', {
-      present: f.present === 'true',
-    });
-  }
-
-  if (f.didMeditation) {
-    qb.andWhere('p.didMeditation = :didMeditation', {
-      didMeditation: f.didMeditation === 'true',
-    });
-  }
-
-  if (f.recitedVerse) {
-    qb.andWhere('p.recitedVerse = :recitedVerse', {
-      recitedVerse: f.recitedVerse === 'true',
-    });
-  }
-
-  return qb;
-}
-
-
-  /* READs */
 
   async findAllSimple(filters?: PagelaFiltersDto): Promise<PagelaEntity[]> {
     const qb = this.applyFilters(this.baseQB(), filters)
@@ -107,8 +102,6 @@ private applyFilters(
       relations: { child: true, teacher: true },
     });
   }
-
-  /* WRITEs */
 
   async createOne(data: {
     childId: string;
@@ -165,14 +158,12 @@ private applyFilters(
       if (!entity) throw new NotFoundException('Pagela não encontrada');
 
       if (data.teacher) {
-        // opcionalmente poderia validar teacher
       }
 
       Object.assign(entity, data);
       try {
         return await txPagela.save(entity);
       } catch (e: any) {
-        // colisão na unique
         if (e?.code === 'ER_DUP_ENTRY') {
           throw new BadRequestException('Já existe Pagela para esta criança nesta semana/ano');
         }

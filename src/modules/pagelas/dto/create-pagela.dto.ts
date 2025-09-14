@@ -1,4 +1,3 @@
-// src/modules/pagelas/dto/create-pagela.dto.ts
 import { IsBoolean, IsDateString, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -11,20 +10,20 @@ export class CreatePagelaDto {
   teacherProfileId?: string;
 
   @IsDateString()
-  referenceDate: string; // 'YYYY-MM-DD'
+  referenceDate: string;
 
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(53)
-  week: number; // <-- agora vem do front
+  week: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(2000)
   @Max(9999)
-  year?: number; // <-- opcional (se não vier, calculo pelo referenceDate)
+  year?: number;
 
   @IsBoolean()
   present: boolean;

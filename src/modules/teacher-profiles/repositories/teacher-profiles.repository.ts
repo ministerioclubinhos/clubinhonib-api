@@ -30,12 +30,6 @@ export class TeacherProfilesRepository {
     private readonly userRepo: Repository<UserEntity>,
   ) { }
 
-  /* ========= helpers ========= */
-
-  /**
-   * QB completo (com joins) para carregar a página/lista final.
-   * 🔒 Regra global: somente teachers cujo user.active = true
-   */
   private baseQB(): SelectQueryBuilder<TeacherProfileEntity> {
     return this.teacherRepo
       .createQueryBuilder('teacher')
@@ -61,14 +55,9 @@ export class TeacherProfilesRepository {
         'coord_user.completed',
         'coord_user.commonUser',
       ])
-      // 🔒 aplica a restrição global
       .andWhere('teacher_user.active = true');
   }
 
-  /**
-   * Base para consulta de IDs (evita duplicação por joins N-side).
-   * 🔒 Regra global: somente teachers cujo user.active = true
-   */
   private baseIdsQuery(): SelectQueryBuilder<TeacherProfileEntity> {
     return this.teacherRepo
       .createQueryBuilder('teacher')
@@ -76,11 +65,9 @@ export class TeacherProfilesRepository {
       .leftJoin('teacher.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
       .leftJoin('coordinator.user', 'coord_user')
-      // 🔒 aplica a restrição global
       .where('teacher_user.active = true');
   }
 
-  /** Coluna de ordenação segura */
   private resolveSort(sort?: string) {
     const map: Record<string, string> = {
       createdAt: 'teacher.createdAt',
@@ -91,42 +78,24 @@ export class TeacherProfilesRepository {
     return map[sort ?? 'updatedAt'] ?? 'teacher.updatedAt';
   }
 
-  /**
-   * Papel:
-   *  - admin: sem filtro
-   *  - coordinator: somente teachers CUJO club pertence a um club coordenado por ele (coord_user.id = :uid)
-   *  - teacher: não acessa (service 403), mas aqui não há problema se cair → filtro resultará vazio
-   */
   private applyRoleFilter(qb: SelectQueryBuilder<TeacherProfileEntity>, ctx?: RoleCtx) {
     const role = ctx?.role?.toLowerCase();
     const userId = ctx?.userId;
     if (!role || role === 'admin' || !userId) return;
 
     if (role === 'coordinator') {
-      // já temos join para club.coordinator e coordinator.user como coord_user
       qb.andWhere('coord_user.id = :uid', { uid: userId }).distinct(true);
     } else if (role === 'teacher') {
-      // não deveria acessar — service já bloqueia
       qb.andWhere('1 = 0');
     }
   }
 
-  /** Coerção de number (clubNumber) */
   private coerceInt(input: unknown): number | undefined {
     if (input === undefined || input === null || input === '') return undefined;
     const n = Number(String(input).trim());
     return Number.isInteger(n) ? n : undefined;
   }
 
-  /**
-   * Aplica filtros:
-   * - searchString/q em teacher_user e coord_user
-   * - active (do profile)
-   * - clubNumber (precede hasClub)
-   * - hasClub (IS NULL / IS NOT NULL)
-   *
-   * Obs.: teacher_user.active = true já está aplicado nas bases (baseQB/baseIdsQuery)
-   */
   private applyFilters(
     qb: SelectQueryBuilder<TeacherProfileEntity>,
     params: TeacherProfilesQueryDto,
@@ -170,8 +139,6 @@ export class TeacherProfilesRepository {
     return qb;
   }
 
-  /* ========= READs ========= */
-
   async findAllWithClubAndCoordinator(ctx?: RoleCtx): Promise<TeacherProfileEntity[]> {
     const qb = this.baseQB()
       .orderBy('teacher.createdAt', 'ASC')
@@ -194,10 +161,9 @@ export class TeacherProfilesRepository {
     const club = await this.clubRepo.findOne({ where: { id: clubId } });
     if (!club) throw new NotFoundException('Club não encontrado');
 
-    // se coordinator, deve ter acesso ao club
     if (ctx?.role && ctx.role !== 'admin') {
       const allowed = await this.userHasAccessToClub(clubId, ctx);
-      if (!allowed) throw new NotFoundException('Club não encontrado'); // evita revelar existência
+      if (!allowed) throw new NotFoundException('Club não encontrado');
     }
 
     const qb = this.baseQB().andWhere('club.id = :clubId', { clubId });
@@ -206,7 +172,6 @@ export class TeacherProfilesRepository {
     return qb.orderBy('teacher.createdAt', 'ASC').getMany();
   }
 
-  /** ✅ Lista paginada com filtros */
   async findPageWithFilters(
     query: TeacherProfilesQueryDto,
     ctx?: RoleCtx,
@@ -227,14 +192,12 @@ export class TeacherProfilesRepository {
     const sortDir: SortDir = (order || 'desc').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
     const offset = (page - 1) * limit;
 
-    // total
     const totalQB = this.applyFilters(this.baseIdsQuery(), query)
       .select('teacher.id')
       .distinct(true);
     this.applyRoleFilter(totalQB, ctx);
     const total = await totalQB.getCount();
 
-    // page ids
     const idsQB = this.applyFilters(this.baseIdsQuery(), query)
       .select('teacher.id', 'id')
       .addSelect(sortColumn, 'ord')
@@ -250,7 +213,6 @@ export class TeacherProfilesRepository {
       return { items: [], total, page, limit };
     }
 
-    // carregar página (com joins completos)
     const itemsQB = this.baseQB()
       .andWhere('teacher.id IN (:...ids)', { ids })
       .orderBy(sortColumn, sortDir)
@@ -270,14 +232,6 @@ export class TeacherProfilesRepository {
       .leftJoinAndSelect('teacher.club', 'club')
       .where('user.active = true')
       .orderBy('teacher.createdAt', 'ASC');
-    /*     
-      if (ctx?.role && ctx.role !== 'admin' && ctx.userId) {
-        qb.leftJoin('club.coordinator', 'coord')
-          .leftJoin('coord.user', 'coord_user')
-          .andWhere('coord_user.id = :uid', { uid: ctx.userId })
-          .distinct(true);
-      } else
-    */
 
     if (ctx?.role === 'teacher') {
       qb.andWhere('1 = 0');
@@ -287,7 +241,6 @@ export class TeacherProfilesRepository {
     return items.map(toTeacherSimple);
   }
 
-  /* ========= WRITEs ========= */
 
   async assignTeacherToClub(teacherId: string, clubId: string): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
@@ -359,9 +312,6 @@ export class TeacherProfilesRepository {
     });
   }
 
-  /* ========= Helpers de acesso ========= */
-
-  /** true se usuário pode acessar esse club (admin => true; coordinator => precisa ser dono) */
   async userHasAccessToClub(clubId: string, ctx?: RoleCtx): Promise<boolean> {
     const role = ctx?.role?.toLowerCase();
     const userId = ctx?.userId;
@@ -375,11 +325,9 @@ export class TeacherProfilesRepository {
         .leftJoin('coord.user', 'coord_user')
         .andWhere('coord_user.id = :uid', { uid: userId });
     } else {
-      // teacher e demais papéis não têm acesso a teacher-profiles
       return false;
     }
 
-    // TypeORM 0.3+: getExists (fallback para getCount)
     const hasGetExists = typeof (qb as any).getExists === 'function';
     return hasGetExists ? !!(await (qb as any).getExists()) : (await qb.getCount()) > 0;
   }

@@ -17,7 +17,7 @@ export class TeacherProfilesService {
   constructor(
     private readonly repo: TeacherProfilesRepository,
     private readonly authCtx: AuthContextService,
-  ) {}
+  ) { }
 
   private async getCtx(req: Request): Promise<AccessCtx> {
     const payload = await this.authCtx.tryGetPayload(req);
@@ -41,7 +41,6 @@ export class TeacherProfilesService {
       limit,
     };
   }
-  /** Teacher não tem acesso aos endpoints dos perfis de professor */
   private assertAllowed(ctx: AccessCtx) {
     if (!ctx.role) throw new ForbiddenException('Acesso negado');
     if (ctx.role === 'teacher') throw new ForbiddenException('Acesso negado');
@@ -82,7 +81,6 @@ export class TeacherProfilesService {
     const ctx = await this.getCtx(req);
     this.assertAllowed(ctx);
 
-    // admin → pode tudo; coordinator → só nos seus clubs
     if (ctx.role !== 'admin') {
       const allowed = await this.repo.userHasAccessToClub(clubId, ctx);
       if (!allowed) throw new ForbiddenException('Sem acesso ao club informado');
@@ -95,19 +93,16 @@ export class TeacherProfilesService {
     this.assertAllowed(ctx);
 
     if (ctx.role !== 'admin') {
-      // Se coordinator informou expectedClubId, valide o acesso a ele
       if (expectedClubId) {
         const allowed = await this.repo.userHasAccessToClub(expectedClubId, ctx);
         if (!allowed) throw new ForbiddenException('Sem acesso ao club informado');
       } else {
-        // Sem expectedClubId, valide que o teacher atual (se tiver club) está sob o guarda-chuva
         const t = await this.repo.findOneWithClubAndCoordinatorOrFail(teacherId, ctx);
         const currentClubId = t.club?.id;
         if (currentClubId) {
           const allowed = await this.repo.userHasAccessToClub(currentClubId, ctx);
           if (!allowed) throw new ForbiddenException('Sem acesso ao club atual do teacher');
         } else {
-          // teacher sem club: para coordinator, não deveria conseguir operar
           throw new ForbiddenException('Teacher não possui club para desvincular');
         }
       }
@@ -116,8 +111,6 @@ export class TeacherProfilesService {
     await this.repo.unassignTeacherFromClub(teacherId, expectedClubId);
   }
 
-  // usados por outros fluxos (ex.: user module). Mantenha sem req aqui,
-  // mas normalmente só admin chamará estes:
   async createForUser(userId: string) {
     return this.repo.createForUser(userId);
   }

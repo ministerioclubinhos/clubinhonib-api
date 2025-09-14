@@ -2,16 +2,23 @@ import { Exclude, Expose, Type, Transform, plainToInstance } from 'class-transfo
 import { Weekday } from 'src/modules/clubs/enums/weekday.enum/weekday.enum';
 import { CoordinatorProfileEntity } from '../entities/coordinator-profile.entity/coordinator-profile.entity';
 
-/** Mini do User (sem campos sensíveis) */
 @Exclude()
 class UserMiniDto {
-  @Expose() id!: string;
-  @Expose() name!: string;
-  @Expose() email!: string;
-  @Expose() phone!: string;
-  @Expose() active!: boolean;
-  @Expose() completed!: boolean;
-  @Expose() commonUser!: boolean;
+  @Expose()
+  id!: string;
+
+  @Expose()
+  name!: string;
+  @Expose()
+  email!: string;
+  @Expose()
+  phone!: string;
+  @Expose()
+  active!: boolean;
+  @Expose()
+  completed!: boolean;
+  @Expose()
+  commonUser!: boolean;
 }
 
 @Exclude()
@@ -48,8 +55,11 @@ export class CoordinatorMiniDto {
 
 @Exclude()
 export class CoordinatorResponseDto {
-  @Expose() id!: string;
-  @Expose() active!: boolean;
+  @Expose()
+  id!: string;
+
+  @Expose()
+  active!: boolean;
 
   @Expose()
   @Type(() => UserMiniDto)
@@ -60,8 +70,10 @@ export class CoordinatorResponseDto {
   @Transform(({ value }) => (Array.isArray(value) ? value : []))
   clubs!: ClubWithTeachersDto[];
 
-  @Expose() createdAt!: Date;
-  @Expose() updatedAt!: Date;
+  @Expose()
+  createdAt!: Date;
+  @Expose()
+  updatedAt!: Date;
 }
 
 export function toCoordinatorDto(entity: CoordinatorProfileEntity): CoordinatorResponseDto {

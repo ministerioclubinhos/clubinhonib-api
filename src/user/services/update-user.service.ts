@@ -47,7 +47,6 @@ export class UpdateUserService {
           try {
             await this.teacherService.createForUser(id);
           } catch {
-            /* já existe ou não precisa criar */
           }
         } else {
           await this.teacherService.removeByUserId(id);
@@ -58,7 +57,6 @@ export class UpdateUserService {
           try {
             await this.coordinatorService.createForUser(id);
           } catch {
-            /* já existe ou não precisa criar */
           }
         } else {
           await this.coordinatorService.removeByUserId(id);
@@ -77,7 +75,6 @@ export class UpdateUserService {
           try {
             await this.teacherService.createForUser(id);
           } catch {
-            /* já existe */
           }
         } else {
           await this.teacherService.removeByUserId(id);
@@ -87,13 +84,11 @@ export class UpdateUserService {
           try {
             await this.coordinatorService.createForUser(id);
           } catch {
-            /* já existe */
           }
         } else {
           await this.coordinatorService.removeByUserId(id);
         }
       } else {
-        // USER/ADMIN: nada a fazer para active
       }
     }
     const user = await this.userRepo.update(id, dto);

@@ -1,4 +1,3 @@
-// src/modules/teacher-profiles/dto/create-teacher-profile.dto.ts
 import { IsUUID, IsOptional, IsInt, Min } from 'class-validator';
 
 export class CreateTeacherProfileDto {

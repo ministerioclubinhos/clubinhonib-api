@@ -38,7 +38,6 @@ export class ChildrenService {
     private readonly authContextService: AuthContextService,
   ) { }
 
-  /** Extrai role/userId do request (tolerante a ausência de token). */
   private async getCtx(request: Request): Promise<AccessCtx> {
     const payload = await this.authContextService.tryGetPayload(request);
     return {
@@ -46,8 +45,6 @@ export class ChildrenService {
       userId: payload?.sub ?? null,
     };
   }
-
-  /* ======================= READS ======================= */
 
   async findAll(
     query: QueryChildrenDto,
@@ -85,12 +82,9 @@ export class ChildrenService {
     return toChildResponseDto(entity);
   }
 
-  /* ======================= WRITES ======================= */
-
   async create(dto: CreateChildDto, request: Request): Promise<ChildResponseDto> {
     const ctx = await this.getCtx(request);
 
-    // não-admin só pode criar em club sob seu guarda-chuva (quando informado)
     if (ctx.role && ctx.role !== 'admin' && dto.clubId) {
       const allowed = await this.childrenRepo.userHasAccessToClub(dto.clubId, ctx);
       if (!allowed) throw new ForbiddenException('Sem acesso ao club informado');
@@ -105,13 +99,11 @@ export class ChildrenService {
       joinedAt: toDateOnlyStr(dto.joinedAt) as any,
     });
 
-    // clube
     if (dto.clubId) {
-      await this.getClubsService.findOne(dto.clubId, request); // lança NotFound se não existir
+      await this.getClubsService.findOne(dto.clubId, request);
       (child as any).club = { id: dto.clubId } as ClubEntity;
     }
 
-    // endereço
     if (dto.address) {
       const address = this.addressesService.create(dto.address);
       (child as any).address = address;
@@ -128,7 +120,6 @@ export class ChildrenService {
     const entity = await this.childrenRepo.findOneForResponse(id, ctx);
     if (!entity) throw new NotFoundException('Criança não encontrada ou sem acesso');
 
-    // campos simples
     if (dto.name !== undefined) entity.name = dto.name;
     if (dto.guardianName !== undefined) entity.guardianName = dto.guardianName;
     if (dto.gender !== undefined) entity.gender = dto.gender;
@@ -136,7 +127,6 @@ export class ChildrenService {
     if (dto.birthDate !== undefined) entity.birthDate = toDateOnlyStr(dto.birthDate) as any;
     if (dto.joinedAt !== undefined) entity.joinedAt = toDateOnlyStr(dto.joinedAt) as any;
 
-    // clube (validar acesso quando troca)
     if (dto.clubId !== undefined) {
       if (dto.clubId === null) {
         (entity as any).club = null;
@@ -150,7 +140,6 @@ export class ChildrenService {
       }
     }
 
-    // endereço
     if (dto.address !== undefined) {
       if (dto.address === null) {
         (entity as any).address = null;

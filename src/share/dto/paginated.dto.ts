@@ -1,4 +1,3 @@
-// src/share/dto/paginated.dto.ts
 export class Paginated<T> {
   data: T[];
   total: number;

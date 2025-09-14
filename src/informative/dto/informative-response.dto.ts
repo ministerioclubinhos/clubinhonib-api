@@ -1,5 +1,3 @@
-// src/informative/dto/informative-response.dto.ts
-
 import { InformativeEntity } from '../entities/informative.entity';
 
 export class InformativeResponseDto {

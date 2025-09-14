@@ -1,8 +1,6 @@
-// src/modules/teacher-profiles/dto/teacher-profiles.query.dto.ts
 import { Transform, Type } from 'class-transformer';
 import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
-/* helpers */
 const toBool = (v: any): boolean | undefined => {
   if (v === undefined || v === null || v === '') return undefined;
   const s = String(v).trim().toLowerCase();
@@ -22,38 +20,32 @@ const trimOrUndef = (v: any): string | undefined => {
 };
 
 export class TeacherProfilesQueryDto {
-  /** Busca textual (principal) — nome/email/phone do teacher, e nome/email/phone do coordinator do club dele */
   @IsOptional()
   @Transform(({ value }) => trimOrUndef(value))
   @IsString()
   searchString?: string;
 
-  /** Alias (q) */
   @IsOptional()
   @Transform(({ value }) => trimOrUndef(value))
   @IsString()
   q?: string;
 
-  /** Filtra por ativo (campo do profile) */
   @IsOptional()
   @Transform(({ value }) => toBool(value))
   @IsBoolean()
   active?: boolean;
 
-  /** true: somente quem TEM club; false: somente quem NÃO tem club */
   @IsOptional()
   @Transform(({ value }) => toBool(value))
   @IsBoolean()
   hasClub?: boolean;
 
-  /** Filtra pelo número do club (tem precedência sobre hasClub) */
   @IsOptional()
   @Transform(({ value }) => toInt(value))
   @Type(() => Number)
   @IsInt()
   clubNumber?: number;
 
-  /** Paginação */
   @IsOptional()
   @Transform(({ value }) => toInt(value))
   @Type(() => Number)
@@ -69,7 +61,6 @@ export class TeacherProfilesQueryDto {
   @Max(100)
   limit: number = 12;
 
-  /** Ordenação */
   @IsOptional()
   @IsIn(['updatedAt', 'createdAt', 'name', 'clubNumber'])
   sort: 'updatedAt' | 'createdAt' | 'name' | 'clubNumber' = 'updatedAt';
@@ -79,7 +70,6 @@ export class TeacherProfilesQueryDto {
   order: 'asc' | 'desc' = 'desc';
 }
 
-/** Page DTO genérico (pode mover para um shared, se preferir) */
 export class PageDto<T> {
   items!: T[];
   total!: number;

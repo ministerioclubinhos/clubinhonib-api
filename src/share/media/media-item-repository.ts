@@ -10,7 +10,7 @@ export class MediaItemRepository {
   constructor(
     @InjectRepository(MediaItemEntity)
     private readonly mediaRepo: Repository<MediaItemEntity>,
-  ) {}
+  ) { }
 
   async findByTarget(targetId: string, targetType: string): Promise<MediaItemEntity[]> {
     this.logger.debug(`🔍 Buscando mídias por targetId=${targetId}, targetType=${targetType}`);
@@ -36,7 +36,7 @@ export class MediaItemRepository {
   async saveById(id: string, data: Partial<MediaItemEntity>): Promise<MediaItemEntity> {
     await this.mediaRepo.upsert(
       { ...data, id },
-      ['id'], // unique constraint
+      ['id'],
     );
     const updated = await this.mediaRepo.findOneBy({ id });
     this.logger.debug(`🔁 Mídia upserted (saveById): ID=${id}, título=${updated?.title}`);
