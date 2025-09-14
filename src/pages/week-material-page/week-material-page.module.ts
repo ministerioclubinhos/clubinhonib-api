@@ -24,6 +24,6 @@ import { WeekMaterialsPageGetService } from './services/WeekMaterialsPageGetServ
     WeekMaterialsPageRemoveService,
     WeekMaterialsPageGetService,
   ],
-  exports: [TypeOrmModule], // Exporta o TypeOrmModule para uso em outros módulos, se necessário
+  exports: [TypeOrmModule],
 })
-export class WeekMaterialsPageModule {}
+export class WeekMaterialsPageModule { }

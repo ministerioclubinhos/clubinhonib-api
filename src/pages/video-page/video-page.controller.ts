@@ -24,7 +24,7 @@ import { CreateVideosPageService } from './services/videos-page.create.service';
 import { UpdateVideosPageService } from './services/videos-page.update.service';
 import { GetVideosPageService } from './services/videos-page.get.service';
 import { DeleteVideosPageService } from './services/videos-page.delete.service';
-import { RoleGuard } from 'src/auth/guards/role-guard';
+import { AdminRoleGuard } from 'src/auth/guards/role-guard';
 
 @Controller('video-pages')
 export class VideosPageController {
@@ -35,9 +35,9 @@ export class VideosPageController {
     private readonly updateService: UpdateVideosPageService,
     private readonly getService: GetVideosPageService,
     private readonly deleteService: DeleteVideosPageService,
-  ) {}
+  ) { }
 
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Post()
   @UseInterceptors(AnyFilesInterceptor())
   async create(
@@ -72,7 +72,7 @@ export class VideosPageController {
     }
   }
 
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Patch(':id')
   @UseInterceptors(AnyFilesInterceptor())
   async update(
@@ -126,7 +126,7 @@ export class VideosPageController {
     }
   }
 
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Delete(':id')
   async remove(@Param('id') id: string): Promise<{ message: string }> {
     this.logger.debug(`🗑️ [DELETE /video-pages/${id}] Removendo página de vídeos`);

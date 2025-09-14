@@ -27,7 +27,7 @@ import { IdeasPageGetService } from './services/ideas-page-get.service';
 import { IdeasPageUpdateService } from './services/ideas-page-update.service';
 
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
-import { RoleGuard } from 'src/auth/guards/role-guard';
+import { AdminRoleGuard } from 'src/auth/guards/role-guard';
 
 @Controller('ideas-pages')
 export class IdeasPageController {
@@ -40,7 +40,7 @@ export class IdeasPageController {
     private readonly updateIdeasPageService: IdeasPageUpdateService,
   ) {}
 
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Post()
   @UseInterceptors(AnyFilesInterceptor())
   async create(
@@ -78,7 +78,7 @@ export class IdeasPageController {
     }
   }
 
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Patch(':id')
   @UseInterceptors(AnyFilesInterceptor())
   async update(
@@ -115,7 +115,7 @@ export class IdeasPageController {
     }
   }
 
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Delete(':id')
   async remove(@Param('id') id: string): Promise<void> {
     this.logger.debug(`🚀 [DELETE /ideas-pages/${id}] Removendo página de ideias`);

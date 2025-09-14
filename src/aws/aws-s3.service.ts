@@ -82,7 +82,7 @@ export class AwsS3Service {
     });
 
     try {
-      await this.s3Client.send(command);
+     // await this.s3Client.send(command);
       this.logger.log(`🗑️ Arquivo removido: ${key}`);
     } catch (err) {
       this.logger.error(`❌ Erro ao remover do S3: ${err.message}`);

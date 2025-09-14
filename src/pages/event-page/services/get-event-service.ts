@@ -18,9 +18,6 @@ export class GetEventService {
     private readonly mediaItemProcessor: MediaItemProcessor,
   ) {}
 
-  /**
-   * Retorna todos os eventos com a respectiva mídia (caso exista).
-   */
   async findAll(): Promise<EventResponseDto[]> {
     const events = await this.eventRepo.findAll();
 

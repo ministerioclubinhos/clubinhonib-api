@@ -19,7 +19,7 @@ import { UpdateInformativeService } from './services/update-informative.service'
 import { DeleteInformativeService } from './services/delete-informative.service';
 
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
-import { RoleGuard } from 'src/auth/guards/role-guard';
+import { AdminRoleGuard } from 'src/auth/guards/role-guard';
 
 @Controller('informatives')
 export class InformativeController {
@@ -32,7 +32,7 @@ export class InformativeController {
     private readonly deleteService: DeleteInformativeService,
   ) { }
 
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Post()
   async create(@Body() dto: CreateInformativeDto): Promise<InformativeResponseDto> {
     this.logger.log('📥 [POST /informatives] Criando banner informativo');
@@ -55,7 +55,7 @@ export class InformativeController {
     return found;
   }
 
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Patch(':id')
   async update(
     @Param('id') id: string,
@@ -67,7 +67,7 @@ export class InformativeController {
     return result;
   }
 
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Delete(':id')
   async delete(@Param('id') id: string): Promise<void> {
     this.logger.log(`🗑️ [DELETE /informatives/${id}] Removendo banner`);

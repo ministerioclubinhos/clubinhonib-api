@@ -24,7 +24,6 @@ export class WeekMaterialsPageUpdateService {
     private readonly routeService: RouteService,
     private readonly mediaItemProcessor: MediaItemProcessor,
   ) {
-    this.logger.debug('🛠️ WeekMaterialsPageUpdateService inicializado');
   }
 
   async updateWeekMaterialsPage(

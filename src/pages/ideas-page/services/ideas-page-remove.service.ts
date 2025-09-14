@@ -25,7 +25,6 @@ export class IdeasPageRemoveService {
     private readonly awsS3Service: AwsS3Service,
     private readonly mediaItemProcessor: MediaItemProcessor,
   ) {
-    this.logger.debug('🛠️ IdeasPageRemoveService inicializado');
   }
 
   async removeIdeasPage(id: string): Promise<void> {

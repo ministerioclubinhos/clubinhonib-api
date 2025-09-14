@@ -31,7 +31,6 @@ export class ImagePageUpdateService {
         private readonly awsS3Service: AwsS3Service,
         private readonly mediaItemProcessor: MediaItemProcessor,
     ) {
-        this.logger.debug('🛠️ ImagePageUpdateService inicializado');
     }
 
     async updateImagePage(

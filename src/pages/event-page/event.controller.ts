@@ -26,7 +26,7 @@ import { GetEventService } from './services/get-event-service';
 import { EventResponseDto } from './dto/event-response-dto';
 
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
-import { RoleGuard } from 'src/auth/guards/role-guard';
+import { AdminRoleGuard } from 'src/auth/guards/role-guard';
 
 @Controller('events')
 export class EventController {
@@ -39,7 +39,7 @@ export class EventController {
     private readonly getService: GetEventService,
   ) {}
 
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Post()
   @UseInterceptors(FileInterceptor('file'))
   async create(
@@ -84,7 +84,7 @@ export class EventController {
     return this.getService.findOne(id);
   }
 
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Patch(':id')
   @UseInterceptors(FileInterceptor('file'))
   async update(
@@ -117,7 +117,7 @@ export class EventController {
     return result;
   }
 
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Delete(':id')
   @HttpCode(204)
   async remove(@Param('id') id: string): Promise<void> {

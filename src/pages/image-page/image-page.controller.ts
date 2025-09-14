@@ -13,6 +13,7 @@ import {
   UseGuards,
   NotFoundException,
   Query,
+  Req,
 } from '@nestjs/common';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
@@ -25,8 +26,10 @@ import { ImagePageGetService } from './services/ImagePageGetService';
 import { ImagePageUpdateService } from './services/ImagePageUpdateService';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { RoleGuard } from 'src/auth/guards/role-guard';
+import { AdminRoleGuard } from 'src/auth/guards/role-guard';
 import { PaginatedImageSectionResponseDto } from './dto/paginated-image-section.dto';
+import { Request } from 'express';
+
 
 @Controller('image-pages')
 export class ImageController {
@@ -39,7 +42,7 @@ export class ImageController {
     private readonly updateService: ImagePageUpdateService,
   ) { }
 
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Post()
   @UseInterceptors(AnyFilesInterceptor())
   async create(
@@ -64,7 +67,7 @@ export class ImageController {
     }
   }
 
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Patch(':id')
   @UseInterceptors(AnyFilesInterceptor())
   async update(
@@ -100,13 +103,14 @@ export class ImageController {
     @Param('id') pageId: string,
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '2',
+    @Req() req: Request
   ): Promise<PaginatedImageSectionResponseDto> {
     const pageNumber = Number(page);
     const limitNumber = Number(limit);
 
     this.logger.debug(`📥 Requisição recebida para seções paginadas — pageId=${pageId}, page=${pageNumber}, limit=${limitNumber}`);
 
-    return this.getService.findSectionsPaginated(pageId, pageNumber, limitNumber);
+    return this.getService.findSectionsPaginated(pageId, pageNumber, limitNumber, req);
   }
 
   @Get(':id')
@@ -119,14 +123,13 @@ export class ImageController {
     }
   }
 
-  @UseGuards(JwtAuthGuard, RoleGuard)
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Delete(':id')
   async remove(@Param('id') id: string) {
     await this.deleteService.removePage(id);
     return { message: 'Página de galeria removida com sucesso' };
   }
 
-  // Helpers
   private async validateDto(dto: object) {
     const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
     if (errors.length > 0) {

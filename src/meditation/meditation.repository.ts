@@ -1,4 +1,3 @@
-// meditation.repository.ts
 import { Injectable } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
 import { MeditationEntity } from './entities/meditation.entity';

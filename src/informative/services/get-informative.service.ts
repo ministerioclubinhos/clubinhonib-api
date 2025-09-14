@@ -1,5 +1,3 @@
-// src/informative/services/get-informative.service.ts
-
 import {
   Injectable,
   Logger,

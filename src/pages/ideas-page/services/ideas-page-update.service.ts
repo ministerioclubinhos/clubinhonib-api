@@ -30,7 +30,6 @@ export class IdeasPageUpdateService {
     private readonly pageRepo: IdeasPageRepository,
     private readonly sectionRepo: IdeasSectionRepository,
   ) {
-    this.logger.debug('🛠️ IdeasPageUpdateService inicializado');
   }
 
   async updateIdeasPage(

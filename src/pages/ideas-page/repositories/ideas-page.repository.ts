@@ -8,17 +8,14 @@ export class IdeasPageRepository extends Repository<IdeasPageEntity> {
     super(IdeasPageEntity, dataSource.createEntityManager());
   }
 
-  /* Retorna todas as páginas com rota */
   async findAllPages(): Promise<IdeasPageEntity[]> {
     return this.find({ relations: ['route'] });
   }
 
-  /* Busca única página por ID */
   async findOnePageById(id: string): Promise<IdeasPageEntity | null> {
     return this.findOne({ where: { id }, relations: ['route', 'sections'] });
   }
 
-  /* Salva ou atualiza (TypeORM já faz merge) */
   async savePage(page: IdeasPageEntity): Promise<IdeasPageEntity> {
     return this.save(page);
   }

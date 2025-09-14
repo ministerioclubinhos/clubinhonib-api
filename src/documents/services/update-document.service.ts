@@ -23,7 +23,7 @@ export class UpdateDocumentService {
     private readonly s3Service: AwsS3Service,
     private readonly mediaProcessor: MediaItemProcessor,
     private readonly routeService: RouteService,
-  ) {}
+  ) { }
 
   async execute(
     id: string,
@@ -44,7 +44,6 @@ export class UpdateDocumentService {
     }
 
     return await this.dataSource.transaction(async (manager) => {
-      // Atualizar campos do documento
       const updatedDocument = manager.merge(DocumentEntity, existingDocument, {
         name: dto.name,
         description: dto.description,
@@ -52,7 +51,6 @@ export class UpdateDocumentService {
       const savedDocument = await manager.save(DocumentEntity, updatedDocument);
       this.logger.log(`✅ Documento atualizado: ${savedDocument.id}`);
 
-      // Atualizar rota associada
       if (savedDocument.route) {
         const updatedRoute = await this.upsertDocumentRoute(
           savedDocument.route.id,
@@ -66,13 +64,12 @@ export class UpdateDocumentService {
         savedDocument.route = updatedRoute;
       }
 
-      // Atualizar ou substituir mídia
       const existingMedia = await this.mediaProcessor.findMediaItemsByTarget(
         savedDocument.id,
         'document',
       );
 
-      const isReplacingMedia = !dto.media.id; // Se não veio ID, é nova mídia
+      const isReplacingMedia = !dto.media.id;
 
       if (isReplacingMedia) {
         this.logger.log(`♻️ Substituindo mídia antiga...`);
@@ -109,13 +106,11 @@ export class UpdateDocumentService {
         const wasLink = mediaToUpdate.isLocalFile === false;
         const isNowUpload = dto.media.isLocalFile === true;
 
-        // Caso 1: era upload e virou link -> deletar da S3
         if (wasUpload && isNowLink && mediaToUpdate.url) {
           this.logger.log(`🗑️ Deletando arquivo antigo do S3: ${mediaToUpdate.url}`);
           await this.s3Service.delete(mediaToUpdate.url);
         }
 
-        // Caso 2: era link e virou upload -> subir novo arquivo
         if (wasLink && isNowUpload) {
           if (!file) {
             throw new BadRequestException('Arquivo de upload obrigatório ao mudar para upload.');
