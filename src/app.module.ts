@@ -16,6 +16,7 @@ import { DocumentModule } from './documents/documents.module';
 import { IdeasPageModule } from './pages/ideas-page/ideas-page.module';
 import { InformativeModule } from './informative/informative.module';
 import { ImageSectionModule } from './pages/image-section/image-section.module';
+import { IdeasSectionModule } from './pages/ideas-section/ideas-section.module';
 import { SiteFeedbackModule } from './feedback/site-feedback.module';
 import { AddressesModule } from './modules/addresses/addresses.module';
 import { CoordinatorProfilesModule } from './modules/coordinator-profiles/coordinator-profiles.module';
@@ -44,6 +45,7 @@ import { AcceptedChristsModule } from './modules/accepted-christs/accepted-chris
     IdeasPageModule,
     InformativeModule,
     ImageSectionModule,
+    IdeasSectionModule,
     SiteFeedbackModule,
     AddressesModule,
     CoordinatorProfilesModule,
