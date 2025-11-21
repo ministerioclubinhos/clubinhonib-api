@@ -32,6 +32,9 @@ export class ChildEntity extends BaseEntity {
   @Column({ type: 'date', nullable: true })
   joinedAt?: string | null;
 
+  @Column({ type: 'boolean', default: true })
+  isActive: boolean; // Indica se a criança está ativa no clubinho
+
   @ManyToOne(() => ClubEntity, (club) => club.children, {
     nullable: true,
     onDelete: 'SET NULL',

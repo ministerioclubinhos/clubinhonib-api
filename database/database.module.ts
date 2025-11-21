@@ -27,7 +27,9 @@ import { AddressEntity } from 'src/modules/addresses/entities/address.entity/add
 import { ChildEntity } from 'src/modules/children/entities/child.entity';
 import { PagelaEntity } from 'src/modules/pagelas/entities/pagela.entity';
 import { AcceptedChristEntity } from 'src/modules/accepted-christs/entities/accepted-christ.entity';
-;
+import { ClubPeriodEntity } from 'src/modules/club-control/entities/club-period.entity';
+import { ClubExceptionEntity } from 'src/modules/club-control/entities/club-exception.entity';
+import { ClubControlLogEntity } from 'src/modules/club-control/entities/club-control-log.entity';
 
 @Module({
   imports: [
@@ -70,7 +72,10 @@ import { AcceptedChristEntity } from 'src/modules/accepted-christs/entities/acce
             AddressEntity,
             ChildEntity,
             PagelaEntity,
-            AcceptedChristEntity
+            AcceptedChristEntity,
+            ClubPeriodEntity,
+            ClubExceptionEntity,
+            ClubControlLogEntity,
           ],
           synchronize: true,
         };

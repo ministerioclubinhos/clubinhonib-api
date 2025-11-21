@@ -1,0 +1,695 @@
+{
+  "info": {
+    "name": "Clubinho NIB - Statistics API",
+    "description": "Collection completa de endpoints de estatísticas com filtros avançados para gráficos ricos",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "📊 Pagelas Statistics",
+      "item": [
+        {
+          "name": "GET Pagelas Chart Data - Completo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/statistics/pagelas/charts?startDate=2024-01-01&endDate=2024-12-31&groupBy=month",
+              "host": ["{{baseUrl}}"],
+              "path": ["statistics", "pagelas", "charts"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2024-01-01",
+                  "description": "Data inicial (YYYY-MM-DD)"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2024-12-31",
+                  "description": "Data final (YYYY-MM-DD)"
+                },
+                {
+                  "key": "groupBy",
+                  "value": "month",
+                  "description": "Agrupamento: day, week, month, year"
+                }
+              ]
+            },
+            "description": "Retorna dados completos de pagelas otimizados para gráficos com séries temporais, distribuição por gênero, idade, clube e professor"
+          },
+          "response": []
+        },
+        {
+          "name": "GET Pagelas por Clube",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/statistics/pagelas/charts?clubId=CLUB_UUID&year=2024&groupBy=week",
+              "host": ["{{baseUrl}}"],
+              "path": ["statistics", "pagelas", "charts"],
+              "query": [
+                {
+                  "key": "clubId",
+                  "value": "CLUB_UUID",
+                  "description": "ID do clube"
+                },
+                {
+                  "key": "year",
+                  "value": "2024",
+                  "description": "Ano"
+                },
+                {
+                  "key": "groupBy",
+                  "value": "week",
+                  "description": "Agrupar por semana"
+                }
+              ]
+            },
+            "description": "Estatísticas de um clube específico"
+          },
+          "response": []
+        },
+        {
+          "name": "GET Pagelas por Professor",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/statistics/pagelas/charts?teacherId=TEACHER_UUID&startDate=2024-01-01&endDate=2024-12-31",
+              "host": ["{{baseUrl}}"],
+              "path": ["statistics", "pagelas", "charts"],
+              "query": [
+                {
+                  "key": "teacherId",
+                  "value": "TEACHER_UUID",
+                  "description": "ID do professor"
+                },
+                {
+                  "key": "startDate",
+                  "value": "2024-01-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2024-12-31"
+                }
+              ]
+            },
+            "description": "Estatísticas de um professor específico"
+          },
+          "response": []
+        },
+        {
+          "name": "GET Pagelas por Gênero e Idade",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/statistics/pagelas/charts?gender=F&minAge=6&maxAge=12&year=2024",
+              "host": ["{{baseUrl}}"],
+              "path": ["statistics", "pagelas", "charts"],
+              "query": [
+                {
+                  "key": "gender",
+                  "value": "F",
+                  "description": "Gênero: M, F"
+                },
+                {
+                  "key": "minAge",
+                  "value": "6",
+                  "description": "Idade mínima"
+                },
+                {
+                  "key": "maxAge",
+                  "value": "12",
+                  "description": "Idade máxima"
+                },
+                {
+                  "key": "year",
+                  "value": "2024"
+                }
+              ]
+            },
+            "description": "Filtrar por demografia"
+          },
+          "response": []
+        },
+        {
+          "name": "GET Pagelas - Apenas Presentes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/statistics/pagelas/charts?onlyPresent=true&startDate=2024-01-01&groupBy=week",
+              "host": ["{{baseUrl}}"],
+              "path": ["statistics", "pagelas", "charts"],
+              "query": [
+                {
+                  "key": "onlyPresent",
+                  "value": "true",
+                  "description": "Apenas crianças presentes"
+                },
+                {
+                  "key": "startDate",
+                  "value": "2024-01-01"
+                },
+                {
+                  "key": "groupBy",
+                  "value": "week"
+                }
+              ]
+            },
+            "description": "Filtrar apenas registros com presença"
+          },
+          "response": []
+        },
+        {
+          "name": "GET Pagelas por Coordenador",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/statistics/pagelas/charts?coordinatorId=COORDINATOR_UUID&year=2024&groupBy=month",
+              "host": ["{{baseUrl}}"],
+              "path": ["statistics", "pagelas", "charts"],
+              "query": [
+                {
+                  "key": "coordinatorId",
+                  "value": "COORDINATOR_UUID",
+                  "description": "ID do coordenador"
+                },
+                {
+                  "key": "year",
+                  "value": "2024"
+                },
+                {
+                  "key": "groupBy",
+                  "value": "month"
+                }
+              ]
+            },
+            "description": "Ver todos os clubes de um coordenador"
+          },
+          "response": []
+        }
+      ],
+      "description": "Endpoints para estatísticas de Pagelas"
+    },
+    {
+      "name": "✝️ Accepted Christs Statistics",
+      "item": [
+        {
+          "name": "GET Accepted Christs Chart Data - Completo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/statistics/accepted-christs/charts?startDate=2024-01-01&endDate=2024-12-31&groupBy=month",
+              "host": ["{{baseUrl}}"],
+              "path": ["statistics", "accepted-christs", "charts"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2024-01-01",
+                  "description": "Data inicial"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2024-12-31",
+                  "description": "Data final"
+                },
+                {
+                  "key": "groupBy",
+                  "value": "month",
+                  "description": "day, week, month, year"
+                }
+              ]
+            },
+            "description": "Dados completos de decisões com séries temporais e distribuições"
+          },
+          "response": []
+        },
+        {
+          "name": "GET Accepted Christs por Tipo de Decisão",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/statistics/accepted-christs/charts?decision=ACCEPTED&year=2024&groupBy=week",
+              "host": ["{{baseUrl}}"],
+              "path": ["statistics", "accepted-christs", "charts"],
+              "query": [
+                {
+                  "key": "decision",
+                  "value": "ACCEPTED",
+                  "description": "ACCEPTED ou RECONCILED"
+                },
+                {
+                  "key": "year",
+                  "value": "2024"
+                },
+                {
+                  "key": "groupBy",
+                  "value": "week"
+                }
+              ]
+            },
+            "description": "Filtrar por tipo de decisão"
+          },
+          "response": []
+        },
+        {
+          "name": "GET Accepted Christs por Clube",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/statistics/accepted-christs/charts?clubId=CLUB_UUID&startDate=2024-01-01",
+              "host": ["{{baseUrl}}"],
+              "path": ["statistics", "accepted-christs", "charts"],
+              "query": [
+                {
+                  "key": "clubId",
+                  "value": "CLUB_UUID",
+                  "description": "ID do clube"
+                },
+                {
+                  "key": "startDate",
+                  "value": "2024-01-01"
+                }
+              ]
+            },
+            "description": "Decisões de um clube específico"
+          },
+          "response": []
+        },
+        {
+          "name": "GET Accepted Christs por Demografia",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/statistics/accepted-christs/charts?gender=M&minAge=10&maxAge=15&groupBy=month",
+              "host": ["{{baseUrl}}"],
+              "path": ["statistics", "accepted-christs", "charts"],
+              "query": [
+                {
+                  "key": "gender",
+                  "value": "M"
+                },
+                {
+                  "key": "minAge",
+                  "value": "10"
+                },
+                {
+                  "key": "maxAge",
+                  "value": "15"
+                },
+                {
+                  "key": "groupBy",
+                  "value": "month"
+                }
+              ]
+            },
+            "description": "Filtrar por gênero e faixa etária"
+          },
+          "response": []
+        }
+      ],
+      "description": "Endpoints para estatísticas de Decisões"
+    },
+    {
+      "name": "🎯 Insights & Rankings",
+      "item": [
+        {
+          "name": "GET Combined Insights - Geral",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/statistics/insights?startDate=2024-01-01&endDate=2024-12-31",
+              "host": ["{{baseUrl}}"],
+              "path": ["statistics", "insights"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2024-01-01",
+                  "description": "Aplica a ambos (pagelas e AC)"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2024-12-31",
+                  "description": "Aplica a ambos"
+                }
+              ]
+            },
+            "description": "Insights gerais com rankings de crianças mais engajadas e performance de clubes"
+          },
+          "response": []
+        },
+        {
+          "name": "GET Insights com Filtros Separados",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/statistics/insights?pagelas_clubId=CLUB_UUID&pagelas_onlyPresent=true&ac_decision=ACCEPTED",
+              "host": ["{{baseUrl}}"],
+              "path": ["statistics", "insights"],
+              "query": [
+                {
+                  "key": "pagelas_clubId",
+                  "value": "CLUB_UUID",
+                  "description": "Filtro apenas para pagelas"
+                },
+                {
+                  "key": "pagelas_onlyPresent",
+                  "value": "true",
+                  "description": "Filtro apenas para pagelas"
+                },
+                {
+                  "key": "ac_decision",
+                  "value": "ACCEPTED",
+                  "description": "Filtro apenas para accepted christs"
+                }
+              ]
+            },
+            "description": "Usar prefixos pagelas_ e ac_ para filtros específicos"
+          },
+          "response": []
+        },
+        {
+          "name": "GET Insights por Coordenador",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/statistics/insights?coordinatorId=COORDINATOR_UUID&startDate=2024-01-01",
+              "host": ["{{baseUrl}}"],
+              "path": ["statistics", "insights"],
+              "query": [
+                {
+                  "key": "coordinatorId",
+                  "value": "COORDINATOR_UUID",
+                  "description": "Ver todos os clubes do coordenador"
+                },
+                {
+                  "key": "startDate",
+                  "value": "2024-01-01"
+                }
+              ]
+            },
+            "description": "Rankings dos clubes de um coordenador"
+          },
+          "response": []
+        },
+        {
+          "name": "GET Insights por Professor",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/statistics/insights?pagelas_teacherId=TEACHER_UUID&year=2024",
+              "host": ["{{baseUrl}}"],
+              "path": ["statistics", "insights"],
+              "query": [
+                {
+                  "key": "pagelas_teacherId",
+                  "value": "TEACHER_UUID"
+                },
+                {
+                  "key": "year",
+                  "value": "2024"
+                }
+              ]
+            },
+            "description": "Ver crianças mais engajadas de um professor"
+          },
+          "response": []
+        }
+      ],
+      "description": "Insights avançados com scores e rankings"
+    },
+    {
+      "name": "📈 Dashboard Overview",
+      "item": [
+        {
+          "name": "GET Overview Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/statistics/overview",
+              "host": ["{{baseUrl}}"],
+              "path": ["statistics", "overview"]
+            },
+            "description": "Dashboard geral com resumo completo do sistema - sem filtros, sempre retorna dados atuais"
+          },
+          "response": []
+        }
+      ],
+      "description": "Dashboard geral do sistema"
+    },
+    {
+      "name": "📊 Legacy Endpoints",
+      "item": [
+        {
+          "name": "GET Pagelas Statistics (Legacy)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/statistics/pagelas?year=2024&week=45",
+              "host": ["{{baseUrl}}"],
+              "path": ["statistics", "pagelas"],
+              "query": [
+                {
+                  "key": "year",
+                  "value": "2024"
+                },
+                {
+                  "key": "week",
+                  "value": "45"
+                }
+              ]
+            },
+            "description": "Endpoint legado - use /pagelas/charts para novos desenvolvimentos"
+          },
+          "response": []
+        },
+        {
+          "name": "GET Accepted Christs Statistics (Legacy)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/statistics/accepted-christs?startDate=2024-01-01&groupBy=month",
+              "host": ["{{baseUrl}}"],
+              "path": ["statistics", "accepted-christs"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2024-01-01"
+                },
+                {
+                  "key": "groupBy",
+                  "value": "month"
+                }
+              ]
+            },
+            "description": "Endpoint legado - use /accepted-christs/charts para novos desenvolvimentos"
+          },
+          "response": []
+        }
+      ],
+      "description": "Endpoints mantidos para compatibilidade"
+    },
+    {
+      "name": "🎨 Exemplos de Casos de Uso",
+      "item": [
+        {
+          "name": "Dashboard Coordenador - Visão Geral",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/statistics/insights?coordinatorId=COORDINATOR_UUID&startDate=2024-01-01&endDate=2024-12-31",
+              "host": ["{{baseUrl}}"],
+              "path": ["statistics", "insights"],
+              "query": [
+                {
+                  "key": "coordinatorId",
+                  "value": "COORDINATOR_UUID"
+                },
+                {
+                  "key": "startDate",
+                  "value": "2024-01-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2024-12-31"
+                }
+              ]
+            },
+            "description": "Ver performance de todos os clubes sob coordenação"
+          },
+          "response": []
+        },
+        {
+          "name": "Relatório Trimestral Q1 2024",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/statistics/pagelas/charts?startDate=2024-01-01&endDate=2024-03-31&groupBy=week",
+              "host": ["{{baseUrl}}"],
+              "path": ["statistics", "pagelas", "charts"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2024-01-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2024-03-31"
+                },
+                {
+                  "key": "groupBy",
+                  "value": "week"
+                }
+              ]
+            },
+            "description": "Dados do primeiro trimestre agrupados por semana"
+          },
+          "response": []
+        },
+        {
+          "name": "Análise Demográfica - Meninas 6-12 anos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/statistics/pagelas/charts?gender=F&minAge=6&maxAge=12&year=2024&groupBy=month",
+              "host": ["{{baseUrl}}"],
+              "path": ["statistics", "pagelas", "charts"],
+              "query": [
+                {
+                  "key": "gender",
+                  "value": "F"
+                },
+                {
+                  "key": "minAge",
+                  "value": "6"
+                },
+                {
+                  "key": "maxAge",
+                  "value": "12"
+                },
+                {
+                  "key": "year",
+                  "value": "2024"
+                },
+                {
+                  "key": "groupBy",
+                  "value": "month"
+                }
+              ]
+            },
+            "description": "Foco em um grupo demográfico específico"
+          },
+          "response": []
+        },
+        {
+          "name": "Comparação de Clubes - Ano Completo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/statistics/pagelas/charts?year=2024&groupBy=month",
+              "host": ["{{baseUrl}}"],
+              "path": ["statistics", "pagelas", "charts"],
+              "query": [
+                {
+                  "key": "year",
+                  "value": "2024"
+                },
+                {
+                  "key": "groupBy",
+                  "value": "month"
+                }
+              ]
+            },
+            "description": "Ver dados de todos os clubes para comparação"
+          },
+          "response": []
+        },
+        {
+          "name": "Performance do Professor - Últimos 6 Meses",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/statistics/pagelas/charts?teacherId=TEACHER_UUID&startDate=2024-06-01&endDate=2024-12-31&groupBy=month",
+              "host": ["{{baseUrl}}"],
+              "path": ["statistics", "pagelas", "charts"],
+              "query": [
+                {
+                  "key": "teacherId",
+                  "value": "TEACHER_UUID"
+                },
+                {
+                  "key": "startDate",
+                  "value": "2024-06-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2024-12-31"
+                },
+                {
+                  "key": "groupBy",
+                  "value": "month"
+                }
+              ]
+            },
+            "description": "Acompanhar evolução do professor"
+          },
+          "response": []
+        },
+        {
+          "name": "Taxa de Conversão - Pagelas para Decisões",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/statistics/insights?clubId=CLUB_UUID&startDate=2024-01-01",
+              "host": ["{{baseUrl}}"],
+              "path": ["statistics", "insights"],
+              "query": [
+                {
+                  "key": "clubId",
+                  "value": "CLUB_UUID"
+                },
+                {
+                  "key": "startDate",
+                  "value": "2024-01-01"
+                }
+              ]
+            },
+            "description": "Ver crianças engajadas e se fizeram decisões"
+          },
+          "response": []
+        }
+      ],
+      "description": "Exemplos práticos de uso combinado"
+    }
+  ]
+}
+
