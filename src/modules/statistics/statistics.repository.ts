@@ -1701,11 +1701,8 @@ export class StatisticsRepository {
     }
     
     const pagelas = childIds.length > 0 && pagelasQuery ? await pagelasQuery
-      .select('pagela.year', 'year') // Ano do período letivo
-      .addSelect('pagela.week', 'week') // Semana do ano letivo (1-N)
-      .addSelect('pagela.referenceDate', 'referenceDate')
-      .addSelect('child.id', 'childId')
-      .addSelect('child.joinedAt', 'joinedAt')
+      .select('pagela.year', 'year')
+      .addSelect('pagela.week', 'week')
       .addSelect('COUNT(pagela.id)', 'totalPagelas')
       .addSelect('MIN(pagela.referenceDate)', 'firstDate')
       .addSelect('SUM(CASE WHEN pagela.present = 1 THEN 1 ELSE 0 END)', 'presentCount')

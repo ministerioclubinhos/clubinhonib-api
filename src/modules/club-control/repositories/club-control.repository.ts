@@ -302,7 +302,7 @@ export class ClubControlRepository {
     // ⚠️ NOVA REGRA: Se o clubinho está DESATIVADO, todas as crianças entram no indicador de "não frequentam mais"
     if (club.isActive === false) {
       // Separar crianças ativas e inativas
-      const expectedDateObj = expectedDate ? new Date(expectedDate) : null;
+    const expectedDateObj = expectedDate ? new Date(expectedDate) : null;
       const childrenNotAttending = allChildren.filter((child) => {
         // Incluir todas as crianças (ativas e inativas) se o clubinho está desativado
         // Mas verificar se já tinha entrado antes/durante a semana
