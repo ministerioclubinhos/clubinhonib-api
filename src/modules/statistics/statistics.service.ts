@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { StatisticsRepository } from './statistics.repository';
+import { StatisticsCalculationsService } from './services/statistics-calculations.service';
 import { PagelasStatsQueryDto } from './dto/pagelas-stats-query.dto';
 import { AcceptedChristsStatsQueryDto } from './dto/accepted-christs-stats-query.dto';
 import { PagelasStatsResponseDto } from './dto/pagelas-stats-response.dto';
@@ -15,12 +16,11 @@ import { TeachersStatsResponseDto } from './dto/teachers-stats-response.dto';
 
 @Injectable()
 export class StatisticsService {
-  constructor(private readonly statisticsRepository: StatisticsRepository) {}
+  constructor(
+    private readonly statisticsRepository: StatisticsRepository,
+    private readonly calculationsService: StatisticsCalculationsService,
+  ) {}
 
-  /**
-   * ENDPOINT 1: Get Pagelas Statistics with Chart Data
-   * Comprehensive pagelas data optimized for multiple chart types
-   */
   async getPagelasChartData(filters: PagelasStatsQueryDto): Promise<PagelasChartDataDto> {
     const [
       timeSeries,
@@ -40,7 +40,6 @@ export class StatisticsService {
       this.statisticsRepository.getPagelasByParticipationTime(filters),
     ]);
 
-    // Transform time series into separate series for better chart rendering
     const timeSeriesData = {
       presence: timeSeries.map((t) => ({
         date: t.date,
@@ -71,10 +70,6 @@ export class StatisticsService {
     };
   }
 
-  /**
-   * ENDPOINT 2: Get Accepted Christs Statistics with Chart Data
-   * Comprehensive accepted christs data optimized for visualizations
-   */
   async getAcceptedChristsChartData(
     filters: AcceptedChristsStatsQueryDto,
   ): Promise<AcceptedChristsChartDataDto> {
@@ -94,7 +89,6 @@ export class StatisticsService {
       this.statisticsRepository.getAcceptedChristsByParticipationTime(filters),
     ]);
 
-    // Transform time series for stacked charts
     const timeSeries = timeSeriesRaw.map((t) => ({
       date: t.date,
       series: {
@@ -114,10 +108,6 @@ export class StatisticsService {
     };
   }
 
-  /**
-   * ENDPOINT 3: Get Combined Insights & Rankings
-   * Advanced analytics with engagement scores and rankings
-   */
   async getCombinedInsights(
     pagelasFilters: PagelasStatsQueryDto,
     acceptedChristsFilters: AcceptedChristsStatsQueryDto,
@@ -136,39 +126,29 @@ export class StatisticsService {
     };
   }
 
-  /**
-   * Additional: Get comprehensive overview (backwards compatible)
-   */
   async getOverviewStatistics(): Promise<OverviewStatsResponseDto> {
     const now = new Date();
-    
-    // Calculate current week and year
     const currentYear = now.getFullYear();
     const startOfYear = new Date(currentYear, 0, 1);
     const pastDaysOfYear = (now.getTime() - startOfYear.getTime()) / 86400000;
     const currentWeek = Math.ceil((pastDaysOfYear + startOfYear.getDay() + 1) / 7);
 
-    // Calculate start of current month
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfMonthStr = startOfMonth.toISOString().split('T')[0];
     const todayStr = now.toISOString().split('T')[0];
 
-    // Calculate start of current week (assuming week starts on Sunday)
     const startOfWeek = new Date(now);
     startOfWeek.setDate(now.getDate() - now.getDay());
     const startOfWeekStr = startOfWeek.toISOString().split('T')[0];
 
-    // Calculate date 6 weeks ago
     const sixWeeksAgo = new Date(now);
     sixWeeksAgo.setDate(now.getDate() - 42); // 6 weeks = 42 days
     const sixWeeksAgoStr = sixWeeksAgo.toISOString().split('T')[0];
 
-    // Calculate date 6 months ago
     const sixMonthsAgo = new Date(now);
     sixMonthsAgo.setMonth(now.getMonth() - 6);
     const sixMonthsAgoStr = sixMonthsAgo.toISOString().split('T')[0];
 
-    // Fetch all data in parallel
     const [
       totalCounts,
       activeCountsThisMonth,
@@ -180,49 +160,32 @@ export class StatisticsService {
       acceptedChristsThisYear,
       acceptedChristsLastSixMonths,
     ] = await Promise.all([
-      // Total counts
       this.statisticsRepository.getTotalCounts(),
-      
-      // Active counts this month
       this.statisticsRepository.getActiveCountsThisMonth(),
-      
-      // Pagelas this week
       this.statisticsRepository.getPagelasOverallStats({
         year: currentYear,
         week: currentWeek,
       }),
-      
-      // Pagelas this month
       this.statisticsRepository.getPagelasOverallStats({
         startDate: startOfMonthStr,
         endDate: todayStr,
       }),
-      
-      // Pagelas last 6 weeks
       this.statisticsRepository.getPagelasWeeklyStats({
         startDate: sixWeeksAgoStr,
         endDate: todayStr,
       }),
-      
-      // Accepted Christs this week
       this.statisticsRepository.getAcceptedChristsOverallStats({
         startDate: startOfWeekStr,
         endDate: todayStr,
       }),
-      
-      // Accepted Christs this month
       this.statisticsRepository.getAcceptedChristsOverallStats({
         startDate: startOfMonthStr,
         endDate: todayStr,
       }),
-      
-      // Accepted Christs this year
       this.statisticsRepository.getAcceptedChristsOverallStats({
         startDate: `${currentYear}-01-01`,
         endDate: todayStr,
       }),
-      
-      // Accepted Christs last 6 months (grouped by month)
       this.statisticsRepository.getAcceptedChristsByPeriod({
         startDate: sixMonthsAgoStr,
         endDate: todayStr,
@@ -237,7 +200,6 @@ export class StatisticsService {
         totalTeachers: totalCounts.totalTeachers,
         activeChildrenThisMonth: activeCountsThisMonth.activeChildren,
         activeTeachersThisMonth: activeCountsThisMonth.activeTeachers,
-        // Informações sobre clubinhos e crianças desativadas
         inactiveChildren: totalCounts.inactiveChildren,
         inactiveClubs: totalCounts.inactiveClubs,
       },
@@ -274,9 +236,6 @@ export class StatisticsService {
     };
   }
 
-  /**
-   * Legacy methods for backwards compatibility
-   */
   async getPagelasStatistics(filters: PagelasStatsQueryDto): Promise<PagelasStatsResponseDto> {
     const [overall, byWeek, topPerformers] = await Promise.all([
       this.statisticsRepository.getPagelasOverallStats(filters),
@@ -317,98 +276,74 @@ export class StatisticsService {
     };
   }
 
-  // ============= SPECIFIC VIEWS METHODS =============
-
   async getClubDetailedStats(clubId: string, filters: PagelasStatsQueryDto) {
-    // TODO: Implementar visão detalhada do clube
     return {
       message: 'Visão detalhada do clube - Em implementação',
       clubId,
       filters,
-      note: 'Este endpoint retornará estatísticas completas do clube incluindo: info, summary, children, performance, timeline, teachers',
     };
   }
 
   async getChildDetailedStats(childId: string) {
-    // TODO: Implementar visão detalhada da criança
     return {
       message: 'Visão detalhada da criança - Em implementação',
       childId,
-      note: 'Este endpoint retornará histórico completo da criança incluindo: info, summary, decisions, attendance, progress, timeline',
     };
   }
 
   async getCityDetailedStats(city: string, filters: any) {
-    // TODO: Implementar visão detalhada da cidade
     return {
       message: 'Visão detalhada da cidade - Em implementação',
       city,
       filters,
-      note: 'Este endpoint retornará análise completa da cidade incluindo: info, summary, clubs, demographics, performance, timeline, neighborhoods',
     };
   }
 
   async getTeacherDetailedStats(teacherId: string, filters: PagelasStatsQueryDto) {
-    // TODO: Implementar visão detalhada do professor
     return {
       message: 'Visão detalhada do professor - Em implementação',
       teacherId,
       filters,
-      note: 'Este endpoint retornará métricas do professor incluindo: info, summary, children, performance, timeline, comparison',
     };
   }
 
   async getComparativeStats(params: any) {
-    // TODO: Implementar comparação entre entidades
     return {
       message: 'Comparação entre entidades - Em implementação',
       params,
-      note: 'Este endpoint permitirá comparar clubes, cidades, professores lado a lado com rankings',
     };
   }
 
   async getTrendsAnalysis(filters: any) {
-    // TODO: Implementar análise de tendências
     return {
       message: 'Análise de tendências e previsões - Em implementação',
       filters,
-      note: 'Este endpoint retornará tendências, padrões, previsões e anomalias detectadas',
     };
   }
 
   async getConsolidatedReport(params: any) {
-    // TODO: Implementar relatório consolidado
     return {
       message: 'Relatório consolidado - Em implementação',
       params,
-      note: 'Este endpoint gerará relatório completo com resumo executivo, análises por dimensão, conquistas e recomendações',
     };
   }
 
   async getRankings(type: string, params: any) {
-    // TODO: Implementar rankings
     return {
       message: 'Rankings - Em implementação',
       type,
       params,
-      note: 'Este endpoint retornará rankings por tipo (clubs, children, teachers, cities) com scores',
     };
   }
 
   async getPersonalizedDashboard(role: string, userId: string) {
-    // TODO: Implementar dashboard personalizado
     return {
       message: 'Dashboard personalizado - Em implementação',
       role,
       userId,
-      note: 'Este endpoint retornará dashboard customizado baseado no papel do usuário (coordinator, teacher, admin)',
     };
   }
 
-  /**
-   * NEW: Get Children Statistics with Advanced Filters
-   * Lista de crianças com estatísticas e múltiplos filtros
-   */
   async getChildrenStats(filters: ChildrenStatsQueryDto): Promise<ChildrenStatsResponseDto> {
     const [childrenData, distribution] = await Promise.all([
       this.statisticsRepository.getChildrenWithStats(filters),
@@ -417,7 +352,6 @@ export class StatisticsService {
 
     const { children, pagelasStats, decisionsMap, totalCount, filteredCount, page, limit } = childrenData;
 
-    // Calculate summary
     let sumAge = 0;
     let sumEngagement = 0;
     let sumPresenceRate = 0;
@@ -428,11 +362,10 @@ export class StatisticsService {
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
 
-    // Process each child
     const childrenWithStats = children.map((child, index) => {
-      const age = this.calculateAge(child.birthDate);
-      const monthsParticipating = this.calculateMonthsParticipating(child.joinedAt);
-      const participationTimeRange = this.getParticipationTimeRange(monthsParticipating);
+      const age = this.calculationsService.calculateAge(child.birthDate);
+      const monthsParticipating = this.calculationsService.calculateMonthsParticipating(child.joinedAt);
+      const participationTimeRange = this.calculationsService.getParticipationTimeRange(monthsParticipating);
 
       const stats = pagelasStats.get(child.id);
       const totalPagelas = stats ? parseInt(stats.totalPagelas) : 0;
@@ -455,10 +388,8 @@ export class StatisticsService {
       const lastPagelaDate = stats?.lastPagelaDate || null;
       const isActive = lastPagelaDate ? lastPagelaDate >= thirtyDaysAgoStr : false;
 
-      // Calculate consecutive weeks (simplified - can be improved)
-      const consecutiveWeeks = 0; // TODO: Implement consecutive weeks calculation
+      const consecutiveWeeks = 0;
 
-      // Update summary
       sumAge += age;
       sumEngagement += engagementScore;
       sumPresenceRate += presenceRate;
@@ -551,41 +482,11 @@ export class StatisticsService {
     return parts.length > 0 ? parts.join(' | ') : 'Sem filtros';
   }
 
-  private calculateAge(birthDate: string): number {
-    const today = new Date();
-    const birth = new Date(birthDate);
-    let age = today.getFullYear() - birth.getFullYear();
-    const monthDiff = today.getMonth() - birth.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-      age--;
-    }
-    return age;
-  }
 
-  private calculateMonthsParticipating(joinedAt: string | null | undefined): number {
-    if (!joinedAt) return 0;
-    const joined = new Date(joinedAt);
-    const today = new Date();
-    const months = (today.getFullYear() - joined.getFullYear()) * 12 + (today.getMonth() - joined.getMonth());
-    return Math.max(0, months);
-  }
-
-  private getParticipationTimeRange(months: number): string {
-    if (months < 3) return '0-3 meses';
-    if (months < 6) return '3-6 meses';
-    if (months < 12) return '6-12 meses';
-    return '1+ ano';
-  }
-
-  /**
-   * NEW: Get Clubs Statistics with Advanced Filters
-   * Lista de clubes com estatísticas e múltiplos filtros
-   */
   async getClubsStats(filters: ClubsStatsQueryDto): Promise<ClubsStatsResponseDto> {
     const clubsData = await this.statisticsRepository.getClubsWithStats(filters);
     const { clubs, childrenResults, pagelasResults, decisionsResults, teachers, totalCount, page, limit, inactiveClubs, inactiveChildren } = clubsData;
 
-    // Organize data by club
     const childrenByClub = new Map();
     childrenResults.forEach((r) => {
       if (!childrenByClub.has(r.clubId)) {
@@ -601,7 +502,7 @@ export class StatisticsService {
     const pagelasByClub = new Map(pagelasResults.map((p) => [p.clubId, p]));
     const decisionsByClub = new Map(decisionsResults.map((d) => [d.clubId, d]));
     const teachersByClub = new Map();
-    
+
     teachers.forEach((t) => {
       if (t.club) {
         if (!teachersByClub.has(t.club.id)) {
@@ -611,7 +512,6 @@ export class StatisticsService {
       }
     });
 
-    // Process each club
     const clubsWithStats = clubs.map((club, index) => {
       const children = childrenByClub.get(club.id) || { total: 0, M: 0, F: 0 };
       const pagelas = pagelasByClub.get(club.id);
@@ -682,7 +582,6 @@ export class StatisticsService {
       };
     });
 
-    // Calculate distributions
     const byCity = new Map();
     const byWeekday = new Map();
     const byCoordinator = new Map();
@@ -724,7 +623,6 @@ export class StatisticsService {
     const totalFiltered = clubsWithStats.length;
     const totalPages = Math.ceil(totalCount / limit);
 
-    // Calculate summary
     const summary = {
       totalClubs: totalCount,
       filteredClubs: totalFiltered,
@@ -778,16 +676,11 @@ export class StatisticsService {
         hasNext: page < totalPages,
         hasPrevious: page > 1,
       },
-      // ⭐ NOVO: Informações sobre clubinhos e crianças desativadas
       inactiveClubs: inactiveClubs || { total: 0, list: [] },
       inactiveChildren: inactiveChildren || { total: 0, fromInactiveClubs: 0 },
     };
   }
 
-  /**
-   * NEW: Get Teachers Statistics with Advanced Filters
-   * Lista de professores com estatísticas e múltiplos filtros
-   */
   async getTeachersStats(filters: TeachersStatsQueryDto): Promise<TeachersStatsResponseDto> {
     const teachersData = await this.statisticsRepository.getTeachersWithStats(filters);
     const { teachers, pagelasResults, decisionsResults, totalCount, page, limit } = teachersData;
@@ -799,7 +692,6 @@ export class StatisticsService {
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
 
-    // Process each teacher
     const teachersWithStats = teachers.map((teacher, index) => {
       const pagelas = pagelasByTeacher.get(teacher.id);
       const decisions = decisionsByTeacher.get(teacher.id);
@@ -859,7 +751,6 @@ export class StatisticsService {
       };
     });
 
-    // Calculate distributions
     const byClub = new Map();
     const byCity = new Map();
     const byEffectiveness = new Map([
@@ -965,10 +856,6 @@ export class StatisticsService {
     return parts.length > 0 ? parts.join(' | ') : 'Sem filtros';
   }
 
-  /**
-   * NEW: Analyze Club Attendance
-   * Analisa frequência de um clube semana a semana
-   */
   async analyzeClubAttendance(
     clubId: string,
     year: number,
@@ -980,10 +867,6 @@ export class StatisticsService {
     return this.statisticsRepository.analyzeClubAttendance(clubId, year, startDate, endDate, page, limit);
   }
 
-  /**
-   * NEW: Analyze Weekly Attendance
-   * Analisa todos os clubes em uma semana específica
-   */
   async analyzeWeeklyAttendance(year: number, week: number, page?: number, limit?: number) {
     return this.statisticsRepository.analyzeWeeklyAttendance(year, week, page, limit);
   }
