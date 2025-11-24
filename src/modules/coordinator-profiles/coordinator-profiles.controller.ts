@@ -48,7 +48,7 @@ export class CoordinatorProfilesController {
     @Body() dto: AssignClubDto,
   ): Promise<{ message: string }> {
     await this.service.assignClub(coordinatorId, dto.clubId);
-    return { message: 'Club atribuído ao coordenador com sucesso' };
+    return { message: 'Clubinho atribuído ao coordenador com sucesso' };
   }
 
   @Patch(':coordinatorId/unassign-club')
@@ -57,7 +57,7 @@ export class CoordinatorProfilesController {
     @Body() dto: UnassignClubDto,
   ): Promise<{ message: string }> {
     await this.service.unassignClub(coordinatorId, dto.clubId);
-    return { message: 'Club removido do coordenador com sucesso' };
+    return { message: 'Clubinho removido do coordenador com sucesso' };
   }
 
   @Patch(':fromCoordinatorId/move-club')
@@ -66,6 +66,6 @@ export class CoordinatorProfilesController {
     @Body() dto: MoveClubDto,
   ): Promise<{ message: string }> {
     await this.service.moveClub(fromCoordinatorId, dto.clubId, dto.toCoordinatorProfileId);
-    return { message: 'Club movido para o coordenador de destino com sucesso' };
+    return { message: 'Clubinho movido para o coordenador de destino com sucesso' };
   }
 }

@@ -72,6 +72,10 @@ export class ChildrenRepository {
     if (q.joinedFrom) qb.andWhere('c.joinedAt >= :jf', { jf: q.joinedFrom });
     if (q.joinedTo) qb.andWhere('c.joinedAt <= :jt', { jt: q.joinedTo });
 
+    if (q.isActive !== undefined) {
+      qb.andWhere('c.isActive = :isActive', { isActive: q.isActive });
+    }
+
     this.applyRoleFilter(qb, ctx);
 
     const orderByMap: Record<string, string> = {
@@ -101,6 +105,7 @@ export class ChildrenRepository {
         'c.guardianName',
         'c.guardianPhone',
         'c.gender',
+        'c.isActive',
         'club.id',
         'acceptedChrists.id',
         'acceptedChrists.decision',

@@ -9,6 +9,7 @@ import {
   Min,
   IsEnum,
   Matches,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { Weekday } from '../enums/weekday.enum/weekday.enum';
@@ -34,6 +35,10 @@ export class UpdateClubDto {
   @ValidateIf((_, v) => typeof v === 'string')
   @Matches(/^([01]?\d|2[0-3]):([0-5]\d)$/, { message: 'time deve ser H:mm ou HH:mm (0:00–23:59)' })
   time?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 
   @IsOptional()
   @ValidateIf((_, v) => v !== null && v !== undefined)

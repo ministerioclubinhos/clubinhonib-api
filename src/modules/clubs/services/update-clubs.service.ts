@@ -24,7 +24,7 @@ export class UpdateClubsService {
 
     if (ctx.role === 'coordinator') {
       const allowed = await this.clubsRepository.userHasAccessToClub(id, ctx);
-      if (!allowed) throw new NotFoundException('Club não encontrado');
+      if (!allowed) throw new NotFoundException('Clubinho não encontrado');
 
       if (dto.coordinatorProfileId !== undefined) {
         const myCoordId = await this.clubsRepository.getCoordinatorProfileIdByUserId(ctx.userId!);

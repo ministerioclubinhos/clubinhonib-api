@@ -6,9 +6,13 @@ import { TeacherProfileEntity } from 'src/modules/teacher-profiles/entities/teac
 import { PagelasRepository } from './pagelas.repository';
 import { PagelasService } from './pagelas.service';
 import { PagelasController } from './pagelas.controller';
+import { ClubControlModule } from '../club-control/club-control.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([PagelaEntity, ChildEntity, TeacherProfileEntity])],
+  imports: [
+    TypeOrmModule.forFeature([PagelaEntity, ChildEntity, TeacherProfileEntity]),
+    ClubControlModule, // Importar para usar ClubControlRepository
+  ],
   controllers: [PagelasController],
   providers: [PagelasRepository, PagelasService],
   exports: [PagelasService, PagelasRepository],

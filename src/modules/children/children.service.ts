@@ -87,7 +87,7 @@ export class ChildrenService {
 
     if (ctx.role && ctx.role !== 'admin' && dto.clubId) {
       const allowed = await this.childrenRepo.userHasAccessToClub(dto.clubId, ctx);
-      if (!allowed) throw new ForbiddenException('Sem acesso ao club informado');
+      if (!allowed) throw new ForbiddenException('Sem acesso ao clubinho informado');
     }
 
     const child = this.childrenRepo.create({
@@ -97,6 +97,7 @@ export class ChildrenService {
       guardianPhone: dto.guardianPhone,
       birthDate: toDateOnlyStr(dto.birthDate) as any,
       joinedAt: toDateOnlyStr(dto.joinedAt) as any,
+      isActive: dto.isActive !== undefined ? dto.isActive : true,
     });
 
     if (dto.clubId) {
@@ -126,6 +127,7 @@ export class ChildrenService {
     if (dto.guardianPhone !== undefined) entity.guardianPhone = dto.guardianPhone;
     if (dto.birthDate !== undefined) entity.birthDate = toDateOnlyStr(dto.birthDate) as any;
     if (dto.joinedAt !== undefined) entity.joinedAt = toDateOnlyStr(dto.joinedAt) as any;
+    if (dto.isActive !== undefined) entity.isActive = dto.isActive;
 
     if (dto.clubId !== undefined) {
       if (dto.clubId === null) {
@@ -134,7 +136,7 @@ export class ChildrenService {
         await this.getClubsService.findOne(dto.clubId, request);
         if (ctx.role && ctx.role !== 'admin') {
           const allowed = await this.childrenRepo.userHasAccessToClub(dto.clubId, ctx);
-          if (!allowed) throw new ForbiddenException('Sem acesso ao novo club');
+          if (!allowed) throw new ForbiddenException('Sem acesso ao novo clubinho');
         }
         (entity as any).club = { id: dto.clubId } as ClubEntity;
       }
@@ -162,5 +164,18 @@ export class ChildrenService {
     const entity = await this.childrenRepo.findOneForResponse(id, ctx);
     if (!entity) throw new NotFoundException('Criança não encontrada ou sem acesso');
     await this.childrenRepo.delete(id);
+  }
+
+
+  async toggleActive(id: string, request: Request): Promise<ChildResponseDto> {
+    const ctx = await this.getCtx(request);
+    const entity = await this.childrenRepo.findOneForResponse(id, ctx);
+    if (!entity) throw new NotFoundException('Criança não encontrada ou sem acesso');
+    
+    entity.isActive = !entity.isActive;
+    await this.childrenRepo.save(entity);
+    
+    const reloaded = await this.childrenRepo.findOneForResponse(id, ctx);
+    return toChildResponseDto(reloaded!);
   }
 }

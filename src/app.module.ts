@@ -25,10 +25,15 @@ import { ClubsModule } from './modules/clubs/clubs.module';
 import { ChildrenModule } from './modules/children/children.module';
 import { PagelasModule } from './modules/pagelas/pagelas.module';
 import { AcceptedChristsModule } from './modules/accepted-christs/accepted-christs.module';
+import { StatisticsModule } from './modules/statistics/statistics.module';
+import { ClubControlModule } from './modules/club-control/club-control.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: process.env.ENV_FILE || '.env',
+    }),
     DatabaseModule,
     AwsModule,
     ImageModule,
@@ -53,7 +58,9 @@ import { AcceptedChristsModule } from './modules/accepted-christs/accepted-chris
     ClubsModule,
     ChildrenModule,
     PagelasModule,
-    AcceptedChristsModule
+    AcceptedChristsModule,
+    StatisticsModule,
+    ClubControlModule,
   ],
 })
 export class AppModule { }

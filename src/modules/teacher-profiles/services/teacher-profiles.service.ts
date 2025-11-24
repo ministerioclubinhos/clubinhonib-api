@@ -83,7 +83,7 @@ export class TeacherProfilesService {
 
     if (ctx.role !== 'admin') {
       const allowed = await this.repo.userHasAccessToClub(clubId, ctx);
-      if (!allowed) throw new ForbiddenException('Sem acesso ao club informado');
+      if (!allowed) throw new ForbiddenException('Sem acesso ao clubinho informado');
     }
     await this.repo.assignTeacherToClub(teacherId, clubId);
   }
@@ -95,13 +95,13 @@ export class TeacherProfilesService {
     if (ctx.role !== 'admin') {
       if (expectedClubId) {
         const allowed = await this.repo.userHasAccessToClub(expectedClubId, ctx);
-        if (!allowed) throw new ForbiddenException('Sem acesso ao club informado');
+        if (!allowed) throw new ForbiddenException('Sem acesso ao clubinho informado');
       } else {
         const t = await this.repo.findOneWithClubAndCoordinatorOrFail(teacherId, ctx);
         const currentClubId = t.club?.id;
         if (currentClubId) {
           const allowed = await this.repo.userHasAccessToClub(currentClubId, ctx);
-          if (!allowed) throw new ForbiddenException('Sem acesso ao club atual do teacher');
+          if (!allowed) throw new ForbiddenException('Sem acesso ao clubinho atual do teacher');
         } else {
           throw new ForbiddenException('Teacher não possui club para desvincular');
         }

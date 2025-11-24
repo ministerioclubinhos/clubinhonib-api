@@ -25,10 +25,10 @@ export class DeleteClubsService {
 
     if (ctx.role === 'coordinator') {
       const allowed = await this.clubsRepository.userHasAccessToClub(id, ctx);
-      if (!allowed) throw new NotFoundException('Club não encontrado');
+      if (!allowed) throw new NotFoundException('Clubinho não encontrado');
     }
 
     await this.clubsRepository.deleteById(id);
-    return { message: 'Club removido com sucesso' };
+    return { message: 'Clubinho removido com sucesso' };
   }
 }

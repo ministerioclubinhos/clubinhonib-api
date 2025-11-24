@@ -79,4 +79,12 @@ export class ClubsController {
   remove(@Param('id', new ParseUUIDPipe()) id: string, @Req() req: Request) {
     return this.deleteService.remove(id, req);
   }
+
+  @Patch(':id/toggle-active')
+  toggleActive(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Req() req: Request,
+  ): Promise<ClubResponseDto> {
+    return this.getService.toggleActive(id, req);
+  }
 }

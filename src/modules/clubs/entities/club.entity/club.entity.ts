@@ -25,6 +25,9 @@ export class ClubEntity extends BaseEntity {
   })
   time?: string | null;
 
+  @Column({ type: 'boolean', default: true })
+  isActive: boolean;
+
   @OneToOne(() => AddressEntity, { cascade: true, eager: true, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'address_id' })
   address: AddressEntity;

@@ -5,6 +5,7 @@ import {
   Length,
   IsUUID,
   ValidateNested,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -67,6 +68,10 @@ export class UpdateChildDto {
   @IsOptional()
   @IsDateString()
   joinedAt?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 
   @IsOptional()
   @IsUUID()
