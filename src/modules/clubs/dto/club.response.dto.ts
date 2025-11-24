@@ -43,6 +43,8 @@ export class ClubMiniDto {
   @Expose()
   @Transform(({ value }) => (typeof value === 'string' ? value.slice(0, 5) : null))
   time!: string | null;
+
+  @Expose() isActive!: boolean;
 }
 
 @Exclude()
@@ -54,6 +56,8 @@ export class ClubSimpleResponseDto {
   @Expose()
   @Transform(({ value }) => (typeof value === 'string' ? value.slice(0, 5) : null))
   time!: string | null;
+
+  @Expose() isActive!: boolean;
 
   @Expose()
   @Type(() => AddressResponseDto)
@@ -71,6 +75,8 @@ export class ClubResponseDto {
   @Expose()
   @Transform(({ value }) => (typeof value === 'string' ? value.slice(0, 5) : null))
   time!: string | null;
+
+  @Expose() isActive!: boolean;
 
   @Expose()
   @Type(() => AddressResponseDto)

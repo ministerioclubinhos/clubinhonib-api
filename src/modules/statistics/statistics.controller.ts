@@ -756,7 +756,7 @@ export class StatisticsController {
    * - Timeline completa semana a semana
    * 
    * Alertas Gerados:
-   * - ⚠️ WARNING: Clube tem X semanas sem pagela
+   * - ⚠️ WARNING: Clubinho tem X semanas sem pagela
    * - 🔴 CRITICAL: Taxa de frequência < 50%
    * - 🔴 CRITICAL: 3+ semanas consecutivas sem pagela
    * 

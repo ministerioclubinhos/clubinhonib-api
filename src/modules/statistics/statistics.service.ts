@@ -541,7 +541,7 @@ export class StatisticsService {
       parts.push(`Idade: ${filters.minAge || 0}-${filters.maxAge || '+'}`);
     }
     if (filters.city) parts.push(`Cidade: ${filters.city}`);
-    if (filters.clubId) parts.push(`Clube específico`);
+    if (filters.clubId) parts.push(`Clubinho específico`);
     if (filters.hasDecision) parts.push(`Com decisão`);
     if (filters.isActive) parts.push(`Ativos`);
     
@@ -952,7 +952,7 @@ export class StatisticsService {
 
   private buildTeachersFiltersSummary(filters: TeachersStatsQueryDto): string {
     const parts: string[] = [];
-    if (filters.clubId) parts.push(`Clube específico`);
+    if (filters.clubId) parts.push(`Clubinho específico`);
     if (filters.coordinatorId) parts.push(`Coordenador específico`);
     if (filters.city) parts.push(`Cidade: ${filters.city}`);
     if (filters.isActive) parts.push(`Ativos`);

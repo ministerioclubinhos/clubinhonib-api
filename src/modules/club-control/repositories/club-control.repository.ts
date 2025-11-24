@@ -167,7 +167,7 @@ export class ClubControlRepository {
     });
 
     if (!club) {
-      throw new Error('Club not found');
+      throw new Error('Clubinho not found');
     }
 
     // ✅ VERIFICAR PERÍODO LETIVO PRIMEIRO (antes de buscar pagelas)
@@ -273,6 +273,7 @@ export class ClubControlRepository {
       .leftJoin('pagela.child', 'child')
       .leftJoin('child.club', 'club')
       .where('club.id = :clubId', { clubId })
+      .andWhere('club.isActive = :clubActive', { clubActive: true })
       .andWhere('pagela.year = :year', { year }) // Ano do período letivo
       .andWhere('pagela.week = :week', { week }) // Semana do ano letivo (1-N, onde N = total de semanas do período)
       .andWhere('child.id IN (:...childIds)', { childIds })
@@ -317,7 +318,7 @@ export class ClubControlRepository {
         indicators: [{
           type: 'no_weekday',
           severity: 'info',
-          message: `ℹ️ Clube sem dia da semana definido (provavelmente inativo)`,
+          message: `ℹ️ Clubinho sem dia da semana definido (provavelmente inativo)`,
         }],
         exception: null,
       };
@@ -568,7 +569,7 @@ export class ClubControlRepository {
             indicators.push({
               type: 'no_children',
               severity: 'warning',
-              message: `⚠️ Clube sem crianças cadastradas`,
+              message: `⚠️ Clubinho sem crianças cadastradas`,
               details: {
                 totalChildren: 0,
                 childrenWithPagela: 0,
@@ -578,7 +579,7 @@ export class ClubControlRepository {
                 isPerfect: false,
                 needsAttention: false,
                 urgency: 'low',
-                possibleIssue: 'Clube pode estar inativo ou sem configuração de crianças',
+                possibleIssue: 'Clubinho pode estar inativo ou sem configuração de crianças',
               },
             });
           }
@@ -748,7 +749,10 @@ export class ClubControlRepository {
     }
 
     // Se chegou aqui, está dentro do período letivo - processar clubes normalmente
-    const clubs = await this.clubsRepository.find();
+    // Apenas clubinhos ativos
+    const clubs = await this.clubsRepository.find({
+      where: { isActive: true },
+    });
 
     const clubsResults = await Promise.all(
       clubs.map((club) => this.checkClubWeek(club.id, year, week)),
@@ -846,7 +850,10 @@ export class ClubControlRepository {
       limit?: number;
     }
   ): Promise<any> {
-    const clubs = await this.clubsRepository.find();
+    // Apenas clubinhos ativos
+    const clubs = await this.clubsRepository.find({
+      where: { isActive: true },
+    });
     
     // Obter todos os resultados dos clubes
     let clubsResults = await Promise.all(

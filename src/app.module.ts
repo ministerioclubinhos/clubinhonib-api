@@ -30,7 +30,10 @@ import { ClubControlModule } from './modules/club-control/club-control.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: process.env.ENV_FILE || '.env',
+    }),
     DatabaseModule,
     AwsModule,
     ImageModule,

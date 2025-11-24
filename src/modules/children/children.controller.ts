@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Put,
   Query,
@@ -70,5 +71,13 @@ export class ChildrenController {
   ): Promise<{ ok: true }> {
     await this.service.remove(id, req);
     return { ok: true };
+  }
+
+  @Patch(':id/toggle-active')
+  async toggleActive(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Req() req: Request,
+  ): Promise<ChildResponseDto> {
+    return this.service.toggleActive(id, req);
   }
 }

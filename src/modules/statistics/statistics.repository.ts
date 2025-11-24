@@ -249,7 +249,8 @@ export class StatisticsRepository {
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
       .leftJoin('pagela.teacher', 'teacher')
-      .where('child.isActive = :isActive', { isActive: true })
+      .where('club.isActive = :clubActive', { clubActive: true })
+      .andWhere('child.isActive = :isActive', { isActive: true })
       .select('pagela.year', 'year')
       .addSelect('pagela.week', 'week')
       .addSelect('COUNT(pagela.id)', 'totalPagelas')
@@ -289,7 +290,8 @@ export class StatisticsRepository {
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
       .leftJoin('pagela.teacher', 'teacher')
-      .where('child.isActive = :isActive', { isActive: true })
+      .where('club.isActive = :clubActive', { clubActive: true })
+      .andWhere('child.isActive = :isActive', { isActive: true })
       .select('COUNT(pagela.id)', 'totalPagelas')
       .addSelect('COUNT(DISTINCT pagela.child.id)', 'totalChildren')
       .addSelect('COUNT(DISTINCT pagela.teacher.id)', 'totalTeachers')
@@ -319,7 +321,8 @@ export class StatisticsRepository {
       .leftJoin('pagela.child', 'child')
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
-      .where('child.isActive = :isActive', { isActive: true })
+      .where('club.isActive = :clubActive', { clubActive: true })
+      .andWhere('child.isActive = :isActive', { isActive: true })
       .select('child.id', 'childId')
       .addSelect('child.name', 'childName')
       .addSelect('SUM(CASE WHEN pagela.present = 1 THEN 1 ELSE 0 END)', 'presenceCount')
@@ -353,7 +356,8 @@ export class StatisticsRepository {
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
       .leftJoin('child.address', 'address')
-      .where('child.isActive = :isActive', { isActive: true })
+      .where('club.isActive = :clubActive', { clubActive: true })
+      .andWhere('child.isActive = :isActive', { isActive: true })
       .select('child.gender', 'gender')
       .addSelect('COUNT(pagela.id)', 'total')
       .addSelect('SUM(CASE WHEN pagela.present = 1 THEN 1 ELSE 0 END)', 'presentCount')
@@ -384,7 +388,8 @@ export class StatisticsRepository {
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
       .leftJoin('child.address', 'address')
-      .where('child.isActive = :isActive', { isActive: true });
+      .where('club.isActive = :clubActive', { clubActive: true })
+      .andWhere('child.isActive = :isActive', { isActive: true });
 
     this.applyPagelasFilters(query, filters);
 
@@ -431,6 +436,7 @@ export class StatisticsRepository {
       .leftJoin('club.coordinator', 'coordinator')
       .leftJoin('child.address', 'address')
       .where('club.id IS NOT NULL')
+      .andWhere('club.isActive = :clubActive', { clubActive: true })
       .andWhere('child.isActive = :isActive', { isActive: true })
       .select('club.id', 'clubId')
       .addSelect('club.number', 'clubNumber')
@@ -470,7 +476,8 @@ export class StatisticsRepository {
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
       .leftJoin('child.address', 'address')
-      .where('teacher.id IS NOT NULL')
+      .where('club.isActive = :clubActive', { clubActive: true })
+      .andWhere('teacher.id IS NOT NULL')
       .andWhere('child.isActive = :isActive', { isActive: true })
       .select('teacher.id', 'teacherId')
       .addSelect('user.name', 'teacherName')
@@ -511,6 +518,7 @@ export class StatisticsRepository {
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
       .leftJoin('child.address', 'address')
+      .where('club.isActive = :clubActive', { clubActive: true })
       .select(`${dateFormat.format}`, 'period')
       .addSelect('COUNT(pagela.id)', 'total')
       .addSelect('SUM(CASE WHEN pagela.present = 1 THEN 1 ELSE 0 END)', 'present')
@@ -539,7 +547,8 @@ export class StatisticsRepository {
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
       .leftJoin('child.address', 'address')
-      .where('address.city IS NOT NULL')
+      .where('club.isActive = :clubActive', { clubActive: true })
+      .andWhere('address.city IS NOT NULL')
       .andWhere('child.isActive = :isActive', { isActive: true })
       .select('address.city', 'city')
       .addSelect('address.state', 'state')
@@ -577,7 +586,8 @@ export class StatisticsRepository {
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
       .leftJoin('child.address', 'address')
-      .where('child.isActive = :isActive', { isActive: true });
+      .where('club.isActive = :clubActive', { clubActive: true })
+      .andWhere('child.isActive = :isActive', { isActive: true });
 
     this.applyPagelasFilters(query, filters);
 
@@ -650,7 +660,8 @@ export class StatisticsRepository {
       .leftJoin('ac.child', 'child')
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
-      .where('child.isActive = :isActive', { isActive: true })
+      .where('club.isActive = :clubActive', { clubActive: true })
+      .andWhere('child.isActive = :isActive', { isActive: true })
       .select('COUNT(ac.id)', 'totalDecisions')
       .addSelect('COUNT(DISTINCT ac.child.id)', 'uniqueChildren')
       .addSelect('ac.decision', 'decision');
@@ -678,6 +689,7 @@ export class StatisticsRepository {
       .leftJoin('ac.child', 'child')
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
+      .where('club.isActive = :clubActive', { clubActive: true })
       .select('COUNT(DISTINCT ac.child.id)', 'uniqueChildren');
 
     this.applyAcceptedChristsFilters(uniqueQuery, filters);
@@ -722,7 +734,8 @@ export class StatisticsRepository {
       .leftJoin('ac.child', 'child')
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
-      .where('child.isActive = :isActive', { isActive: true })
+      .where('club.isActive = :clubActive', { clubActive: true })
+      .andWhere('child.isActive = :isActive', { isActive: true })
       .select(`${dateFormat}`, 'period')
       .addSelect('COUNT(ac.id)', 'totalDecisions')
       .addSelect('COUNT(DISTINCT ac.child.id)', 'uniqueChildren')
@@ -767,7 +780,8 @@ export class StatisticsRepository {
       .leftJoinAndSelect('ac.child', 'child')
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
-      .where('child.isActive = :isActive', { isActive: true })
+      .where('club.isActive = :clubActive', { clubActive: true })
+      .andWhere('child.isActive = :isActive', { isActive: true })
       .orderBy('ac.createdAt', 'DESC')
       .limit(limit);
 
@@ -794,7 +808,8 @@ export class StatisticsRepository {
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
       .leftJoin('child.address', 'address')
-      .where('child.isActive = :isActive', { isActive: true })
+      .where('club.isActive = :clubActive', { clubActive: true })
+      .andWhere('child.isActive = :isActive', { isActive: true })
       .select('child.gender', 'gender')
       .addSelect('COUNT(ac.id)', 'total')
       .addSelect('SUM(CASE WHEN ac.decision = "ACCEPTED" THEN 1 ELSE 0 END)', 'accepted')
@@ -820,7 +835,8 @@ export class StatisticsRepository {
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
       .leftJoin('child.address', 'address')
-      .where('child.isActive = :isActive', { isActive: true });
+      .where('club.isActive = :clubActive', { clubActive: true })
+      .andWhere('child.isActive = :isActive', { isActive: true });
 
     this.applyAcceptedChristsFilters(query, filters);
 
@@ -859,6 +875,7 @@ export class StatisticsRepository {
       .leftJoin('club.coordinator', 'coordinator')
       .leftJoin('child.address', 'address')
       .where('club.id IS NOT NULL')
+      .andWhere('club.isActive = :clubActive', { clubActive: true })
       .andWhere('child.isActive = :isActive', { isActive: true })
       .select('club.id', 'clubId')
       .addSelect('club.number', 'clubNumber')
@@ -891,7 +908,8 @@ export class StatisticsRepository {
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
       .leftJoin('child.address', 'address')
-      .where('address.city IS NOT NULL')
+      .where('club.isActive = :clubActive', { clubActive: true })
+      .andWhere('address.city IS NOT NULL')
       .andWhere('child.isActive = :isActive', { isActive: true })
       .select('address.city', 'city')
       .addSelect('address.state', 'state')
@@ -924,7 +942,8 @@ export class StatisticsRepository {
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
       .leftJoin('child.address', 'address')
-      .where('child.isActive = :isActive', { isActive: true });
+      .where('club.isActive = :clubActive', { clubActive: true })
+      .andWhere('child.isActive = :isActive', { isActive: true });
 
     this.applyAcceptedChristsFilters(query, filters);
 
@@ -1017,6 +1036,7 @@ export class StatisticsRepository {
       .leftJoin('ac.child', 'child')
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
+      .where('club.isActive = :clubActive', { clubActive: true })
       .select(`${dateFormat}`, 'period')
       .addSelect('COUNT(ac.id)', 'total')
       .addSelect('SUM(CASE WHEN ac.decision = "ACCEPTED" THEN 1 ELSE 0 END)', 'accepted')
@@ -1041,7 +1061,7 @@ export class StatisticsRepository {
   async getTotalCounts() {
     const [totalChildren, totalClubs, totalTeachers] = await Promise.all([
       this.childrenRepository.count(),
-      this.clubsRepository.count(),
+      this.clubsRepository.count({ where: { isActive: true } }),
       this.teachersRepository.count(),
     ]);
 
@@ -1089,7 +1109,8 @@ export class StatisticsRepository {
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
       .leftJoin('child.address', 'address')
-      .where('child.isActive = :isActive', { isActive: true })
+      .where('club.isActive = :clubActive', { clubActive: true })
+      .andWhere('child.isActive = :isActive', { isActive: true })
       .select('child.id', 'childId')
       .addSelect('child.name', 'childName')
       .addSelect('child.gender', 'gender')
@@ -1176,6 +1197,7 @@ export class StatisticsRepository {
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
       .where('club.id IS NOT NULL')
+      .andWhere('club.isActive = :clubActive', { clubActive: true })
       .andWhere('child.isActive = :isActive', { isActive: true })
       .select('club.id', 'clubId')
       .addSelect('club.number', 'clubNumber')
@@ -1197,7 +1219,9 @@ export class StatisticsRepository {
           .createQueryBuilder('child')
           .select('child.club.id', 'clubId')
           .addSelect('COUNT(child.id)', 'totalChildren')
+          .leftJoin('child.club', 'club')
           .where('child.club.id IN (:...clubIds)', { clubIds })
+          .andWhere('club.isActive = :clubActive', { clubActive: true })
           .andWhere('child.isActive = :isActive', { isActive: true })
           .groupBy('child.club.id')
           .getRawMany()
@@ -1215,6 +1239,7 @@ export class StatisticsRepository {
       .select('club.id', 'clubId')
       .addSelect('COUNT(ac.id)', 'totalDecisions')
       .where('club.id IN (:...clubIds)', { clubIds })
+      .andWhere('club.isActive = :clubActive', { clubActive: true })
       .andWhere('child.isActive = :isActive', { isActive: true })
       .groupBy('club.id');
 
@@ -1268,7 +1293,8 @@ export class StatisticsRepository {
       .createQueryBuilder('child')
       .leftJoinAndSelect('child.club', 'club')
       .leftJoinAndSelect('child.address', 'address')
-      .leftJoin('club.coordinator', 'coordinator');
+      .leftJoin('club.coordinator', 'coordinator')
+      .where('club.isActive = :clubActive', { clubActive: true });
 
     // ✅ SEMPRE filtrar apenas crianças ATIVAS
     query.andWhere('child.isActive = :isActive', { isActive: true });
@@ -1465,7 +1491,8 @@ export class StatisticsRepository {
       .createQueryBuilder('child')
       .leftJoin('child.club', 'club')
       .leftJoin('child.address', 'address')
-      .leftJoin('club.coordinator', 'coordinator');
+      .leftJoin('club.coordinator', 'coordinator')
+      .where('club.isActive = :clubActive', { clubActive: true });
 
     // ✅ SEMPRE filtrar apenas crianças ATIVAS
     query.andWhere('child.isActive = :isActive', { isActive: true });
@@ -1578,12 +1605,13 @@ export class StatisticsRepository {
     const limit = filters.limit || 20;
     const skip = (page - 1) * limit;
 
-    // Build base query
+    // Build base query - apenas clubinhos ativos
     const query = this.clubsRepository
       .createQueryBuilder('club')
       .leftJoinAndSelect('club.address', 'address')
       .leftJoinAndSelect('club.coordinator', 'coordinator')
-      .leftJoin('coordinator.user', 'coordinatorUser');
+      .leftJoin('coordinator.user', 'coordinatorUser')
+      .where('club.isActive = :isActive', { isActive: true });
 
     // Apply filters
     if (filters.coordinatorId) {
@@ -1620,10 +1648,12 @@ export class StatisticsRepository {
     // Get children count by club (apenas ATIVAS)
     const childrenQuery = this.childrenRepository
       .createQueryBuilder('child')
+      .leftJoin('child.club', 'club')
       .select('child.club.id', 'clubId')
       .addSelect('COUNT(child.id)', 'total')
       .addSelect('child.gender', 'gender')
       .where('child.club.id IN (:...clubIds)', { clubIds })
+      .andWhere('club.isActive = :clubActive', { clubActive: true })
       .andWhere('child.isActive = :isActive', { isActive: true })
       .groupBy('child.club.id')
       .addGroupBy('child.gender');
@@ -1634,6 +1664,7 @@ export class StatisticsRepository {
     const pagelasQuery = this.pagelasRepository
       .createQueryBuilder('pagela')
       .leftJoin('pagela.child', 'child')
+      .leftJoin('child.club', 'club')
       .select('child.club.id', 'clubId')
       .addSelect('COUNT(pagela.id)', 'totalPagelas')
       .addSelect('COUNT(DISTINCT child.id)', 'activeChildren')
@@ -1643,6 +1674,7 @@ export class StatisticsRepository {
       .addSelect('SUM(CASE WHEN pagela.recitedVerse = 1 THEN 1 ELSE 0 END)', 'verseCount')
       .addSelect('MAX(pagela.referenceDate)', 'lastActivity')
       .where('child.club.id IN (:...clubIds)', { clubIds })
+      .andWhere('club.isActive = :clubActive', { clubActive: true })
       .andWhere('child.isActive = :isActive', { isActive: true })
       .groupBy('child.club.id');
 
@@ -1662,10 +1694,12 @@ export class StatisticsRepository {
     const decisionsQuery = this.acceptedChristsRepository
       .createQueryBuilder('ac')
       .leftJoin('ac.child', 'child')
+      .leftJoin('child.club', 'club')
       .select('child.club.id', 'clubId')
       .addSelect('COUNT(ac.id)', 'totalDecisions')
       .addSelect('COUNT(DISTINCT child.id)', 'childrenWithDecisions')
       .where('child.club.id IN (:...clubIds)', { clubIds })
+      .andWhere('club.isActive = :clubActive', { clubActive: true })
       .andWhere('child.isActive = :isActive', { isActive: true })
       .groupBy('child.club.id');
 
@@ -1676,7 +1710,8 @@ export class StatisticsRepository {
       .createQueryBuilder('teacher')
       .leftJoinAndSelect('teacher.user', 'user')
       .leftJoin('teacher.club', 'club')
-      .where('club.id IN (:...clubIds)', { clubIds });
+      .where('club.id IN (:...clubIds)', { clubIds })
+      .andWhere('club.isActive = :clubActive', { clubActive: true });
 
     const teachers = clubIds.length > 0 ? await teachersQuery.getMany() : [];
 
@@ -1705,7 +1740,8 @@ export class StatisticsRepository {
       .leftJoinAndSelect('teacher.user', 'user')
       .leftJoinAndSelect('teacher.club', 'club')
       .leftJoin('club.address', 'address')
-      .leftJoin('club.coordinator', 'coordinator');
+      .leftJoin('club.coordinator', 'coordinator')
+      .where('club.isActive = :clubActive', { clubActive: true });
 
     // Apply filters
     if (filters.clubId) {
@@ -1804,7 +1840,7 @@ export class StatisticsRepository {
     });
 
     if (!club) {
-      throw new Error('Club not found');
+      throw new Error('Clubinho not found');
     }
 
     // ✅ Buscar período letivo GLOBAL do ano
@@ -1853,6 +1889,7 @@ export class StatisticsRepository {
         .leftJoin('pagela.child', 'child')
         .leftJoin('child.club', 'club')
         .where('club.id = :clubId', { clubId })
+        .andWhere('club.isActive = :clubActive', { clubActive: true })
         .andWhere('pagela.referenceDate >= :startDate', { startDate: periodStart })
         .andWhere('pagela.referenceDate <= :endDate', { endDate: periodEnd })
         .andWhere('child.id IN (:...childIds)', { childIds })
@@ -2074,7 +2111,7 @@ export class StatisticsRepository {
       alerts.push({
         type: 'missing_weeks',
         severity: weeksMissingCount > 3 ? 'critical' : 'warning',
-        message: `Clube tem ${weeksMissingCount} semana(s) sem pagela`,
+        message: `Clubinho tem ${weeksMissingCount} semana(s) sem pagela`,
         weeksMissing: weeksMissingCount,
       });
     }
@@ -2091,7 +2128,7 @@ export class StatisticsRepository {
       alerts.push({
         type: 'consecutive_missing',
         severity: 'critical',
-        message: `Clube sem pagela por ${consecutiveMissing} semanas consecutivas`,
+        message: `Clubinho sem pagela por ${consecutiveMissing} semanas consecutivas`,
       });
     }
 
@@ -2295,10 +2332,11 @@ export class StatisticsRepository {
     }
 
     // Se chegou aqui, está dentro do período letivo - processar clubes normalmente
-    // Get all active clubs
+    // Get all active clubs - apenas clubinhos ativos
     const clubs = await this.clubsRepository
       .createQueryBuilder('club')
       .leftJoinAndSelect('club.address', 'address')
+      .where('club.isActive = :isActive', { isActive: true })
       .getMany();
 
     // ⚠️ IMPORTANTE: Buscar pagelas pela semana do ANO LETIVO
@@ -2310,6 +2348,7 @@ export class StatisticsRepository {
       .leftJoin('child.club', 'club')
       .where('pagela.year = :year', { year }) // Ano do período letivo
       .andWhere('pagela.week = :week', { week }) // Semana do ano letivo
+      .andWhere('club.isActive = :clubActive', { clubActive: true })
       .select('club.id', 'clubId')
       .addSelect('COUNT(pagela.id)', 'totalPagelas')
       .groupBy('club.id')

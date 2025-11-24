@@ -159,11 +159,11 @@ export class TeacherProfilesRepository {
 
   async findByClubIdWithCoordinator(clubId: string, ctx?: RoleCtx): Promise<TeacherProfileEntity[]> {
     const club = await this.clubRepo.findOne({ where: { id: clubId } });
-    if (!club) throw new NotFoundException('Club não encontrado');
+    if (!club) throw new NotFoundException('Clubinho não encontrado');
 
     if (ctx?.role && ctx.role !== 'admin') {
       const allowed = await this.userHasAccessToClub(clubId, ctx);
-      if (!allowed) throw new NotFoundException('Club não encontrado');
+      if (!allowed) throw new NotFoundException('Clubinho não encontrado');
     }
 
     const qb = this.baseQB().andWhere('club.id = :clubId', { clubId });
@@ -253,12 +253,12 @@ export class TeacherProfilesRepository {
       ]);
 
       if (!teacher) throw new NotFoundException('TeacherProfile não encontrado');
-      if (!club) throw new NotFoundException('Club não encontrado');
+      if (!club) throw new NotFoundException('Clubinho não encontrado');
 
       if (teacher.club && teacher.club.id === clubId) return;
 
       if (teacher.club && teacher.club.id !== clubId) {
-        throw new BadRequestException('Teacher já está vinculado a outro Club');
+        throw new BadRequestException('Teacher já está vinculado a outro Clubinho');
       }
 
       teacher.club = club;
@@ -279,7 +279,7 @@ export class TeacherProfilesRepository {
       if (!teacher.club) return;
 
       if (expectedClubId && teacher.club.id !== expectedClubId) {
-        throw new BadRequestException('Teacher não pertence ao club informado');
+        throw new BadRequestException('Teacher não pertence ao clubinho informado');
       }
 
       teacher.club = null as any;

@@ -241,7 +241,7 @@ export class CoordinatorProfilesRepository {
       where: { id: clubId },
       relations: { coordinator: true },
     });
-    if (!club) throw new NotFoundException('Club não encontrado');
+    if (!club) throw new NotFoundException('Clubinho não encontrado');
     if (!club.coordinator) {
       throw new NotFoundException('Este Club não possui coordenador vinculado');
     }
@@ -264,7 +264,7 @@ export class CoordinatorProfilesRepository {
         where: { id: clubId },
         relations: { coordinator: true },
       });
-      if (!club) throw new NotFoundException('Club não encontrado');
+      if (!club) throw new NotFoundException('Clubinho não encontrado');
 
       if (club.coordinator && club.coordinator.id === coordinatorId) return;
 
@@ -284,7 +284,7 @@ export class CoordinatorProfilesRepository {
         where: { id: clubId },
         relations: { coordinator: true },
       });
-      if (!club) throw new NotFoundException('Club não encontrado');
+      if (!club) throw new NotFoundException('Clubinho não encontrado');
 
       if (!club.coordinator || club.coordinator.id !== coordinatorId) {
         throw new BadRequestException(
@@ -323,7 +323,7 @@ export class CoordinatorProfilesRepository {
         where: { id: clubId },
         relations: { coordinator: true },
       });
-      if (!club) throw new NotFoundException('Club não encontrado');
+      if (!club) throw new NotFoundException('Clubinho não encontrado');
 
       if (!club.coordinator || club.coordinator.id !== fromCoordinatorId) {
         throw new BadRequestException(

@@ -35,6 +35,7 @@ import { ClubControlLogEntity } from 'src/modules/club-control/entities/club-con
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: process.env.ENV_FILE || '.env',
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],

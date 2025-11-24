@@ -35,6 +35,7 @@ export const toChildListItemDto = (e: ChildEntity): ChildListItemDto => ({
   guardianName: e.guardianName,
   gender: e.gender,
   guardianPhone: e.guardianPhone,
+  isActive: e.isActive,
   clubId: e.club?.id ?? null,
   acceptedChrists: (e.acceptedChrists ?? []).map((a): AcceptedChristShortDto => ({
     id: a.id,
@@ -66,6 +67,7 @@ export const toChildResponseDto = (e: ChildEntity): ChildResponseDto => ({
   gender: e.gender,
   guardianPhone: e.guardianPhone,
   joinedAt: dateOnly((e as any).joinedAt),
+  isActive: e.isActive,
   club: (e as any).club
     ? {
       id: (e as any).club.id,
