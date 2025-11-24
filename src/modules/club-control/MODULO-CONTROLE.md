@@ -353,22 +353,69 @@ Então:
    {
      "year": 2025,
      "week": 47,
-     "summary": { ... },
-     "clubs": [ ... ], // ⭐ Array com clubes
-     "currentWeek": { ... }
-   }
-   ```
+  "summary": { ... },
+  "clubs": [ ... ], // ⭐ Array com clubes
+  "currentWeek": { ... },
+  "inactiveClubs": [ // ⭐ NOVO: Lista de clubinhos desativados
+    {
+      "clubId": "uuid",
+      "clubNumber": 90,
+      "weekday": "saturday",
+      "isActive": false
+    }
+  ],
+  "childrenNotAttending": { // ⭐ NOVO: Crianças que não frequentam mais
+    "total": 15,
+    "list": [
+      {
+        "childId": "uuid",
+        "childName": "João Silva",
+        "isActive": false
+      }
+    ]
+  }
+}
+```
 
 * **Objetivo**: Evitar confusão no frontend. Se não há período ou está fora do período, não faz sentido mostrar clubes. O frontend pode verificar `clubs.length === 0` e exibir a mensagem `note` ao usuário.
 
-## 6. Status de Crianças ⭐ CRÍTICO - NOVO
+## 6. Status de Crianças e Clubinhos ⭐ CRÍTICO - ATUALIZADO
+
+### 6.1. Crianças Desativadas (`isActive = false`)
 
 * Cada criança possui um campo `isActive` (boolean) que indica se ela está **ativa** no clubinho.
-* **Apenas crianças ATIVAS** são consideradas nos indicadores e estatísticas:
-  * ✅ Crianças ativas (`isActive = true`) → **SEMPRE** entram nos cálculos
-  * ❌ Crianças inativas (`isActive = false`) → **NUNCA** entram nos cálculos
+* **Crianças desativadas NÃO entram nos indicadores positivos nem negativos:**
+  * ❌ Crianças inativas (`isActive = false`) → **NUNCA** entram nos indicadores `all_ok`, `some_missing`, `no_pagela`
+  * ✅ Crianças inativas → **APENAS** entram no indicador `children_not_attending` (crianças que não frequentam mais os clubinhos)
 * Quando uma criança sai do clubinho, deve ser marcada como `isActive = false`.
 * Isso evita que crianças que saíram do clube gerem indicadores negativos incorretos.
+
+### 6.2. Clubinhos Desativados (`isActive = false`)
+
+* Cada clubinho possui um campo `isActive` (boolean) que indica se ele está **ativo**.
+* **Se o clubinho está desativado:**
+  * ❌ **TODAS** as crianças desse clubinho (mesmo as ativas) entram no indicador `children_not_attending`
+  * ✅ Gera indicador `club_inactive` informando que o clubinho está desativado
+  * ❌ **NENHUM** indicador positivo (`all_ok`) ou negativo (`some_missing`, `no_pagela`) é gerado
+  * ✅ Todas as crianças (ativas e inativas) são listadas no indicador de "não frequentam mais"
+
+### 6.3. Regras de Negócio
+
+**Cenário 1: Criança Desativada em Clubinho Ativo**
+- Criança com `isActive = false` em clubinho com `isActive = true`
+- ❌ NÃO entra nos indicadores `all_ok`, `some_missing`, `no_pagela`
+- ✅ Entra APENAS no indicador `children_not_attending`
+
+**Cenário 2: Clubinho Desativado**
+- Clubinho com `isActive = false`
+- ❌ TODAS as crianças (mesmo as ativas) entram no indicador `children_not_attending`
+- ✅ Gera indicador `club_inactive`
+- ❌ NENHUM indicador positivo ou negativo é gerado
+
+**Cenário 3: Criança Ativa em Clubinho Ativo**
+- Criança com `isActive = true` em clubinho com `isActive = true`
+- ✅ Entra normalmente nos indicadores `all_ok`, `some_missing`, `no_pagela`
+- ❌ NÃO entra no indicador `children_not_attending`
 
 ## 7. Data de Entrada da Criança ⭐ CRÍTICO - NOVO
 
@@ -763,9 +810,11 @@ http://localhost:3000/club-control
 | 1 | `/periods` | POST | Criar período letivo GLOBAL |
 | 2 | `/periods` | GET | Listar todos os períodos letivos |
 | 3 | `/periods/:year` | GET | Buscar período de um ano específico |
+| 3.1 | `/periods/:id` | PUT | Atualizar período letivo por ID ⭐ NOVO |
 | 4 | `/exceptions` | POST | Criar exceção GLOBAL |
 | 5 | `/exceptions` | GET | Listar exceções (com filtros) |
 | 6 | `/exceptions/:date` | GET | Buscar exceção por data |
+| 7 | `/exceptions/:id` | DELETE | Desativar exceção por ID ⭐ NOVO |
 | 7 | `/check/club/:clubId` | GET | Verificar clube em uma semana |
 | 8 | `/check/week` | GET | Verificar todos os clubes |
 | 9 | `/dashboard` | GET | Dashboard da semana atual |
@@ -873,6 +922,54 @@ GET /club-control/periods?page=1&limit=20
 
 ---
 
+## 3.1. PUT /club-control/periods/:id ⭐ NOVO
+
+### Atualizar Período Letivo por ID
+
+Atualiza um período letivo existente. Todos os campos são opcionais, exceto que o campo `year` não pode ser alterado (é único e identifica o período).
+
+**Parâmetros:**
+- `id` (obrigatório): ID do período letivo (UUID)
+
+**Body (todos os campos são opcionais):**
+```json
+{
+  "startDate": "2024-02-05",
+  "endDate": "2024-12-15",
+  "description": "Ano Letivo 2024",
+  "isActive": true
+}
+```
+
+**Exemplo:** `/club-control/periods/a1196fc4-3955-4b4d-8043-540ddd5836f6`
+
+**Response (Sucesso):**
+```json
+{
+  "id": "a1196fc4-3955-4b4d-8043-540ddd5836f6",
+  "year": 2024,
+  "startDate": "2024-02-05",
+  "endDate": "2024-12-15",
+  "description": "Ano Letivo 2024",
+  "isActive": true,
+  "createdAt": "2024-01-15T10:00:00.000Z",
+  "updatedAt": "2024-11-20T15:30:00.000Z"
+}
+```
+
+**Response (Não Encontrado):**
+```json
+{
+  "statusCode": 404,
+  "message": "Period with id a1196fc4-3955-4b4d-8043-540ddd5836f6 not found",
+  "error": "Not Found"
+}
+```
+
+**Nota:** Apenas os campos fornecidos no body serão atualizados. O campo `year` não pode ser alterado, pois é único e identifica o período.
+
+---
+
 ## 4. POST /club-control/exceptions
 
 ### Criar Exceção GLOBAL
@@ -969,6 +1066,37 @@ Se 15/11/2024 é uma quarta-feira, **TODOS** os clubes de quarta-feira não func
   "isRecurrent": true
 }
 ```
+
+---
+
+## 7. DELETE /club-control/exceptions/:id ⭐ NOVO
+
+### Desativar Exceção por ID
+
+Desativa (soft delete) uma exceção específica pelo seu ID.
+
+**Parâmetros:**
+- `id` (obrigatório): ID da exceção (UUID)
+
+**Exemplo:** `/club-control/exceptions/a1196fc4-3955-4b4d-8043-540ddd5836f6`
+
+**Response (Sucesso):**
+```json
+{
+  "success": true
+}
+```
+
+**Response (Não Encontrado):**
+```json
+{
+  "statusCode": 404,
+  "message": "Exception not found",
+  "error": "Not Found"
+}
+```
+
+**Nota:** A exceção é desativada (soft delete), ou seja, o campo `isActive` é definido como `false`. A exceção não é removida fisicamente do banco de dados, apenas marcada como inativa.
 
 ---
 
@@ -1275,6 +1403,24 @@ GET /club-control/check/week
   "currentWeek": {
     "academicYear": 2025,
     "academicWeek": 39
+  },
+  "inactiveClubs": [ // ⭐ NOVO: Lista de clubinhos desativados
+    {
+      "clubId": "uuid",
+      "clubNumber": 90,
+      "weekday": "saturday",
+      "isActive": false
+    }
+  ],
+  "childrenNotAttending": { // ⭐ NOVO: Crianças que não frequentam mais
+    "total": 15,
+    "list": [
+      {
+        "childId": "uuid",
+        "childName": "João Silva",
+        "isActive": false
+      }
+    ]
   }
 }
 ```
@@ -1308,10 +1454,13 @@ GET /club-control/check/week?year=2025&week=39&page=3&limit=50
   "week": 45,
   "summary": {
     "totalClubs": 12,
+    "totalClubsInactive": 2,
     "clubsOk": 8,
     "clubsPending": 0,
     "clubsPartial": 2,
     "clubsMissing": 1,
+    "totalChildrenNotAttending": 15,
+    "inactiveClubsCount": 2,
     "clubsException": 1,
     "clubsInactive": 0,
     "clubsOutOfPeriod": 0
@@ -2336,6 +2485,98 @@ if (period) {
 
 ---
 
+## Versão 1.5.0 (Atual) ⭐ NOVA FUNCIONALIDADE - Retorno de Informações sobre Clubinhos e Crianças Desativadas
+
+### 🎯 Novos Campos nos Retornos dos Endpoints
+
+**Sistema agora retorna informações completas sobre clubinhos e crianças desativadas!**
+
+#### ✅ O Que Mudou
+
+1. **Endpoint `/club-control/check/week`:**
+   - Novo campo `summary.totalClubsInactive`: Total de clubinhos desativados
+   - Novo campo `summary.totalChildrenNotAttending`: Total de crianças que não frequentam mais
+   - Novo campo `summary.inactiveClubsCount`: Contador de clubinhos inativos
+   - Novo objeto `inactiveClubs`: Lista completa de clubinhos desativados
+   - Novo objeto `childrenNotAttending`: Lista completa de crianças que não frequentam mais
+
+2. **Endpoint `/club-control/indicators/detailed`:**
+   - Novo campo `executiveSummary.overall.totalClubsInactive`: Total de clubinhos desativados
+   - Novo campo `executiveSummary.children.notAttending`: Objeto com informações sobre crianças que não frequentam mais
+   - Novo objeto `inactiveClubs`: Lista completa de clubinhos desativados
+   - Novo objeto `childrenNotAttending`: Lista completa de crianças que não frequentam mais
+
+3. **Endpoint `/club-control/check/club/:clubId`:**
+   - Novo campo `children.notAttendingCount`: Quantidade de crianças que não frequentam mais
+   - Novo campo `children.notAttendingList`: Lista de crianças que não frequentam mais
+
+#### 📊 Estrutura dos Novos Campos
+
+**No endpoint `/club-control/check/week`:**
+```json
+{
+  "summary": {
+    "totalClubs": 120,
+    "totalClubsInactive": 5,
+    "totalChildrenNotAttending": 25,
+    "inactiveClubsCount": 5,
+    ...
+  },
+  "inactiveClubs": [
+    {
+      "clubId": "uuid",
+      "clubNumber": 90,
+      "weekday": "saturday",
+      "isActive": false
+    }
+  ],
+  "childrenNotAttending": {
+    "total": 25,
+    "list": [
+      {
+        "childId": "uuid",
+        "childName": "João Silva",
+        "isActive": false
+      }
+    ]
+  }
+}
+```
+
+**No endpoint `/club-control/indicators/detailed`:**
+```json
+{
+  "executiveSummary": {
+    "overall": {
+      "totalClubs": 120,
+      "totalClubsInactive": 5,
+      ...
+    },
+    "children": {
+      "notAttending": {
+        "total": 25,
+        "fromInactiveClubs": 15,
+        "fromInactiveChildren": 10
+      }
+    }
+  },
+  "inactiveClubs": [...],
+  "childrenNotAttending": {
+    "total": 25,
+    "list": [...]
+  }
+}
+```
+
+#### 🎯 Benefícios
+
+- 📊 **Visibilidade Completa:** Frontend pode exibir informações sobre clubinhos e crianças desativadas
+- 🔍 **Rastreamento:** Identifica todas as crianças que não frequentam mais os clubinhos
+- ✅ **Transparência:** Dados completos para análise e relatórios
+- 📈 **Análise:** Permite análise específica de clubinhos e crianças desativadas
+
+---
+
 ## Versão 1.3.1 (15/11/2024) ⭐ NOVA FUNCIONALIDADE - Filtros na Análise Detalhada
 
 ### 🔍 Filtros Avançados na Análise Detalhada
@@ -2384,6 +2625,85 @@ GET /club-control/indicators/detailed?year=2025&week=47&status=missing&page=1&li
 
 ---
 
+## Versão 1.4.0 (Atual) ⭐ NOVA FUNCIONALIDADE - Indicadores para Crianças e Clubinhos Desativados
+
+### 🎯 Novos Indicadores: `club_inactive` e `children_not_attending`
+
+**Sistema agora rastreia crianças e clubinhos desativados separadamente!**
+
+#### ✅ O Que Mudou
+
+1. **Novo Indicador: `club_inactive`**
+   - Gerado quando um clubinho está desativado (`isActive = false`)
+   - Severidade: `info`
+   - Todas as crianças desse clubinho (mesmo as ativas) entram no indicador `children_not_attending`
+
+2. **Novo Indicador: `children_not_attending`**
+   - Gerado para crianças que não frequentam mais os clubinhos
+   - Severidade: `warning`
+   - Inclui:
+     - Crianças desativadas (`isActive = false`) em clubinhos ativos
+     - Todas as crianças (ativas e inativas) de clubinhos desativados
+   - Lista completa das crianças com seus IDs, nomes e status
+
+3. **Regras de Exclusão:**
+   - Crianças desativadas **NÃO** entram nos indicadores `all_ok`, `some_missing`, `no_pagela`
+   - Crianças desativadas **APENAS** entram no indicador `children_not_attending`
+   - Clubinhos desativados **NÃO** geram indicadores positivos nem negativos
+   - Clubinhos desativados geram apenas `club_inactive` e `children_not_attending`
+
+#### 📊 Estrutura dos Novos Indicadores
+
+**Indicador `club_inactive`:**
+```json
+{
+  "type": "club_inactive",
+  "severity": "info",
+  "message": "ℹ️ Clubinho desativado",
+  "details": {
+    "totalChildren": 15,
+    "childrenNotAttending": 15,
+    "note": "Todas as crianças deste clubinho (ativas e inativas) entram no indicador de 'crianças que não frequentam mais os clubinhos'"
+  }
+}
+```
+
+**Indicador `children_not_attending`:**
+```json
+{
+  "type": "children_not_attending",
+  "severity": "warning",
+  "message": "⚠️ 5 criança(s) que não frequentam mais os clubinhos",
+  "details": {
+    "totalChildren": 5,
+    "childrenList": [
+      {
+        "childId": "uuid-1",
+        "childName": "João Silva",
+        "isActive": false,
+        "reason": "Criança desativada"
+      },
+      {
+        "childId": "uuid-2",
+        "childName": "Maria Santos",
+        "isActive": true,
+        "reason": "Clubinho desativado"
+      }
+    ],
+    "note": "Crianças desativadas não entram nos indicadores positivos nem negativos, apenas neste indicador"
+  }
+}
+```
+
+#### 🎯 Benefícios
+
+- 📊 **Rastreamento Separado:** Crianças que não frequentam mais são rastreadas separadamente
+- 🔍 **Visibilidade:** Identifica clubinhos desativados e suas crianças
+- ✅ **Precisão:** Indicadores normais não são afetados por crianças/clubinhos desativados
+- 📈 **Análise:** Permite análise específica de crianças que não frequentam mais
+
+---
+
 ## Versão 1.3.0 (15/11/2024) ⭐ NOVA FUNCIONALIDADE - Indicadores Melhorados e Análise Detalhada
 
 ### 🎯 Indicadores Melhorados com Detalhes
@@ -2415,7 +2735,8 @@ GET /club-control/indicators/detailed?year=2025&week=47&status=missing&page=1&li
 ```typescript
 {
   type: 'all_ok' | 'some_missing' | 'no_pagela' | 'no_children' | 
-        'exception' | 'no_weekday' | 'out_of_period',
+        'exception' | 'no_weekday' | 'out_of_period' | 
+        'club_inactive' | 'children_not_attending', // ⭐ NOVOS TIPOS
   severity: 'success' | 'warning' | 'critical' | 'info',
   message: string,
   details: {
@@ -2427,6 +2748,15 @@ GET /club-control/indicators/detailed?year=2025&week=47&status=missing&page=1&li
     isPerfect: boolean,
     needsAttention: boolean,
     urgency?: 'low' | 'medium' | 'high' | 'critical',
+    // Para children_not_attending:
+    childrenList?: Array<{
+      childId: string,
+      childName: string,
+      isActive: boolean,
+      reason?: string,
+    }>,
+    // Para club_inactive:
+    childrenNotAttending?: number,
   }
 }
 ```
@@ -2479,7 +2809,7 @@ O endpoint suporta filtros avançados para análise específica:
 | `status` | string | `ok`, `partial`, `missing`, `exception`, `inactive`, `out_of_period` | Filtrar por status dos clubes |
 | `severity` | string | `critical`, `warning`, `info`, `success` | Filtrar por severidade dos indicadores |
 | `weekday` | string | `monday`, `tuesday`, `wednesday`, `thursday`, `friday`, `saturday` | Filtrar por dia da semana |
-| `indicatorType` | string | `all_ok`, `some_missing`, `no_pagela`, `no_children`, `exception`, `no_weekday`, `out_of_period` | Filtrar por tipo de indicador |
+| `indicatorType` | string | `all_ok`, `some_missing`, `no_pagela`, `no_children`, `exception`, `no_weekday`, `out_of_period`, `club_inactive`, `children_not_attending` | Filtrar por tipo de indicador |
 | `hasProblems` | boolean | `true`, `false` | Apenas clubes com problemas (`true`) ou apenas OK (`false`) |
 | `page` | number | `1`, `2`, `3`, ... | Página para paginação (default: não paginado) |
 | `limit` | number | `10`, `20`, `50`, ... | Limite por página (default: não paginado) |
@@ -2544,7 +2874,9 @@ GET /club-control/indicators/detailed?year=2025&week=47&weekday=saturday&severit
         "no_children": 0,
         "exception": 0,
         "no_weekday": 1,
-        "out_of_period": 0
+        "out_of_period": 0,
+        "club_inactive": 0,
+        "children_not_attending": 0
       },
       "bySeverity": {
         "critical": 5,
@@ -2562,7 +2894,9 @@ GET /club-control/indicators/detailed?year=2025&week=47&weekday=saturday&severit
       "no_children": [...],
       "exception": [...],
       "no_weekday": [...],
-      "out_of_period": [...]
+      "out_of_period": [...],
+      "club_inactive": [...],
+      "children_not_attending": [...]
     },
     "critical": [
       {
@@ -2626,13 +2960,51 @@ GET /club-control/indicators/detailed?year=2025&week=47&weekday=saturday&severit
       "problemsRate": 4.8
     }
   },
-  "recommendations": [
-    "🚨 ATENÇÃO: 5 clube(s) com problemas críticos precisam de atenção imediata",
-    "🔴 5 clube(s) sem nenhuma pagela registrada nesta semana"
-  ],
-  "currentWeek": {
-    "academicYear": 2025,
-    "academicWeek": 39,
+      "recommendations": [
+        "🚨 ATENÇÃO: 5 clube(s) com problemas críticos precisam de atenção imediata",
+        "🔴 5 clube(s) sem nenhuma pagela registrada nesta semana"
+      ],
+      "currentWeek": {
+        "academicYear": 2025,
+        "academicWeek": 39,
+      },
+      "inactiveClubs": [ // ⭐ NOVO: Lista de clubinhos desativados
+        {
+          "clubId": "uuid",
+          "clubNumber": 90,
+          "weekday": "saturday",
+          "isActive": false
+        }
+      ],
+      "childrenNotAttending": { // ⭐ NOVO: Crianças que não frequentam mais
+        "total": 45,
+        "list": [
+          {
+            "childId": "uuid",
+            "childName": "João Silva",
+            "isActive": false
+          }
+        ]
+      },
+      },
+      "inactiveClubs": [ // ⭐ NOVO: Lista de clubinhos desativados
+        {
+          "clubId": "uuid",
+          "clubNumber": 90,
+          "weekday": "saturday",
+          "isActive": false
+        }
+      ],
+      "childrenNotAttending": { // ⭐ NOVO: Crianças que não frequentam mais
+        "total": 45,
+        "list": [
+          {
+            "childId": "uuid",
+            "childName": "João Silva",
+            "isActive": false
+          }
+        ]
+      },
     "isWithinPeriod": true,
     "periodStartDate": "2025-03-01",
     "periodEndDate": "2025-11-30"

@@ -1,7 +1,9 @@
 # 📊 Módulo de Estatística
 
 > **API Clubinho NIB - Sistema Completo de Análise de Dados**  
-> Versão 2.9.0 | Atualizado em 21/11/2024
+> Versão 2.10.0 | Atualizado em 21/11/2024
+
+> ⭐ **NOVO**: Retorno de informações sobre clubinhos e crianças desativadas nos endpoints!
 
 > ⭐ **NOVO**: Análise de Frequência Semanal com Detecção de Semanas Faltantes!  
 > 🎯 **INTEGRADO**: Módulo de Controle para verificação em tempo real via painel administrativo!  
@@ -639,12 +641,23 @@ A primeira semana que contém o `startDate` é considerada a **semana 1** do ano
    - ✅ Aparecem em rankings e métricas
    - ✅ Contabilizadas em todas as análises
    - ✅ **TODOS os endpoints** filtram por `isActive = true`
+   - ✅ Entram nos indicadores positivos e negativos do módulo de controle
 
 2. **Crianças Inativas (`isActive = false`):**
    - ❌ **NUNCA** entram nos cálculos de estatísticas
    - ❌ Não aparecem em rankings
    - ❌ Não contabilizadas em análises
    - ❌ **NENHUM endpoint** retorna crianças inativas
+   - ❌ **NÃO** entram nos indicadores positivos (`all_ok`) nem negativos (`some_missing`, `no_pagela`) do módulo de controle
+   - ✅ **APENAS** entram no indicador `children_not_attending` (crianças que não frequentam mais os clubinhos)
+
+3. **Clubinhos Desativados (`isActive = false`):**
+   - ❌ **TODAS** as crianças desse clubinho (mesmo as ativas) entram no indicador `children_not_attending`
+   - ❌ **NÃO** entram em estatísticas e métricas
+   - ❌ **NÃO** aparecem em rankings e análises
+   - ❌ **NÃO** são contabilizados em gráficos e distribuições
+   - ✅ Gera indicador `club_inactive` no módulo de controle
+   - ✅ Todas as crianças (ativas e inativas) são listadas no indicador de "não frequentam mais"
 
 3. **Data de Entrada (`joinedAt`):**
    - Se `joinedAt` existe:
@@ -1582,6 +1595,68 @@ GET /statistics/children?joinedBefore=2024-01-01&sortBy=engagementScore&sortOrde
   </MapView>
 </GeographicMap>
 ```
+
+---
+
+## Versão 2.10.0 (Atual) ⭐ NOVA FUNCIONALIDADE - Retorno de Informações sobre Clubinhos e Crianças Desativadas
+
+### 🎯 Novos Campos nos Retornos dos Endpoints
+
+**Sistema agora retorna informações completas sobre clubinhos e crianças desativadas!**
+
+#### ✅ O Que Mudou
+
+1. **Endpoint `/statistics/clubs`:**
+   - Novo objeto `inactiveClubs`: Lista completa de clubinhos desativados com total
+   - Novo objeto `inactiveChildren`: Informações sobre crianças desativadas
+
+2. **Endpoint `/statistics/overview`:**
+   - Novo campo `summary.inactiveChildren`: Total de crianças desativadas
+   - Novo campo `summary.inactiveClubs`: Total de clubinhos desativados
+
+#### 📊 Estrutura dos Novos Campos
+
+**No endpoint `/statistics/clubs`:**
+```json
+{
+  "clubs": [...],
+  "inactiveClubs": {
+    "total": 5,
+    "list": [
+      {
+        "clubId": "uuid",
+        "clubNumber": 90,
+        "weekday": "saturday",
+        "isActive": false
+      }
+    ]
+  },
+  "inactiveChildren": {
+    "total": 25,
+    "fromInactiveClubs": 15
+  }
+}
+```
+
+**No endpoint `/statistics/overview`:**
+```json
+{
+  "summary": {
+    "totalChildren": 2000,
+    "totalClubs": 120,
+    "totalTeachers": 150,
+    "inactiveChildren": 50,  // ⭐ NOVO
+    "inactiveClubs": 5       // ⭐ NOVO
+  }
+}
+```
+
+#### 🎯 Benefícios
+
+- 📊 **Visibilidade Completa:** Frontend pode exibir informações sobre clubinhos e crianças desativadas
+- 🔍 **Rastreamento:** Identifica todas as crianças que não frequentam mais os clubinhos
+- ✅ **Transparência:** Dados completos para análise e relatórios
+- 📈 **Análise:** Permite análise específica de clubinhos e crianças desativadas
 
 ---
 

@@ -237,6 +237,9 @@ export class StatisticsService {
         totalTeachers: totalCounts.totalTeachers,
         activeChildrenThisMonth: activeCountsThisMonth.activeChildren,
         activeTeachersThisMonth: activeCountsThisMonth.activeTeachers,
+        // Informações sobre clubinhos e crianças desativadas
+        inactiveChildren: totalCounts.inactiveChildren,
+        inactiveClubs: totalCounts.inactiveClubs,
       },
       pagelas: {
         thisWeek: {
@@ -580,7 +583,7 @@ export class StatisticsService {
    */
   async getClubsStats(filters: ClubsStatsQueryDto): Promise<ClubsStatsResponseDto> {
     const clubsData = await this.statisticsRepository.getClubsWithStats(filters);
-    const { clubs, childrenResults, pagelasResults, decisionsResults, teachers, totalCount, page, limit } = clubsData;
+    const { clubs, childrenResults, pagelasResults, decisionsResults, teachers, totalCount, page, limit, inactiveClubs, inactiveChildren } = clubsData;
 
     // Organize data by club
     const childrenByClub = new Map();
@@ -775,6 +778,9 @@ export class StatisticsService {
         hasNext: page < totalPages,
         hasPrevious: page > 1,
       },
+      // ⭐ NOVO: Informações sobre clubinhos e crianças desativadas
+      inactiveClubs: inactiveClubs || { total: 0, list: [] },
+      inactiveChildren: inactiveChildren || { total: 0, fromInactiveClubs: 0 },
     };
   }
 

@@ -1059,16 +1059,20 @@ export class StatisticsRepository {
   // ============= OVERVIEW STATISTICS =============
 
   async getTotalCounts() {
-    const [totalChildren, totalClubs, totalTeachers] = await Promise.all([
-      this.childrenRepository.count(),
+    const [totalChildren, totalClubs, totalTeachers, inactiveChildren, inactiveClubs] = await Promise.all([
+      this.childrenRepository.count({ where: { isActive: true } }),
       this.clubsRepository.count({ where: { isActive: true } }),
       this.teachersRepository.count(),
+      this.childrenRepository.count({ where: { isActive: false } }),
+      this.clubsRepository.count({ where: { isActive: false } }),
     ]);
 
     return {
       totalChildren,
       totalClubs,
       totalTeachers,
+      inactiveChildren,
+      inactiveClubs,
     };
   }
 
@@ -1715,6 +1719,30 @@ export class StatisticsRepository {
 
     const teachers = clubIds.length > 0 ? await teachersQuery.getMany() : [];
 
+    // Buscar informações sobre clubinhos e crianças desativadas
+    const allClubs = await this.clubsRepository.find();
+    const inactiveClubs = allClubs.filter(c => c.isActive === false);
+    
+    // Contar crianças desativadas
+    const inactiveChildrenQuery = this.childrenRepository
+      .createQueryBuilder('child')
+      .leftJoin('child.club', 'club')
+      .select('COUNT(child.id)', 'total')
+      .where('child.isActive = :isActive', { isActive: false });
+    
+    const inactiveChildrenCount = await inactiveChildrenQuery.getRawOne();
+    const totalInactiveChildren = parseInt(inactiveChildrenCount?.total || '0', 10);
+
+    // Crianças de clubinhos desativados (mesmo que estejam ativas)
+    const childrenFromInactiveClubsQuery = this.childrenRepository
+      .createQueryBuilder('child')
+      .leftJoin('child.club', 'club')
+      .select('COUNT(child.id)', 'total')
+      .where('club.isActive = :clubActive', { clubActive: false });
+    
+    const childrenFromInactiveClubsCount = await childrenFromInactiveClubsQuery.getRawOne();
+    const totalChildrenFromInactiveClubs = parseInt(childrenFromInactiveClubsCount?.total || '0', 10);
+
     return {
       clubs,
       childrenResults,
@@ -1724,6 +1752,20 @@ export class StatisticsRepository {
       totalCount,
       page,
       limit,
+      // Informações sobre clubinhos e crianças desativadas
+      inactiveClubs: {
+        total: inactiveClubs.length,
+        list: inactiveClubs.map(club => ({
+          clubId: club.id,
+          clubNumber: club.number,
+          weekday: club.weekday,
+          isActive: club.isActive,
+        })),
+      },
+      inactiveChildren: {
+        total: totalInactiveChildren,
+        fromInactiveClubs: totalChildrenFromInactiveClubs,
+      },
     };
   }
 

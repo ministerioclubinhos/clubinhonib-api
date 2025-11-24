@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Body, Param, Query, Delete, NotFoundException, Logger } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, Delete, Put, NotFoundException, Logger } from '@nestjs/common';
 import { ClubControlService } from '../services/club-control.service';
 import { CreateClubPeriodDto } from '../dto/create-club-period.dto';
+import { UpdateClubPeriodDto } from '../dto/update-club-period.dto';
 import { CreateClubExceptionDto } from '../dto/create-club-exception.dto';
 
 /**
@@ -88,6 +89,37 @@ export class ClubControlController {
       return result;
     } catch (err: any) {
       this.logger.error(`GET /club-control/periods -> error in ${Date.now() - started}ms: ${err?.message}`);
+      throw err;
+    }
+  }
+
+  /**
+   * PUT /club-control/periods/:id
+   * 
+   * Atualizar período letivo pelo ID
+   * 
+   * Body (todos os campos são opcionais):
+   * {
+   *   "startDate": "2024-02-05",
+   *   "endDate": "2024-12-15",
+   *   "description": "Ano Letivo 2024",
+   *   "isActive": true
+   * }
+   * 
+   * NOTA: O campo `year` não pode ser alterado (é único e identifica o período)
+   */
+  @Put('periods/:id')
+  async updatePeriod(@Param('id') id: string, @Body() dto: UpdateClubPeriodDto) {
+    const started = Date.now();
+    this.logger.log(`PUT /club-control/periods/${id} dto=${JSON.stringify(dto)}`);
+    try {
+      const result = await this.clubControlService.updatePeriod(id, dto);
+      this.logger.log(`PUT /club-control/periods/${id} -> success in ${Date.now() - started}ms`);
+      return result;
+    } catch (err: any) {
+      if (!(err instanceof NotFoundException)) {
+        this.logger.error(`PUT /club-control/periods/${id} -> error in ${Date.now() - started}ms: ${err?.message}`);
+      }
       throw err;
     }
   }
@@ -197,6 +229,31 @@ export class ClubControlController {
       return result;
     } catch (err: any) {
       this.logger.error(`GET /club-control/exceptions -> error in ${Date.now() - started}ms: ${err?.message}`);
+      throw err;
+    }
+  }
+
+  /**
+   * DELETE /club-control/exceptions/:id
+   * 
+   * Desativar (soft delete) uma exceção pelo ID
+   */
+  @Delete('exceptions/:id')
+  async deleteException(@Param('id') id: string) {
+    const started = Date.now();
+    this.logger.log(`DELETE /club-control/exceptions/${id}`);
+    try {
+      const result = await this.clubControlService.deleteException(id);
+      if (!result?.success) {
+        this.logger.warn(`DELETE /club-control/exceptions/${id} -> not found in ${Date.now() - started}ms`);
+        throw new NotFoundException('Exception not found');
+      }
+      this.logger.log(`DELETE /club-control/exceptions/${id} -> success in ${Date.now() - started}ms`);
+      return { success: true };
+    } catch (err: any) {
+      if (!(err instanceof NotFoundException)) {
+        this.logger.error(`DELETE /club-control/exceptions/${id} -> error in ${Date.now() - started}ms: ${err?.message}`);
+      }
       throw err;
     }
   }

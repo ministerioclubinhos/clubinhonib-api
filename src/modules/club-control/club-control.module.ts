@@ -9,6 +9,10 @@ import { PagelaEntity } from '../pagelas/entities/pagela.entity';
 import { ClubControlRepository } from './repositories/club-control.repository';
 import { ClubControlService } from './services/club-control.service';
 import { ClubControlController } from './controllers/club-control.controller';
+import { AcademicWeekService } from './services/academic-week.service';
+import { ClubStatusService } from './services/club-status.service';
+import { ClubIndicatorsService } from './services/club-indicators.service';
+import { ClubWeekCheckService } from './services/club-week-check.service';
 
 @Module({
   imports: [
@@ -22,8 +26,22 @@ import { ClubControlController } from './controllers/club-control.controller';
     ]),
   ],
   controllers: [ClubControlController],
-  providers: [ClubControlService, ClubControlRepository],
-  exports: [ClubControlService, ClubControlRepository],
+  providers: [
+    ClubControlService,
+    ClubControlRepository,
+    AcademicWeekService,
+    ClubStatusService,
+    ClubIndicatorsService,
+    ClubWeekCheckService,
+  ],
+  exports: [
+    ClubControlService,
+    ClubControlRepository,
+    AcademicWeekService,
+    ClubStatusService,
+    ClubIndicatorsService,
+    ClubWeekCheckService,
+  ],
 })
 export class ClubControlModule {}
 

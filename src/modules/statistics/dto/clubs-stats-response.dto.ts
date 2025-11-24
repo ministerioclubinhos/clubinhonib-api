@@ -112,6 +112,22 @@ export class ClubsStatsResponseDto {
     hasNext: boolean;
     hasPrevious: boolean;
   };
+
+  // ⭐ NOVO: Informações sobre clubinhos e crianças desativadas
+  inactiveClubs: {
+    total: number;
+    list: {
+      clubId: string;
+      clubNumber: number;
+      weekday: string;
+      isActive: boolean;
+    }[];
+  };
+
+  inactiveChildren: {
+    total: number;
+    fromInactiveClubs: number;
+  };
 }
 
 

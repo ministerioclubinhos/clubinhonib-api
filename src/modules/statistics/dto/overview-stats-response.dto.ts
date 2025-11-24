@@ -5,6 +5,8 @@ export class OverviewStatsResponseDto {
     totalTeachers: number;
     activeChildrenThisMonth: number;
     activeTeachersThisMonth: number;
+    inactiveChildren: number; // ⭐ NOVO: Total de crianças desativadas
+    inactiveClubs: number; // ⭐ NOVO: Total de clubinhos desativados
   };
   pagelas: {
     thisWeek: {
