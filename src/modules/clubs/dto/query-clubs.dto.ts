@@ -1,5 +1,5 @@
-import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Min, IsString, IsIn } from 'class-validator';
+import { Type, Transform } from 'class-transformer';
+import { IsInt, IsOptional, Min, IsString, IsIn, IsBoolean } from 'class-validator';
 
 export class QueryClubsDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1)
@@ -16,6 +16,14 @@ export class QueryClubsDto {
 
   @IsOptional() @IsString()
   clubSearchString?: string;
+
+  @Transform(({ value }) => {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return value;
+  })
+  @IsOptional() @IsBoolean()
+  isActive?: boolean;
 
   @IsOptional()
   @IsIn(['number', 'weekday', 'time', 'createdAt', 'updatedAt', 'city', 'state'])

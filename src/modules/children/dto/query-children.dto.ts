@@ -1,4 +1,4 @@
-import { IsIn, IsInt, IsOptional, IsString, IsUUID, Min, IsNumber } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, IsUUID, Min, IsNumber, IsBoolean } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class QueryChildrenDto {
@@ -35,6 +35,14 @@ export class QueryChildrenDto {
 
   @IsOptional() @IsString()
   joinedTo?: string;
+
+  @Transform(({ value }) => {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return value;
+  })
+  @IsOptional() @IsBoolean()
+  isActive?: boolean;
 
   @IsOptional() @IsString()
   orderBy?: 'name' | 'birthDate' | 'joinedAt' | 'createdAt';

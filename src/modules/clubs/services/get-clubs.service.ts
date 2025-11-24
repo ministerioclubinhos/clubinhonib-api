@@ -45,12 +45,28 @@ export class GetClubsService {
   async findOne(id: string, req: Request): Promise<ClubResponseDto> {
     const ctx = await this.getCtx(req);
     const club = await this.clubsRepository.findOneOrFailForResponse(id, ctx);
-    if (!club) throw new NotFoundException('Club não encontrado');
+    if (!club) throw new NotFoundException('Clubinho não encontrado');
     return toClubDto(club);
   }
 
   async list(req: Request): Promise<ClubSelectOptionDto[]> {
     const ctx = await this.getCtx(req);
     return await this.clubsRepository.list(ctx);
+  }
+
+
+  async toggleActive(id: string, req: Request): Promise<ClubResponseDto> {
+    const ctx = await this.getCtx(req);
+    if (!ctx.role || ctx.role === 'teacher') throw new ForbiddenException('Acesso negado');
+
+    const club = await this.clubsRepository.findOneOrFailForResponse(id, ctx);
+    if (!club) throw new NotFoundException('Clubinho não encontrado ou sem acesso');
+
+    const updateDto = { isActive: !club.isActive };
+    await this.clubsRepository.updateClub(id, updateDto);
+
+    const reloaded = await this.clubsRepository.findOneOrFailForResponse(id, ctx);
+    if (!reloaded) throw new NotFoundException('Clubinho não encontrado');
+    return toClubDto(reloaded);
   }
 }

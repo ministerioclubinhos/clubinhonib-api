@@ -6,6 +6,7 @@ export class ChildListItemDto {
   guardianName: string;
   gender: string;
   guardianPhone: string;
+  isActive: boolean;
   clubId?: string | null;
   acceptedChrists?: AcceptedChristShortDto[];
 }
@@ -29,6 +30,7 @@ export class ChildResponseDto {
   gender: string;
   guardianPhone: string;
   joinedAt?: string | null;
+  isActive: boolean;
   club?: { id: string; number: number; weekday: string } | null;
   address?: AddressResponseDto | null;
   createdAt: string;

@@ -12,12 +12,23 @@ export class CreatePagelaDto {
   @IsDateString()
   referenceDate: string;
 
+  /**
+   * Semana do ANO LETIVO (não semana ISO)
+   * Se não informado, será calculado automaticamente baseado no referenceDate e no período letivo
+   * @optional
+   */
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(53)
-  week: number;
+  week?: number;
 
+  /**
+   * Ano do período letivo (não ano calendário)
+   * Se não informado, será calculado automaticamente baseado no referenceDate e no período letivo
+   * @optional
+   */
   @IsOptional()
   @Type(() => Number)
   @IsInt()

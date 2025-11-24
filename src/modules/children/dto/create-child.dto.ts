@@ -5,6 +5,7 @@ import {
   Length,
   IsUUID,
   ValidateNested,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -27,6 +28,8 @@ export class CreateChildDto {
   @IsString() @Length(5, 32) guardianPhone: string;
 
   @IsOptional() @IsDateString() joinedAt?: string;
+
+  @IsOptional() @IsBoolean() isActive?: boolean;
 
   @IsOptional() @IsUUID() clubId?: string;
 

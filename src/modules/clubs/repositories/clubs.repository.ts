@@ -96,7 +96,7 @@ export class ClubsRepository {
       },
       order: { number: 'ASC' },
     });
-    if (!club) throw new NotFoundException('Club não encontrado');
+    if (!club) throw new NotFoundException('Clubinho não encontrado');
     return club;
   }
 
@@ -173,6 +173,10 @@ export class ClubsRepository {
       }
     }
 
+    if (q.isActive !== undefined) {
+      qb.andWhere('club.isActive = :isActive', { isActive: q.isActive });
+    }
+
     const sortMap: Record<string, string> = {
       number: 'club.number',
       weekday: 'club.weekday',
@@ -199,6 +203,7 @@ export class ClubsRepository {
         'club.number',
         'club.weekday',
         'club.time',
+        'club.isActive',
         'address.id',
         'address.city',
         'address.state',
@@ -240,6 +245,7 @@ export class ClubsRepository {
         number: dto.number,
         weekday: dto.weekday,
         time: dto.time ?? null,
+        isActive: dto.isActive !== undefined ? dto.isActive : true,
         address,
         coordinator: coordinator ?? null,
       });
@@ -248,7 +254,7 @@ export class ClubsRepository {
         await clubRepo.save(club);
       } catch (e: any) {
         if (e?.code === 'ER_DUP_ENTRY' || e?.code === '23505') {
-          throw new ConflictException('Já existe um Club com esse número');
+          throw new ConflictException('Já existe um Clubinho com esse número');
         }
         throw e;
       }
@@ -271,7 +277,7 @@ export class ClubsRepository {
         const alreadyAssigned = teachers.filter((t) => !!t.club);
         if (alreadyAssigned.length) {
           throw new BadRequestException(
-            `Alguns TeacherProfiles já estão vinculados a outro Club: ${alreadyAssigned
+            `Alguns TeacherProfiles já estão vinculados a outro Clubinho: ${alreadyAssigned
               .map((t) => t.id)
               .join(', ')}`,
           );
@@ -294,13 +300,17 @@ export class ClubsRepository {
         where: { id },
         relations: { address: true, coordinator: true, teachers: true },
       });
-      if (!club) throw new NotFoundException('Club não encontrado');
+      if (!club) throw new NotFoundException('Clubinho não encontrado');
 
       if (dto.number !== undefined) club.number = dto.number as any;
       if (dto.weekday !== undefined) club.weekday = dto.weekday as any;
 
       if (dto.time !== undefined) {
         club.time = dto.time as any;
+      }
+
+      if (dto.isActive !== undefined) {
+        club.isActive = dto.isActive;
       }
 
       if (dto.address) {
@@ -348,7 +358,7 @@ export class ClubsRepository {
       .addOrderBy('teachers.createdAt', 'ASC');
 
     const club = await qb.getOne();
-    if (!club) throw new NotFoundException('Club não encontrado');
+    if (!club) throw new NotFoundException('Clubinho não encontrado');
     return club;
   }
 
@@ -415,7 +425,7 @@ export class ClubsRepository {
         where: { id },
         relations: { teachers: true, coordinator: true, address: true },
       });
-      if (!club) throw new NotFoundException('Club não encontrado');
+      if (!club) throw new NotFoundException('Clubinho não encontrado');
 
       if (club.teachers?.length) {
         await txTeacher.update(
