@@ -5,7 +5,6 @@
  * 1. Certifique-se de que a API está rodando em localhost:3000
  * 2. Execute: node scripts/test-api-real.js
  */
-
 const axios = require('axios');
 
 const API_BASE_URL = 'http://localhost:3000';
