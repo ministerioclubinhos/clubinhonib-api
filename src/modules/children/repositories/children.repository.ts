@@ -47,10 +47,11 @@ export class ChildrenRepository {
 
     const qb = this.baseQB();
 
+    // Busca: nome da criança, nome do responsável e número do responsável
     if (q.searchString) {
       const s = `%${q.searchString.trim().toLowerCase()}%`;
       qb.andWhere(
-        '(LOWER(c.name) LIKE :s OR LOWER(c.guardianName) LIKE :s OR LOWER(c.guardianPhone) LIKE :s)',
+        '(LOWER(c.name) LIKE :s OR LOWER(c.guardianName) LIKE :s OR c.guardianPhone LIKE :s)',
         { s },
       );
     }
@@ -72,8 +73,13 @@ export class ChildrenRepository {
     if (q.joinedFrom) qb.andWhere('c.joinedAt >= :jf', { jf: q.joinedFrom });
     if (q.joinedTo) qb.andWhere('c.joinedAt <= :jt', { jt: q.joinedTo });
 
+    // Quando clubNumber é usado, filtrar apenas crianças ativas por padrão
+    // a menos que isActive seja explicitamente passado
     if (q.isActive !== undefined) {
       qb.andWhere('c.isActive = :isActive', { isActive: q.isActive });
+    } else if (q.clubNumber !== undefined) {
+      // Se clubNumber está presente mas isActive não foi passado, filtrar apenas ativas
+      qb.andWhere('c.isActive = :isActive', { isActive: true });
     }
 
     this.applyRoleFilter(qb, ctx);

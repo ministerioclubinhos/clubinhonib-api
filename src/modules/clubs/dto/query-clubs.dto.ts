@@ -9,13 +9,7 @@ export class QueryClubsDto {
   limit?: number = 10;
 
   @IsOptional() @IsString()
-  addressSearchString?: string;
-
-  @IsOptional() @IsString()
-  userSearchString?: string;
-
-  @IsOptional() @IsString()
-  clubSearchString?: string;
+  searchString?: string;
 
   @Transform(({ value }) => {
     if (value === 'true') return true;
