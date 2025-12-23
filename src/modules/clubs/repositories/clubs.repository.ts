@@ -117,9 +117,7 @@ export class ClubsRepository {
     const {
       page = 1,
       limit = 10,
-      addressSearchString,
-      userSearchString,
-      clubSearchString,
+      searchString,
       sort = 'number',
       order = 'ASC',
     } = q;
@@ -127,49 +125,32 @@ export class ClubsRepository {
     const qb = this.buildClubBaseQB().distinct(true);
     this.applyRoleFilter(qb, ctx);
 
-    if (addressSearchString?.trim()) {
-      const like = `%${addressSearchString.trim()}%`;
-      qb.andWhere(
-        `(
-          LOWER(address.street)      LIKE LOWER(:like) OR
-          LOWER(address.district)    LIKE LOWER(:like) OR
-          LOWER(address.city)        LIKE LOWER(:like) OR
-          LOWER(address.state)       LIKE LOWER(:like) OR
-          LOWER(address.postalCode)  LIKE LOWER(:like)
-        )`,
-        { like },
-      );
-    }
-
-    if (userSearchString?.trim()) {
-      const like = `%${userSearchString.trim()}%`;
-      qb.andWhere(
-        `(
-          LOWER(coord_user.name)   LIKE LOWER(:like) OR
-          LOWER(coord_user.email)  LIKE LOWER(:like) OR
-          LOWER(coord_user.phone)  LIKE LOWER(:like) OR
-          LOWER(teacher_user.name) LIKE LOWER(:like) OR
-          LOWER(teacher_user.email)LIKE LOWER(:like) OR
-          LOWER(teacher_user.phone)LIKE LOWER(:like)
-        )`,
-        { like },
-      );
-    }
-
-    if (clubSearchString?.trim()) {
-      const raw = clubSearchString.trim();
+    // Busca: endereço (bairro, cidade) e número do clubinho
+    if (searchString?.trim()) {
+      const raw = searchString.trim();
+      const like = `%${raw}%`;
       const n = Number(raw);
       const isNum = Number.isInteger(n) && n > 0;
-      const isTime = /^([01]?\d|2[0-3]):[0-5]\d$/.test(raw);
 
       if (isNum) {
-        qb.andWhere('club.number = :clubNum', { clubNum: n });
-      } else if (isTime) {
-        qb.andWhere('club.time LIKE :tlike', { tlike: `${raw}%` });
+        // Se for número, busca pelo número do clube OU no bairro/cidade
+        qb.andWhere(
+          `(
+            club.number = :clubNum OR
+            LOWER(address.district) LIKE LOWER(:like) OR
+            LOWER(address.city)     LIKE LOWER(:like)
+          )`,
+          { clubNum: n, like },
+        );
       } else {
-        qb.andWhere('LOWER(CAST(club.weekday as char)) LIKE LOWER(:wdLike)', {
-          wdLike: `%${raw}%`,
-        });
+        // Caso contrário, busca apenas em bairro e cidade
+        qb.andWhere(
+          `(
+            LOWER(address.district) LIKE LOWER(:like) OR
+            LOWER(address.city)     LIKE LOWER(:like)
+          )`,
+          { like },
+        );
       }
     }
 
