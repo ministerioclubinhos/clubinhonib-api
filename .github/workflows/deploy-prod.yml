@@ -145,7 +145,10 @@ jobs:
               'docker run -d --name clubinho-nib-api --restart unless-stopped -p 80:3000 -p 3000:3000 --env-file /opt/clubinho-nib-api/env/prod.env ${ECR_REPOSITORY}:${IMAGE_TAG}',
               'sleep 3',
               'echo \"✅ Container started:\"',
-              'docker ps | grep clubinho-nib-api'
+              'docker ps | grep clubinho-nib-api',
+              'echo \"🧹 Cleaning up old Docker images...\"',
+              'docker image prune -af --filter \"until=24h\" || true',
+              'echo \"✅ Cleanup completed\"'
             ]" \
             --output text --query 'Command.CommandId')
 
