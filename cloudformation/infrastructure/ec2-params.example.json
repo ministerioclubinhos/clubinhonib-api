@@ -1,0 +1,15 @@
+[
+  { "ParameterKey": "VpcId", "ParameterValue": "vpc-xxxxxxxxxxxxxxxxx" },
+  { "ParameterKey": "SubnetStaging", "ParameterValue": "subnet-xxxxxxxxxxxxxxxxx" },
+  { "ParameterKey": "SubnetProd", "ParameterValue": "subnet-yyyyyyyyyyyyyyyyy" },
+  { "ParameterKey": "HostedZoneId", "ParameterValue": "Z0XXXXXXXXXXXXXXXX" },
+  { "ParameterKey": "DomainName", "ParameterValue": "example.com" },
+  { "ParameterKey": "SSLCertificateArn", "ParameterValue": "arn:aws:acm:us-east-1:123456789012:certificate/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" },
+  { "ParameterKey": "AMIId", "ParameterValue": "ami-xxxxxxxxxxxxxxxxx" },
+  { "ParameterKey": "KeyPairName", "ParameterValue": "your-key-pair" },
+  { "ParameterKey": "AllowedCIDR", "ParameterValue": "0.0.0.0/0" },
+  { "ParameterKey": "InstanceTypeStaging", "ParameterValue": "t3.micro" },
+  { "ParameterKey": "InstanceTypeProd", "ParameterValue": "t3.micro" },
+  { "ParameterKey": "AWSRegion", "ParameterValue": "us-east-1" },
+  { "ParameterKey": "S3BucketName", "ParameterValue": "your-app-storage" }
+]

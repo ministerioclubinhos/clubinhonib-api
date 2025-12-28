@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ContactRepository } from './contact.repository';
-import { AwsS3Service } from 'src/aws/aws-s3.service';
+import { AwsSesService } from 'src/aws/aws-ses.service';
 import { ContactEntity } from './contact.entity';
 import { Twilio } from 'twilio';
 
@@ -16,7 +16,7 @@ export class ContactService {
 
   constructor(
     private readonly contactRepo: ContactRepository,
-    private readonly awsService: AwsS3Service,
+    private readonly sesService: AwsSesService,
   ) {
     this.twilio = new Twilio(
       process.env.TWILIO_ACCOUNT_SID ?? '',
@@ -41,7 +41,7 @@ export class ContactService {
     const to = process.env.SES_DEFAULT_TO;
 
     try {
-      await this.awsService.sendEmailViaSES(to || '', subject, '', htmlBody);
+      await this.sesService.sendEmailViaSES(to || '', subject, '', htmlBody);
       this.logger.log(`📧 E-mail enviado com sucesso para: ${to}`);
     } catch (error) {
       this.logger.error(`❌ Erro ao enviar e-mail: ${error.message}`, error.stack);
@@ -81,51 +81,175 @@ ${contact.message}
   }
 
   private generateContactEmailTemplate(contact: ContactEntity): string {
+    const receivedDate = new Date().toLocaleString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
     return `
-      <table width="100%" style="background-color: #f4f4f4; padding: 24px; font-family: Arial, sans-serif;">
-        <tr>
-          <td align="center">
-            <table width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-              <tr>
-                <td style="background-color: #81d742; padding: 24px; text-align: center;">
-                  <h1 style="margin: 0; color: #ffffff; font-size: 28px;">💚 Clubinhos NIB</h1>
-                  <p style="margin: 4px 0 0; color: #ffffff; font-size: 16px;">Mensagem de contato recebida</p>
-                </td>
-              </tr>
-              <tr>
-                <td style="padding: 24px;">
-                  <table width="100%" style="font-size: 16px; color: #333;">
-                    <tr>
-                      <td style="padding-bottom: 8px;"><strong>Nome:</strong> ${contact.name}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding-bottom: 8px;"><strong>E-mail:</strong> ${contact.email}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding-bottom: 8px;"><strong>Telefone:</strong> ${contact.phone}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding-top: 12px;">
-                        <strong>Mensagem:</strong><br/>
-                        <div style="background-color: #f8f8f8; padding: 12px; border-left: 4px solid #0073E6; margin-top: 6px; border-radius: 4px; white-space: pre-line;">
-                          ${contact.message}
-                        </div>
-                      </td>
-                    </tr>
-                  </table>
-                </td>
-              </tr>
-              <tr>
-                <td style="background-color: #0073E6; padding: 16px; text-align: center;">
-                  <p style="margin: 0; color: #ffffff; font-size: 14px;">
-                    💙 Obrigado por usar o <strong>Clubinhos NIB</strong>
-                  </p>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-      </table>
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Novo contato - Clubinhos NIB</title>
+      </head>
+      <body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;">
+        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f8fafc;">
+          <tr>
+            <td align="center" style="padding: 20px 10px;">
+              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.1);">
+
+                <!-- Header -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #81d742 0%, #68c93f 100%); padding: 32px 24px; text-align: center;">
+                    <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                      <tr>
+                        <td align="center">
+                          <h1 style="margin: 0 0 8px 0; color: #ffffff; font-size: 32px; font-weight: 700; letter-spacing: -0.5px;">
+                            📬 Novo Contato Recebido
+                          </h1>
+                          <p style="margin: 0; color: #e8f5e8; font-size: 18px; font-weight: 400;">
+                            Clubinhos NIB
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- Timestamp -->
+                <tr>
+                  <td style="background-color: #f1f5f9; padding: 16px 24px; border-bottom: 1px solid #e2e8f0;">
+                    <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                      <tr>
+                        <td style="color: #64748b; font-size: 14px; text-align: center;">
+                          📅 Recebido em ${receivedDate}
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- Content -->
+                <tr>
+                  <td style="padding: 32px 24px;">
+                    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="color: #334155;">
+
+                      <!-- Contact Info -->
+                      <tr>
+                        <td style="padding-bottom: 24px;">
+                          <h2 style="margin: 0 0 20px 0; color: #1e293b; font-size: 20px; font-weight: 600;">
+                            👤 Informações do Contato
+                          </h2>
+
+                          <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                            <tr>
+                              <td style="padding: 12px 0; border-bottom: 1px solid #f1f5f9;">
+                                <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                                  <tr>
+                                    <td width="120" style="font-weight: 600; color: #475569; font-size: 14px;">
+                                      👤 Nome:
+                                    </td>
+                                    <td style="color: #1e293b; font-size: 16px; font-weight: 500;">
+                                      ${contact.name}
+                                    </td>
+                                  </tr>
+                                </table>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td style="padding: 12px 0; border-bottom: 1px solid #f1f5f9;">
+                                <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                                  <tr>
+                                    <td width="120" style="font-weight: 600; color: #475569; font-size: 14px;">
+                                      📧 E-mail:
+                                    </td>
+                                    <td style="color: #1e293b; font-size: 16px;">
+                                      <a href="mailto:${contact.email}" style="color: #2563eb; text-decoration: none;">${contact.email}</a>
+                                    </td>
+                                  </tr>
+                                </table>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td style="padding: 12px 0;">
+                                <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                                  <tr>
+                                    <td width="120" style="font-weight: 600; color: #475569; font-size: 14px;">
+                                      📱 Telefone:
+                                    </td>
+                                    <td style="color: #1e293b; font-size: 16px;">
+                                      <a href="tel:${contact.phone.replace(/\D/g, '')}" style="color: #2563eb; text-decoration: none;">${contact.phone}</a>
+                                    </td>
+                                  </tr>
+                                </table>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+
+                      <!-- Message -->
+                      <tr>
+                        <td>
+                          <h2 style="margin: 24px 0 16px 0; color: #1e293b; font-size: 20px; font-weight: 600;">
+                            💬 Mensagem
+                          </h2>
+
+                          <div style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin: 16px 0; position: relative;">
+                            <div style="position: absolute; top: -8px; left: 20px; width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 8px solid #e2e8f0;"></div>
+                            <div style="position: absolute; top: -7px; left: 20px; width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 8px solid #f8fafc;"></div>
+
+                            <p style="margin: 0; color: #475569; font-size: 16px; line-height: 1.6; white-space: pre-line; word-wrap: break-word;">
+                              ${contact.message}
+                            </p>
+                          </div>
+                        </td>
+                      </tr>
+
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #1e40af 0%, #1d4ed8 100%); padding: 24px; text-align: center;">
+                    <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                      <tr>
+                        <td>
+                          <p style="margin: 0 0 8px 0; color: #ffffff; font-size: 16px; font-weight: 600;">
+                            💙 Clubinhos NIB
+                          </p>
+                          <p style="margin: 0; color: #dbeafe; font-size: 14px; line-height: 1.4;">
+                            Conectando famílias através da fé e amizade
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- Disclaimer -->
+                <tr>
+                  <td style="background-color: #f8fafc; padding: 16px 24px; text-align: center; border-top: 1px solid #e2e8f0;">
+                    <p style="margin: 0; color: #94a3b8; font-size: 12px; line-height: 1.4;">
+                      Este é um e-mail automático gerado pelo sistema de contato do Clubinhos NIB.<br>
+                      Por favor, responda diretamente ao contato quando apropriado.
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
     `;
   }
 

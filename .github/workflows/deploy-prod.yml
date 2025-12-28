@@ -1,100 +1,213 @@
-name: Deploy Prod Clubinho API
+name: Deploy Production Clubinho API
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  ECR_STACK_NAME: clubinho-nib-ecr
+  EC2_STACK_NAME: clubinho-nib-ec2
+  ENVIRONMENT: production
 
 jobs:
-  build:
+  build-and-deploy:
+    name: Build, Push and Deploy to Production
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - name: 🛠 Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
+          cache: "npm"
 
-      - name: Install dependencies
-        run: npm install
+      - name: 📦 Install dependencies
+        run: npm ci
 
-      - name: Run tests
+      - name: ✅ Run tests
         run: npm test
 
-      - name: Build project
+      - name: 🏗 Build project
         run: npm run build
 
-      - name: Archive build artifacts
-        uses: actions/upload-artifact@v4
+      - name: 🔐 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          name: build-artifacts
-          path: dist
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Build Docker image
-        run: docker build -t diegoseven/clubinho-api:prod -f DockerFile .
-
-      - name: Push Docker image
-        run: docker push diegoseven/clubinho-api:prod
-
-  deploy:
-    needs: build
-    runs-on: [self-hosted, production]
-    steps:
-      - name: Start Docker if not running
-        run: sudo systemctl start docker
-
-      - name: Remove old container if exists
+      - name: 🔍 Get ECR repository URI
+        id: ecr-info
         run: |
-          if sudo docker ps -a --format '{{.Names}}' | grep -Eq "^clubinho-api$"; then
-            echo "🧼 Removendo container antigo..."
-            sudo docker rm -f clubinho-api
-          else
-            echo "✅ Nenhum container antigo encontrado"
+          REPOSITORY_URI=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.ECR_STACK_NAME }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`ProductionRepositoryUri`].OutputValue' \
+            --output text)
+          echo "repository_uri=$REPOSITORY_URI" >> $GITHUB_OUTPUT
+          echo "✅ ECR Repository: $REPOSITORY_URI"
+
+      - name: 🔐 Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: 🐳 Build Docker image
+        env:
+          ECR_REPOSITORY: ${{ steps.ecr-info.outputs.repository_uri }}
+          IMAGE_TAG: latest
+        run: |
+          echo "🔨 Building image: ${ECR_REPOSITORY}:${IMAGE_TAG}"
+          docker build -f DockerFile -t ${ECR_REPOSITORY}:${IMAGE_TAG} .
+          docker tag ${ECR_REPOSITORY}:${IMAGE_TAG} ${ECR_REPOSITORY}:${{ github.sha }}
+
+      - name: 📤 Push image to ECR
+        env:
+          ECR_REPOSITORY: ${{ steps.ecr-info.outputs.repository_uri }}
+          IMAGE_TAG: latest
+        run: |
+          echo "📤 Pushing image: ${ECR_REPOSITORY}:${IMAGE_TAG}"
+          docker push ${ECR_REPOSITORY}:${IMAGE_TAG}
+          docker push ${ECR_REPOSITORY}:${{ github.sha }}
+          echo "✅ Images pushed successfully!"
+
+      - name: 🔍 Get EC2 instance info
+        id: ec2-info
+        run: |
+          INSTANCE_ID=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.EC2_STACK_NAME }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`InstanceIdProd`].OutputValue' \
+            --output text)
+          echo "instance_id=$INSTANCE_ID" >> $GITHUB_OUTPUT
+          echo "✅ Instance ID: $INSTANCE_ID"
+
+      - name: 📝 Create .env file for deployment
+        run: |
+          cat > /tmp/prod.env << 'EOF'
+          ENVIRONMENT=${{ secrets.PROD_ENVIRONMENT }}
+          PORT=${{ secrets.PORT }}
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_PORT=${{ secrets.DB_PORT }}
+          DB_USERNAME=${{ secrets.DB_USERNAME }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_NAME=${{ secrets.PROD_DB_NAME }}
+          AWS_REGION=${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_S3_BUCKET_NAME=${{ secrets.AWS_S3_BUCKET_NAME }}
+          SES_DEFAULT_FROM=${{ secrets.PROD_SES_DEFAULT_FROM }}
+          SES_DEFAULT_TO=${{ secrets.PROD_SES_DEFAULT_TO }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          JWT_EXPIRES_IN=${{ secrets.JWT_EXPIRES_IN }}
+          JWT_REFRESH_SECRET=${{ secrets.JWT_REFRESH_SECRET }}
+          JWT_REFRESH_EXPIRES_IN=${{ secrets.JWT_REFRESH_EXPIRES_IN }}
+          TWILIO_ACCOUNT_SID=${{ secrets.PROD_TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN=${{ secrets.PROD_TWILIO_AUTH_TOKEN }}
+          TWILIO_WHATSAPP_FROM=${{ secrets.PROD_TWILIO_WHATSAPP_FROM }}
+          TWILIO_WHATSAPP_TO=${{ secrets.PROD_TWILIO_WHATSAPP_TO }}
+          FEED_CLUBINHO_PAGE_ID=${{ secrets.PROD_FEED_CLUBINHO_PAGE_ID }}
+          GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+          EOF
+
+      - name: 🚀 Deploy to EC2 via SSM
+        env:
+          INSTANCE_ID: ${{ steps.ec2-info.outputs.instance_id }}
+          ECR_REPOSITORY: ${{ steps.ecr-info.outputs.repository_uri }}
+          IMAGE_TAG: latest
+        run: |
+          echo "🚀 Deploying to EC2 instance: $INSTANCE_ID"
+
+          # Encode .env file to base64
+          ENV_B64=$(base64 -w0 /tmp/prod.env)
+
+          # Send deployment command via SSM
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --parameters "commands=[
+              'set -e',
+              'echo \"🔐 Logging into ECR...\"',
+              'aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${ECR_REPOSITORY}',
+              'echo \"📁 Creating env directory...\"',
+              'mkdir -p /opt/clubinho-nib-api/env',
+              'echo \"📝 Writing .env file...\"',
+              'echo ${ENV_B64} | base64 -d > /opt/clubinho-nib-api/env/prod.env',
+              'echo \"🛑 Stopping old container...\"',
+              'docker stop clubinho-nib-api || true',
+              'docker rm clubinho-nib-api || true',
+              'echo \"📥 Pulling new image...\"',
+              'docker pull ${ECR_REPOSITORY}:${IMAGE_TAG}',
+              'echo \"🏃 Starting new container...\"',
+              'docker run -d --name clubinho-nib-api --restart unless-stopped -p 80:3000 -p 3000:3000 --env-file /opt/clubinho-nib-api/env/prod.env ${ECR_REPOSITORY}:${IMAGE_TAG}',
+              'sleep 3',
+              'echo \"✅ Container started:\"',
+              'docker ps | grep clubinho-nib-api'
+            ]" \
+            --output text --query 'Command.CommandId')
+
+          echo "Command ID: $COMMAND_ID"
+
+          # Wait for command completion
+          echo "⏳ Waiting for deployment to complete..."
+          aws ssm wait command-executed \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$INSTANCE_ID" \
+            --max-attempts 30 \
+            --delay 5
+
+          # Get command result
+          STATUS=$(aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$INSTANCE_ID" \
+            --query 'Status' \
+            --output text)
+
+          STDOUT=$(aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$INSTANCE_ID" \
+            --query 'StandardOutputContent' \
+            --output text)
+
+          STDERR=$(aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$INSTANCE_ID" \
+            --query 'StandardErrorContent' \
+            --output text)
+
+          echo "📋 Deployment Status: $STATUS"
+          echo ""
+          echo "📤 Standard Output:"
+          echo "$STDOUT"
+
+          if [ -n "$STDERR" ] && [ "$STDERR" != "None" ]; then
+            echo ""
+            echo "⚠️ Standard Error:"
+            echo "$STDERR"
           fi
 
-      - name: Remove old image if exists
-        run: |
-          if sudo docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "^diegoseven/clubinho-api:prod$"; then
-            echo "🧼 Removendo imagem antiga..."
-            sudo docker rmi -f diegoseven/clubinho-api:prod
-          else
-            echo "✅ Nenhuma imagem antiga encontrada"
+          if [ "$STATUS" != "Success" ]; then
+            echo "❌ Deployment failed!"
+            exit 1
           fi
 
-      - name: Pull new image from Docker Hub
-        run: sudo docker pull diegoseven/clubinho-api:prod
+          echo "✅ Deployment completed successfully!"
 
-      - name: Run new container
+      - name: 🎉 Deployment Summary
         run: |
-          sudo docker run -d --restart=always -p 3000:3000 \
-            -e ENVIRONMENT=${{ secrets.PROD_ENVIRONMENT }} \
-            -e PORT=${{ secrets.PORT }} \
-            -e DB_HOST=${{ secrets.DB_HOST }} \
-            -e DB_PORT=${{ secrets.DB_PORT }} \
-            -e DB_USERNAME=${{ secrets.DB_USERNAME }} \
-            -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
-            -e DB_NAME=${{ secrets.PROD_DB_NAME }} \
-            -e AWS_REGION=${{ secrets.AWS_REGION }} \
-            -e AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }} \
-            -e AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
-            -e AWS_S3_BUCKET_NAME=${{ secrets.AWS_S3_BUCKET_NAME }} \
-            -e SES_DEFAULT_FROM=${{ secrets.PROD_SES_DEFAULT_FROM }} \
-            -e SES_DEFAULT_TO=${{ secrets.PROD_SES_DEFAULT_TO }} \
-            -e JWT_SECRET=${{ secrets.JWT_SECRET }} \
-            -e JWT_EXPIRES_IN=${{ secrets.JWT_EXPIRES_IN }} \
-            -e JWT_REFRESH_SECRET=${{ secrets.JWT_REFRESH_SECRET }} \
-            -e JWT_REFRESH_EXPIRES_IN=${{ secrets.JWT_REFRESH_EXPIRES_IN }} \
-            -e TWILIO_ACCOUNT_SID=${{ secrets.PROD_TWILIO_ACCOUNT_SID }} \
-            -e TWILIO_AUTH_TOKEN=${{ secrets.PROD_TWILIO_AUTH_TOKEN }} \
-            -e TWILIO_WHATSAPP_FROM=${{ secrets.PROD_TWILIO_WHATSAPP_FROM }} \
-            -e TWILIO_WHATSAPP_TO=${{ secrets.PROD_TWILIO_WHATSAPP_TO }} \
-            -e FEED_CLUBINHO_PAGE_ID=${{ secrets.PROD_FEED_CLUBINHO_PAGE_ID }} \
-            -e GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }} \
-            --name clubinho-api diegoseven/clubinho-api:prod
+          echo "╔════════════════════════════════════════════════════════╗"
+          echo "║        ✅ Production Deployment Complete!             ║"
+          echo "╚════════════════════════════════════════════════════════╝"
+          echo ""
+          echo "📋 Summary:"
+          echo "   Environment: production"
+          echo "   Image: ${{ steps.ecr-info.outputs.repository_uri }}:latest"
+          echo "   Commit: ${{ github.sha }}"
+          echo ""
+          echo "🌐 API URL: https://api.clubinhonib.com"
+          echo ""
+          echo "💡 Test the API:"
+          echo "   curl https://api.clubinhonib.com/health"

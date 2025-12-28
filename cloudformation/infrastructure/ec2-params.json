@@ -1,0 +1,54 @@
+[
+  {
+    "ParameterKey": "VpcId",
+    "ParameterValue": "vpc-033d33f8fbd957488"
+  },
+  {
+    "ParameterKey": "SubnetStaging",
+    "ParameterValue": "subnet-0deeff91e83763a4a"
+  },
+  {
+    "ParameterKey": "SubnetProd",
+    "ParameterValue": "subnet-0098aedaa711fdbc3"
+  },
+  {
+    "ParameterKey": "HostedZoneId",
+    "ParameterValue": "Z04342831HLGP0JZ4VI5K"
+  },
+  {
+    "ParameterKey": "DomainName",
+    "ParameterValue": "clubinhonib.com"
+  },
+  {
+    "ParameterKey": "SSLCertificateArn",
+    "ParameterValue": "arn:aws:acm:us-east-1:697760557838:certificate/a5042456-f1ff-4d6d-b215-8954c90477e2"
+  },
+  {
+    "ParameterKey": "AMIId",
+    "ParameterValue": "ami-08d7aabbb50c2c24e"
+  },
+  {
+    "ParameterKey": "KeyPairName",
+    "ParameterValue": "clubinho-nib-api"
+  },
+  {
+    "ParameterKey": "AllowedCIDR",
+    "ParameterValue": "0.0.0.0/0"
+  },
+  {
+    "ParameterKey": "InstanceTypeStaging",
+    "ParameterValue": "t3.micro"
+  },
+  {
+    "ParameterKey": "InstanceTypeProd",
+    "ParameterValue": "t3.micro"
+  },
+  {
+    "ParameterKey": "AWSRegion",
+    "ParameterValue": "us-east-1"
+  },
+  {
+    "ParameterKey": "S3BucketName",
+    "ParameterValue": "clubinho-nib-storage"
+  }
+]

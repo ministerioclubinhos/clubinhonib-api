@@ -1,0 +1,48 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'SSL/TLS Certificate for Clubinho NIB API using AWS Certificate Manager'
+
+Parameters:
+  DomainName:
+    Type: String
+    Default: clubinhonib.com
+    Description: Primary domain name
+
+  HostedZoneId:
+    Type: String
+    Description: Route53 Hosted Zone ID for DNS validation
+
+Resources:
+  SSLCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref DomainName
+      SubjectAlternativeNames:
+        - !Sub '*.${DomainName}'
+        - !Sub 'api.${DomainName}'
+        - !Sub 'staging-api.${DomainName}'
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Ref DomainName
+          HostedZoneId: !Ref HostedZoneId
+        - DomainName: !Sub '*.${DomainName}'
+          HostedZoneId: !Ref HostedZoneId
+        - DomainName: !Sub 'api.${DomainName}'
+          HostedZoneId: !Ref HostedZoneId
+        - DomainName: !Sub 'staging-api.${DomainName}'
+          HostedZoneId: !Ref HostedZoneId
+      Tags:
+        - Key: Application
+          Value: clubinho-nib
+        - Key: Environment
+          Value: all
+
+Outputs:
+  CertificateArn:
+    Description: ARN of the SSL certificate
+    Value: !Ref SSLCertificate
+    Export:
+      Name: !Sub '${AWS::StackName}-CertificateArn'
+
+  DomainName:
+    Description: Primary domain name
+    Value: !Ref DomainName
