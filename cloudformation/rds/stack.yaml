@@ -1,0 +1,196 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'RDS MySQL Stack - Instância mais barata (db.t3.micro)'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: staging
+    AllowedValues:
+      - staging
+      - production
+      - dev
+    Description: Ambiente de deploy (staging, production ou dev)
+  
+  DBInstanceIdentifier:
+    Type: String
+    Default: geral-aplications-db
+    Description: Identificador único da instância RDS
+  
+  DBName:
+    Type: String
+    Default: geral_applications
+    Description: Nome do banco de dados inicial
+  
+  DBUsername:
+    Type: String
+    Default: admin
+    NoEcho: true
+    Description: Nome de usuário do master do banco de dados
+  
+  DBPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    Description: Senha do master do banco de dados (mínimo 8 caracteres)
+  
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: ID da VPC onde o RDS será criado
+  
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Lista de IDs das subnets PÚBLICAS (pelo menos 2 em AZs diferentes) - necessário para acesso público
+  
+  AllowedCIDR:
+    Type: String
+    Default: 0.0.0.0/0
+    Description: 'CIDR permitido para acessar o RDS publicamente (0.0.0.0/0 = qualquer IP da internet) - DEPRECATED: sempre usa 0.0.0.0/0'
+
+Resources:
+  # Security Group para o RDS - Acesso público total
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub 'geral-applications-rds-sg'
+      GroupDescription: Security Group para RDS MySQL - Acesso publico total
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        # Regra 1: Acesso de qualquer IP (0.0.0.0/0)
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: 0.0.0.0/0
+          Description: MySQL public access from anywhere - Workbench, DBeaver, local apps
+        # Regra 2: Acesso IPv6 de qualquer IP (opcional, para garantir)
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIpv6: ::/0
+          Description: MySQL public access IPv6 from anywhere
+      Tags:
+        - Key: Name
+          Value: !Sub 'geral-applications-rds-sg'
+        - Key: Environment
+          Value: !Ref Environment
+
+  # DB Subnet Group
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupName: !Sub 'geral-applications-db-subnet-group'
+      DBSubnetGroupDescription: Subnet group para RDS MySQL
+      SubnetIds: !Ref SubnetIds
+      Tags:
+        - Key: Name
+          Value: !Sub 'geral-applications-db-subnet-group'
+        - Key: Environment
+          Value: !Ref Environment
+
+  # DB Parameter Group (opcional, mas útil para otimizações)
+  DBParameterGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      DBParameterGroupName: !Sub 'geral-applications-mysql-params'
+      Description: Parameter group para MySQL
+      Family: mysql8.4
+      Parameters:
+        # Otimizações para instância pequena
+        max_connections: '50'
+        innodb_buffer_pool_size: '{DBInstanceClassMemory*3/4}'
+        wait_timeout: '28800'
+        interactive_timeout: '28800'
+      Tags:
+        - Key: Name
+          Value: !Sub 'geral-applications-mysql-params'
+        - Key: Environment
+          Value: !Ref Environment
+
+  # RDS MySQL Instance - Instância mais barata (db.t3.micro)
+  DBInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    Properties:
+      DBInstanceIdentifier: !Ref DBInstanceIdentifier
+      DBName: !Ref DBName
+      Engine: mysql
+      EngineVersion: '8.4.6'
+      DBInstanceClass: db.t3.micro
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      AllocatedStorage: 20
+      StorageType: gp3
+      StorageEncrypted: true
+      VPCSecurityGroups:
+        - !Ref RDSSecurityGroup
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      DBParameterGroupName: !Ref DBParameterGroup
+      BackupRetentionPeriod: 7
+      PreferredBackupWindow: '03:00-04:00'
+      PreferredMaintenanceWindow: 'sun:04:00-sun:05:00'
+      MultiAZ: false
+      PubliclyAccessible: true
+      DeletionProtection: false
+      EnablePerformanceInsights: false
+      Tags:
+        - Key: Name
+          Value: !Ref DBInstanceIdentifier
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: geral-applications
+
+Outputs:
+  DBEndpoint:
+    Description: Endpoint do RDS
+    Value: !GetAtt DBInstance.Endpoint.Address
+    Export:
+      Name: !Sub '${AWS::StackName}-DBEndpoint'
+  
+  DBPort:
+    Description: Porta do RDS
+    Value: !GetAtt DBInstance.Endpoint.Port
+    Export:
+      Name: !Sub '${AWS::StackName}-DBPort'
+  
+  DBName:
+    Description: Nome do banco de dados
+    Value: !Ref DBName
+    Export:
+      Name: !Sub '${AWS::StackName}-DBName'
+  
+  DBUsername:
+    Description: Username do banco de dados
+    Value: !Ref DBUsername
+    Export:
+      Name: !Sub '${AWS::StackName}-DBUsername'
+  
+  SecurityGroupId:
+    Description: ID do Security Group do RDS
+    Value: !Ref RDSSecurityGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-SecurityGroupId'
+  
+  # Variáveis de ambiente formatadas para uso
+  DBHost:
+    Description: Host do banco de dados (para variável de ambiente DB_HOST)
+    Value: !GetAtt DBInstance.Endpoint.Address
+    Export:
+      Name: !Sub '${AWS::StackName}-DBHost'
+  
+  DBPortNumber:
+    Description: Porta do banco de dados (para variável de ambiente DB_PORT)
+    Value: !GetAtt DBInstance.Endpoint.Port
+    Export:
+      Name: !Sub '${AWS::StackName}-DBPortNumber'
+  
+  ConnectionString:
+    Description: String de conexão completa (host:port)
+    Value: !Sub '${DBInstance.Endpoint.Address}:${DBInstance.Endpoint.Port}'
+    Export:
+      Name: !Sub '${AWS::StackName}-ConnectionString'
+  
+  PublicEndpoint:
+    Description: Endpoint público do RDS (acessível via internet)
+    Value: !GetAtt DBInstance.Endpoint.Address
+    Export:
+      Name: !Sub '${AWS::StackName}-PublicEndpoint'

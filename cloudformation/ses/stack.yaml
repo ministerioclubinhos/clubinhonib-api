@@ -1,0 +1,227 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation stack para configurar SES (Simple Email Service) para envio de emails'
+
+Parameters:
+  Domain:
+    Type: String
+    Description: "Domínio para verificar no SES (ex: rodolfo-silva.com)"
+    Default: clubinhonib.com
+  
+  Environment:
+    Type: String
+    Description: Ambiente de deploy (staging, production, dev)
+    Default: staging
+    AllowedValues:
+      - staging
+      - production
+      - dev
+  
+  RecipientEmail1:
+    Type: String
+    Description: "Email destinatário 1 (opcional)"
+    Default: rodolfo.diego.gomes@gmail.com
+
+  RecipientEmail2:
+    Type: String
+    Description: "Email destinatário 2 (opcional)"
+    Default: admin@clubinhonib.com
+
+  RecipientEmail3:
+    Type: String
+    Description: "Email destinatário 3 (opcional)"
+    Default: contato@clubinhonib.com
+
+  RecipientEmail4:
+    Type: String
+    Description: "Email destinatário 4 (opcional)"
+    Default: ''
+
+  RecipientEmail5:
+    Type: String
+    Description: "Email destinatário 5 (opcional)"
+    Default: ''
+
+  CreateRecipientIdentities:
+    Type: String
+    Description: "Cria identidades para emails destinatários? Use 'true' apenas se o email ainda não existir no SES"
+    AllowedValues: ['true', 'false']
+    Default: 'false'
+
+  HostedZoneId:
+    Type: String
+    Description: "Hosted Zone ID do Route53 para criar registros TXT/CNAME (opcional)"
+    Default: ''
+
+Resources:
+  # Verificação de identidade de domínio no SES
+  DomainIdentity:
+    Type: AWS::SES::EmailIdentity
+    Properties:
+      EmailIdentity: !Ref Domain
+      MailFromAttributes:
+        BehaviorOnMxFailure: USE_DEFAULT_VALUE
+        MailFromDomain: !Sub 'mail.${Domain}'
+
+  # Verificação de identidade de email (para o email remetente)
+  FromEmailIdentity:
+    Type: AWS::SES::EmailIdentity
+    Properties:
+      EmailIdentity: !Sub 'no-reply@${Domain}'
+
+  # Verificação de identidade para cada email destinatário
+  # Email 1
+  RecipientEmailIdentity1:
+    Type: AWS::SES::EmailIdentity
+    Condition: CreateRecipientEmail1
+    Properties:
+      EmailIdentity: !Ref RecipientEmail1
+
+  # Email 2
+  RecipientEmailIdentity2:
+    Type: AWS::SES::EmailIdentity
+    Condition: CreateRecipientEmail2
+    Properties:
+      EmailIdentity: !Ref RecipientEmail2
+
+  # Email 3
+  RecipientEmailIdentity3:
+    Type: AWS::SES::EmailIdentity
+    Condition: CreateRecipientEmail3
+    Properties:
+      EmailIdentity: !Ref RecipientEmail3
+
+  # Email 4
+  RecipientEmailIdentity4:
+    Type: AWS::SES::EmailIdentity
+    Condition: CreateRecipientEmail4
+    Properties:
+      EmailIdentity: !Ref RecipientEmail4
+
+  # Email 5
+  RecipientEmailIdentity5:
+    Type: AWS::SES::EmailIdentity
+    Condition: CreateRecipientEmail5
+    Properties:
+      EmailIdentity: !Ref RecipientEmail5
+
+  # Registros DNS no Route53 (se HostedZoneId fornecido)
+  DkimRecord1:
+    Type: AWS::Route53::RecordSet
+    Condition: HasHostedZone
+    DependsOn: DomainIdentity
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !GetAtt DomainIdentity.DkimDNSTokenName1
+      Type: CNAME
+      TTL: 300
+      ResourceRecords:
+        - !GetAtt DomainIdentity.DkimDNSTokenValue1
+
+  DkimRecord2:
+    Type: AWS::Route53::RecordSet
+    Condition: HasHostedZone
+    DependsOn: DomainIdentity
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !GetAtt DomainIdentity.DkimDNSTokenName2
+      Type: CNAME
+      TTL: 300
+      ResourceRecords:
+        - !GetAtt DomainIdentity.DkimDNSTokenValue2
+
+  DkimRecord3:
+    Type: AWS::Route53::RecordSet
+    Condition: HasHostedZone
+    DependsOn: DomainIdentity
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !GetAtt DomainIdentity.DkimDNSTokenName3
+      Type: CNAME
+      TTL: 300
+      ResourceRecords:
+        - !GetAtt DomainIdentity.DkimDNSTokenValue3
+
+Conditions:
+  HasRecipientEmail1: !Not [!Equals [!Ref RecipientEmail1, '']]
+  HasRecipientEmail2: !Not [!Equals [!Ref RecipientEmail2, '']]
+  HasRecipientEmail3: !Not [!Equals [!Ref RecipientEmail3, '']]
+  HasRecipientEmail4: !Not [!Equals [!Ref RecipientEmail4, '']]
+  HasRecipientEmail5: !Not [!Equals [!Ref RecipientEmail5, '']]
+  ShouldCreateRecipientIdentities: !Equals [!Ref CreateRecipientIdentities, 'true']
+  HasHostedZone: !Not [!Equals [!Ref HostedZoneId, '']]
+  CreateRecipientEmail1:
+    Fn::And:
+      - !Condition HasRecipientEmail1
+      - !Condition ShouldCreateRecipientIdentities
+  CreateRecipientEmail2:
+    Fn::And:
+      - !Condition HasRecipientEmail2
+      - !Condition ShouldCreateRecipientIdentities
+  CreateRecipientEmail3:
+    Fn::And:
+      - !Condition HasRecipientEmail3
+      - !Condition ShouldCreateRecipientIdentities
+  CreateRecipientEmail4:
+    Fn::And:
+      - !Condition HasRecipientEmail4
+      - !Condition ShouldCreateRecipientIdentities
+  CreateRecipientEmail5:
+    Fn::And:
+      - !Condition HasRecipientEmail5
+      - !Condition ShouldCreateRecipientIdentities
+
+Outputs:
+  DomainIdentity:
+    Description: Domínio verificado no SES
+    Value: !Ref DomainIdentity
+    Export:
+      Name: !Sub '${AWS::StackName}-DomainIdentity'
+  
+  FromEmail:
+    Description: Email remetente verificado
+    Value: !Sub 'no-reply@${Domain}'
+    Export:
+      Name: !Sub '${AWS::StackName}-FromEmail'
+
+  
+  DkimRecord1Name:
+    Description: Nome do registro CNAME DKIM 1
+    Value: !GetAtt DomainIdentity.DkimDNSTokenName1
+    Export:
+      Name: !Sub '${AWS::StackName}-DkimRecord1Name'
+
+  DkimRecord1Value:
+    Description: Valor do registro CNAME DKIM 1
+    Value: !GetAtt DomainIdentity.DkimDNSTokenValue1
+    Export:
+      Name: !Sub '${AWS::StackName}-DkimRecord1Value'
+
+  DkimRecord2Name:
+    Description: Nome do registro CNAME DKIM 2
+    Value: !GetAtt DomainIdentity.DkimDNSTokenName2
+    Export:
+      Name: !Sub '${AWS::StackName}-DkimRecord2Name'
+
+  DkimRecord2Value:
+    Description: Valor do registro CNAME DKIM 2
+    Value: !GetAtt DomainIdentity.DkimDNSTokenValue2
+    Export:
+      Name: !Sub '${AWS::StackName}-DkimRecord2Value'
+
+  DkimRecord3Name:
+    Description: Nome do registro CNAME DKIM 3
+    Value: !GetAtt DomainIdentity.DkimDNSTokenName3
+    Export:
+      Name: !Sub '${AWS::StackName}-DkimRecord3Name'
+
+  DkimRecord3Value:
+    Description: Valor do registro CNAME DKIM 3
+    Value: !GetAtt DomainIdentity.DkimDNSTokenValue3
+    Export:
+      Name: !Sub '${AWS::StackName}-DkimRecord3Value'
+  
+  RecipientEmailsList:
+    Description: Lista de emails destinatários verificados (use este valor para SES_DEFAULT_TO na aplicação)
+    Value: !Join [',', [!Ref RecipientEmail1, !Ref RecipientEmail2, !Ref RecipientEmail3, !Ref RecipientEmail4, !Ref RecipientEmail5]]
+    Export:
+      Name: !Sub '${AWS::StackName}-RecipientEmailsList'

@@ -1,0 +1,108 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation stack para criar ECR (Elastic Container Registry) - Repositórios staging e production'
+
+Resources:
+  # ECR Repository - Staging
+  ECRRepositoryStaging:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: clubinho-nib-api-staging
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: MUTABLE
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Deletar imagens antigas (mais de 24 horas) - mantém apenas a mais recente",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "sinceImagePushed",
+                  "countUnit": "days",
+                  "countNumber": 1
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
+      Tags:
+        - Key: Application
+          Value: clubinho-nib
+        - Key: Environment
+          Value: staging
+
+  # ECR Repository - Production
+  ECRRepositoryProduction:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: clubinho-nib-api-production
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: MUTABLE
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Deletar imagens antigas (mais de 24 horas) - mantém apenas a mais recente",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "sinceImagePushed",
+                  "countUnit": "days",
+                  "countNumber": 1
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
+      Tags:
+        - Key: Application
+          Value: clubinho-nib
+        - Key: Environment
+          Value: production
+
+Outputs:
+  # Staging Repository
+  StagingRepositoryName:
+    Description: Nome do repositório ECR Staging
+    Value: !Ref ECRRepositoryStaging
+    Export:
+      Name: !Sub '${AWS::StackName}-StagingRepositoryName'
+  
+  StagingRepositoryUri:
+    Description: URI do repositório ECR Staging
+    Value: !GetAtt ECRRepositoryStaging.RepositoryUri
+    Export:
+      Name: !Sub '${AWS::StackName}-StagingRepositoryUri'
+  
+  StagingRepositoryArn:
+    Description: ARN do repositório ECR Staging
+    Value: !GetAtt ECRRepositoryStaging.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-StagingRepositoryArn'
+
+  # Production Repository
+  ProductionRepositoryName:
+    Description: Nome do repositório ECR Production
+    Value: !Ref ECRRepositoryProduction
+    Export:
+      Name: !Sub '${AWS::StackName}-ProductionRepositoryName'
+  
+  ProductionRepositoryUri:
+    Description: URI do repositório ECR Production
+    Value: !GetAtt ECRRepositoryProduction.RepositoryUri
+    Export:
+      Name: !Sub '${AWS::StackName}-ProductionRepositoryUri'
+  
+  ProductionRepositoryArn:
+    Description: ARN do repositório ECR Production
+    Value: !GetAtt ECRRepositoryProduction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ProductionRepositoryArn'

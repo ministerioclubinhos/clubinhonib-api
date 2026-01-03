@@ -1,0 +1,18 @@
+[
+  {
+    "ParameterKey": "BucketName",
+    "ParameterValue": "your-app-storage"
+  },
+  {
+    "ParameterKey": "ExistingBucketName",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "ApplyBucketPolicyToExistingBucket",
+    "ParameterValue": "false"
+  },
+  {
+    "ParameterKey": "Environment",
+    "ParameterValue": "staging"
+  }
+]

@@ -1,0 +1,161 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation stack para criar um bucket S3 público para armazenamento de arquivos (otimizado para baixo custo)'
+
+Parameters:
+  BucketName:
+    Type: String
+    Description: Nome do bucket S3 (deixe vazio para gerar um nome único automaticamente)
+    Default: ''
+  
+  ExistingBucketName:
+    Type: String
+    Description: Nome de um bucket S3 já existente (se quiser reaproveitar)
+    Default: ''
+  
+  Environment:
+    Type: String
+    Description: Ambiente de deploy (staging, production, dev)
+    Default: staging
+    AllowedValues:
+      - staging
+      - production
+      - dev
+
+  ApplyBucketPolicyToExistingBucket:
+    Type: String
+    Description: "Aplicar política pública no bucket existente? Use 'true' apenas se o bucket for desta conta e você quiser torná-lo público"
+    AllowedValues: ['true', 'false']
+    Default: 'false'
+
+Resources:
+  # Bucket S3 - Otimizado para baixo custo
+  PublicStorageBucket:
+    Type: AWS::S3::Bucket
+    Condition: NoExistingBucket
+    Properties:
+      BucketName: !If
+        - HasBucketName
+        - !Ref BucketName
+        - !Ref AWS::NoValue
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      # Versionamento desabilitado para economizar (cada versão custa)
+      VersioningConfiguration:
+        Status: Suspended
+      # Lifecycle policy para reduzir custos
+      # Mover arquivos não acessados há 30 dias para Standard-IA (50% mais barato, acesso imediato)
+      LifecycleConfiguration:
+        Rules:
+          - Id: MoveToStandardIA
+            Status: Enabled
+            Transitions:
+              - TransitionInDays: 30
+                StorageClass: STANDARD_IA
+      # CORS configurado para permitir acesso público
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - GET
+              - PUT
+              - POST
+              - DELETE
+              - HEAD
+            AllowedOrigins:
+              - '*'
+            ExposedHeaders:
+              - ETag
+            MaxAge: 3000
+      # Tags para organização
+      Tags:
+        - Key: Application
+          Value: clubinho-nib
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: CloudFormation
+        - Key: CostOptimization
+          Value: enabled
+
+  # Política de bucket para permitir leitura pública
+  PublicReadPolicy:
+    Type: AWS::S3::BucketPolicy
+    Condition: ShouldCreateBucketPolicy
+    Properties:
+      Bucket: !If
+        - HasExistingBucket
+        - !Ref ExistingBucketName
+        - !Ref PublicStorageBucket
+      PolicyDocument:
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: '*'
+            Action: 's3:GetObject'
+            Resource: !Sub
+              - 'arn:aws:s3:::${BucketRef}/*'
+              - BucketRef: !If [HasExistingBucket, !Ref ExistingBucketName, !Ref PublicStorageBucket]
+          - Sid: PublicListBucket
+            Effect: Allow
+            Principal: '*'
+            Action: 's3:ListBucket'
+            Resource: !Sub
+              - 'arn:aws:s3:::${BucketRef}'
+              - BucketRef: !If [HasExistingBucket, !Ref ExistingBucketName, !Ref PublicStorageBucket]
+            Condition:
+              StringLike:
+                's3:prefix':
+                  - '*'
+
+Outputs:
+  BucketName:
+    Description: Nome do bucket S3 criado
+    Value: !If [HasExistingBucket, !Ref ExistingBucketName, !Ref PublicStorageBucket]
+    Export:
+      Name: !Sub '${AWS::StackName}-BucketName'
+  
+  BucketArn:
+    Description: ARN do bucket S3
+    Value: !Sub
+      - 'arn:aws:s3:::${BucketRef}'
+      - BucketRef: !If [HasExistingBucket, !Ref ExistingBucketName, !Ref PublicStorageBucket]
+    Export:
+      Name: !Sub '${AWS::StackName}-BucketArn'
+  
+  BucketDomainName:
+    Description: Nome de domínio do bucket (para URLs públicas)
+    Value: !Sub
+      - '${BucketRef}.s3.amazonaws.com'
+      - BucketRef: !If [HasExistingBucket, !Ref ExistingBucketName, !Ref PublicStorageBucket]
+    Export:
+      Name: !Sub '${AWS::StackName}-BucketDomainName'
+  
+  BucketRegionalDomainName:
+    Description: Nome de domínio regional do bucket
+    Value: !Sub
+      - '${BucketRef}.s3.${AWS::Region}.amazonaws.com'
+      - BucketRef: !If [HasExistingBucket, !Ref ExistingBucketName, !Ref PublicStorageBucket]
+    Export:
+      Name: !Sub '${AWS::StackName}-BucketRegionalDomainName'
+  
+  PublicURL:
+    Description: URL pública base do bucket (para acessar arquivos)
+    Value: !Sub
+      - 'https://${BucketRef}.s3.amazonaws.com'
+      - BucketRef: !If [HasExistingBucket, !Ref ExistingBucketName, !Ref PublicStorageBucket]
+    Export:
+      Name: !Sub '${AWS::StackName}-PublicURL'
+
+Conditions:
+  HasExistingBucket: !Not [!Equals [!Ref ExistingBucketName, '']]
+  HasBucketName: !Not [!Equals [!Ref BucketName, '']]
+  NoExistingBucket: !Equals [!Ref ExistingBucketName, '']
+  ApplyPolicyExisting: !Equals [!Ref ApplyBucketPolicyToExistingBucket, 'true']
+  ShouldCreateBucketPolicy:
+    Fn::Or:
+      - !Condition NoExistingBucket
+      - !Condition ApplyPolicyExisting

@@ -1,0 +1,38 @@
+[
+  {
+    "ParameterKey": "Domain",
+    "ParameterValue": "yourdomain.com"
+  },
+  {
+    "ParameterKey": "Environment",
+    "ParameterValue": "staging"
+  },
+  {
+    "ParameterKey": "RecipientEmail1",
+    "ParameterValue": "admin@yourdomain.com"
+  },
+  {
+    "ParameterKey": "RecipientEmail2",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "RecipientEmail3",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "RecipientEmail4",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "RecipientEmail5",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "CreateRecipientIdentities",
+    "ParameterValue": "false"
+  },
+  {
+    "ParameterKey": "HostedZoneId",
+    "ParameterValue": ""
+  }
+]

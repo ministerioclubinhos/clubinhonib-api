@@ -1,8 +1,14 @@
 import { IsOptional, IsInt, Min, Max, IsString, IsEnum, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 import { Transform } from 'class-transformer';
+import { PeriodShortcut } from './period-filter.dto';
 
 export class ChildrenStatsQueryDto {
+  // ⭐ NOVO: Atalho rápido de período
+  @IsOptional()
+  @IsEnum(PeriodShortcut)
+  period?: PeriodShortcut; // 'today' | 'this_week' | 'this_month' | 'last_7_days' | 'last_30_days' | 'this_year' | 'custom'
+
   // Time filters (for pagelas period)
   @IsOptional()
   @Type(() => Number)
@@ -115,7 +121,7 @@ export class ChildrenStatsQueryDto {
   // Sorting
   @IsOptional()
   @IsString()
-  sortBy?: string; // "name" | "age" | "engagementScore" | "totalPagelas" | "presenceRate"
+  sortBy?: string; // "name" | "age" | "engagementScore" | "totalPagelas" | "presenceRate" | "joinedAt" | "lastPagelaDate"
 
   @IsOptional()
   @IsString()
@@ -134,6 +140,40 @@ export class ChildrenStatsQueryDto {
   @Min(1)
   @Max(100)
   limit?: number;
+
+  // ⭐ NOVO: Filtros avançados combinados
+  @IsOptional()
+  @IsString()
+  search?: string; // Busca por nome da criança
+
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  hasLowEngagement?: boolean; // Crianças com engajamento < 50%
+
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  isNewcomer?: boolean; // Crianças que entraram nos últimos 3 meses
+
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  isVeteran?: boolean; // Crianças com mais de 1 ano de participação
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  maxEngagementScore?: number; // Score máximo de engajamento (para encontrar crianças em risco)
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  maxPresenceRate?: number; // Taxa máxima de presença (para encontrar crianças faltosas)
 }
 
 

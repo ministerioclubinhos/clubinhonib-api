@@ -1,12 +1,18 @@
 # 📊 Módulo de Estatística
 
-> **API Clubinho NIB - Sistema Completo de Análise de Dados**  
-> Versão 2.10.0 | Atualizado em 21/11/2024
+> **API Clubinho NIB - Sistema Completo de Análise de Dados**
+> Versão 2.11.0 | Atualizado em 29/12/2024
 
-> ⭐ **NOVO**: Retorno de informações sobre clubinhos e crianças desativadas nos endpoints!
+> ⭐ **NOVO v2.11.0**: Filtros de período com atalhos rápidos (today, this_week, last_30_days, etc)!
+> ⭐ **NOVO v2.11.0**: Filtros avançados combinados para identificação de crianças/clubes em risco!
+> ⭐ **NOVO v2.11.0**: Overview aprimorado com métricas de engajamento, indicadores e alertas!
+> ⭐ **NOVO v2.11.0**: Busca por nome em crianças e professores!
+> ⭐ **NOVO v2.11.0**: Filtros para encontrar crianças veteranas, newcomers, e com baixo engajamento!
+> ⭐ **NOVO v2.11.0**: Distribuições geográficas e taxa de crescimento no overview!
 
-> ⭐ **NOVO**: Análise de Frequência Semanal com Detecção de Semanas Faltantes!  
-> 🎯 **INTEGRADO**: Módulo de Controle para verificação em tempo real via painel administrativo!  
+> ⭐ **NOVO v2.10.0**: Retorno de informações sobre clubinhos e crianças desativadas nos endpoints!
+> ⭐ **NOVO v2.3.0**: Análise de Frequência Semanal com Detecção de Semanas Faltantes!
+> 🎯 **INTEGRADO**: Módulo de Controle para verificação em tempo real via painel administrativo!
 > 🎓 **CRÍTICO**: Semana do Ano Letivo vs Semana ISO!
 
 ---
@@ -115,12 +121,13 @@ Um **módulo de estatísticas COMPLETO e PODEROSO** com:
 
 ```
 ✅ 21 Endpoints (11 funcionais)
-✅ 29+ Tipos de Filtros
+✅ 30+ Tipos de Filtros (incluindo atalhos de período) ⭐ NOVO
 ✅ 3 Visões Completas (Crianças, Clubes, Professores)
 ✅ 2 Análises de Frequência (Clube e Semanal) ⭐ NOVO
 ✅ Sistema de Alertas Automáticos ⭐ NOVO
+✅ Filtros de Período com Atalhos Rápidos ⭐ NOVO
 ✅ 21 Queries SQL Otimizadas
-✅ 26 Arquivos de Código
+✅ 28 Arquivos de Código
 ✅ Paginação e Ordenação
 ✅ Distribuições para Gráficos
 ✅ Detecção de Semanas Faltantes ⭐ NOVO
@@ -893,10 +900,11 @@ teacherId=uuid             # Professor específico
 coordinatorId=uuid         # Coordenador
 ```
 
-#### Temporais (3)
+#### Temporais (4) ⭐ NOVO v2.11.0
 ```
+period=today                       # ⭐ Atalho rápido (today, this_week, this_month, last_7_days, last_30_days, this_year)
 year=2024                          # Ano das pagelas
-startDate=2024-01-01&endDate=2024-12-31  # Período
+startDate=2024-01-01&endDate=2024-12-31  # Período customizado
 ```
 
 #### Participação (2)
@@ -1029,11 +1037,12 @@ state=SP                   # Estado
 district=Centro            # Bairro
 ```
 
-#### Atividade (4)
+#### Atividade (5) ⭐ NOVO v2.11.0
 ```
+period=this_week                # ⭐ Atalho rápido (today, this_week, this_month, last_7_days, last_30_days, this_year)
 weekday=MONDAY                  # Dia da semana
 year=2024                       # Ano das pagelas
-startDate=...&endDate=...       # Período
+startDate=...&endDate=...       # Período customizado
 ```
 
 #### Performance (3)
@@ -1156,10 +1165,11 @@ city=São Paulo             # Cidade
 state=SP                   # Estado
 ```
 
-#### Temporais (3)
+#### Temporais (4) ⭐ NOVO v2.11.0
 ```
+period=last_30_days             # ⭐ Atalho rápido (today, this_week, this_month, last_7_days, last_30_days, this_year)
 year=2024
-startDate=2024-01-01&endDate=2024-12-31
+startDate=2024-01-01&endDate=2024-12-31  # Período customizado
 ```
 
 #### Atividade (5)
@@ -1312,9 +1322,10 @@ GET /statistics/teachers?sortBy=effectivenessScore&sortOrder=DESC&limit=5
 
 ## Todos os Filtros do Sistema (25+ tipos)
 
-### Temporais (5)
+### Temporais (6) ⭐ NOVO v2.11.0
 | Filtro | Endpoints | Descrição |
 |--------|-----------|-----------|
+| `period` | children, clubs, teachers | ⭐ Atalho rápido de período (today, this_week, etc) |
 | `year` | children, clubs, teachers, charts | Ano específico |
 | `week` | charts | Semana específica |
 | `startDate` | Todos | Data inicial |
@@ -1373,7 +1384,112 @@ GET /statistics/teachers?sortBy=effectivenessScore&sortOrder=DESC&limit=5
 | `page` | children, clubs, teachers | Número da página |
 | `limit` | children, clubs, teachers | Itens por página |
 
-**TOTAL: 29 filtros únicos!** 🎯
+**TOTAL: 30 filtros únicos!** 🎯
+
+---
+
+# ⏱️ Guia de Filtros de Período ⭐ NOVO v2.11.0
+
+## Como Usar
+
+Os filtros de período simplificam a consulta de dados em intervalos comuns. Em vez de calcular datas manualmente, use atalhos diretos:
+
+### Atalhos Disponíveis
+
+```typescript
+enum PeriodShortcut {
+  TODAY = 'today',           // Hoje
+  THIS_WEEK = 'this_week',   // Esta semana (segunda a domingo)
+  THIS_MONTH = 'this_month', // Este mês
+  LAST_7_DAYS = 'last_7_days',   // Últimos 7 dias
+  LAST_30_DAYS = 'last_30_days', // Últimos 30 dias
+  THIS_YEAR = 'this_year',       // Este ano (1 de janeiro até hoje)
+  CUSTOM = 'custom',             // Período customizado (usa startDate e endDate)
+}
+```
+
+### Exemplos de Uso
+
+#### Dashboard de Hoje
+```bash
+# Ver crianças com atividade hoje
+GET /statistics/children?period=today
+
+# Ver clubes ativos hoje
+GET /statistics/clubs?period=today
+
+# Ver professores ativos hoje
+GET /statistics/teachers?period=today
+```
+
+#### Relatório Semanal
+```bash
+# Crianças desta semana (segunda a domingo)
+GET /statistics/children?period=this_week&sortBy=engagementScore&sortOrder=DESC
+
+# Clubes mais performantes da semana
+GET /statistics/clubs?period=this_week&sortBy=performanceScore&sortOrder=DESC
+```
+
+#### Análise Mensal
+```bash
+# Crianças mais engajadas do mês
+GET /statistics/children?period=this_month&sortBy=engagementScore&sortOrder=DESC
+
+# Professores mais efetivos do mês
+GET /statistics/teachers?period=this_month&sortBy=effectivenessScore&sortOrder=DESC
+```
+
+#### Últimos 7 ou 30 Dias
+```bash
+# Atividade dos últimos 7 dias
+GET /statistics/children?period=last_7_days
+
+# Métricas dos últimos 30 dias
+GET /statistics/clubs?period=last_30_days
+```
+
+#### Análise Anual
+```bash
+# Dados de todo o ano até hoje
+GET /statistics/children?period=this_year
+```
+
+### Combinando com Outros Filtros
+
+Os filtros de período funcionam perfeitamente com todos os outros filtros:
+
+```bash
+# Crianças desta semana em São Paulo com baixo engajamento
+GET /statistics/children?period=this_week&city=São Paulo&hasLowEngagement=true
+
+# Clubes do coordenador X dos últimos 30 dias com performance < 70
+GET /statistics/clubs?period=last_30_days&coordinatorId=uuid&maxPerformanceScore=70
+
+# Professores ativos dos últimos 7 dias com busca por nome
+GET /statistics/teachers?period=last_7_days&isActive=true&search=João
+```
+
+### Compatibilidade
+
+O filtro de período mantém **compatibilidade total** com datas customizadas:
+
+```bash
+# Forma tradicional (ainda funciona)
+GET /statistics/children?startDate=2024-01-01&endDate=2024-12-31
+
+# Usando period=custom (equivalente)
+GET /statistics/children?period=custom&startDate=2024-01-01&endDate=2024-12-31
+
+# Sem period (usa todas as pagelas do ano ou período especificado)
+GET /statistics/children?year=2024
+```
+
+### Importante
+
+- Se `period` for especificado, `startDate` e `endDate` são **calculados automaticamente**
+- Valores manuais de `startDate` e `endDate` são **ignorados** quando `period` está presente
+- Use `period=custom` se quiser deixar explícito que está usando datas customizadas
 
 ---
 
@@ -1660,6 +1776,195 @@ GET /statistics/children?joinedBefore=2024-01-01&sortBy=engagementScore&sortOrde
 
 ---
 
+## Versão 2.11.0 (28/12/2024) ⭐ MEGA UPDATE - Filtros Avançados e Overview Aprimorado
+
+### 🎯 Novos Recursos
+
+**Aprimoramentos massivos em filtros, listagens e visão geral do sistema!**
+
+#### ✅ 1. Filtros Avançados Combinados
+
+**Endpoint `/statistics/children`:**
+- ⭐ `search`: Busca por nome da criança
+- ⭐ `hasLowEngagement`: Crianças com engajamento < 50%
+- ⭐ `isNewcomer`: Crianças que entraram nos últimos 3 meses
+- ⭐ `isVeteran`: Crianças com mais de 1 ano de participação
+- ⭐ `maxEngagementScore`: Score máximo (para encontrar crianças em risco)
+- ⭐ `maxPresenceRate`: Taxa máxima de presença (crianças faltosas)
+
+**Endpoint `/statistics/clubs`:**
+- ⭐ `maxChildren`: Máximo de crianças (clubes pequenos)
+- ⭐ `maxPresenceRate`: Taxa máxima (clubes com problemas)
+- ⭐ `maxPerformanceScore`: Score máximo (baixa performance)
+- ⭐ `minDecisions`: Mínimo de decisões alcançadas
+- ⭐ `minTeachers`: Mínimo de professores no clube
+
+**Endpoint `/statistics/teachers`:**
+- ⭐ `search`: Busca por nome do professor
+- ⭐ `maxEffectivenessScore`: Score máximo (professores que precisam apoio)
+- ⭐ `maxPresenceRate`: Taxa máxima de presença
+- ⭐ `minDecisions`: Mínimo de crianças com decisões
+
+#### ✅ 2. Overview Aprimorado (`/statistics/overview`)
+
+**Novo objeto `engagement`:**
+```json
+{
+  "engagement": {
+    "avgEngagementScore": 82.5,  // Score médio de todas as crianças ativas
+    "topPerformingClubs": [       // Top 5 clubes por performance
+      {
+        "clubId": "uuid",
+        "clubNumber": 1,
+        "performanceScore": 95.3,
+        "city": "São Paulo"
+      }
+    ],
+    "topEngagedChildren": [        // Top 5 crianças por engajamento
+      {
+        "childId": "uuid",
+        "name": "Maria Silva",
+        "engagementScore": 98.5,
+        "clubNumber": 1
+      }
+    ],
+    "recentActivity": {
+      "last7Days": 450,             // Total de pagelas nos últimos 7 dias
+      "last30Days": 1850            // Total de pagelas nos últimos 30 dias
+    }
+  }
+}
+```
+
+**Novo objeto `indicators`:**
+```json
+{
+  "indicators": {
+    "clubsWithLowAttendance": 8,      // Clubes com presença < 70%
+    "childrenWithLowEngagement": 45,  // Crianças com engajamento < 50%
+    "clubsMissingPagelas": 3,         // Clubes sem pagela na semana atual
+    "growthRate": {
+      "children": 12.5,               // % de crescimento nos últimos 3 meses
+      "decisions": 8.3                // % de crescimento de decisões
+    }
+  }
+}
+```
+
+**Novo objeto `quickStats`:**
+```json
+{
+  "quickStats": {
+    "childrenByGender": {
+      "M": 1050,
+      "F": 950
+    },
+    "clubsByState": [
+      { "state": "SP", "count": 85 },
+      { "state": "RJ", "count": 40 }
+    ],
+    "topCities": [
+      {
+        "city": "São Paulo",
+        "state": "SP",
+        "totalChildren": 500,
+        "totalClubs": 45
+      }
+    ]
+  }
+}
+```
+
+#### 📊 Exemplos de Uso dos Novos Filtros
+
+**1. Encontrar crianças em risco:**
+```bash
+GET /statistics/children?hasLowEngagement=true&minPagelas=5&sortBy=engagementScore&sortOrder=ASC
+```
+
+**2. Identificar newcomers para acompanhamento especial:**
+```bash
+GET /statistics/children?isNewcomer=true&sortBy=joinedAt&sortOrder=DESC
+```
+
+**3. Reconhecer veteranos engajados:**
+```bash
+GET /statistics/children?isVeteran=true&minEngagementScore=80&sortBy=engagementScore&sortOrder=DESC
+```
+
+**4. Buscar crianças por nome:**
+```bash
+GET /statistics/children?search=Maria&city=São Paulo
+```
+
+**5. Clubes pequenos com baixa performance (precisam atenção):**
+```bash
+GET /statistics/clubs?maxChildren=20&maxPerformanceScore=60&sortBy=performanceScore&sortOrder=ASC
+```
+
+**6. Professores que precisam suporte:**
+```bash
+GET /statistics/teachers?maxEffectivenessScore=60&isActive=true&sortBy=effectivenessScore&sortOrder=ASC
+```
+
+**7. Buscar professor por nome:**
+```bash
+GET /statistics/teachers?search=João&clubId=uuid
+```
+
+#### 🎯 Benefícios
+
+- 🔍 **Identificação Proativa:** Encontre crianças/clubes que precisam atenção
+- 📊 **Métricas Avançadas:** Overview com indicadores de crescimento e engajamento
+- 🎯 **Ação Direcionada:** Filtros específicos para diferentes necessidades
+- 📈 **Análise de Tendências:** Taxa de crescimento e distribuições geográficas
+- ⚡ **Performance:** Queries otimizadas executadas em paralelo
+- 🚀 **UX Melhorada:** Busca por nome facilita encontrar pessoas específicas
+
+#### 🏆 Casos de Uso Práticos
+
+**Coordenador identificando problemas:**
+```bash
+# Ver clubes com problemas de presença
+GET /statistics/clubs?coordinatorId=uuid&maxPresenceRate=70&sortBy=presenceRate&sortOrder=ASC
+
+# Ver crianças faltosas dos meus clubes
+GET /statistics/children?coordinatorId=uuid&maxPresenceRate=60&sortBy=presenceRate&sortOrder=ASC
+```
+
+**Professor acompanhando suas crianças:**
+```bash
+# Ver crianças que entraram recentemente
+GET /statistics/children?teacherId=uuid&isNewcomer=true
+
+# Ver crianças com baixo engajamento para dar atenção especial
+GET /statistics/children?teacherId=uuid&hasLowEngagement=true
+```
+
+**Administração monitorando saúde do sistema:**
+```bash
+# Dashboard com métricas completas
+GET /statistics/overview
+
+# Clubes que não lançaram pagela esta semana
+GET /statistics/clubs?weekday=MONDAY&sortBy=lastActivity&sortOrder=ASC
+
+# Professores inativos
+GET /statistics/teachers?isActive=false&sortBy=name
+```
+
+#### 📈 Novas Queries no Repository
+
+**6 novos métodos adicionados:**
+1. `getClubsPerformanceMetrics()` - Métricas de performance dos clubes
+2. `getChildrenEngagementMetrics()` - Métricas de engajamento das crianças
+3. `getChildrenGenderDistribution()` - Distribuição por gênero
+4. `getGeographicDistribution()` - Distribuição geográfica completa
+5. `getChildrenCountAt(date)` - Contagem histórica de crianças
+6. `getAcceptedChristsCountBefore(date)` - Contagem histórica de decisões
+
+---
+
 # 🔧 Troubleshooting
 
 ## Problema 1: GROUP BY Error ✅ CORRIGIDO
@@ -1673,6 +1978,89 @@ GET /statistics/children?joinedBefore=2024-01-01&sortBy=engagementScore&sortOrde
 ---
 
 # 📝 Changelog
+
+## Version 2.11.0 (28/12/2024) ⭐ MEGA UPDATE - Filtros Avançados e Overview Aprimorado
+
+### 🎯 Novidades
+
+**Aprimoramentos massivos focados em identificação proativa de problemas e métricas avançadas!**
+
+#### ✅ Filtros Avançados Adicionados
+
+1. **Children (6 novos filtros):**
+   - `search` - Busca por nome
+   - `hasLowEngagement` - Crianças em risco
+   - `isNewcomer` - Entrou nos últimos 3 meses
+   - `isVeteran` - Mais de 1 ano de participação
+   - `maxEngagementScore` - Limite superior de score
+   - `maxPresenceRate` - Limite superior de presença
+
+2. **Clubs (5 novos filtros):**
+   - `maxChildren` - Clubes pequenos
+   - `maxPresenceRate` - Clubes com problemas
+   - `maxPerformanceScore` - Baixa performance
+   - `minDecisions` - Decisões mínimas
+   - `minTeachers` - Professores mínimos
+
+3. **Teachers (4 novos filtros):**
+   - `search` - Busca por nome
+   - `maxEffectivenessScore` - Precisam suporte
+   - `maxPresenceRate` - Problemas de presença
+   - `minDecisions` - Decisões mínimas
+
+#### ✅ Overview Aprimorado
+
+**3 novos objetos adicionados ao `/statistics/overview`:**
+
+1. **`engagement`** - Métricas de engajamento:
+   - Score médio de engajamento
+   - Top 5 clubes performantes
+   - Top 5 crianças engajadas
+   - Atividade recente (7 e 30 dias)
+
+2. **`indicators`** - Alertas e indicadores:
+   - Clubes com baixa presença
+   - Crianças com baixo engajamento
+   - Clubes sem pagela na semana
+   - Taxa de crescimento (crianças e decisões)
+
+3. **`quickStats`** - Estatísticas rápidas:
+   - Distribuição por gênero
+   - Clubes por estado
+   - Top 10 cidades
+
+#### ✅ Novas Queries no Repository
+
+**6 novos métodos:**
+- `getClubsPerformanceMetrics()`
+- `getChildrenEngagementMetrics()`
+- `getChildrenGenderDistribution()`
+- `getGeographicDistribution()`
+- `getChildrenCountAt(date)`
+- `getAcceptedChristsCountBefore(date)`
+
+#### 🎯 Casos de Uso
+
+- Identificar crianças que precisam atenção especial
+- Encontrar clubes com problemas de performance
+- Acompanhar newcomers vs veteranos
+- Buscar pessoas por nome
+- Monitorar saúde geral do sistema
+- Analisar taxas de crescimento
+
+---
+
+## Version 2.10.0 (21/11/2024) ⭐ NOVA FUNCIONALIDADE - Informações sobre Desativados
+
+### 🎯 Novidades
+
+**Sistema agora retorna informações sobre clubinhos e crianças desativadas!**
+
+- Endpoint `/statistics/clubs`: campos `inactiveClubs` e `inactiveChildren`
+- Endpoint `/statistics/overview`: campos `summary.inactiveChildren` e `summary.inactiveClubs`
+- Visibilidade completa para análise e relatórios
+
+---
 
 ## Version 2.5.0 (15/11/2024) ⭐ PERFORMANCE UPDATE - Paginação Completa
 

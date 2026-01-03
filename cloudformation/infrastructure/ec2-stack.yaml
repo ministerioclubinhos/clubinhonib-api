@@ -1,0 +1,361 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Stack única: 1 ALB + 2 instâncias (staging e prod) com listeners por host'
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC
+
+  SubnetStaging:
+    Type: AWS::EC2::Subnet::Id
+    Description: Subnet pública para instância staging (AZ suportada)
+
+  SubnetProd:
+    Type: AWS::EC2::Subnet::Id
+    Description: Subnet pública para instância prod (AZ suportada)
+
+  HostedZoneId:
+    Type: String
+    Description: Hosted Zone ID do domínio
+
+  DomainName:
+    Type: String
+    Default: clubinhonib.com
+
+  SSLCertificateArn:
+    Type: String
+    Description: Certificado ACM com SAN para api/or staging-api
+
+  AMIId:
+    Type: String
+    Default: ami-08d7aabbb50c2c24e
+
+  KeyPairName:
+    Type: AWS::EC2::KeyPair::KeyName
+
+  AllowedCIDR:
+    Type: String
+    Default: 0.0.0.0/0
+
+  InstanceTypeStaging:
+    Type: String
+    Default: t3.micro
+
+  InstanceTypeProd:
+    Type: String
+    Default: t3.micro
+
+  AWSRegion:
+    Type: String
+    Default: us-east-1
+
+  S3BucketName:
+    Type: String
+    Default: clubinho-nib-storage
+
+Resources:
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ALB SG
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - { Key: Application, Value: clubinho-nib }
+
+  EC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: EC2 SG
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 22, ToPort: 22, CidrIp: !Ref AllowedCIDR }
+        - { IpProtocol: tcp, FromPort: 3000, ToPort: 3000, SourceSecurityGroupId: !Ref ALBSecurityGroup }
+      SecurityGroupEgress:
+        - { IpProtocol: -1, CidrIp: 0.0.0.0/0 }
+      Tags:
+        - { Key: Application, Value: clubinho-nib }
+
+  EC2InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: SESAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [ses:SendEmail, ses:SendRawEmail]
+                Resource: '*'
+        - PolicyName: S3BucketAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [s3:GetObject, s3:PutObject, s3:DeleteObject, s3:ListBucket]
+                Resource:
+                  - !Sub 'arn:aws:s3:::${S3BucketName}'
+                  - !Sub 'arn:aws:s3:::${S3BucketName}/*'
+        - PolicyName: ECRAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [ecr:GetAuthorizationToken, ecr:BatchCheckLayerAvailability, ecr:GetDownloadUrlForLayer, ecr:BatchGetImage]
+                Resource: '*'
+        - PolicyName: SSMAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:UpdateInstanceInformation
+                  - ssmmessages:CreateControlChannel
+                  - ssmmessages:CreateDataChannel
+                  - ssmmessages:OpenControlChannel
+                  - ssmmessages:OpenDataChannel
+                Resource: '*'
+      Tags:
+        - { Key: Application, Value: clubinho-nib }
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref EC2InstanceRole]
+
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: clubinho-nib-alb
+      Type: application
+      Scheme: internet-facing
+      IpAddressType: ipv4
+      Subnets: [!Ref SubnetStaging, !Ref SubnetProd]
+      SecurityGroups: [!Ref ALBSecurityGroup]
+      LoadBalancerAttributes:
+        - { Key: idle_timeout.timeout_seconds, Value: '60' }
+        - { Key: routing.http.drop_invalid_header_fields.enabled, Value: 'true' }
+        - { Key: routing.http2.enabled, Value: 'true' }
+      Tags:
+        - { Key: Application, Value: clubinho-nib }
+
+  TargetGroupStaging:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${AWS::StackName}-stg-tg'
+      Port: 3000
+      Protocol: HTTP
+      VpcId: !Ref VpcId
+      TargetType: instance
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 60
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher: { HttpCode: '200' }
+      Tags: [{ Key: Application, Value: clubinho-nib }]
+      Targets:
+        - Id: !Ref InstanceStaging
+          Port: 3000
+
+  TargetGroupProd:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${AWS::StackName}-prod-tg'
+      Port: 3000
+      Protocol: HTTP
+      VpcId: !Ref VpcId
+      TargetType: instance
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 60
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher: { HttpCode: '200' }
+      Tags: [{ Key: Application, Value: clubinho-nib }]
+      Targets:
+        - Id: !Ref InstanceProd
+          Port: 3000
+
+  HTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: redirect
+          RedirectConfig:
+            Protocol: HTTPS
+            Port: 443
+            StatusCode: HTTP_301
+
+  HTTPSListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: !Ref SSLCertificateArn
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroupProd
+
+  StagingRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref HTTPSListener
+      Priority: 1
+      Conditions:
+        - Field: host-header
+          Values: [!Sub 'staging-api.${DomainName}']
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroupStaging
+
+  ProdRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref HTTPSListener
+      Priority: 2
+      Conditions:
+        - Field: host-header
+          Values: [!Sub 'api.${DomainName}']
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroupProd
+
+  StagingDNS:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub 'staging-api.${DomainName}'
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt ApplicationLoadBalancer.DNSName
+        HostedZoneId: !GetAtt ApplicationLoadBalancer.CanonicalHostedZoneID
+        EvaluateTargetHealth: true
+
+  ProdDNS:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub 'api.${DomainName}'
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt ApplicationLoadBalancer.DNSName
+        HostedZoneId: !GetAtt ApplicationLoadBalancer.CanonicalHostedZoneID
+        EvaluateTargetHealth: true
+
+  LaunchTemplateStaging:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: !Ref AMIId
+        InstanceType: !Ref InstanceTypeStaging
+        KeyName: !Ref KeyPairName
+        IamInstanceProfile: { Name: !Ref EC2InstanceProfile }
+        NetworkInterfaces:
+          - DeviceIndex: 0
+            SubnetId: !Ref SubnetStaging
+            Groups: [!Ref EC2SecurityGroup]
+            AssociatePublicIpAddress: true
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs: { VolumeSize: 8, VolumeType: gp3, DeleteOnTermination: true }
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            set -e
+            yum update-minimal --security -y
+            yum install -y docker amazon-ssm-agent
+            systemctl enable docker amazon-ssm-agent
+            systemctl start docker amazon-ssm-agent
+            usermod -aG docker ec2-user
+            mkdir -p /opt/clubinho-nib-api/env
+
+  LaunchTemplateProd:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: !Ref AMIId
+        InstanceType: !Ref InstanceTypeProd
+        KeyName: !Ref KeyPairName
+        IamInstanceProfile: { Name: !Ref EC2InstanceProfile }
+        NetworkInterfaces:
+          - DeviceIndex: 0
+            SubnetId: !Ref SubnetProd
+            Groups: [!Ref EC2SecurityGroup]
+            AssociatePublicIpAddress: true
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs: { VolumeSize: 8, VolumeType: gp3, DeleteOnTermination: true }
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            set -e
+            yum update-minimal --security -y
+            yum install -y docker amazon-ssm-agent
+            systemctl enable docker amazon-ssm-agent
+            systemctl start docker amazon-ssm-agent
+            usermod -aG docker ec2-user
+            mkdir -p /opt/clubinho-nib-api/env
+
+  InstanceStaging:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplateStaging
+        Version: !GetAtt LaunchTemplateStaging.LatestVersionNumber
+      Tags:
+        - { Key: Name, Value: staging-clubinho-nib-api }
+        - { Key: Application, Value: clubinho-nib }
+
+  InstanceProd:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplateProd
+        Version: !GetAtt LaunchTemplateProd.LatestVersionNumber
+      Tags:
+        - { Key: Name, Value: prod-clubinho-nib-api }
+        - { Key: Application, Value: clubinho-nib }
+
+Outputs:
+  ALBDNS:
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
+    Description: DNS do ALB
+  StagingURL:
+    Value: !Sub 'https://staging-api.${DomainName}'
+  ProdURL:
+    Value: !Sub 'https://api.${DomainName}'
+  InstanceIdStaging:
+    Value: !Ref InstanceStaging
+    Description: ID da instância staging
+  InstanceIdProd:
+    Value: !Ref InstanceProd
+    Description: ID da instância produção
+  PublicIPStaging:
+    Value: !GetAtt InstanceStaging.PublicIp
+    Description: IP público staging
+  PublicIPProd:
+    Value: !GetAtt InstanceProd.PublicIp
+    Description: IP público produção

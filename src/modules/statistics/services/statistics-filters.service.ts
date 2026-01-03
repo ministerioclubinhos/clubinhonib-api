@@ -4,6 +4,7 @@ import { PagelaEntity } from '../../pagelas/entities/pagela.entity';
 import { AcceptedChristEntity } from '../../accepted-christs/entities/accepted-christ.entity';
 import { PagelasStatsQueryDto } from '../dto/pagelas-stats-query.dto';
 import { AcceptedChristsStatsQueryDto } from '../dto/accepted-christs-stats-query.dto';
+import { getAcademicWeekYear } from '../../pagelas/week.util';
 
 @Injectable()
 export class StatisticsFiltersService {
@@ -11,17 +12,55 @@ export class StatisticsFiltersService {
     query: SelectQueryBuilder<PagelaEntity>,
     filters: PagelasStatsQueryDto,
   ): void {
-    if (filters.year) {
-      query.andWhere('pagela.year = :year', { year: filters.year });
-    }
-    if (filters.week) {
-      query.andWhere('pagela.week = :week', { week: filters.week });
-    }
-    if (filters.startDate) {
-      query.andWhere('pagela.referenceDate >= :startDate', { startDate: filters.startDate });
-    }
-    if (filters.endDate) {
-      query.andWhere('pagela.referenceDate <= :endDate', { endDate: filters.endDate });
+    // Handle date range filters when grouping by week
+    if (filters.startDate && filters.endDate && filters.groupBy === 'week') {
+      // Convert date range to academic week range
+      try {
+        const periodStartDate = '2025-01-01'; // TODO: Get from active period
+        const periodEndDate = '2025-12-31';
+        const periodYear = 2025;
+
+        const startWeek = getAcademicWeekYear(filters.startDate, periodStartDate, periodEndDate, periodYear);
+        const endWeek = getAcademicWeekYear(filters.endDate, periodStartDate, periodEndDate, periodYear);
+
+        // Apply week range filter instead of date range
+        if (startWeek.year === endWeek.year) {
+          query.andWhere('pagela.year = :year', { year: startWeek.year });
+          query.andWhere('pagela.week BETWEEN :startWeek AND :endWeek', {
+            startWeek: startWeek.week,
+            endWeek: endWeek.week
+          });
+        } else {
+          // Handle cross-year ranges (rare but possible)
+          query.andWhere(
+            '(pagela.year = :startYear AND pagela.week >= :startWeek) OR (pagela.year = :endYear AND pagela.week <= :endWeek)',
+            {
+              startYear: startWeek.year,
+              startWeek: startWeek.week,
+              endYear: endWeek.year,
+              endWeek: endWeek.week
+            }
+          );
+        }
+      } catch (error) {
+        // Fallback to date filters if conversion fails
+        query.andWhere('pagela.referenceDate >= :startDate', { startDate: filters.startDate });
+        query.andWhere('pagela.referenceDate <= :endDate', { endDate: filters.endDate });
+      }
+    } else {
+      // Apply original filters
+      if (filters.year) {
+        query.andWhere('pagela.year = :year', { year: filters.year });
+      }
+      if (filters.week) {
+        query.andWhere('pagela.week = :week', { week: filters.week });
+      }
+      if (filters.startDate) {
+        query.andWhere('pagela.referenceDate >= :startDate', { startDate: filters.startDate });
+      }
+      if (filters.endDate) {
+        query.andWhere('pagela.referenceDate <= :endDate', { endDate: filters.endDate });
+      }
     }
 
     if (filters.clubId) {

@@ -1,0 +1,10 @@
+[
+  {
+    "ParameterKey": "DomainName",
+    "ParameterValue": "clubinhonib.com"
+  },
+  {
+    "ParameterKey": "HostedZoneId",
+    "ParameterValue": "Z04342831HLGP0JZ4VI5K"
+  }
+]

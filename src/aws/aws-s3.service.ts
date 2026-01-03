@@ -5,16 +5,11 @@ import {
   PutObjectCommand,
   DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
-import {
-  SESClient,
-  SendEmailCommand,
-} from '@aws-sdk/client-ses';
 
 @Injectable()
 export class AwsS3Service {
   private readonly logger = new Logger(AwsS3Service.name);
   private readonly s3Client: S3Client;
-  private readonly sesClient: SESClient;
   private readonly bucketName: string;
   private readonly region: string;
   private readonly environment: string;
@@ -32,14 +27,6 @@ export class AwsS3Service {
     }
 
     this.s3Client = new S3Client({
-      region: this.region,
-      credentials: {
-        accessKeyId,
-        secretAccessKey,
-      },
-    });
-
-    this.sesClient = new SESClient({
       region: this.region,
       credentials: {
         accessKeyId,
@@ -89,44 +76,5 @@ export class AwsS3Service {
     }
   }
 
-  async sendEmailViaSES(
-    to: string,
-    subject: string,
-    textBody: string,
-    htmlBody?: string,
-  ): Promise<void> {
-    const from =
-      this.configService.get<string>('SES_DEFAULT_FROM') ?? 'no-reply@rodolfo-silva.com';
-
-    const command = new SendEmailCommand({
-      Destination: {
-        ToAddresses: [to],
-      },
-      Message: {
-        Subject: {
-          Data: subject,
-        },
-        Body: {
-          Text: {
-            Data: textBody,
-          },
-          ...(htmlBody && {
-            Html: {
-              Data: htmlBody,
-            },
-          }),
-        },
-      },
-      Source: from,
-    });
-
-    try {
-      await this.sesClient.send(command);
-      this.logger.log(`📨 E-mail enviado via SES para ${to}`);
-    } catch (error) {
-      this.logger.error(`❌ Erro ao enviar e-mail via SES: ${error.message}`);
-      throw new Error('Erro ao enviar e-mail');
-    }
-  }
 
 }

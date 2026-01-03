@@ -105,6 +105,7 @@ export class PagelasService {
       total,
       page,
       limit,
+      totalPages: Math.ceil(total / limit),
     };
   }
 

@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { StatisticsRepository } from './statistics.repository';
 import { StatisticsCalculationsService } from './services/statistics-calculations.service';
+import { StatisticsPeriodService } from './services/statistics-period.service';
+import { AcademicWeekService } from '../club-control/services/academic-week.service';
 import { PagelasStatsQueryDto } from './dto/pagelas-stats-query.dto';
 import { AcceptedChristsStatsQueryDto } from './dto/accepted-christs-stats-query.dto';
 import { PagelasStatsResponseDto } from './dto/pagelas-stats-response.dto';
@@ -19,6 +21,8 @@ export class StatisticsService {
   constructor(
     private readonly statisticsRepository: StatisticsRepository,
     private readonly calculationsService: StatisticsCalculationsService,
+    private readonly periodService: StatisticsPeriodService,
+    private readonly academicWeekService: AcademicWeekService,
   ) {}
 
   async getPagelasChartData(filters: PagelasStatsQueryDto): Promise<PagelasChartDataDto> {
@@ -129,9 +133,10 @@ export class StatisticsService {
   async getOverviewStatistics(): Promise<OverviewStatsResponseDto> {
     const now = new Date();
     const currentYear = now.getFullYear();
-    const startOfYear = new Date(currentYear, 0, 1);
-    const pastDaysOfYear = (now.getTime() - startOfYear.getTime()) / 86400000;
-    const currentWeek = Math.ceil((pastDaysOfYear + startOfYear.getDay() + 1) / 7);
+
+    // Get current week from the academic period, not Gregorian calendar
+    const currentAcademicWeek = await this.academicWeekService.calculateCurrentAcademicWeek();
+    const currentWeek = currentAcademicWeek?.academicWeek || 1;
 
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfMonthStr = startOfMonth.toISOString().split('T')[0];
@@ -149,16 +154,33 @@ export class StatisticsService {
     sixMonthsAgo.setMonth(now.getMonth() - 6);
     const sixMonthsAgoStr = sixMonthsAgo.toISOString().split('T')[0];
 
+    const threeMonthsAgo = new Date(now);
+    threeMonthsAgo.setMonth(now.getMonth() - 3);
+    const threeMonthsAgoStr = threeMonthsAgo.toISOString().split('T')[0];
+
+    const sevenDaysAgo = new Date(now);
+    sevenDaysAgo.setDate(now.getDate() - 7);
+    const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+
     const [
       totalCounts,
       activeCountsThisMonth,
       pagelasThisWeek,
       pagelasThisMonth,
       pagelasLastSixWeeks,
+      pagelasLast7Days,
+      pagelasLast30Days,
       acceptedChristsThisWeek,
       acceptedChristsThisMonth,
       acceptedChristsThisYear,
       acceptedChristsLastSixMonths,
+      acceptedChristsLast3Months,
+      topEngagedChildren,
+      topPerformingClubs,
+      clubsPerformanceMetrics,
+      childrenEngagementMetrics,
+      genderDistribution,
+      geographicDistribution,
     ] = await Promise.all([
       this.statisticsRepository.getTotalCounts(),
       this.statisticsRepository.getActiveCountsThisMonth(),
@@ -172,6 +194,14 @@ export class StatisticsService {
       }),
       this.statisticsRepository.getPagelasWeeklyStats({
         startDate: sixWeeksAgoStr,
+        endDate: todayStr,
+      }),
+      this.statisticsRepository.getPagelasOverallStats({
+        startDate: sevenDaysAgoStr,
+        endDate: todayStr,
+      }),
+      this.statisticsRepository.getPagelasOverallStats({
+        startDate: startOfMonthStr,
         endDate: todayStr,
       }),
       this.statisticsRepository.getAcceptedChristsOverallStats({
@@ -191,7 +221,28 @@ export class StatisticsService {
         endDate: todayStr,
         groupBy: 'month',
       }),
+      this.statisticsRepository.getAcceptedChristsOverallStats({
+        startDate: threeMonthsAgoStr,
+        endDate: todayStr,
+      }),
+      this.statisticsRepository.getTopEngagedChildren({ startDate: startOfMonthStr, endDate: todayStr }, 5),
+      this.statisticsRepository.getClubRankings({ startDate: startOfMonthStr, endDate: todayStr }),
+      this.statisticsRepository.getClubsPerformanceMetrics(),
+      this.statisticsRepository.getChildrenEngagementMetrics(),
+      this.statisticsRepository.getChildrenGenderDistribution(),
+      this.statisticsRepository.getGeographicDistribution(),
     ]);
+
+    // Calcular taxa de crescimento
+    const threeMonthsAgoChildCount = await this.statisticsRepository.getChildrenCountAt(threeMonthsAgoStr);
+    const childrenGrowthRate = threeMonthsAgoChildCount > 0
+      ? ((totalCounts.totalChildren - threeMonthsAgoChildCount) / threeMonthsAgoChildCount) * 100
+      : 0;
+
+    const threeMonthsAgoAcceptedChrists = await this.statisticsRepository.getAcceptedChristsCountBefore(threeMonthsAgoStr);
+    const decisionsGrowthRate = threeMonthsAgoAcceptedChrists > 0
+      ? ((acceptedChristsLast3Months.totalDecisions - threeMonthsAgoAcceptedChrists) / threeMonthsAgoAcceptedChrists) * 100
+      : 0;
 
     return {
       summary: {
@@ -232,6 +283,42 @@ export class StatisticsService {
           month: period.period,
           total: period.totalDecisions,
         })),
+      },
+      // ⭐ NOVO: Métricas de engajamento
+      engagement: {
+        avgEngagementScore: childrenEngagementMetrics.avgEngagementScore,
+        topPerformingClubs: topPerformingClubs.slice(0, 5).map(club => ({
+          clubId: club.clubId,
+          clubNumber: club.clubNumber,
+          performanceScore: club.performanceScore,
+          city: club.city || 'N/A',
+        })),
+        topEngagedChildren: topEngagedChildren.slice(0, 5).map(child => ({
+          childId: child.childId,
+          name: child.childName,
+          engagementScore: child.engagementScore,
+          clubNumber: child.clubNumber || 0,
+        })),
+        recentActivity: {
+          last7Days: pagelasLast7Days.totalPagelas,
+          last30Days: pagelasLast30Days.totalPagelas,
+        },
+      },
+      // ⭐ NOVO: Indicadores e alertas
+      indicators: {
+        clubsWithLowAttendance: clubsPerformanceMetrics.clubsWithLowAttendance,
+        childrenWithLowEngagement: childrenEngagementMetrics.childrenWithLowEngagement,
+        clubsMissingPagelas: clubsPerformanceMetrics.clubsMissingPagelas,
+        growthRate: {
+          children: Math.round(childrenGrowthRate * 10) / 10,
+          decisions: Math.round(decisionsGrowthRate * 10) / 10,
+        },
+      },
+      // ⭐ NOVO: Estatísticas rápidas
+      quickStats: {
+        childrenByGender: genderDistribution,
+        clubsByState: geographicDistribution.byState.slice(0, 10),
+        topCities: geographicDistribution.topCities.slice(0, 10),
       },
     };
   }
@@ -345,9 +432,12 @@ export class StatisticsService {
   }
 
   async getChildrenStats(filters: ChildrenStatsQueryDto): Promise<ChildrenStatsResponseDto> {
+    // ⭐ Aplicar filtro de período se especificado
+    const processedFilters = this.periodService.applyPeriodFilter(filters);
+
     const [childrenData, distribution] = await Promise.all([
-      this.statisticsRepository.getChildrenWithStats(filters),
-      this.statisticsRepository.getChildrenStatsDistribution(filters),
+      this.statisticsRepository.getChildrenWithStats(processedFilters),
+      this.statisticsRepository.getChildrenStatsDistribution(processedFilters),
     ]);
 
     const { children, pagelasStats, decisionsMap, totalCount, filteredCount, page, limit } = childrenData;
@@ -442,8 +532,8 @@ export class StatisticsService {
 
     return {
       filters: {
-        applied: filters,
-        summary: this.buildFiltersSummary(filters),
+        applied: processedFilters,
+        summary: this.buildFiltersSummary(processedFilters),
       },
       summary: {
         totalChildren: totalCount,
@@ -484,7 +574,10 @@ export class StatisticsService {
 
 
   async getClubsStats(filters: ClubsStatsQueryDto): Promise<ClubsStatsResponseDto> {
-    const clubsData = await this.statisticsRepository.getClubsWithStats(filters);
+    // ⭐ Aplicar filtro de período se especificado
+    const processedFilters = this.periodService.applyPeriodFilter(filters);
+
+    const clubsData = await this.statisticsRepository.getClubsWithStats(processedFilters);
     const { clubs, childrenResults, pagelasResults, decisionsResults, teachers, totalCount, page, limit, inactiveClubs, inactiveChildren } = clubsData;
 
     const childrenByClub = new Map();
@@ -639,8 +732,8 @@ export class StatisticsService {
 
     return {
       filters: {
-        applied: filters,
-        summary: this.buildClubsFiltersSummary(filters),
+        applied: processedFilters,
+        summary: this.buildClubsFiltersSummary(processedFilters),
       },
       summary,
       distribution: {
@@ -682,7 +775,10 @@ export class StatisticsService {
   }
 
   async getTeachersStats(filters: TeachersStatsQueryDto): Promise<TeachersStatsResponseDto> {
-    const teachersData = await this.statisticsRepository.getTeachersWithStats(filters);
+    // ⭐ Aplicar filtro de período se especificado
+    const processedFilters = this.periodService.applyPeriodFilter(filters);
+
+    const teachersData = await this.statisticsRepository.getTeachersWithStats(processedFilters);
     const { teachers, pagelasResults, decisionsResults, totalCount, page, limit } = teachersData;
 
     const pagelasByTeacher = new Map(pagelasResults.map((p) => [p.teacherId, p]));
@@ -803,8 +899,8 @@ export class StatisticsService {
 
     return {
       filters: {
-        applied: filters,
-        summary: this.buildTeachersFiltersSummary(filters),
+        applied: processedFilters,
+        summary: this.buildTeachersFiltersSummary(processedFilters),
       },
       summary,
       distribution: {

@@ -1,0 +1,35 @@
+[
+  {
+    "ParameterKey": "Environment",
+    "ParameterValue": "staging"
+  },
+  {
+    "ParameterKey": "DBInstanceIdentifier",
+    "ParameterValue": "your-db-instance-identifier"
+  },
+  {
+    "ParameterKey": "DBName",
+    "ParameterValue": "your_database_name"
+  },
+  {
+    "ParameterKey": "DBUsername",
+    "ParameterValue": "admin"
+  },
+  {
+    "ParameterKey": "DBPassword",
+    "ParameterValue": "YOUR_DB_PASSWORD_HERE"
+  },
+  {
+    "ParameterKey": "VpcId",
+    "ParameterValue": "vpc-xxxxxxxxxxxxxxxxx"
+  },
+  {
+    "ParameterKey": "SubnetIds",
+    "ParameterValue": "subnet-xxxxxxxxxxxxxxxxx,subnet-yyyyyyyyyyyyyyyyy"
+  },
+  {
+    "ParameterKey": "AllowedCIDR",
+    "ParameterValue": "0.0.0.0/0"
+  }
+]
+

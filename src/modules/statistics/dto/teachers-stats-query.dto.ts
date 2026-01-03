@@ -1,8 +1,14 @@
-import { IsOptional, IsInt, Min, Max, IsString, IsBoolean } from 'class-validator';
+import { IsOptional, IsInt, Min, Max, IsString, IsBoolean, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
 import { Transform } from 'class-transformer';
+import { PeriodShortcut } from './period-filter.dto';
 
 export class TeachersStatsQueryDto {
+  // ⭐ NOVO: Atalho rápido de período
+  @IsOptional()
+  @IsEnum(PeriodShortcut)
+  period?: PeriodShortcut; // 'today' | 'this_week' | 'this_month' | 'last_7_days' | 'last_30_days' | 'this_year' | 'custom'
+
   // Time filters (for pagelas period)
   @IsOptional()
   @Type(() => Number)
@@ -72,7 +78,7 @@ export class TeachersStatsQueryDto {
   // Sorting
   @IsOptional()
   @IsString()
-  sortBy?: string; // "name" | "effectivenessScore" | "totalPagelas" | "presenceRate"
+  sortBy?: string; // "name" | "effectivenessScore" | "totalPagelas" | "presenceRate" | "meditationRate" | "childrenWithDecisions"
 
   @IsOptional()
   @IsString()
@@ -91,6 +97,31 @@ export class TeachersStatsQueryDto {
   @Min(1)
   @Max(100)
   limit?: number;
+
+  // ⭐ NOVO: Filtros avançados combinados
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  maxEffectivenessScore?: number; // Score máximo (identificar professores que precisam apoio)
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  maxPresenceRate?: number; // Taxa máxima de presença (identificar problemas)
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  minDecisions?: number; // Mínimo de crianças com decisões alcançadas
+
+  @IsOptional()
+  @IsString()
+  search?: string; // Busca por nome do professor
 }
 
 
