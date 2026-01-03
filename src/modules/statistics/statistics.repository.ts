@@ -980,18 +980,21 @@ export class StatisticsRepository {
       .createQueryBuilder('pagela')
       .leftJoin('pagela.child', 'child')
       .leftJoin('child.club', 'club')
+      .leftJoin('club.address', 'address')
       .leftJoin('club.coordinator', 'coordinator')
       .where('club.id IS NOT NULL')
       .andWhere('club.isActive = :clubActive', { clubActive: true })
       .andWhere('child.isActive = :isActive', { isActive: true })
       .select('club.id', 'clubId')
       .addSelect('club.number', 'clubNumber')
+      .addSelect('address.city', 'city')
       .addSelect('COUNT(DISTINCT child.id)', 'activeChildren')
       .addSelect('COUNT(pagela.id)', 'totalPagelas')
       .addSelect('SUM(CASE WHEN pagela.present = 1 THEN 1 ELSE 0 END)', 'presenceCount')
       .addSelect('SUM(CASE WHEN pagela.didMeditation = 1 THEN 1 ELSE 0 END)', 'meditationCount')
       .groupBy('club.id')
-      .addGroupBy('club.number');
+      .addGroupBy('club.number')
+      .addGroupBy('address.city');
 
     this.filtersService.applyPagelasFilters(pagelasQuery, filters);
 
@@ -1053,6 +1056,7 @@ export class StatisticsRepository {
       return {
         clubId: row.clubId,
         clubNumber: parseInt(row.clubNumber),
+        city: row.city || 'N/A',
         totalChildren,
         activeChildren,
         avgPresenceRate: Math.round(avgPresenceRate * 10) / 10,
@@ -1124,6 +1128,27 @@ export class StatisticsRepository {
 
     if (filters.joinedBefore) {
       query.andWhere('child.joinedAt <= :joinedBefore', { joinedBefore: filters.joinedBefore });
+    }
+
+    // ⭐ NOVO v2.11.0: Filtro de busca por nome
+    if (filters.search) {
+      query.andWhere('child.name LIKE :search', { search: `%${filters.search}%` });
+    }
+
+    // ⭐ NOVO v2.11.0: Filtro de newcomers (últimos 3 meses)
+    if (filters.isNewcomer) {
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+      const threeMonthsAgoStr = threeMonthsAgo.toISOString().split('T')[0];
+      query.andWhere('child.joinedAt >= :threeMonthsAgo', { threeMonthsAgo: threeMonthsAgoStr });
+    }
+
+    // ⭐ NOVO v2.11.0: Filtro de veteranos (mais de 1 ano)
+    if (filters.isVeteran) {
+      const oneYearAgo = new Date();
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+      const oneYearAgoStr = oneYearAgo.toISOString().split('T')[0];
+      query.andWhere('child.joinedAt <= :oneYearAgo', { oneYearAgo: oneYearAgoStr });
     }
 
     const totalCount = await query.getCount();
@@ -1243,6 +1268,66 @@ export class StatisticsRepository {
         const age = this.calculationsService.calculateAge(child.birthDate);
         const ageGroup = this.calculationsService.getAgeGroup(age);
         return ageGroup === filters.ageGroup;
+      });
+    }
+
+    // ⭐ NOVO v2.11.0: Filtro de baixo engajamento (< 50%)
+    if (filters.hasLowEngagement) {
+      filteredChildren = filteredChildren.filter((child) => {
+        const stats = pagelasStats.get(child.id);
+        if (!stats) return false;
+        const total = parseInt(stats.totalPagelas);
+        const present = parseInt(stats.presenceCount);
+        const meditation = parseInt(stats.meditationCount);
+        const verse = parseInt(stats.verseCount);
+        const engagementScore = total > 0
+          ? ((present * 0.3 + meditation * 0.35 + verse * 0.35) / total) * 100
+          : 0;
+        return engagementScore < 50;
+      });
+    }
+
+    // ⭐ NOVO v2.11.0: Filtro de engagement score máximo
+    if (filters.maxEngagementScore !== undefined) {
+      filteredChildren = filteredChildren.filter((child) => {
+        const stats = pagelasStats.get(child.id);
+        if (!stats) return true; // Se não tem stats, considera 0 (menor que qualquer max)
+        const total = parseInt(stats.totalPagelas);
+        const present = parseInt(stats.presenceCount);
+        const meditation = parseInt(stats.meditationCount);
+        const verse = parseInt(stats.verseCount);
+        const engagementScore = total > 0
+          ? ((present * 0.3 + meditation * 0.35 + verse * 0.35) / total) * 100
+          : 0;
+        return engagementScore <= filters.maxEngagementScore!;
+      });
+    }
+
+    // ⭐ NOVO v2.11.0: Filtro de taxa de presença máxima
+    if (filters.maxPresenceRate !== undefined) {
+      filteredChildren = filteredChildren.filter((child) => {
+        const stats = pagelasStats.get(child.id);
+        if (!stats) return true; // Se não tem stats, considera 0 (menor que qualquer max)
+        const presenceRate = stats.totalPagelas > 0
+          ? (parseInt(stats.presenceCount) / parseInt(stats.totalPagelas)) * 100
+          : 0;
+        return presenceRate <= filters.maxPresenceRate!;
+      });
+    }
+
+    // ⭐ NOVO v2.11.0: Filtro de engagement score mínimo
+    if (filters.minEngagementScore !== undefined) {
+      filteredChildren = filteredChildren.filter((child) => {
+        const stats = pagelasStats.get(child.id);
+        if (!stats) return false;
+        const total = parseInt(stats.totalPagelas);
+        const present = parseInt(stats.presenceCount);
+        const meditation = parseInt(stats.meditationCount);
+        const verse = parseInt(stats.verseCount);
+        const engagementScore = total > 0
+          ? ((present * 0.3 + meditation * 0.35 + verse * 0.35) / total) * 100
+          : 0;
+        return engagementScore >= filters.minEngagementScore!;
       });
     }
 
@@ -1559,6 +1644,11 @@ export class StatisticsRepository {
 
     if (filters.state) {
       query.andWhere('address.state = :state', { state: filters.state });
+    }
+
+    // ⭐ NOVO v2.11.0: Filtro de busca por nome
+    if (filters.search) {
+      query.andWhere('user.name LIKE :search', { search: `%${filters.search}%` });
     }
 
     // Get total count
@@ -2218,5 +2308,216 @@ export class StatisticsRepository {
 
     const expectedDate = new Date(weekStart.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
     return expectedDate.toISOString().split('T')[0];
+  }
+
+  // ⭐ NOVO: Métodos adicionais para o overview aprimorado
+
+  /**
+   * Obter métricas de performance dos clubes
+   */
+  async getClubsPerformanceMetrics() {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfMonthStr = startOfMonth.toISOString().split('T')[0];
+    const todayStr = now.toISOString().split('T')[0];
+
+    // Clubes com baixa presença (< 70%)
+    const clubsWithLowAttendance = await this.pagelasRepository
+      .createQueryBuilder('pagela')
+      .leftJoin('pagela.child', 'child')
+      .leftJoin('child.club', 'club')
+      .where('club.isActive = :clubActive', { clubActive: true })
+      .andWhere('child.isActive = :isActive', { isActive: true })
+      .andWhere('pagela.referenceDate >= :startDate', { startDate: startOfMonthStr })
+      .andWhere('pagela.referenceDate <= :endDate', { endDate: todayStr })
+      .select('club.id', 'clubId')
+      .addSelect('COUNT(pagela.id)', 'totalPagelas')
+      .addSelect('SUM(CASE WHEN pagela.present = 1 THEN 1 ELSE 0 END)', 'presentCount')
+      .groupBy('club.id')
+      .having('(SUM(CASE WHEN pagela.present = 1 THEN 1 ELSE 0 END) / COUNT(pagela.id)) * 100 < 70')
+      .getRawMany();
+
+    // Clubes sem pagela na semana atual
+    const currentYear = now.getFullYear();
+    const startOfYear = new Date(currentYear, 0, 1);
+    const pastDaysOfYear = (now.getTime() - startOfYear.getTime()) / 86400000;
+    const currentWeek = Math.ceil((pastDaysOfYear + startOfYear.getDay() + 1) / 7);
+
+    const clubsWithPagelasThisWeek = await this.pagelasRepository
+      .createQueryBuilder('pagela')
+      .leftJoin('pagela.child', 'child')
+      .leftJoin('child.club', 'club')
+      .where('club.isActive = :clubActive', { clubActive: true })
+      .andWhere('child.isActive = :isActive', { isActive: true })
+      .andWhere('pagela.year = :year', { year: currentYear })
+      .andWhere('pagela.week = :week', { week: currentWeek })
+      .select('DISTINCT club.id', 'clubId')
+      .getRawMany();
+
+    const totalActiveClubs = await this.clubsRepository
+      .createQueryBuilder('club')
+      .where('club.isActive = :isActive', { isActive: true })
+      .getCount();
+
+    const clubsMissingPagelas = totalActiveClubs - clubsWithPagelasThisWeek.length;
+
+    return {
+      clubsWithLowAttendance: clubsWithLowAttendance.length,
+      clubsMissingPagelas,
+    };
+  }
+
+  /**
+   * Obter métricas de engajamento das crianças
+   */
+  async getChildrenEngagementMetrics() {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfMonthStr = startOfMonth.toISOString().split('T')[0];
+    const todayStr = now.toISOString().split('T')[0];
+
+    // Crianças ativas no mês
+    const childrenStats = await this.pagelasRepository
+      .createQueryBuilder('pagela')
+      .leftJoin('pagela.child', 'child')
+      .leftJoin('child.club', 'club')
+      .where('club.isActive = :clubActive', { clubActive: true })
+      .andWhere('child.isActive = :isActive', { isActive: true })
+      .andWhere('pagela.referenceDate >= :startDate', { startDate: startOfMonthStr })
+      .andWhere('pagela.referenceDate <= :endDate', { endDate: todayStr })
+      .select('child.id', 'childId')
+      .addSelect('COUNT(pagela.id)', 'totalPagelas')
+      .addSelect('SUM(CASE WHEN pagela.present = 1 THEN 1 ELSE 0 END)', 'presentCount')
+      .addSelect('SUM(CASE WHEN pagela.didMeditation = 1 THEN 1 ELSE 0 END)', 'meditationCount')
+      .addSelect('SUM(CASE WHEN pagela.recitedVerse = 1 THEN 1 ELSE 0 END)', 'verseCount')
+      .groupBy('child.id')
+      .getRawMany();
+
+    let totalEngagement = 0;
+    let childrenWithLowEngagement = 0;
+
+    childrenStats.forEach((child) => {
+      const total = parseInt(child.totalPagelas);
+      const present = parseInt(child.presentCount);
+      const meditation = parseInt(child.meditationCount);
+      const verse = parseInt(child.verseCount);
+
+      const engagementScore = total > 0
+        ? ((present * 0.3 + meditation * 0.35 + verse * 0.35) / total) * 100
+        : 0;
+
+      totalEngagement += engagementScore;
+      if (engagementScore < 50) {
+        childrenWithLowEngagement++;
+      }
+    });
+
+    const avgEngagementScore = childrenStats.length > 0
+      ? Math.round((totalEngagement / childrenStats.length) * 10) / 10
+      : 0;
+
+    return {
+      avgEngagementScore,
+      childrenWithLowEngagement,
+    };
+  }
+
+  /**
+   * Obter distribuição por gênero
+   */
+  async getChildrenGenderDistribution() {
+    const result = await this.childrenRepository
+      .createQueryBuilder('child')
+      .leftJoin('child.club', 'club')
+      .where('club.isActive = :clubActive', { clubActive: true })
+      .andWhere('child.isActive = :isActive', { isActive: true })
+      .select('child.gender', 'gender')
+      .addSelect('COUNT(child.id)', 'count')
+      .groupBy('child.gender')
+      .getRawMany();
+
+    const distribution = { M: 0, F: 0 };
+    result.forEach((row) => {
+      if (row.gender === 'M') distribution.M = parseInt(row.count);
+      if (row.gender === 'F') distribution.F = parseInt(row.count);
+    });
+
+    return distribution;
+  }
+
+  /**
+   * Obter distribuição geográfica
+   */
+  async getGeographicDistribution() {
+    // Por estado
+    const byState = await this.clubsRepository
+      .createQueryBuilder('club')
+      .leftJoin('club.address', 'address')
+      .where('club.isActive = :isActive', { isActive: true })
+      .select('address.state', 'state')
+      .addSelect('COUNT(club.id)', 'count')
+      .groupBy('address.state')
+      .orderBy('count', 'DESC')
+      .getRawMany();
+
+    // Top cidades
+    const topCities = await this.clubsRepository
+      .createQueryBuilder('club')
+      .leftJoinAndSelect('club.address', 'address')
+      .leftJoin('club.children', 'child')
+      .where('club.isActive = :isActive', { isActive: true })
+      .andWhere('child.isActive = :childActive', { childActive: true })
+      .select('address.city', 'city')
+      .addSelect('address.state', 'state')
+      .addSelect('COUNT(DISTINCT club.id)', 'totalClubs')
+      .addSelect('COUNT(DISTINCT child.id)', 'totalChildren')
+      .groupBy('address.city')
+      .addGroupBy('address.state')
+      .orderBy('totalChildren', 'DESC')
+      .getRawMany();
+
+    return {
+      byState: byState.map((row) => ({
+        state: row.state,
+        count: parseInt(row.count),
+      })),
+      topCities: topCities.map((row) => ({
+        city: row.city,
+        state: row.state,
+        totalChildren: parseInt(row.totalChildren),
+        totalClubs: parseInt(row.totalClubs),
+      })),
+    };
+  }
+
+  /**
+   * Obter contagem de crianças em uma data específica
+   */
+  async getChildrenCountAt(date: string): Promise<number> {
+    const count = await this.childrenRepository
+      .createQueryBuilder('child')
+      .leftJoin('child.club', 'club')
+      .where('club.isActive = :clubActive', { clubActive: true })
+      .andWhere('child.isActive = :isActive', { isActive: true })
+      .andWhere('(child.joinedAt IS NULL OR child.joinedAt <= :date)', { date })
+      .getCount();
+
+    return count;
+  }
+
+  /**
+   * Obter contagem de decisões antes de uma data
+   */
+  async getAcceptedChristsCountBefore(date: string): Promise<number> {
+    const count = await this.acceptedChristsRepository
+      .createQueryBuilder('ac')
+      .leftJoin('ac.child', 'child')
+      .leftJoin('child.club', 'club')
+      .where('club.isActive = :clubActive', { clubActive: true })
+      .andWhere('child.isActive = :isActive', { isActive: true })
+      .andWhere('ac.createdAt < :date', { date })
+      .getCount();
+
+    return count;
   }
 }

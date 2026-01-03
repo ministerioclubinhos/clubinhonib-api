@@ -5,6 +5,8 @@ import { StatisticsService } from './statistics.service';
 import { StatisticsRepository } from './statistics.repository';
 import { StatisticsFiltersService } from './services/statistics-filters.service';
 import { StatisticsCalculationsService } from './services/statistics-calculations.service';
+import { StatisticsPeriodService } from './services/statistics-period.service';
+import { AcademicWeekService } from '../club-control/services/academic-week.service';
 
 import { PagelaEntity } from '../pagelas/entities/pagela.entity';
 import { AcceptedChristEntity } from '../accepted-christs/entities/accepted-christ.entity';
@@ -32,6 +34,8 @@ import { ClubExceptionEntity } from '../club-control/entities/club-exception.ent
     StatisticsRepository,
     StatisticsFiltersService,
     StatisticsCalculationsService,
+    StatisticsPeriodService,
+    AcademicWeekService,
   ],
   exports: [StatisticsService, StatisticsRepository],
 })
