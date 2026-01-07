@@ -1,8 +1,7 @@
-name: Build Staging Clubinho API
+name: CI
 
 on:
   pull_request:
-    branches: [ "staging" ]
 
 jobs:
   build:
@@ -19,6 +18,12 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Run lint check
+        run: npm run lint:check
+
+      - name: Run prettier check
+        run: npm run format:check
+
       - name: Run tests
         run: npm test
 
@@ -28,3 +33,4 @@ jobs:
         with:
           name: test-results
           path: test-results
+
