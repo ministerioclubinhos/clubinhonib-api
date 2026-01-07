@@ -1,9 +1,4 @@
-/**
- * Orquestrador único: roda todas as automações na sequência.
- *
- * Para executar:
- * node scripts/run-all-testes.js
- */
+
 const { runAll } = require('./automations/run-all');
 
 runAll().catch((err) => {

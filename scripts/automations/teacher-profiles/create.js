@@ -2,7 +2,7 @@ const { randomName, randomEmail, randomPhone } = require('../common/random');
 const { sleep } = require('../common/sleep');
 
 async function run({ http, logger }) {
-  // Criação de teacher-profile acontece via /users (role=teacher)
+  
   const userDto = {
     name: randomName(),
     email: randomEmail('teacher'),
@@ -17,7 +17,7 @@ async function run({ http, logger }) {
   const userRes = await http.request('post', '/users', { data: userDto });
   await sleep(600);
 
-  // apenas smoke: garantir que aparece na listagem
+  
   const page = await http.request('get', '/teacher-profiles', { params: { page: 1, limit: 2000 } });
   const items = page.data?.items || page.data?.data || page.data || [];
   const found = items.find((t) => t.user?.id === userRes.data?.id);

@@ -21,7 +21,7 @@ async function run({ http, logger }) {
     return { created: true };
   } catch (e) {
     const status = e.response?.status;
-    // 409/400 pode ser duplicado/regras
+    
     logger.warn(`[accepted-christs/create] falhou status=${status ?? 'n/a'}: ${e.response?.data?.message || e.message}`);
     return { created: false };
   }

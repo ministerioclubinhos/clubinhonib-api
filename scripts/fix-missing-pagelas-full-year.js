@@ -1,9 +1,4 @@
-/**
- * Completa pagelas faltantes para TODAS as crianças no ano letivo inteiro.
- *
- * Uso (background recomendado):
- * ACADEMIC_YEAR=2025 node scripts/fix-missing-pagelas-full-year.js
- */
+
 const { createHttpClient } = require('./automations/common/http');
 const { createLogger } = require('./automations/logger');
 const { run } = require('./automations/pagelas/list-fix');

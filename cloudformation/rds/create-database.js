@@ -1,14 +1,11 @@
-/**
- * Script para criar banco de dados no RDS
- * Uso: node create-database.js [nome-do-banco]
- */
+
 
 const mysql = require('mysql2/promise');
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-// Cores para output
+
 const colors = {
     reset: '\x1b[0m',
     green: '\x1b[32m',
@@ -39,7 +36,7 @@ async function getStackOutputs(stackName) {
             { encoding: 'utf-8' }
         ).trim();
 
-        // Obter senha do arquivo params.json (na mesma pasta)
+        
         const paramsFile = path.join(__dirname, 'params.json');
         const params = JSON.parse(fs.readFileSync(paramsFile, 'utf-8'));
         const password = params.find(p => p.ParameterKey === 'DBPassword')?.ParameterValue;
@@ -67,7 +64,7 @@ async function createDatabase(config, dbName) {
     try {
         log('🔌 Conectando ao RDS...', 'yellow');
 
-        // Conectar sem especificar database (conecta ao mysql padrão)
+        
         connection = await mysql.createConnection({
             host: config.endpoint,
             port: parseInt(config.port),
@@ -80,7 +77,7 @@ async function createDatabase(config, dbName) {
         log('✅ Conectado com sucesso!', 'green');
         log('');
 
-        // Verificar se o banco já existe
+        
         log('🔍 Verificando se o banco já existe...', 'yellow');
         const [existingDbs] = await connection.execute(
             `SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = ?`,
@@ -93,14 +90,14 @@ async function createDatabase(config, dbName) {
             return true;
         }
 
-        // Criar banco de dados
+        
         log(`📝 Criando banco de dados '${dbName}'...`, 'yellow');
         await connection.execute(`CREATE DATABASE \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
         
         log(`✅ Banco de dados '${dbName}' criado com sucesso!`, 'green');
         log('');
 
-        // Verificar criação
+        
         log('🔍 Verificando criação...', 'yellow');
         const [dbs] = await connection.execute(
             `SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = ?`,

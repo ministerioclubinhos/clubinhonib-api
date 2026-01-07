@@ -4,7 +4,7 @@ async function run({ http, logger }) {
   const items = Array.isArray(res.data) ? res.data : [];
   logger.info(`[informatives/list-fix] OK total=${items.length}`);
 
-  // Fix: garantir public=true no primeiro item
+  
   if (items[0]?.id) {
     const it = items[0];
     if (it.public !== true) {

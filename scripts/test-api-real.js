@@ -1,10 +1,4 @@
-/**
- * Testes E2E que rodam contra a API real em localhost:3000
- * 
- * Para executar:
- * 1. Certifique-se de que a API está rodando em localhost:3000
- * 2. Execute: node scripts/test-api-real.js
- */
+
 const axios = require('axios');
 
 const API_BASE_URL = 'http://localhost:3000';
@@ -13,7 +7,7 @@ const SUPERUSER_PASSWORD = 'Abc@123';
 
 let authToken = '';
 
-// Helper para fazer login
+
 async function login() {
   try {
     const response = await axios.post(`${API_BASE_URL}/auth/login`, {
@@ -26,7 +20,7 @@ async function login() {
   }
 }
 
-// Helper para fazer requisições autenticadas
+
 async function authenticatedRequest(method, path, data = null) {
   const config = {
     method,
@@ -45,12 +39,12 @@ async function authenticatedRequest(method, path, data = null) {
   return axios(config);
 }
 
-// Função para testar AcceptedChrist
+
 async function testAcceptedChrist() {
   console.log('\n🧪 Testando AcceptedChristController...');
   
   try {
-    // Buscar uma criança
+    
     const childrenResponse = await authenticatedRequest('get', '/children/simple');
     const children = childrenResponse.data;
     
@@ -61,7 +55,7 @@ async function testAcceptedChrist() {
     
     const childId = children[0].id;
     
-    // Criar accepted christ
+    
     const response = await axios.post(`${API_BASE_URL}/accepted-christs`, {
       childId: childId,
       decision: 'ACCEPTED',
@@ -78,12 +72,12 @@ async function testAcceptedChrist() {
   }
 }
 
-// Função para testar Children
+
 async function testChildren() {
   console.log('\n🧪 Testando ChildrenController...');
   
   try {
-    // Buscar clubes
+    
     const clubsResponse = await authenticatedRequest('get', '/clubs/all');
     const clubs = clubsResponse.data;
     
@@ -94,7 +88,7 @@ async function testChildren() {
     
     const clubId = clubs[0].id;
     
-    // Criar criança
+    
     const createResponse = await authenticatedRequest('post', '/children', {
       name: 'João Silva Teste',
       birthDate: '2015-05-15',
@@ -109,13 +103,13 @@ async function testChildren() {
       console.log('  ✅ Criança criada com sucesso');
       const childId = createResponse.data.id;
       
-      // Listar crianças
+      
       const listResponse = await authenticatedRequest('get', '/children', { page: 1, limit: 10 });
       if (listResponse.status === 200 && Array.isArray(listResponse.data.data)) {
         console.log('  ✅ Listagem de crianças funcionando');
       }
       
-      // Limpar
+      
       await authenticatedRequest('delete', `/children/${childId}`);
     } else {
       console.log('  ❌ Falha ao criar criança');
@@ -125,18 +119,18 @@ async function testChildren() {
   }
 }
 
-// Função para testar Clubs
+
 async function testClubs() {
   console.log('\n🧪 Testando ClubsController...');
   
   try {
-    // Listar clubes
+    
     const listResponse = await authenticatedRequest('get', '/clubs', { page: 1, limit: 10 });
     if (listResponse.status === 200 && listResponse.data.data) {
       console.log('  ✅ Listagem de clubes funcionando');
     }
     
-    // Criar clube
+    
     const createResponse = await authenticatedRequest('post', '/clubs', {
       number: 999,
       weekday: 'monday',
@@ -156,7 +150,7 @@ async function testClubs() {
       console.log('  ✅ Clube criado com sucesso');
       const clubId = createResponse.data.id;
       
-      // Limpar
+      
       await authenticatedRequest('delete', `/clubs/${clubId}`);
     } else {
       console.log('  ❌ Falha ao criar clube');
@@ -166,12 +160,12 @@ async function testClubs() {
   }
 }
 
-// Função para testar Users
+
 async function testUsers() {
   console.log('\n🧪 Testando UserController...');
   
   try {
-    // Criar usuário
+    
     const createResponse = await authenticatedRequest('post', '/users', {
       name: 'Usuário Teste',
       email: `teste.${Date.now()}@example.com`,
@@ -185,13 +179,13 @@ async function testUsers() {
       console.log('  ✅ Usuário criado com sucesso');
       const userId = createResponse.data.id;
       
-      // Listar usuários
+      
       const listResponse = await authenticatedRequest('get', '/users', { page: 1, limit: 10 });
       if (listResponse.status === 200) {
         console.log('  ✅ Listagem de usuários funcionando');
       }
       
-      // Limpar
+      
       await authenticatedRequest('delete', `/users/${userId}`);
     } else {
       console.log('  ❌ Falha ao criar usuário');
@@ -201,12 +195,12 @@ async function testUsers() {
   }
 }
 
-// Função para testar Pagelas
+
 async function testPagelas() {
   console.log('\n🧪 Testando PagelasController...');
   
   try {
-    // Buscar uma criança
+    
     const childrenResponse = await authenticatedRequest('get', '/children/simple');
     const children = childrenResponse.data;
     
@@ -217,7 +211,7 @@ async function testPagelas() {
     
     const childId = children[0].id;
     
-    // Criar pagela
+    
     const createResponse = await authenticatedRequest('post', '/pagelas', {
       childId: childId,
       referenceDate: '2025-01-15',
@@ -232,13 +226,13 @@ async function testPagelas() {
       console.log('  ✅ Pagela criada com sucesso');
       const pagelaId = createResponse.data.id;
       
-      // Listar pagelas
+      
       const listResponse = await authenticatedRequest('get', '/pagelas');
       if (listResponse.status === 200 && Array.isArray(listResponse.data)) {
         console.log('  ✅ Listagem de pagelas funcionando');
       }
       
-      // Limpar
+      
       await authenticatedRequest('delete', `/pagelas/${pagelaId}`);
     } else {
       console.log('  ❌ Falha ao criar pagela');
@@ -248,11 +242,11 @@ async function testPagelas() {
   }
 }
 
-// Função principal
+
 async function runTests() {
   console.log('🚀 Iniciando testes E2E contra API real...\n');
   
-  // Verificar se a API está rodando
+  
   try {
     await axios.get(`${API_BASE_URL}/`);
   } catch (error) {
@@ -262,7 +256,7 @@ async function runTests() {
     }
   }
   
-  // Fazer login
+  
   try {
     authToken = await login();
     console.log('✅ Login realizado com sucesso\n');
@@ -271,7 +265,7 @@ async function runTests() {
     process.exit(1);
   }
   
-  // Executar testes
+  
   await testAcceptedChrist();
   await testChildren();
   await testClubs();
@@ -281,7 +275,7 @@ async function runTests() {
   console.log('\n✅ Todos os testes concluídos!');
 }
 
-// Executar
+
 runTests().catch(error => {
   console.error('\n❌ Erro fatal:', error.message);
   process.exit(1);

@@ -1,7 +1,7 @@
 const { ACADEMIC_YEAR } = require('../common/config');
 
 async function ensureAcademicPeriod({ http, year = ACADEMIC_YEAR }) {
-  // GET pode retornar null com 200 OK quando não existe período ativo
+  
   let period = null;
   try {
     const res = await http.request('get', `/club-control/periods/${year}`);
@@ -14,7 +14,7 @@ async function ensureAcademicPeriod({ http, year = ACADEMIC_YEAR }) {
     return period;
   }
 
-  // cria (ou reativa) período
+  
   const createRes = await http.request('post', '/club-control/periods', {
     data: {
       year,

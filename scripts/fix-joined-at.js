@@ -1,9 +1,4 @@
-/**
- * Script para atualizar todas as crianças sem "No clubinho desde" (joinedAt)
- * 
- * Para executar:
- * node scripts/fix-joined-at.js
- */
+
 
 const axios = require('axios');
 
@@ -13,7 +8,7 @@ const SUPERUSER_PASSWORD = 'Abc@123';
 
 let authToken = '';
 
-// Gerar data aleatória de entrada no clubinho (entre 2020-01-01 e hoje)
+
 function randomJoinedAt() {
   const startDate = new Date('2020-01-01');
   const endDate = new Date();
@@ -66,7 +61,7 @@ async function updateChildrenWithoutJoinedAt() {
   let totalChecked = 0;
   let totalPages = 1;
   
-  // Primeiro, buscar para saber quantas páginas temos
+  
   try {
     const firstResponse = await authenticatedRequest('get', '/children', { page: 1, limit });
     totalPages = firstResponse.data.meta?.totalPages || 1;
@@ -76,7 +71,7 @@ async function updateChildrenWithoutJoinedAt() {
     return;
   }
   
-  // Processar todas as páginas
+  
   while (page <= totalPages) {
     try {
       console.log(`📄 Processando página ${page}/${totalPages}...`);
@@ -93,7 +88,7 @@ async function updateChildrenWithoutJoinedAt() {
       for (const child of children) {
         totalChecked++;
         
-        // Verificar se não tem joinedAt ou se está null/undefined
+        
         if (!child.joinedAt || child.joinedAt === null || child.joinedAt === 'null') {
           try {
             const joinedAt = randomJoinedAt();
@@ -120,7 +115,7 @@ async function updateChildrenWithoutJoinedAt() {
       
       page++;
       
-      // Pequeno delay para não sobrecarregar a API
+      
       if (page <= totalPages) {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
@@ -146,7 +141,7 @@ async function main() {
   console.log('🚀 ATUALIZAÇÃO DE "NO CLUBINHO DESDE"');
   console.log('🚀 ============================================\n');
   
-  // Verificar se a API está rodando
+  
   try {
     await axios.get(`${API_BASE_URL}/`);
   } catch (error) {
@@ -156,14 +151,14 @@ async function main() {
     }
   }
   
-  // Login
+  
   await login();
   
-  // Atualizar crianças
+  
   await updateChildrenWithoutJoinedAt();
 }
 
-// Executar
+
 main().catch(error => {
   console.error('\n❌ Erro fatal:', error.message);
   console.error(error.stack);

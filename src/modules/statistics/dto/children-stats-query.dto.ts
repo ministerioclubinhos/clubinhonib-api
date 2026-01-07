@@ -4,12 +4,12 @@ import { Transform } from 'class-transformer';
 import { PeriodShortcut } from './period-filter.dto';
 
 export class ChildrenStatsQueryDto {
-  // ⭐ NOVO: Atalho rápido de período
+  
   @IsOptional()
   @IsEnum(PeriodShortcut)
-  period?: PeriodShortcut; // 'today' | 'this_week' | 'this_month' | 'last_7_days' | 'last_30_days' | 'this_year' | 'custom'
+  period?: PeriodShortcut; 
 
-  // Time filters (for pagelas period)
+  
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -19,13 +19,13 @@ export class ChildrenStatsQueryDto {
 
   @IsOptional()
   @IsString()
-  startDate?: string; // YYYY-MM-DD
+  startDate?: string; 
 
   @IsOptional()
   @IsString()
-  endDate?: string; // YYYY-MM-DD
+  endDate?: string; 
 
-  // Entity filters
+  
   @IsOptional()
   @IsString()
   clubId?: string;
@@ -38,10 +38,10 @@ export class ChildrenStatsQueryDto {
   @IsString()
   coordinatorId?: string;
 
-  // Child demographic filters
+  
   @IsOptional()
   @IsString()
-  gender?: string; // 'M' | 'F'
+  gender?: string; 
 
   @IsOptional()
   @Type(() => Number)
@@ -59,9 +59,9 @@ export class ChildrenStatsQueryDto {
 
   @IsOptional()
   @IsString()
-  ageGroup?: string; // "0-5", "6-10", "11-15", "16+"
+  ageGroup?: string; 
 
-  // Geographic filters
+  
   @IsOptional()
   @IsString()
   city?: string;
@@ -74,60 +74,60 @@ export class ChildrenStatsQueryDto {
   @IsString()
   district?: string;
 
-  // Participation filters
+  
   @IsOptional()
   @IsString()
-  joinedAfter?: string; // YYYY-MM-DD
+  joinedAfter?: string; 
 
   @IsOptional()
   @IsString()
-  joinedBefore?: string; // YYYY-MM-DD
+  joinedBefore?: string; 
 
-  // Activity filters
+  
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
-  minPagelas?: number; // Mínimo de pagelas
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
-  @Max(100)
-  minPresenceRate?: number; // Taxa mínima de presença
+  minPagelas?: number; 
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
   @Max(100)
-  minEngagementScore?: number; // Score mínimo de engajamento
+  minPresenceRate?: number; 
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  minEngagementScore?: number; 
 
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
-  hasDecision?: boolean; // Tem decisão?
+  hasDecision?: boolean; 
 
   @IsOptional()
   @IsString()
-  decisionType?: string; // "ACCEPTED" | "RECONCILED"
+  decisionType?: string; 
 
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
-  isActive?: boolean; // Teve pagela nos últimos 30 dias
+  isActive?: boolean; 
 
-  // Sorting
+  
   @IsOptional()
   @IsString()
-  sortBy?: string; // "name" | "age" | "engagementScore" | "totalPagelas" | "presenceRate" | "joinedAt" | "lastPagelaDate"
+  sortBy?: string; 
 
   @IsOptional()
   @IsString()
   sortOrder?: 'ASC' | 'DESC';
 
-  // Pagination
+  
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -141,39 +141,39 @@ export class ChildrenStatsQueryDto {
   @Max(100)
   limit?: number;
 
-  // ⭐ NOVO: Filtros avançados combinados
+  
   @IsOptional()
   @IsString()
-  search?: string; // Busca por nome da criança
+  search?: string; 
 
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
-  hasLowEngagement?: boolean; // Crianças com engajamento < 50%
+  hasLowEngagement?: boolean; 
 
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
-  isNewcomer?: boolean; // Crianças que entraram nos últimos 3 meses
+  isNewcomer?: boolean; 
 
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
-  isVeteran?: boolean; // Crianças com mais de 1 ano de participação
+  isVeteran?: boolean; 
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
   @Max(100)
-  maxEngagementScore?: number; // Score máximo de engajamento (para encontrar crianças em risco)
+  maxEngagementScore?: number; 
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
   @Max(100)
-  maxPresenceRate?: number; // Taxa máxima de presença (para encontrar crianças faltosas)
+  maxPresenceRate?: number; 
 }
 
 

@@ -1,13 +1,13 @@
 const { API_BASE_URL } = require('./config');
 
 function toBlob(content, contentType = 'application/octet-stream') {
-  // content can be string | Buffer | Uint8Array
+  
   const bytes = Buffer.isBuffer(content) ? content : Buffer.from(String(content));
   return new Blob([bytes], { type: contentType });
 }
 
 async function multipartRequest({ http, method, path, fields = {}, files = {} }) {
-  // Uses global fetch/FormData (Node 18+)
+  
   const url = `${API_BASE_URL}${path}`;
   const token = http.getToken?.() || '';
 

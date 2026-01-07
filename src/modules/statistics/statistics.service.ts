@@ -134,7 +134,7 @@ export class StatisticsService {
     const now = new Date();
     const currentYear = now.getFullYear();
 
-    // Get current week from the academic period, not Gregorian calendar
+    
     const currentAcademicWeek = await this.academicWeekService.calculateCurrentAcademicWeek();
     const currentWeek = currentAcademicWeek?.academicWeek || 1;
 
@@ -147,7 +147,7 @@ export class StatisticsService {
     const startOfWeekStr = startOfWeek.toISOString().split('T')[0];
 
     const sixWeeksAgo = new Date(now);
-    sixWeeksAgo.setDate(now.getDate() - 42); // 6 weeks = 42 days
+    sixWeeksAgo.setDate(now.getDate() - 42); 
     const sixWeeksAgoStr = sixWeeksAgo.toISOString().split('T')[0];
 
     const sixMonthsAgo = new Date(now);
@@ -233,7 +233,7 @@ export class StatisticsService {
       this.statisticsRepository.getGeographicDistribution(),
     ]);
 
-    // Calcular taxa de crescimento
+    
     const threeMonthsAgoChildCount = await this.statisticsRepository.getChildrenCountAt(threeMonthsAgoStr);
     const childrenGrowthRate = threeMonthsAgoChildCount > 0
       ? ((totalCounts.totalChildren - threeMonthsAgoChildCount) / threeMonthsAgoChildCount) * 100
@@ -284,7 +284,7 @@ export class StatisticsService {
           total: period.totalDecisions,
         })),
       },
-      // ⭐ NOVO: Métricas de engajamento
+      
       engagement: {
         avgEngagementScore: childrenEngagementMetrics.avgEngagementScore,
         topPerformingClubs: topPerformingClubs.slice(0, 5).map(club => ({
@@ -304,7 +304,7 @@ export class StatisticsService {
           last30Days: pagelasLast30Days.totalPagelas,
         },
       },
-      // ⭐ NOVO: Indicadores e alertas
+      
       indicators: {
         clubsWithLowAttendance: clubsPerformanceMetrics.clubsWithLowAttendance,
         childrenWithLowEngagement: childrenEngagementMetrics.childrenWithLowEngagement,
@@ -314,7 +314,7 @@ export class StatisticsService {
           decisions: Math.round(decisionsGrowthRate * 10) / 10,
         },
       },
-      // ⭐ NOVO: Estatísticas rápidas
+      
       quickStats: {
         childrenByGender: genderDistribution,
         clubsByState: geographicDistribution.byState.slice(0, 10),
@@ -432,7 +432,7 @@ export class StatisticsService {
   }
 
   async getChildrenStats(filters: ChildrenStatsQueryDto): Promise<ChildrenStatsResponseDto> {
-    // ⭐ Aplicar filtro de período se especificado
+    
     const processedFilters = this.periodService.applyPeriodFilter(filters);
 
     const [childrenData, distribution] = await Promise.all([
@@ -574,7 +574,7 @@ export class StatisticsService {
 
 
   async getClubsStats(filters: ClubsStatsQueryDto): Promise<ClubsStatsResponseDto> {
-    // ⭐ Aplicar filtro de período se especificado
+    
     const processedFilters = this.periodService.applyPeriodFilter(filters);
 
     const clubsData = await this.statisticsRepository.getClubsWithStats(processedFilters);
@@ -648,7 +648,7 @@ export class StatisticsService {
             M: children.M,
             F: children.F,
           },
-          avgAge: 0, // TODO: Calculate
+          avgAge: 0, 
           withDecisions: decisions ? parseInt(decisions.childrenWithDecisions) : 0,
         },
         teachers: {
@@ -686,17 +686,17 @@ export class StatisticsService {
     ]);
 
     clubsWithStats.forEach((club) => {
-      // City
+      
       const cityKey = club.address.city;
       if (!byCity.has(cityKey)) {
         byCity.set(cityKey, { state: club.address.state, count: 0 });
       }
       byCity.get(cityKey).count++;
 
-      // Weekday
+      
       byWeekday.set(club.weekday, (byWeekday.get(club.weekday) || 0) + 1);
 
-      // Coordinator
+      
       if (club.coordinator) {
         const coordKey = club.coordinator.id;
         if (!byCoordinator.has(coordKey)) {
@@ -705,7 +705,7 @@ export class StatisticsService {
         byCoordinator.get(coordKey).count++;
       }
 
-      // Performance range
+      
       const score = club.performance.performanceScore;
       if (score < 50) byPerformance.set('0-50', (byPerformance.get('0-50') || 0) + 1);
       else if (score < 70) byPerformance.set('50-70', (byPerformance.get('50-70') || 0) + 1);
@@ -775,7 +775,7 @@ export class StatisticsService {
   }
 
   async getTeachersStats(filters: TeachersStatsQueryDto): Promise<TeachersStatsResponseDto> {
-    // ⭐ Aplicar filtro de período se especificado
+    
     const processedFilters = this.periodService.applyPeriodFilter(filters);
 
     const teachersData = await this.statisticsRepository.getTeachersWithStats(processedFilters);
@@ -827,9 +827,9 @@ export class StatisticsService {
         children: {
           total: uniqueChildren,
           unique: uniqueChildren,
-          active: 0, // TODO: Calculate active children
+          active: 0, 
           withDecisions: childrenWithDecisions,
-          avgEngagement: 0, // TODO: Calculate
+          avgEngagement: 0, 
         },
         performance: {
           totalPagelas,
@@ -857,7 +857,7 @@ export class StatisticsService {
     ]);
 
     teachersWithStats.forEach((teacher) => {
-      // Club
+      
       if (teacher.club) {
         const clubKey = teacher.club.id;
         if (!byClub.has(clubKey)) {
@@ -865,7 +865,7 @@ export class StatisticsService {
         }
         byClub.get(clubKey).count++;
 
-        // City
+        
         const cityKey = teacher.club.city;
         if (!byCity.has(cityKey)) {
           byCity.set(cityKey, { state: teacher.club.state, count: 0 });
@@ -873,7 +873,7 @@ export class StatisticsService {
         byCity.get(cityKey).count++;
       }
 
-      // Effectiveness range
+      
       const score = teacher.performance.effectivenessScore;
       if (score < 50) byEffectiveness.set('0-50', (byEffectiveness.get('0-50') || 0) + 1);
       else if (score < 70) byEffectiveness.set('50-70', (byEffectiveness.get('50-70') || 0) + 1);

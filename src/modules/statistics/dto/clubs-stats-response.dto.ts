@@ -1,11 +1,11 @@
 export class ClubStatsItemDto {
-  // Club info
+  
   clubId: string;
   clubNumber: number;
   weekday: string;
   time?: string | null;
 
-  // Address
+  
   address: {
     city: string;
     state: string;
@@ -13,16 +13,16 @@ export class ClubStatsItemDto {
     street: string;
   };
 
-  // Coordinator
+  
   coordinator?: {
     id: string;
     name: string;
   } | null;
 
-  // Children stats
+  
   children: {
     total: number;
-    active: number; // Últimos 30 dias
+    active: number; 
     byGender: {
       M: number;
       F: number;
@@ -31,7 +31,7 @@ export class ClubStatsItemDto {
     withDecisions: number;
   };
 
-  // Teachers stats
+  
   teachers: {
     total: number;
     active: number;
@@ -41,23 +41,23 @@ export class ClubStatsItemDto {
     }[];
   };
 
-  // Performance stats
+  
   performance: {
     totalPagelas: number;
     presenceRate: number;
     meditationRate: number;
     verseRecitationRate: number;
-    performanceScore: number; // 0-100
+    performanceScore: number; 
     totalDecisions: number;
   };
 
-  // Activity
+  
   lastActivity?: {
     date: string;
     type: string;
   } | null;
 
-  // Ranking
+  
   rank?: number;
 }
 
@@ -96,7 +96,7 @@ export class ClubsStatsResponseDto {
       percentage: number;
     }[];
     byPerformance: {
-      range: string; // "0-50", "50-70", "70-85", "85-100"
+      range: string; 
       count: number;
       percentage: number;
     }[];
@@ -113,7 +113,7 @@ export class ClubsStatsResponseDto {
     hasPrevious: boolean;
   };
 
-  // ⭐ NOVO: Informações sobre clubinhos e crianças desativadas
+  
   inactiveClubs: {
     total: number;
     list: {

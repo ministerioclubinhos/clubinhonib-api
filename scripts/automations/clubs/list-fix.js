@@ -19,7 +19,7 @@ async function ensureCoordinatorForClub({ http, logger, clubId, clubNumber }) {
   const coordinator = details.data?.coordinator;
   if (coordinator?.id) return { ensured: true, created: false };
 
-  // criar user coordinator
+  
   const userRes = await http.request('post', '/users', {
     data: {
       name: randomName(),

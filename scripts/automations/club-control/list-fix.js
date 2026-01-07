@@ -10,7 +10,7 @@ async function run({ http, logger }) {
   }
   logger.info(`[club-control/list-fix] OK período: ${period.startDate} -> ${period.endDate}`);
 
-  // Listar periods (paginado: {items,total})
+  
   try {
     const periods = await fetchAllPages(http.request, 'get', '/club-control/periods', {}, { limit: 50, maxPages: 20 });
     logger.info(`[club-control/list-fix] periods (all pages) total=${periods.length}`);
@@ -18,7 +18,7 @@ async function run({ http, logger }) {
     logger.warn(`[club-control/list-fix] erro ao listar periods: ${e.response?.data?.message || e.message}`);
   }
 
-  // Listar exceptions (paginado: {items,total})
+  
   try {
     const exceptions = await fetchAllPages(
       http.request,
@@ -32,7 +32,7 @@ async function run({ http, logger }) {
     logger.warn(`[club-control/list-fix] erro ao listar exceptions: ${e.response?.data?.message || e.message}`);
   }
 
-  // Smokes úteis (não paginados)
+  
   try {
     await http.request('get', '/club-control/current-week');
     logger.info('[club-control/list-fix] OK /club-control/current-week');

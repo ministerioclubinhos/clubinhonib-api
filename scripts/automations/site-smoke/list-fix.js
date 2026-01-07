@@ -3,7 +3,7 @@ const { fetchAllPages } = require('../common/pagination');
 async function run({ http, logger }) {
   logger.info('[site-smoke/list-fix] smoke GETs de controllers de conteúdo/site...');
 
-  // events
+  
   try {
     const events = await http.request('get', '/events');
     logger.info(`[site-smoke] OK /events total=${Array.isArray(events.data) ? events.data.length : 0}`);
@@ -17,7 +17,7 @@ async function run({ http, logger }) {
     logger.warn(`[site-smoke] /events/upcoming falhou: ${e.response?.data?.message || e.message}`);
   }
 
-  // ideas pages/sections
+  
   try {
     const pages = await http.request('get', '/ideas-pages');
     const arr = Array.isArray(pages.data) ? pages.data : [];
@@ -36,7 +36,7 @@ async function run({ http, logger }) {
     logger.warn(`[site-smoke] /ideas-sections falhou: ${e.response?.data?.message || e.message}`);
   }
 
-  // image pages/sections
+  
   try {
     const imgPages = await http.request('get', '/image-pages');
     const arr = Array.isArray(imgPages.data) ? imgPages.data : [];
@@ -44,7 +44,7 @@ async function run({ http, logger }) {
     if (arr[0]?.id) {
       await http.request('get', `/image-pages/${arr[0].id}`);
 
-      // sections paginated — percorrer todas páginas
+      
       const sections = await fetchAllPages(
         http.request,
         'get',
@@ -67,7 +67,7 @@ async function run({ http, logger }) {
     logger.warn(`[site-smoke] /image-sections falhou: ${e.response?.data?.message || e.message}`);
   }
 
-  // video pages
+  
   try {
     const vids = await http.request('get', '/video-pages');
     const arr = Array.isArray(vids.data) ? vids.data : [];
@@ -77,7 +77,7 @@ async function run({ http, logger }) {
     logger.warn(`[site-smoke] /video-pages falhou: ${e.response?.data?.message || e.message}`);
   }
 
-  // week material pages
+  
   try {
     const w = await http.request('get', '/week-material-pages');
     const arr = Array.isArray(w.data) ? w.data : [];
@@ -92,7 +92,7 @@ async function run({ http, logger }) {
     logger.warn(`[site-smoke] /week-material-pages/current-week falhou: ${e.response?.data?.message || e.message}`);
   }
 
-  // meditations / informatives
+  
   try {
     const m = await http.request('get', '/meditations');
     const arr = Array.isArray(m.data) ? m.data : [];
@@ -115,7 +115,7 @@ async function run({ http, logger }) {
     logger.warn(`[site-smoke] /informatives falhou: ${e.response?.data?.message || e.message}`);
   }
 
-  // documents
+  
   try {
     const docs = await http.request('get', '/documents');
     const arr = Array.isArray(docs.data) ? docs.data : [];
@@ -125,7 +125,7 @@ async function run({ http, logger }) {
     logger.warn(`[site-smoke] /documents falhou: ${e.response?.data?.message || e.message}`);
   }
 
-  // comments (public)
+  
   try {
     const published = await http.request('get', '/comments/published');
     const arr = Array.isArray(published.data) ? published.data : [];
@@ -134,7 +134,7 @@ async function run({ http, logger }) {
     logger.warn(`[site-smoke] /comments/published falhou: ${e.response?.data?.message || e.message}`);
   }
 
-  // app root
+  
   try {
     await http.request('get', '/');
     logger.info('[site-smoke] OK GET /');

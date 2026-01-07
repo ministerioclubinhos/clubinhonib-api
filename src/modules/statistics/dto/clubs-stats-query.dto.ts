@@ -3,12 +3,12 @@ import { Type } from 'class-transformer';
 import { PeriodShortcut } from './period-filter.dto';
 
 export class ClubsStatsQueryDto {
-  // ⭐ NOVO: Atalho rápido de período
+  
   @IsOptional()
   @IsEnum(PeriodShortcut)
-  period?: PeriodShortcut; // 'today' | 'this_week' | 'this_month' | 'last_7_days' | 'last_30_days' | 'this_year' | 'custom'
+  period?: PeriodShortcut; 
 
-  // Time filters (for pagelas period)
+  
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -18,22 +18,22 @@ export class ClubsStatsQueryDto {
 
   @IsOptional()
   @IsString()
-  startDate?: string; // YYYY-MM-DD
+  startDate?: string; 
 
   @IsOptional()
   @IsString()
-  endDate?: string; // YYYY-MM-DD
+  endDate?: string; 
 
-  // Entity filters
+  
   @IsOptional()
   @IsString()
   coordinatorId?: string;
 
   @IsOptional()
   @IsString()
-  weekday?: string; // MONDAY, TUESDAY, etc.
+  weekday?: string; 
 
-  // Geographic filters
+  
   @IsOptional()
   @IsString()
   city?: string;
@@ -46,7 +46,7 @@ export class ClubsStatsQueryDto {
   @IsString()
   district?: string;
 
-  // Performance filters
+  
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -67,16 +67,16 @@ export class ClubsStatsQueryDto {
   @Max(100)
   minPerformanceScore?: number;
 
-  // Sorting
+  
   @IsOptional()
   @IsString()
-  sortBy?: string; // "number" | "performanceScore" | "totalChildren" | "presenceRate" | "meditationRate" | "totalDecisions"
+  sortBy?: string; 
 
   @IsOptional()
   @IsString()
   sortOrder?: 'ASC' | 'DESC';
 
-  // Pagination
+  
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -90,38 +90,38 @@ export class ClubsStatsQueryDto {
   @Max(100)
   limit?: number;
 
-  // ⭐ NOVO: Filtros avançados combinados
+  
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
-  maxChildren?: number; // Máximo de crianças (clubes pequenos)
+  maxChildren?: number; 
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
   @Max(100)
-  maxPresenceRate?: number; // Taxa máxima de presença (identificar clubes com problemas)
+  maxPresenceRate?: number; 
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
   @Max(100)
-  maxPerformanceScore?: number; // Score máximo (identificar clubes de baixa performance)
+  maxPerformanceScore?: number; 
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
-  minDecisions?: number; // Mínimo de decisões alcançadas
+  minDecisions?: number; 
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
-  minTeachers?: number; // Mínimo de professores no clube
+  minTeachers?: number; 
 }
 
 

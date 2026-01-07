@@ -1,4 +1,4 @@
-// ============= GENERIC CHART DATA STRUCTURES =============
+
 
 export interface ChartDataPoint {
   label: string;
@@ -20,10 +20,10 @@ export interface MultiSeriesDataPoint {
   };
 }
 
-// ============= PAGELAS CHART DATA =============
+
 
 export class PagelasChartDataDto {
-  // Time series data (for line/area charts)
+  
   timeSeries?: {
     presence: TimeSeriesDataPoint[];
     meditation: TimeSeriesDataPoint[];
@@ -31,7 +31,7 @@ export class PagelasChartDataDto {
     total: TimeSeriesDataPoint[];
   };
 
-  // By gender (for pie/bar charts)
+  
   byGender?: {
     gender: string;
     total: number;
@@ -40,16 +40,16 @@ export class PagelasChartDataDto {
     verseRecitationRate: number;
   }[];
 
-  // By age group (for bar charts)
+  
   byAgeGroup?: {
-    ageGroup: string; // "0-5", "6-10", "11-15", "16+"
+    ageGroup: string; 
     total: number;
     presenceRate: number;
     meditationRate: number;
     verseRecitationRate: number;
   }[];
 
-  // By club (for comparison charts)
+  
   byClub?: {
     clubId: string;
     clubNumber: number;
@@ -60,7 +60,7 @@ export class PagelasChartDataDto {
     uniqueChildren: number;
   }[];
 
-  // By teacher (for ranking charts)
+  
   byTeacher?: {
     teacherId: string;
     teacherName: string;
@@ -71,7 +71,7 @@ export class PagelasChartDataDto {
     uniqueChildren: number;
   }[];
 
-  // By city (for geographic visualization)
+  
   byCity?: {
     city: string;
     state: string;
@@ -82,9 +82,9 @@ export class PagelasChartDataDto {
     uniqueChildren: number;
   }[];
 
-  // By participation time (for retention analysis)
+  
   byParticipationTime?: {
-    timeRange: string; // "0-3 meses", "3-6 meses", "6-12 meses", "1+ ano"
+    timeRange: string; 
     total: number;
     presenceRate: number;
     meditationRate: number;
@@ -93,7 +93,7 @@ export class PagelasChartDataDto {
     avgMonthsParticipating: number;
   }[];
 
-  // Heatmap data (week vs activity)
+  
   activityHeatmap?: {
     week: number;
     year: number;
@@ -102,7 +102,7 @@ export class PagelasChartDataDto {
     verse: number;
   }[];
 
-  // Comparison data (current vs previous period)
+  
   comparison?: {
     current: {
       period: string;
@@ -127,13 +127,13 @@ export class PagelasChartDataDto {
   };
 }
 
-// ============= ACCEPTED CHRISTS CHART DATA =============
+
 
 export class AcceptedChristsChartDataDto {
-  // Time series by decision type (for stacked charts)
+  
   timeSeries?: MultiSeriesDataPoint[];
 
-  // By gender (for pie/bar charts)
+  
   byGender?: {
     gender: string;
     total: number;
@@ -141,7 +141,7 @@ export class AcceptedChristsChartDataDto {
     reconciled: number;
   }[];
 
-  // By age group (for bar charts)
+  
   byAgeGroup?: {
     ageGroup: string;
     total: number;
@@ -149,7 +149,7 @@ export class AcceptedChristsChartDataDto {
     reconciled: number;
   }[];
 
-  // By club (for comparison charts)
+  
   byClub?: {
     clubId: string;
     clubNumber: number;
@@ -159,7 +159,7 @@ export class AcceptedChristsChartDataDto {
     uniqueChildren: number;
   }[];
 
-  // By city (for geographic visualization)
+  
   byCity?: {
     city: string;
     state: string;
@@ -169,7 +169,7 @@ export class AcceptedChristsChartDataDto {
     uniqueChildren: number;
   }[];
 
-  // By participation time
+  
   byParticipationTime?: {
     timeRange: string;
     total: number;
@@ -179,7 +179,7 @@ export class AcceptedChristsChartDataDto {
     avgMonthsParticipating: number;
   }[];
 
-  // Funnel data (for conversion analysis)
+  
   conversionFunnel?: {
     totalChildren: number;
     childrenWithPagelas: number;
@@ -189,7 +189,7 @@ export class AcceptedChristsChartDataDto {
     conversionRate: number;
   };
 
-  // Comparison data
+  
   comparison?: {
     current: {
       period: string;
@@ -211,10 +211,10 @@ export class AcceptedChristsChartDataDto {
   };
 }
 
-// ============= COMBINED INSIGHTS =============
+
 
 export class CombinedInsightsDto {
-  // Engagement score per child
+  
   topEngagedChildren?: {
     childId: string;
     childName: string;
@@ -224,14 +224,14 @@ export class CombinedInsightsDto {
     city?: string | null;
     state?: string | null;
     monthsParticipating?: number;
-    engagementScore: number; // 0-100
+    engagementScore: number; 
     totalPagelas: number;
     presenceRate: number;
     hasDecision: boolean;
     decisionType?: string | null;
   }[];
 
-  // Club performance ranking
+  
   clubRankings?: {
     clubId: string;
     clubNumber: number;
@@ -240,10 +240,10 @@ export class CombinedInsightsDto {
     avgPresenceRate: number;
     avgMeditationRate: number;
     totalDecisions: number;
-    performanceScore: number; // 0-100
+    performanceScore: number; 
   }[];
 
-  // Teacher effectiveness
+  
   teacherEffectiveness?: {
     teacherId: string;
     teacherName: string;
@@ -251,10 +251,10 @@ export class CombinedInsightsDto {
     avgPresenceRate: number;
     avgActivityRate: number;
     childrenWithDecisions: number;
-    effectivenessScore: number; // 0-100
+    effectivenessScore: number; 
   }[];
 
-  // Trends and predictions
+  
   trends?: {
     metric: string;
     trend: 'up' | 'down' | 'stable';

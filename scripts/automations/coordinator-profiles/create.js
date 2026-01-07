@@ -2,7 +2,7 @@ const { randomName, randomEmail, randomPhone } = require('../common/random');
 const { sleep } = require('../common/sleep');
 
 async function run({ http, logger }) {
-  // Criação de coordinator-profile acontece via /users (role=coordinator)
+  
   const userDto = {
     name: randomName(),
     email: randomEmail('coordinator'),

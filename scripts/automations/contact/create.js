@@ -16,7 +16,7 @@ async function run({ http, logger }) {
   } catch (e) {
     const status = e.response?.status;
     const msg = e.response?.data?.message || e.message;
-    // Backend costuma persistir e falhar apenas no envio de e-mail (500).
+    
     if (status === 500 && String(msg).toLowerCase().includes('e-mail')) {
       logger.warn(`[contact/create] API retornou 500 no envio de e-mail; validando persistência via GET /contact...`);
       const list = await http.request('get', '/contact');

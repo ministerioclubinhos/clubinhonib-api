@@ -6,13 +6,13 @@ async function run({ http, logger }) {
   const docs = Array.isArray(res.data) ? res.data : [];
   logger.info(`[documents/list-fix] OK total=${docs.length}`);
 
-  // Smoke: buscar um documento e tentar update simples (sem arquivo) se suportar
+  
   if (docs[0]?.id) {
     const id = docs[0].id;
     await http.request('get', `/documents/${id}`);
     logger.info('[documents/list-fix] OK /documents/:id');
 
-    // update via multipart (sem arquivo) — mantém media e muda description se existir
+    
     try {
       const current = docs[0];
       const updateData = {

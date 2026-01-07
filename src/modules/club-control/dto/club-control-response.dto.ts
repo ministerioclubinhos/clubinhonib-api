@@ -1,6 +1,4 @@
-/**
- * Response DTOs para o módulo de controle de clubes
- */
+
 
 export class ClubControlWeeklyCheckDto {
   clubId: string;
@@ -14,9 +12,9 @@ export class ClubControlWeeklyCheckDto {
   };
 
   children: {
-    total: number; // Total de crianças cadastradas no clube
-    withPagela: number; // Crianças que tiveram pagela
-    missing: number; // Crianças SEM pagela
+    total: number; 
+    withPagela: number; 
+    missing: number; 
     missingList: {
       childId: string;
       childName: string;
@@ -51,7 +49,7 @@ export class ClubControlDashboardDto {
     clubsPartial: number;
     clubsMissing: number;
     clubsException: number;
-    overallCompleteness: number; // % de clubes que lançaram todas as pagelas
+    overallCompleteness: number; 
   };
 
   clubs: ClubControlWeeklyCheckDto[];
@@ -80,7 +78,7 @@ export class ClubControlHistoryDto {
     status: string;
     totalChildren: number;
     childrenWithPagela: number;
-    completeness: number; // %
+    completeness: number; 
     alerts: string[];
   }[];
 

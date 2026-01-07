@@ -1,7 +1,7 @@
 const { randomName, randomEmail, randomPhone } = require('../common/random');
 
 async function run({ http, logger }) {
-  // "create" aqui significa validar o fluxo de registro (cria usuário novo pelo /auth/register)
+  
   const dto = {
     name: randomName(),
     email: randomEmail('register'),

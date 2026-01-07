@@ -4,7 +4,7 @@ async function run({ http, logger }) {
   const contacts = Array.isArray(res.data) ? res.data : [];
   logger.info(`[contact/list-fix] OK total=${contacts.length}`);
 
-  // Fix: marcar como lidos os não lidos
+  
   let marked = 0;
   for (const c of contacts) {
     if (!c?.id) continue;

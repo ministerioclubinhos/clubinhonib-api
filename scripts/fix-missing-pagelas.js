@@ -1,10 +1,4 @@
-/**
- * Script para criar pagelas faltantes para todas as crianças
- * Percorre todos os clubes e todas as crianças de cada clube
- * 
- * Para executar:
- * node scripts/fix-missing-pagelas.js
- */
+
 
 const axios = require('axios');
 
@@ -44,7 +38,7 @@ async function authenticatedRequest(method, path, data = null) {
   return axios(config);
 }
 
-// Função para calcular data da semana baseada no período letivo
+
 function getDateForWeek(period, week, weekday) {
   const startDate = new Date(period.startDate + 'T00:00:00');
   const getWeekStart = (date) => {
@@ -75,7 +69,7 @@ async function getAllClubs() {
   const allClubs = [];
   let totalPages = 1;
   
-  // Primeiro, buscar para saber quantas páginas temos
+  
   try {
     const firstResponse = await authenticatedRequest('get', '/clubs', { 
       page: 1, 
@@ -90,7 +84,7 @@ async function getAllClubs() {
     return [];
   }
   
-  // Processar todas as páginas
+  
   while (page <= totalPages) {
     try {
       const response = await authenticatedRequest('get', '/clubs', { 
@@ -108,7 +102,7 @@ async function getAllClubs() {
       
       page++;
       
-      // Pequeno delay
+      
       if (page <= totalPages) {
         await new Promise(resolve => setTimeout(resolve, 50));
       }
@@ -128,7 +122,7 @@ async function getAllChildrenFromClub(clubId, clubNumber) {
   const allChildren = [];
   let totalPages = 1;
   
-  // Primeiro, buscar para saber quantas páginas temos
+  
   try {
     const firstResponse = await authenticatedRequest('get', '/children', { 
       page: 1, 
@@ -143,7 +137,7 @@ async function getAllChildrenFromClub(clubId, clubNumber) {
     return [];
   }
   
-  // Processar todas as páginas
+  
   while (page <= totalPages) {
     try {
       const response = await authenticatedRequest('get', '/children', { 
@@ -161,7 +155,7 @@ async function getAllChildrenFromClub(clubId, clubNumber) {
       
       page++;
       
-      // Pequeno delay
+      
       if (page <= totalPages) {
         await new Promise(resolve => setTimeout(resolve, 30));
       }
@@ -190,7 +184,7 @@ async function getChildPagelas(childId, year) {
 }
 
 async function createMissingPagelasForChild(child, period, weekday, totalWeeks) {
-  // Buscar pagelas existentes - buscar TODAS as páginas
+  
   let allExistingPagelas = [];
   let page = 1;
   const limit = 100;
@@ -209,7 +203,7 @@ async function createMissingPagelasForChild(child, period, weekday, totalWeeks) 
       
       allExistingPagelas.push(...items);
       
-      // Se não tem mais páginas, parar
+      
       const total = response.data.total || 0;
       if (allExistingPagelas.length >= total) break;
       
@@ -221,13 +215,13 @@ async function createMissingPagelasForChild(child, period, weekday, totalWeeks) 
   
   const existingWeeks = new Set(allExistingPagelas.map(p => p.week));
   
-  // Determinar a partir de qual semana criar (baseado em joinedAt)
+  
   let startWeek = 1;
   if (child.joinedAt) {
     const joinedDate = new Date(child.joinedAt + 'T00:00:00');
     const periodStart = new Date(period.startDate + 'T00:00:00');
     
-    // Calcular semana aproximada baseada na data de entrada
+    
     const daysDiff = Math.floor((joinedDate - periodStart) / (1000 * 60 * 60 * 24));
     startWeek = Math.max(1, Math.floor(daysDiff / 7) + 1);
   }
@@ -236,7 +230,7 @@ async function createMissingPagelasForChild(child, period, weekday, totalWeeks) 
   let errors = 0;
   const weeksToCreate = [];
   
-  // Identificar semanas faltantes
+  
   for (let week = startWeek; week <= totalWeeks; week++) {
     if (!existingWeeks.has(week)) {
       weeksToCreate.push(week);
@@ -247,12 +241,12 @@ async function createMissingPagelasForChild(child, period, weekday, totalWeeks) 
     return { created: 0, errors: 0, existing: allExistingPagelas.length };
   }
   
-  // Criar pagelas faltantes
+  
   for (const week of weeksToCreate) {
     try {
       const referenceDate = getDateForWeek(period, week, weekday);
       
-      const present = Math.random() > 0.2; // 80% presença
+      const present = Math.random() > 0.2; 
       const didMeditation = present && Math.random() > 0.3;
       const recitedVerse = present && Math.random() > 0.4;
       
@@ -269,12 +263,12 @@ async function createMissingPagelasForChild(child, period, weekday, totalWeeks) 
       
       created++;
       
-      // Pequeno delay entre criações
+      
       await new Promise(resolve => setTimeout(resolve, 20));
     } catch (error) {
-      // Ignorar erros de duplicação ou fora do período
+      
       if (error.response?.status === 400 || error.response?.status === 409 || error.response?.status === 404) {
-        // Erro esperado (duplicação, etc), não contar como erro
+        
       } else {
         errors++;
         console.error(`      ⚠️ Erro ao criar pagela semana ${week}:`, error.response?.data?.message || error.message);
@@ -282,11 +276,11 @@ async function createMissingPagelasForChild(child, period, weekday, totalWeeks) 
     }
   }
   
-  // Verificar novamente após criar para garantir
+  
   if (created > 0) {
     await new Promise(resolve => setTimeout(resolve, 500));
     
-    // Verificar se realmente foram criadas
+    
     const verifyPagelas = await getChildPagelas(child.id, period.year);
     const verifyWeeks = new Set(verifyPagelas.map(p => p.week));
     const stillMissing = [];
@@ -311,7 +305,7 @@ async function main() {
   console.log('🚀 Percorrendo todos os clubes e crianças');
   console.log('🚀 ============================================\n');
   
-  // Verificar se a API está rodando
+  
   try {
     await axios.get(`${API_BASE_URL}/`);
   } catch (error) {
@@ -321,10 +315,10 @@ async function main() {
     }
   }
   
-  // Login
+  
   await login();
   
-  // Buscar período letivo e informações
+  
   let period = null;
   let totalWeeks = 48;
   
@@ -350,7 +344,7 @@ async function main() {
     }
   }
   
-  // Listar todos os clubes
+  
   const clubs = await getAllClubs();
   
   if (clubs.length === 0) {
@@ -358,20 +352,20 @@ async function main() {
     return;
   }
   
-  // Estatísticas globais
+  
   let totalChildrenProcessed = 0;
   let totalChildrenWithMissingPagelas = 0;
   let totalPagelasCreated = 0;
   let totalErrors = 0;
   
-  // Processar cada clube
+  
   for (let i = 0; i < clubs.length; i++) {
     const club = clubs[i];
     console.log(`\n🏢 Clube ${club.number} (${i + 1}/${clubs.length}):`);
     console.log(`  📍 ${club.address?.city || 'N/A'}, ${club.address?.state || 'N/A'}`);
     console.log(`  📅 ${club.weekday} ${club.time || ''}`);
     
-    // Listar todas as crianças do clube
+    
     const children = await getAllChildrenFromClub(club.id, club.number);
     
     if (children.length === 0) {
@@ -384,13 +378,13 @@ async function main() {
     let clubChildrenWithMissing = 0;
     let clubPagelasCreated = 0;
     
-    // Processar cada criança
+    
     for (let j = 0; j < children.length; j++) {
       const child = children[j];
       totalChildrenProcessed++;
       
       try {
-        // Calcular startWeek para esta criança
+        
         let startWeek = 1;
         if (child.joinedAt) {
           const joinedDate = new Date(child.joinedAt + 'T00:00:00');
@@ -415,10 +409,10 @@ async function main() {
           
           console.log(`    ✅ ${child.name}: ${result.created} pagelas criadas (já tinha ${result.existing}, esperado: ${expectedWeeks})`);
         } else {
-          // Verificar se realmente tem todas as pagelas
+          
           if (result.existing < expectedWeeks) {
             console.log(`    ⚠️ ${child.name}: Tem ${result.existing} pagelas, esperado ${expectedWeeks} (joinedAt: ${child.joinedAt || 'N/A'}, startWeek: ${startWeek})`);
-            // Tentar criar novamente
+            
             const retryResult = await createMissingPagelasForChild(child, period, club.weekday, totalWeeks);
             if (retryResult.created > 0) {
               clubChildrenWithMissing++;
@@ -429,7 +423,7 @@ async function main() {
           }
         }
         
-        // Pequeno delay entre crianças
+        
         if (j < children.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 30));
         }
@@ -445,13 +439,13 @@ async function main() {
       console.log(`  ✅ Clube ${club.number}: Todas as ${children.length} crianças têm todas as pagelas`);
     }
     
-    // Pequeno delay entre clubes
+    
     if (i < clubs.length - 1) {
       await new Promise(resolve => setTimeout(resolve, 100));
     }
   }
   
-  // Resumo final
+  
   console.log('\n\n📊 ============================================');
   console.log('📊 RESUMO FINAL');
   console.log('📊 ============================================');
@@ -465,7 +459,7 @@ async function main() {
   console.log('\n🎉 Processo concluído!\n');
 }
 
-// Executar
+
 main().catch(error => {
   console.error('\n❌ Erro fatal:', error.message);
   console.error(error.stack);

@@ -46,7 +46,7 @@ function getDateForWeek(period, week, weekday) {
 async function run({ http, logger, ctx }) {
   const year = ctx?.year ?? ACADEMIC_YEAR;
 
-  // período
+  
   const periodRes = await http.request('get', `/club-control/periods/${year}`);
   const period = periodRes.data;
   if (!period?.startDate) throw new Error(`[pagelas/fix-zero] período ${year} inválido: ${JSON.stringify(period)}`);
@@ -55,12 +55,12 @@ async function run({ http, logger, ctx }) {
   const requestedWeeks = (ctx?.weeks ?? WEEKS) || 0;
   const totalWeeks = requestedWeeks > 0 ? requestedWeeks : computedWeeks;
 
-  // mapa clubs p/ weekday
+  
   const clubsRes = await http.request('get', '/clubs/all');
   const clubs = Array.isArray(clubsRes.data) ? clubsRes.data : [];
   const clubMap = new Map(clubs.map((c) => [c.id, c]));
 
-  // children: todos
+  
   const children = await fetchAllPages(http.request, 'get', '/children', {}, { limit: 100, maxPages: 500 });
   logger.info(`[pagelas/fix-zero] verificando children=${children.length} year=${year} weeks=${totalWeeks}...`);
 
@@ -73,7 +73,7 @@ async function run({ http, logger, ctx }) {
     const child = children[idx];
     if (!child?.id) continue;
 
-    // check rápido (limit=1)
+    
     let total = 0;
     try {
       const res = await http.request('get', '/pagelas/paginated', {
@@ -95,7 +95,7 @@ async function run({ http, logger, ctx }) {
     const club = clubMap.get(child.clubId || child.club?.id);
     const weekday = club?.weekday || 'saturday';
 
-    // respeitar joinedAt: calcula startWeek aproximada
+    
     let startWeek = 1;
     if (child.joinedAt) {
       const joinedDate = parseDateOnly(child.joinedAt);
@@ -132,14 +132,14 @@ async function run({ http, logger, ctx }) {
       } catch (e) {
         const status = e.response?.status;
         if (status === 400 || status === 409 || status === 404) {
-          // ignora duplicados/validação comum
+          
         } else {
           errors++;
         }
       }
     }
 
-    // re-check
+    
     try {
       const res2 = await http.request('get', '/pagelas/paginated', {
         params: { childId: child.id, year, page: 1, limit: 1 },

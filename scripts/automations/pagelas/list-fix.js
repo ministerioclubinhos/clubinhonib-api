@@ -61,7 +61,7 @@ async function run({ http, logger, ctx }) {
   const period = periodRes.data;
   if (!period?.startDate) throw new Error(`[pagelas/list-fix] período ${year} inválido: ${JSON.stringify(period)}`);
 
-  // auto = calcula semanas pelo período
+  
   if (!weeks || weeks <= 0) {
     weeks = computeTotalWeeks(period);
   }
@@ -83,7 +83,7 @@ async function run({ http, logger, ctx }) {
     const club = clubMap.get(child.clubId || child.club?.id);
     const weekday = club?.weekday || 'saturday';
 
-    // respeitar joinedAt: começa da semana aproximada (se tiver)
+    
     let startWeek = 1;
     if (child.joinedAt) {
       const joinedDate = parseDateOnly(child.joinedAt);
@@ -94,7 +94,7 @@ async function run({ http, logger, ctx }) {
       }
     }
 
-    // Check rápido: se total já cobre todas as semanas esperadas, pula sem buscar todas as páginas
+    
     const expected = Math.max(0, weeks - startWeek + 1);
     if (expected === 0) continue;
     try {
@@ -104,7 +104,7 @@ async function run({ http, logger, ctx }) {
       const totalQuick = Number(quick.data?.total ?? 0);
       if (totalQuick >= expected) continue;
     } catch (_) {
-      // se falhar o quick, segue para o fluxo completo
+      
     }
 
     let existing = [];

@@ -4,7 +4,7 @@ async function run({ http, logger }) {
   const comments = Array.isArray(res.data) ? res.data : [];
   logger.info(`[comments/list-fix] OK total=${comments.length}`);
 
-  // Fix: garantir pelo menos 1 comentário publicado (se existir)
+  
   for (const c of comments) {
     if (!c?.id) continue;
     if (c.published === true) break;
@@ -25,7 +25,7 @@ async function run({ http, logger }) {
     }
   }
 
-  // Smoke: endpoint público
+  
   const pub = await http.request('get', '/comments/published');
   const published = Array.isArray(pub.data) ? pub.data : [];
   logger.info(`[comments/list-fix] OK published=${published.length}`);

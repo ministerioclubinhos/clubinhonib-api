@@ -1,9 +1,4 @@
-/**
- * Encontra uma criança sem pagelas no ano informado.
- *
- * Uso:
- * ACADEMIC_YEAR=2025 node scripts/find-child-without-pagelas.js
- */
+
 const { createHttpClient } = require('./automations/common/http');
 const { createLogger } = require('./automations/logger');
 const { fetchAllPages } = require('./automations/common/pagination');
@@ -32,7 +27,7 @@ async function main() {
         return;
       }
     } catch (e) {
-      // se der erro pra um child, segue pro próximo
+      
     }
 
     if (checked % 100 === 0) {
