@@ -7,6 +7,15 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { UserRole } from '../auth.types';
+import { Request } from 'express';
+
+interface AuthenticatedRequest extends Request {
+  user: {
+    userId: string;
+    email?: string;
+    role?: string;
+  };
+}
 
 @Injectable()
 export class AdminRoleGuard implements CanActivate {
@@ -15,7 +24,8 @@ export class AdminRoleGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const request = context.switchToHttp().getRequest();
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+    const request = context.switchToHttp().getRequest() as AuthenticatedRequest;
     const user = request.user;
 
     this.logger.debug('🔒 AdminRoleGuard: verificando permissões');
@@ -35,7 +45,7 @@ export class AdminRoleGuard implements CanActivate {
       throw new ForbiddenException('Permissão insuficiente');
     }
 
-    if (role !== UserRole.ADMIN) {
+    if (String(role) !== String(UserRole.ADMIN)) {
       this.logger.warn(`❌ Acesso negado: role '${role}' não autorizado`);
       throw new ForbiddenException('Acesso restrito a administradores');
     }

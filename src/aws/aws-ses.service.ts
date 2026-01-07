@@ -73,7 +73,8 @@ export class AwsSesService {
         `📨 E-mail enviado via SES para: ${toAddresses.join(', ')}`,
       );
     } catch (error) {
-      this.logger.error(`❌ Erro ao enviar e-mail via SES: ${error.message}`);
+      const err = error as Error;
+      this.logger.error(`❌ Erro ao enviar e-mail via SES: ${err.message}`);
       throw new Error('Erro ao enviar e-mail');
     }
   }

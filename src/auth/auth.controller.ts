@@ -11,6 +11,15 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RegisterUserDto } from './dto/register.dto';
 import { CompleteUserDto } from './dto/complete-register.dto';
 import { AuthService } from './services/auth.service';
+import { Request as ExpressRequest } from 'express';
+
+interface AuthenticatedRequest extends ExpressRequest {
+  user: {
+    userId: string;
+    email?: string;
+    role?: string;
+  };
+}
 
 @Controller('auth')
 export class AuthController {
@@ -33,13 +42,13 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Post('logout')
-  logout(@Request() req) {
+  logout(@Request() req: AuthenticatedRequest) {
     return this.authService.logout(req.user.userId);
   }
 
   @UseGuards(JwtAuthGuard)
   @Get('me')
-  getMe(@Request() req) {
+  getMe(@Request() req: AuthenticatedRequest) {
     return this.authService.getMe(req.user.userId);
   }
 

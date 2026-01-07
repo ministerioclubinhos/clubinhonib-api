@@ -18,12 +18,25 @@ export class AuthContextService {
       if (scheme?.toLowerCase() === 'bearer' && token) return token.trim();
     }
 
-    const cookies = (req as any).cookies || {};
+    interface RequestWithCookies extends Request {
+      cookies?: Record<string, string>;
+    }
+
+    const reqWithCookies = req as RequestWithCookies;
+    const cookies = reqWithCookies.cookies || {};
     if (cookies['access_token']) return String(cookies['access_token']);
     if (cookies['auth_token']) return String(cookies['auth_token']);
 
-    const q: any = (req as any).query || {};
-    if (q['access_token']) return String(q['access_token']);
+    const query = req.query || {};
+    const accessToken = query['access_token'];
+    if (accessToken && typeof accessToken === 'string') return accessToken;
+    if (accessToken && Array.isArray(accessToken) && accessToken[0]) {
+      const token = accessToken[0];
+      if (typeof token === 'string') return token;
+      if (typeof token === 'number' || typeof token === 'boolean')
+        return String(token);
+      return null;
+    }
 
     return null;
   }
@@ -39,7 +52,8 @@ export class AuthContextService {
   }
 
   decodeToken(token: string): JwtPayload | null {
-    const payload = this.jwt.decode(token);
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+    const payload = this.jwt.decode(token) as JwtPayload | null;
     return payload ? this.normalizePayload(payload) : null;
   }
 
@@ -107,9 +121,10 @@ export class AuthContextService {
   private normalizeRole(role?: string | UserRole): UserRole | undefined {
     if (!role) return undefined;
     const r = String(role).toLowerCase();
-    if (r === UserRole.ADMIN) return UserRole.ADMIN;
-    if (r === UserRole.TEACHER) return UserRole.TEACHER;
-    if (r === UserRole.COORDINATOR) return UserRole.COORDINATOR;
+    if (r === String(UserRole.ADMIN).toLowerCase()) return UserRole.ADMIN;
+    if (r === String(UserRole.TEACHER).toLowerCase()) return UserRole.TEACHER;
+    if (r === String(UserRole.COORDINATOR).toLowerCase())
+      return UserRole.COORDINATOR;
     return undefined;
   }
 }

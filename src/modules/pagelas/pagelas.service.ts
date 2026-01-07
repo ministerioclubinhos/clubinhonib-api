@@ -172,8 +172,7 @@ export class PagelasService {
           if (!dto.year) {
             dto.year = academicWeek.year;
           }
-        } catch (error) {
-        }
+        } catch (error) {}
       }
     }
 

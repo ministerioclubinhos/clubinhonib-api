@@ -34,9 +34,10 @@ export class ContactService {
       contact = await this.contactRepo.saveContact(data);
       this.logger.log(`✅ Contato salvo no banco: ID=${contact.id}`);
     } catch (error) {
+      const err = error as Error;
       this.logger.error(
-        `❌ Erro ao salvar contato no banco: ${error.message}`,
-        error.stack,
+        `❌ Erro ao salvar contato no banco: ${err.message}`,
+        err.stack,
       );
       throw new InternalServerErrorException('Erro ao salvar o contato');
     }
@@ -49,10 +50,8 @@ export class ContactService {
       await this.sesService.sendEmailViaSES(to || '', subject, '', htmlBody);
       this.logger.log(`📧 E-mail enviado com sucesso para: ${to}`);
     } catch (error) {
-      this.logger.error(
-        `❌ Erro ao enviar e-mail: ${error.message}`,
-        error.stack,
-      );
+      const err = error as Error;
+      this.logger.error(`❌ Erro ao enviar e-mail: ${err.message}`, err.stack);
       throw new InternalServerErrorException(
         'Erro ao enviar e-mail de contato',
       );
@@ -71,9 +70,10 @@ export class ContactService {
         });
         this.logger.log(`📲 WhatsApp enviado com sucesso! SID: ${result.sid}`);
       } catch (err) {
+        const error = err as Error;
         this.logger.error(
-          `❌ Erro ao enviar WhatsApp: ${err.message}`,
-          err.stack,
+          `❌ Erro ao enviar WhatsApp: ${error.message}`,
+          error.stack,
         );
         throw new InternalServerErrorException(
           'Erro ao enviar WhatsApp de contato',
@@ -281,7 +281,8 @@ ${contact.message}
       this.logger.log(`✅ ${contacts.length} contato(s) encontrados`);
       return contacts;
     } catch (error) {
-      this.logger.error('❌ Erro ao buscar contatos', error.stack);
+      const err = error as Error;
+      this.logger.error('❌ Erro ao buscar contatos', err.stack);
       throw new InternalServerErrorException('Erro ao buscar contatos');
     }
   }
@@ -303,7 +304,8 @@ ${contact.message}
 
       return contact;
     } catch (error) {
-      this.logger.error('❌ Erro ao buscar ou atualizar contato', error.stack);
+      const err = error as Error;
+      this.logger.error('❌ Erro ao buscar ou atualizar contato', err.stack);
       throw new InternalServerErrorException(
         'Erro ao buscar ou atualizar contato',
       );
@@ -325,7 +327,8 @@ ${contact.message}
 
       this.logger.log(`✅ Contato excluído com sucesso: ID=${id}`);
     } catch (error) {
-      this.logger.error(`❌ Erro ao excluir contato ID=${id}`, error.stack);
+      const err = error as Error;
+      this.logger.error(`❌ Erro ao excluir contato ID=${id}`, err.stack);
       throw new InternalServerErrorException('Erro ao excluir contato');
     }
   }

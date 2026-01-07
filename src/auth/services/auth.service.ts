@@ -126,7 +126,7 @@ export class AuthService {
         };
       }
 
-      if (!(user as any).active) {
+      if (!user.active) {
         this.logger.warn(`Usuário Google inativo: ${email}`);
         return {
           message: 'UserEntity is inactive',
@@ -148,7 +148,8 @@ export class AuthService {
         ...tokens,
       };
     } catch (error) {
-      this.logger.error(`Erro durante login Google: ${error.message}`);
+      const err = error as Error;
+      this.logger.error(`Erro durante login Google: ${err.message}`);
       throw new UnauthorizedException('Invalid Google token');
     }
   }
@@ -162,7 +163,7 @@ export class AuthService {
     }
 
     try {
-      const payload = this.jwtService.verify(token, {
+      const payload = this.jwtService.verify<{ sub: string }>(token, {
         secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
       });
 
@@ -178,7 +179,8 @@ export class AuthService {
       this.logger.log(`Refresh token renovado para userId=${user.id}`);
       return tokens;
     } catch (error) {
-      this.logger.error(`Erro ao renovar refresh token: ${error.message}`);
+      const err = error as Error;
+      this.logger.error(`Erro ao renovar refresh token: ${err.message}`);
       throw new UnauthorizedException('Invalid refresh token');
     }
   }

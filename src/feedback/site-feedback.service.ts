@@ -79,6 +79,8 @@ export class SiteFeedbackService {
 
       return updatedFeedback;
     } catch (error) {
+      const err = error as Error;
+      this.logger.error(
         '❌ Erro ao buscar ou atualizar feedback do site',
         err.stack,
       );

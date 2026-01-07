@@ -57,7 +57,8 @@ export class AwsS3Service {
       this.logger.log(`📤 Upload realizado: ${key}`);
       return `https://${this.bucketName}.s3.amazonaws.com/${key}`;
     } catch (err) {
-      this.logger.error(`❌ Erro ao enviar para o S3: ${err.message}`);
+      const error = err as Error;
+      this.logger.error(`❌ Erro ao enviar para o S3: ${error.message}`);
       throw new Error('Erro ao fazer upload para o S3');
     }
   }
@@ -77,10 +78,11 @@ export class AwsS3Service {
     });
 
     try {
-      // await this.s3Client.send(command);
+      await this.s3Client.send(command);
       this.logger.log(`🗑️ Arquivo removido: ${key}`);
     } catch (err) {
-      this.logger.error(`❌ Erro ao remover do S3: ${err.message}`);
+      const error = err as Error;
+      this.logger.error(`❌ Erro ao remover do S3: ${error.message}`);
     }
   }
 }

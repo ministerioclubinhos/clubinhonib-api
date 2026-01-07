@@ -135,8 +135,10 @@ export class CreateDocumentService {
         originalName = file.originalname;
         size = file.size;
       } catch (error) {
+        const err = error as Error;
+        this.logger.error(
           `❌ Erro no upload do arquivo: ${file.originalname}`,
-          error.stack,
+          err.stack,
         );
         throw new InternalServerErrorException('Falha no upload do arquivo.');
       }

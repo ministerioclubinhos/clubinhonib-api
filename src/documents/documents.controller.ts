@@ -55,10 +55,10 @@ export class DocumentsController {
 
     let dto: CreateDocumentDto;
     try {
-      const parsed = JSON.parse(documentDataRaw);
+      const parsed = JSON.parse(documentDataRaw) as unknown;
       dto = plainToInstance(CreateDocumentDto, parsed);
       await validateOrReject(dto);
-    } catch (error) {
+    } catch {
       throw new BadRequestException('Erro ao processar dados do documento.');
     }
 
@@ -106,11 +106,11 @@ export class DocumentsController {
 
     let dto: UpdateDocumentDto;
     try {
-      const parsed = JSON.parse(documentDataRaw);
+      const parsed = JSON.parse(documentDataRaw) as unknown;
       dto = plainToInstance(UpdateDocumentDto, parsed);
       dto.id = id;
       await validateOrReject(dto);
-    } catch (error) {
+    } catch {
       throw new BadRequestException('Erro ao processar dados do documento.');
     }
 
