@@ -9,7 +9,7 @@ async function main() {
   const http = createHttpClient();
   await http.login();
 
-  logger.info(`[find-child-without-pagelas] buscando children (todas as páginas)...`);
+  logger.info(`[find-child-without-pagelas] searching children (all pages)...`);
   const children = await fetchAllPages(http.request, 'get', '/children', {}, { limit: 100, maxPages: 200 });
   logger.info(`[find-child-without-pagelas] children=${children.length} year=${ACADEMIC_YEAR}`);
 
@@ -35,11 +35,11 @@ async function main() {
     }
   }
 
-  logger.info('[find-child-without-pagelas] nenhuma criança sem pagelas encontrada');
+  logger.info('[find-child-without-pagelas] no children without pagelas found');
 }
 
 main().catch((err) => {
-  console.error('\n❌ Erro fatal:', err?.message || err);
+  console.error('\n❌ Fatal error:', err?.message || err);
   console.error(err?.stack || '');
   process.exit(1);
 });

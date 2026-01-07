@@ -1,5 +1,5 @@
 async function run({ http, logger }) {
-  logger.info('[week-material-pages/list-fix] listando week-material-pages...');
+  logger.info('[week-material-pages/list-fix] listing week-material-pages...');
   const res = await http.request('get', '/week-material-pages');
   const items = Array.isArray(res.data) ? res.data : [];
   logger.info(`[week-material-pages/list-fix] OK total=${items.length}`);
@@ -13,7 +13,7 @@ async function run({ http, logger }) {
       logger.info(`[week-material-pages/list-fix] set current-week id=${items[0].id}`);
     }
   } catch (e) {
-    logger.warn(`[week-material-pages/list-fix] current-week falhou: ${e.response?.data?.message || e.message}`);
+    logger.warn(`[week-material-pages/list-fix] current-week failed: ${e.response?.data?.message || e.message}`);
   }
 
   if (items[0]?.id) {

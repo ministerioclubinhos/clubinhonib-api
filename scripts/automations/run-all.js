@@ -87,12 +87,12 @@ async function runAll({ ctx = {} } = {}) {
     ...ctx,
   };
 
-  logger.info('[run-all] verificando API + login...');
+  logger.info('[run-all] checking API + login...');
   try {
     await http.login();
   } catch (err) {
     if (err?.code === 'ECONNREFUSED') {
-      throw new Error('API não está rodando em localhost:3000 (ECONNREFUSED)');
+      throw new Error('API is not running on localhost:3000 (ECONNREFUSED)');
     }
     throw err;
   }
@@ -192,7 +192,7 @@ async function runAll({ ctx = {} } = {}) {
   await siteSmokeListFix.run({ http, logger, ctx: mergedCtx });
 
   const durationS = ((Date.now() - started) / 1000).toFixed(2);
-  logger.info(`[run-all] concluído em ${durationS}s`);
+  logger.info(`[run-all] completed in ${durationS}s`);
 }
 
 module.exports = { runAll };

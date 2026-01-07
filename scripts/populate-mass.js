@@ -6,25 +6,25 @@ const SUPERUSER_PASSWORD = 'Abc@123';
 
 
 async function login() {
-  console.log('🔐 Fazendo login...');
+  console.log('🔐 Logging in...');
   const response = await axios.post(`${API_BASE_URL}/auth/login`, {
     email: SUPERUSER_EMAIL,
     password: SUPERUSER_PASSWORD,
   });
   
   const token = response.data.accessToken;
-  console.log('✅ Login realizado com sucesso');
+  console.log('✅ Login successful');
   return token;
 }
 
 
 async function getAllClubs(token) {
-  console.log('📋 Buscando todos os clubes...');
+  console.log('📋 Fetching all clubs...');
   const response = await axios.get(`${API_BASE_URL}/clubs/all`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   
-  console.log(`✅ Encontrados ${response.data.length} clubes`);
+  console.log(`✅ Found ${response.data.length} clubs`);
   return response.data;
 }
 
@@ -79,7 +79,7 @@ async function findTeacherProfileByUserId(token, userId) {
     const teacher = teachers.find(t => t.user?.id === userId);
     return teacher;
   } catch (error) {
-    console.error('Erro ao buscar teacher profile:', error.response?.data || error.message);
+    console.error('Error fetching teacher profile:', error.response?.data || error.message);
     return null;
   }
 }
@@ -97,16 +97,16 @@ async function assignTeacherToClub(token, teacherId, clubId) {
 
 
 async function getPeriod2025(token) {
-  console.log('📅 Buscando período letivo de 2025...');
+  console.log('📅 Fetching academic period 2025...');
   try {
     const response = await axios.get(`${API_BASE_URL}/club-control/periods/2025`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    console.log(`✅ Período letivo 2025 encontrado: ${response.data.startDate} a ${response.data.endDate}`);
+    console.log(`✅ Academic period 2025 found: ${response.data.startDate} to ${response.data.endDate}`);
     return response.data;
   } catch (error) {
     if (error.response?.status === 404) {
-      console.log('⚠️ Período letivo de 2025 não encontrado. Criando...');
+      console.log('⚠️ Academic period 2025 not found. Creating...');
       
       const createResponse = await axios.post(
         `${API_BASE_URL}/club-control/periods`,
@@ -121,7 +121,7 @@ async function getPeriod2025(token) {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      console.log(`✅ Período letivo 2025 criado: ${createResponse.data.startDate} a ${createResponse.data.endDate}`);
+      console.log(`✅ Academic period 2025 created: ${createResponse.data.startDate} to ${createResponse.data.endDate}`);
       return createResponse.data;
     }
     throw error;
@@ -213,7 +213,7 @@ async function createPagela(token, childId, referenceDate, week, year) {
       present: present,
       didMeditation: didMeditation,
       recitedVerse: recitedVerse,
-      notes: present ? `Semana ${week} - ${present ? 'Presente' : 'Ausente'}` : null,
+      notes: present ? `Week ${week} - ${present ? 'Present' : 'Absent'}` : null,
     },
     {
       headers: { Authorization: `Bearer ${token}` },
@@ -224,7 +224,7 @@ async function createPagela(token, childId, referenceDate, week, year) {
 
 async function populate() {
   try {
-    console.log('🚀 Iniciando população em massa...\n');
+    console.log('🚀 Starting mass population...\n');
     
     
     const token = await login();
@@ -232,14 +232,14 @@ async function populate() {
     
     const period = await getPeriod2025(token);
     if (!period) {
-      throw new Error('Não foi possível obter ou criar o período letivo de 2025');
+      throw new Error('Could not get or create academic period 2025');
     }
     
     
     const clubs = await getAllClubs(token);
     
     if (clubs.length === 0) {
-      console.log('⚠️ Nenhum clube encontrado. Criando um clube de exemplo...');
+      console.log('⚠️ No clubs found. Creating an example club...');
       
       const clubResponse = await axios.post(
         `${API_BASE_URL}/clubs`,
@@ -264,25 +264,25 @@ async function populate() {
       clubs.push(clubResponse.data);
     }
     
-    console.log(`\n📊 Processando ${clubs.length} clubes...\n`);
+    console.log(`\n📊 Processing ${clubs.length} clubs...\n`);
     
     let totalChildren = 0;
     let totalPagelas = 0;
     
     
     for (const club of clubs) {
-      console.log(`\n🏢 Processando Clube ${club.number} (${club.weekday})...`);
+      console.log(`\n🏢 Processing Club ${club.number} (${club.weekday})...`);
       
       
       const clubDetails = await getClubDetails(token, club.id);
       const hasTeachers = clubDetails.teachers && clubDetails.teachers.length > 0;
       
       if (!hasTeachers) {
-        console.log(`  👨‍🏫 Clube não tem professores. Criando 1 professor...`);
+        console.log(`  👨‍🏫 Club has no teachers. Creating 1 teacher...`);
         try {
           
           const teacherUser = await createTeacherUser(token, club.number, 0);
-          console.log(`  ✅ Usuário professor criado: ${teacherUser.name}`);
+          console.log(`  ✅ Teacher user created: ${teacherUser.name}`);
           
           
           await new Promise(resolve => setTimeout(resolve, 500));
@@ -293,15 +293,15 @@ async function populate() {
           if (teacherProfile) {
             
             await assignTeacherToClub(token, teacherProfile.id, club.id);
-            console.log(`  ✅ Professor vinculado ao clube`);
+            console.log(`  ✅ Teacher linked to club`);
           } else {
-            console.log(`  ⚠️ Teacher profile não encontrado para o usuário ${teacherUser.id}`);
+            console.log(`  ⚠️ Teacher profile not found for user ${teacherUser.id}`);
           }
         } catch (error) {
-          console.error(`  ❌ Erro ao criar/vincular professor:`, error.response?.data?.message || error.message);
+          console.error(`  ❌ Error creating/linking teacher:`, error.response?.data?.message || error.message);
         }
       } else {
-        console.log(`  ✅ Clube já tem ${clubDetails.teachers.length} professor(es)`);
+        console.log(`  ✅ Club already has ${clubDetails.teachers.length} teacher(s)`);
       }
       
       const children = [];
@@ -312,14 +312,14 @@ async function populate() {
           const child = await createChild(token, club.id, totalChildren);
           children.push(child);
           totalChildren++;
-          process.stdout.write(`  ✅ Criança ${i + 1}/10: ${child.name}\n`);
+          process.stdout.write(`  ✅ Child ${i + 1}/10: ${child.name}\n`);
         } catch (error) {
-          console.error(`  ❌ Erro ao criar criança ${i + 1}:`, error.response?.data?.message || error.message);
+          console.error(`  ❌ Error creating child ${i + 1}:`, error.response?.data?.message || error.message);
         }
       }
       
       
-      console.log(`  📝 Criando pagelas para ${children.length} crianças...`);
+      console.log(`  📝 Creating pagelas for ${children.length} children...`);
       
       for (const child of children) {
         for (let week = 1; week <= 48; week++) {
@@ -329,30 +329,30 @@ async function populate() {
             totalPagelas++;
             
             if (week % 10 === 0) {
-              process.stdout.write(`    Semana ${week}... `);
+              process.stdout.write(`    Week ${week}... `);
             }
           } catch (error) {
             
             if (error.response?.status !== 400 && error.response?.status !== 409) {
-              console.error(`\n    ❌ Erro ao criar pagela semana ${week} para ${child.name}:`, error.response?.data?.message || error.message);
+              console.error(`\n    ❌ Error creating pagela week ${week} for ${child.name}:`, error.response?.data?.message || error.message);
             }
           }
         }
-        console.log(`\n  ✅ ${child.name}: 48 pagelas criadas`);
+        console.log(`\n  ✅ ${child.name}: 48 pagelas created`);
       }
       
-      console.log(`✅ Clube ${club.number} concluído: ${children.length} crianças, ${children.length * 48} pagelas`);
+      console.log(`✅ Club ${club.number} completed: ${children.length} children, ${children.length * 48} pagelas`);
     }
     
-    console.log(`\n\n🎉 População concluída!`);
-    console.log(`📊 Resumo:`);
-    console.log(`   - Clubes processados: ${clubs.length}`);
-    console.log(`   - Crianças criadas: ${totalChildren}`);
-    console.log(`   - Pagelas criadas: ${totalPagelas}`);
-    console.log(`   - Período letivo: ${period.startDate} a ${period.endDate}`);
+    console.log(`\n\n🎉 Population completed!`);
+    console.log(`📊 Summary:`);
+    console.log(`   - Clubs processed: ${clubs.length}`);
+    console.log(`   - Children created: ${totalChildren}`);
+    console.log(`   - Pagelas created: ${totalPagelas}`);
+    console.log(`   - Academic period: ${period.startDate} to ${period.endDate}`);
     
   } catch (error) {
-    console.error('\n❌ Erro durante a população:', error.response?.data || error.message);
+    console.error('\n❌ Error during population:', error.response?.data || error.message);
     process.exit(1);
   }
 }

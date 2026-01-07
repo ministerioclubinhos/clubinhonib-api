@@ -1,5 +1,5 @@
 async function run({ http, logger }) {
-  logger.info('[site-feedbacks/list-fix] listando feedbacks...');
+  logger.info('[site-feedbacks/list-fix] listing feedbacks...');
   const res = await http.request('get', '/site-feedbacks');
   const items = Array.isArray(res.data) ? res.data : [];
   logger.info(`[site-feedbacks/list-fix] OK total=${items.length}`);
@@ -12,7 +12,7 @@ async function run({ http, logger }) {
       await http.request('patch', `/site-feedbacks/${fb.id}/read`);
       marked++;
     } catch (e) {
-      logger.warn(`[site-feedbacks/list-fix] falhou marcar read id=${fb.id}: ${e.response?.data?.message || e.message}`);
+      logger.warn(`[site-feedbacks/list-fix] failed to mark as read id=${fb.id}: ${e.response?.data?.message || e.message}`);
     }
   }
   logger.info(`[site-feedbacks/list-fix] markedRead=${marked}`);

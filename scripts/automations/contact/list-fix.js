@@ -1,5 +1,5 @@
 async function run({ http, logger }) {
-  logger.info('[contact/list-fix] listando contatos...');
+  logger.info('[contact/list-fix] listing contacts...');
   const res = await http.request('get', '/contact');
   const contacts = Array.isArray(res.data) ? res.data : [];
   logger.info(`[contact/list-fix] OK total=${contacts.length}`);
@@ -13,7 +13,7 @@ async function run({ http, logger }) {
       await http.request('patch', `/contact/${c.id}/read`);
       marked++;
     } catch (e) {
-      logger.warn(`[contact/list-fix] falhou marcar read id=${c.id}: ${e.response?.data?.message || e.message}`);
+      logger.warn(`[contact/list-fix] failed to mark as read id=${c.id}: ${e.response?.data?.message || e.message}`);
     }
   }
   logger.info(`[contact/list-fix] markedRead=${marked}`);

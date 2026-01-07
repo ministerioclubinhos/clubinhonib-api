@@ -28,7 +28,7 @@ function computeTotalWeeks(period) {
 
 function getDateForWeek(period, week, weekday) {
   const startDate = parseDateOnly(period.startDate);
-  if (!startDate) throw new Error(`Período inválido: startDate=${period?.startDate}`);
+  if (!startDate) throw new Error(`Invalid period: startDate=${period?.startDate}`);
 
   const periodWeekStart = getWeekStart(startDate);
   const weekStart = new Date(periodWeekStart);
@@ -39,7 +39,7 @@ function getDateForWeek(period, week, weekday) {
   const currentWeekday = weekStart.getDay() || 7;
   weekStart.setDate(weekStart.getDate() + (targetWeekday - currentWeekday));
 
-  if (Number.isNaN(weekStart.getTime())) throw new Error(`Data inválida week=${week} weekday=${weekday}`);
+  if (Number.isNaN(weekStart.getTime())) throw new Error(`Invalid date week=${week} weekday=${weekday}`);
   return weekStart.toISOString().split('T')[0];
 }
 
@@ -49,7 +49,7 @@ async function run({ http, logger, ctx }) {
   
   const periodRes = await http.request('get', `/club-control/periods/${year}`);
   const period = periodRes.data;
-  if (!period?.startDate) throw new Error(`[pagelas/fix-zero] período ${year} inválido: ${JSON.stringify(period)}`);
+  if (!period?.startDate) throw new Error(`[pagelas/fix-zero] invalid period ${year}: ${JSON.stringify(period)}`);
 
   const computedWeeks = computeTotalWeeks(period);
   const requestedWeeks = (ctx?.weeks ?? WEEKS) || 0;
@@ -62,7 +62,7 @@ async function run({ http, logger, ctx }) {
 
   
   const children = await fetchAllPages(http.request, 'get', '/children', {}, { limit: 100, maxPages: 500 });
-  logger.info(`[pagelas/fix-zero] verificando children=${children.length} year=${year} weeks=${totalWeeks}...`);
+  logger.info(`[pagelas/fix-zero] checking children=${children.length} year=${year} weeks=${totalWeeks}...`);
 
   let zeroChildren = 0;
   let fixedChildren = 0;
@@ -123,7 +123,7 @@ async function run({ http, logger, ctx }) {
             present,
             didMeditation,
             recitedVerse,
-            notes: present ? `Semana ${week} - ${present ? 'Presente' : 'Ausente'}` : null,
+            notes: present ? `Week ${week} - ${present ? 'Present' : 'Absent'}` : null,
           },
         });
         created++;

@@ -9,14 +9,14 @@ const SUPERUSER_PASSWORD = 'Abc@123';
 let authToken = '';
 
 async function login() {
-  console.log('\n🔐 Fazendo login...');
+  console.log('\n🔐 Logging in...');
   const response = await axios.post(`${API_BASE_URL}/auth/login`, {
     email: SUPERUSER_EMAIL,
     password: SUPERUSER_PASSWORD,
   });
   
   authToken = response.data.accessToken;
-  console.log('✅ Login realizado com sucesso\n');
+  console.log('✅ Login successful\n');
   return authToken;
 }
 
@@ -62,7 +62,7 @@ function getDateForWeek(period, week, weekday) {
 }
 
 async function getAllClubs() {
-  console.log('🏢 Listando todos os clubes...\n');
+  console.log('🏢 Listing all clubs...\n');
   
   let page = 1;
   const limit = 100;
@@ -78,9 +78,9 @@ async function getAllClubs() {
       order: 'DESC'
     });
     totalPages = firstResponse.data.pageCount || 1;
-    console.log(`📊 Total de páginas de clubes: ${totalPages}`);
+    console.log(`📊 Total club pages: ${totalPages}`);
   } catch (error) {
-    console.error('❌ Erro ao buscar informações dos clubes:', error.response?.data?.message || error.message);
+    console.error('❌ Error fetching club information:', error.response?.data?.message || error.message);
     return [];
   }
   
@@ -98,7 +98,7 @@ async function getAllClubs() {
       if (clubs.length === 0) break;
       
       allClubs.push(...clubs);
-      console.log(`  📄 Página ${page}/${totalPages}: ${clubs.length} clubes encontrados`);
+      console.log(`  📄 Page ${page}/${totalPages}: ${clubs.length} clubs found`);
       
       page++;
       
@@ -107,12 +107,12 @@ async function getAllClubs() {
         await new Promise(resolve => setTimeout(resolve, 50));
       }
     } catch (error) {
-      console.error(`  ❌ Erro ao buscar página ${page} de clubes:`, error.response?.data?.message || error.message);
+      console.error(`  ❌ Error fetching page ${page} of clubs:`, error.response?.data?.message || error.message);
       page++;
     }
   }
   
-  console.log(`✅ Total de clubes encontrados: ${allClubs.length}\n`);
+  console.log(`✅ Total clubs found: ${allClubs.length}\n`);
   return allClubs;
 }
 
@@ -133,7 +133,7 @@ async function getAllChildrenFromClub(clubId, clubNumber) {
     });
     totalPages = firstResponse.data.meta?.totalPages || 1;
   } catch (error) {
-    console.error(`  ❌ Erro ao buscar informações das crianças do clube ${clubNumber}:`, error.response?.data?.message || error.message);
+    console.error(`  ❌ Error fetching children information for club ${clubNumber}:`, error.response?.data?.message || error.message);
     return [];
   }
   
@@ -160,7 +160,7 @@ async function getAllChildrenFromClub(clubId, clubNumber) {
         await new Promise(resolve => setTimeout(resolve, 30));
       }
     } catch (error) {
-      console.error(`  ❌ Erro ao buscar página ${page} de crianças:`, error.response?.data?.message || error.message);
+      console.error(`  ❌ Error fetching page ${page} of children:`, error.response?.data?.message || error.message);
       page++;
     }
   }
@@ -258,7 +258,7 @@ async function createMissingPagelasForChild(child, period, weekday, totalWeeks) 
         present: present,
         didMeditation: didMeditation,
         recitedVerse: recitedVerse,
-        notes: present ? `Semana ${week} - ${present ? 'Presente' : 'Ausente'}` : null,
+        notes: present ? `Week ${week} - ${present ? 'Present' : 'Absent'}` : null,
       });
       
       created++;
@@ -271,7 +271,7 @@ async function createMissingPagelasForChild(child, period, weekday, totalWeeks) 
         
       } else {
         errors++;
-        console.error(`      ⚠️ Erro ao criar pagela semana ${week}:`, error.response?.data?.message || error.message);
+        console.error(`      ⚠️ Error creating pagela week ${week}:`, error.response?.data?.message || error.message);
       }
     }
   }
@@ -292,7 +292,7 @@ async function createMissingPagelasForChild(child, period, weekday, totalWeeks) 
     }
     
     if (stillMissing.length > 0) {
-      console.error(`      ⚠️ Ainda faltam ${stillMissing.length} semanas após criação:`, stillMissing.slice(0, 5).join(', '));
+      console.error(`      ⚠️ Still missing ${stillMissing.length} weeks after creation:`, stillMissing.slice(0, 5).join(', '));
     }
   }
   
@@ -301,8 +301,8 @@ async function createMissingPagelasForChild(child, period, weekday, totalWeeks) 
 
 async function main() {
   console.log('🚀 ============================================');
-  console.log('🚀 CRIAÇÃO DE PAGELAS FALTANTES');
-  console.log('🚀 Percorrendo todos os clubes e crianças');
+  console.log('🚀 CREATING MISSING PAGELAS');
+  console.log('🚀 Processing all clubs and children');
   console.log('🚀 ============================================\n');
   
   
@@ -310,7 +310,7 @@ async function main() {
     await axios.get(`${API_BASE_URL}/`);
   } catch (error) {
     if (error.code === 'ECONNREFUSED') {
-      console.error('❌ API não está rodando em localhost:3000. Por favor, inicie a API primeiro.');
+      console.error('❌ API is not running on localhost:3000. Please start the API first.');
       process.exit(1);
     }
   }
@@ -330,16 +330,16 @@ async function main() {
       endDate: currentWeekResponse.data.periodEndDate,
     };
     totalWeeks = currentWeekResponse.data.week || 48;
-    console.log(`📅 Período letivo ${period.year}: ${period.startDate} a ${period.endDate}`);
-    console.log(`📅 Total de semanas: ${totalWeeks}\n`);
+    console.log(`📅 Academic period ${period.year}: ${period.startDate} to ${period.endDate}`);
+    console.log(`📅 Total weeks: ${totalWeeks}\n`);
   } catch (error) {
-    console.log('  ⚠️ Erro ao buscar período letivo. Tentando buscar diretamente...');
+    console.log('  ⚠️ Error fetching academic period. Trying to fetch directly...');
     try {
       const periodResponse = await authenticatedRequest('get', '/club-control/periods/2025');
       period = periodResponse.data;
-      console.log(`📅 Período letivo 2025: ${period.startDate} a ${period.endDate}\n`);
+      console.log(`📅 Academic period 2025: ${period.startDate} to ${period.endDate}\n`);
     } catch (err) {
-      console.error('  ❌ Erro ao buscar período letivo:', err.response?.data?.message || err.message);
+      console.error('  ❌ Error fetching academic period:', err.response?.data?.message || err.message);
       return;
     }
   }
@@ -348,7 +348,7 @@ async function main() {
   const clubs = await getAllClubs();
   
   if (clubs.length === 0) {
-    console.log('⚠️ Nenhum clube encontrado\n');
+    console.log('⚠️ No clubs found\n');
     return;
   }
   
@@ -361,7 +361,7 @@ async function main() {
   
   for (let i = 0; i < clubs.length; i++) {
     const club = clubs[i];
-    console.log(`\n🏢 Clube ${club.number} (${i + 1}/${clubs.length}):`);
+    console.log(`\n🏢 Club ${club.number} (${i + 1}/${clubs.length}):`);
     console.log(`  📍 ${club.address?.city || 'N/A'}, ${club.address?.state || 'N/A'}`);
     console.log(`  📅 ${club.weekday} ${club.time || ''}`);
     
@@ -369,11 +369,11 @@ async function main() {
     const children = await getAllChildrenFromClub(club.id, club.number);
     
     if (children.length === 0) {
-      console.log(`  ⚠️ Nenhuma criança encontrada neste clube\n`);
+      console.log(`  ⚠️ No children found in this club\n`);
       continue;
     }
     
-    console.log(`  👶 ${children.length} crianças encontradas`);
+    console.log(`  👶 ${children.length} children found`);
     
     let clubChildrenWithMissing = 0;
     let clubPagelasCreated = 0;
@@ -407,18 +407,18 @@ async function main() {
           clubPagelasCreated += result.created;
           totalPagelasCreated += result.created;
           
-          console.log(`    ✅ ${child.name}: ${result.created} pagelas criadas (já tinha ${result.existing}, esperado: ${expectedWeeks})`);
+          console.log(`    ✅ ${child.name}: ${result.created} pagelas created (had ${result.existing}, expected: ${expectedWeeks})`);
         } else {
           
           if (result.existing < expectedWeeks) {
-            console.log(`    ⚠️ ${child.name}: Tem ${result.existing} pagelas, esperado ${expectedWeeks} (joinedAt: ${child.joinedAt || 'N/A'}, startWeek: ${startWeek})`);
+            console.log(`    ⚠️ ${child.name}: Has ${result.existing} pagelas, expected ${expectedWeeks} (joinedAt: ${child.joinedAt || 'N/A'}, startWeek: ${startWeek})`);
             
             const retryResult = await createMissingPagelasForChild(child, period, club.weekday, totalWeeks);
             if (retryResult.created > 0) {
               clubChildrenWithMissing++;
               clubPagelasCreated += retryResult.created;
               totalPagelasCreated += retryResult.created;
-              console.log(`    ✅ ${child.name} (retry): ${retryResult.created} pagelas criadas`);
+              console.log(`    ✅ ${child.name} (retry): ${retryResult.created} pagelas created`);
             }
           }
         }
@@ -429,14 +429,14 @@ async function main() {
         }
       } catch (error) {
         totalErrors++;
-        console.error(`    ❌ Erro ao processar ${child.name}:`, error.response?.data?.message || error.message);
+        console.error(`    ❌ Error processing ${child.name}:`, error.response?.data?.message || error.message);
       }
     }
     
     if (clubChildrenWithMissing > 0) {
-      console.log(`  📊 Clube ${club.number}: ${clubChildrenWithMissing} crianças atualizadas, ${clubPagelasCreated} pagelas criadas`);
+      console.log(`  📊 Club ${club.number}: ${clubChildrenWithMissing} children updated, ${clubPagelasCreated} pagelas created`);
     } else {
-      console.log(`  ✅ Clube ${club.number}: Todas as ${children.length} crianças têm todas as pagelas`);
+      console.log(`  ✅ Club ${club.number}: All ${children.length} children have all pagelas`);
     }
     
     
@@ -447,21 +447,21 @@ async function main() {
   
   
   console.log('\n\n📊 ============================================');
-  console.log('📊 RESUMO FINAL');
+  console.log('📊 FINAL SUMMARY');
   console.log('📊 ============================================');
-  console.log(`🏢 Clubes processados: ${clubs.length}`);
-  console.log(`👶 Crianças processadas: ${totalChildrenProcessed}`);
-  console.log(`⚠️ Crianças com pagelas faltantes: ${totalChildrenWithMissingPagelas}`);
-  console.log(`✅ Pagelas criadas: ${totalPagelasCreated}`);
+  console.log(`🏢 Clubs processed: ${clubs.length}`);
+  console.log(`👶 Children processed: ${totalChildrenProcessed}`);
+  console.log(`⚠️ Children with missing pagelas: ${totalChildrenWithMissingPagelas}`);
+  console.log(`✅ Pagelas created: ${totalPagelasCreated}`);
   if (totalErrors > 0) {
-    console.log(`❌ Erros: ${totalErrors}`);
+    console.log(`❌ Errors: ${totalErrors}`);
   }
-  console.log('\n🎉 Processo concluído!\n');
+  console.log('\n🎉 Process completed!\n');
 }
 
 
 main().catch(error => {
-  console.error('\n❌ Erro fatal:', error.message);
+  console.error('\n❌ Fatal error:', error.message);
   console.error(error.stack);
   process.exit(1);
 });

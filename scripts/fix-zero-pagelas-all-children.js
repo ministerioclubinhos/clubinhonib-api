@@ -11,7 +11,7 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('\n❌ Erro fatal:', err?.message || err);
+  console.error('\n❌ Fatal error:', err?.message || err);
   console.error(err?.stack || '');
   process.exit(1);
 });

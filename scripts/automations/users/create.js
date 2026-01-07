@@ -21,7 +21,7 @@ async function createUsers({ http, logger, count = 20 }) {
       created.push(res.data);
       logger.info(`[users/create] +1 ${role} ${dto.email}`);
     } catch (e) {
-      logger.warn(`[users/create] falhou ${dto.email}: ${e.response?.data?.message || e.message}`);
+      logger.warn(`[users/create] failed ${dto.email}: ${e.response?.data?.message || e.message}`);
     }
   }
 
@@ -30,9 +30,9 @@ async function createUsers({ http, logger, count = 20 }) {
 
 async function run({ http, logger, ctx }) {
   const count = ctx?.usersToCreate ?? 20;
-  logger.info(`[users/create] criando ${count} usuários...`);
+  logger.info(`[users/create] creating ${count} users...`);
   const users = await createUsers({ http, logger, count });
-  logger.info(`[users/create] OK criados=${users.length}`);
+  logger.info(`[users/create] OK created=${users.length}`);
   return { users };
 }
 

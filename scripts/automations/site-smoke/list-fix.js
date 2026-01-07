@@ -1,20 +1,20 @@
 const { fetchAllPages } = require('../common/pagination');
 
 async function run({ http, logger }) {
-  logger.info('[site-smoke/list-fix] smoke GETs de controllers de conteúdo/site...');
+  logger.info('[site-smoke/list-fix] smoke testing GET endpoints from content/site controllers...');
 
   
   try {
     const events = await http.request('get', '/events');
     logger.info(`[site-smoke] OK /events total=${Array.isArray(events.data) ? events.data.length : 0}`);
   } catch (e) {
-    logger.warn(`[site-smoke] /events falhou: ${e.response?.data?.message || e.message}`);
+    logger.warn(`[site-smoke] /events failed: ${e.response?.data?.message || e.message}`);
   }
   try {
     const upcoming = await http.request('get', '/events/upcoming');
     logger.info(`[site-smoke] OK /events/upcoming total=${Array.isArray(upcoming.data) ? upcoming.data.length : 0}`);
   } catch (e) {
-    logger.warn(`[site-smoke] /events/upcoming falhou: ${e.response?.data?.message || e.message}`);
+    logger.warn(`[site-smoke] /events/upcoming failed: ${e.response?.data?.message || e.message}`);
   }
 
   
@@ -24,7 +24,7 @@ async function run({ http, logger }) {
     logger.info(`[site-smoke] OK /ideas-pages total=${arr.length}`);
     if (arr[0]?.id) await http.request('get', `/ideas-pages/${arr[0].id}`);
   } catch (e) {
-    logger.warn(`[site-smoke] /ideas-pages falhou: ${e.response?.data?.message || e.message}`);
+    logger.warn(`[site-smoke] /ideas-pages failed: ${e.response?.data?.message || e.message}`);
   }
 
   try {
@@ -33,7 +33,7 @@ async function run({ http, logger }) {
     logger.info(`[site-smoke] OK /ideas-sections total=${arr.length}`);
     if (arr[0]?.id) await http.request('get', `/ideas-sections/${arr[0].id}`);
   } catch (e) {
-    logger.warn(`[site-smoke] /ideas-sections falhou: ${e.response?.data?.message || e.message}`);
+    logger.warn(`[site-smoke] /ideas-sections failed: ${e.response?.data?.message || e.message}`);
   }
 
   
@@ -55,7 +55,7 @@ async function run({ http, logger }) {
       logger.info(`[site-smoke] OK /image-pages/:id/sections totalFetched=${sections.length}`);
     }
   } catch (e) {
-    logger.warn(`[site-smoke] /image-pages falhou: ${e.response?.data?.message || e.message}`);
+    logger.warn(`[site-smoke] /image-pages failed: ${e.response?.data?.message || e.message}`);
   }
 
   try {
@@ -64,7 +64,7 @@ async function run({ http, logger }) {
     logger.info(`[site-smoke] OK /image-sections total=${arr.length}`);
     if (arr[0]?.id) await http.request('get', `/image-sections/${arr[0].id}`);
   } catch (e) {
-    logger.warn(`[site-smoke] /image-sections falhou: ${e.response?.data?.message || e.message}`);
+    logger.warn(`[site-smoke] /image-sections failed: ${e.response?.data?.message || e.message}`);
   }
 
   
@@ -74,7 +74,7 @@ async function run({ http, logger }) {
     logger.info(`[site-smoke] OK /video-pages total=${arr.length}`);
     if (arr[0]?.id) await http.request('get', `/video-pages/${arr[0].id}`);
   } catch (e) {
-    logger.warn(`[site-smoke] /video-pages falhou: ${e.response?.data?.message || e.message}`);
+    logger.warn(`[site-smoke] /video-pages failed: ${e.response?.data?.message || e.message}`);
   }
 
   
@@ -83,13 +83,13 @@ async function run({ http, logger }) {
     const arr = Array.isArray(w.data) ? w.data : [];
     logger.info(`[site-smoke] OK /week-material-pages total=${arr.length}`);
   } catch (e) {
-    logger.warn(`[site-smoke] /week-material-pages falhou: ${e.response?.data?.message || e.message}`);
+    logger.warn(`[site-smoke] /week-material-pages failed: ${e.response?.data?.message || e.message}`);
   }
   try {
     await http.request('get', '/week-material-pages/current-week');
     logger.info('[site-smoke] OK /week-material-pages/current-week');
   } catch (e) {
-    logger.warn(`[site-smoke] /week-material-pages/current-week falhou: ${e.response?.data?.message || e.message}`);
+    logger.warn(`[site-smoke] /week-material-pages/current-week failed: ${e.response?.data?.message || e.message}`);
   }
 
   
@@ -98,13 +98,13 @@ async function run({ http, logger }) {
     const arr = Array.isArray(m.data) ? m.data : [];
     logger.info(`[site-smoke] OK /meditations total=${arr.length}`);
   } catch (e) {
-    logger.warn(`[site-smoke] /meditations falhou: ${e.response?.data?.message || e.message}`);
+    logger.warn(`[site-smoke] /meditations failed: ${e.response?.data?.message || e.message}`);
   }
   try {
     await http.request('get', '/meditations/this-week');
     logger.info('[site-smoke] OK /meditations/this-week');
   } catch (e) {
-    logger.warn(`[site-smoke] /meditations/this-week falhou: ${e.response?.data?.message || e.message}`);
+    logger.warn(`[site-smoke] /meditations/this-week failed: ${e.response?.data?.message || e.message}`);
   }
 
   try {
@@ -112,7 +112,7 @@ async function run({ http, logger }) {
     const arr = Array.isArray(inf.data) ? inf.data : [];
     logger.info(`[site-smoke] OK /informatives total=${arr.length}`);
   } catch (e) {
-    logger.warn(`[site-smoke] /informatives falhou: ${e.response?.data?.message || e.message}`);
+    logger.warn(`[site-smoke] /informatives failed: ${e.response?.data?.message || e.message}`);
   }
 
   
@@ -122,7 +122,7 @@ async function run({ http, logger }) {
     logger.info(`[site-smoke] OK /documents total=${arr.length}`);
     if (arr[0]?.id) await http.request('get', `/documents/${arr[0].id}`);
   } catch (e) {
-    logger.warn(`[site-smoke] /documents falhou: ${e.response?.data?.message || e.message}`);
+    logger.warn(`[site-smoke] /documents failed: ${e.response?.data?.message || e.message}`);
   }
 
   
@@ -131,7 +131,7 @@ async function run({ http, logger }) {
     const arr = Array.isArray(published.data) ? published.data : [];
     logger.info(`[site-smoke] OK /comments/published total=${arr.length}`);
   } catch (e) {
-    logger.warn(`[site-smoke] /comments/published falhou: ${e.response?.data?.message || e.message}`);
+    logger.warn(`[site-smoke] /comments/published failed: ${e.response?.data?.message || e.message}`);
   }
 
   
@@ -139,7 +139,7 @@ async function run({ http, logger }) {
     await http.request('get', '/');
     logger.info('[site-smoke] OK GET /');
   } catch (e) {
-    logger.warn(`[site-smoke] GET / falhou: ${e.response?.status ?? ''}`);
+    logger.warn(`[site-smoke] GET / failed: ${e.response?.status ?? ''}`);
   }
 
   return { ok: true };

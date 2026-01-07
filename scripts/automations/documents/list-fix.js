@@ -1,7 +1,7 @@
 const { multipartRequest } = require('../common/multipart');
 
 async function run({ http, logger }) {
-  logger.info('[documents/list-fix] listando documentos...');
+  logger.info('[documents/list-fix] listing documents...');
   const res = await http.request('get', '/documents');
   const docs = Array.isArray(res.data) ? res.data : [];
   logger.info(`[documents/list-fix] OK total=${docs.length}`);

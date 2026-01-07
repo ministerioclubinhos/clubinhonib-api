@@ -6,14 +6,14 @@ async function run({ http, logger, ctx }) {
   const list = await http.request('get', '/ideas-pages');
   const existing = Array.isArray(list.data) ? list.data : [];
   const toCreate = Math.max(0, min - existing.length);
-  logger.info(`[ideas-pages/create] garantindo mínimo ${min} (atual=${existing.length}, criar=${toCreate})...`);
+  logger.info(`[ideas-pages/create] ensuring minimum ${min} (current=${existing.length}, creating=${toCreate})...`);
 
   const created = [];
   for (let i = 0; i < toCreate; i++) {
   const dto = {
     title: `Página de Ideias (automação) #${existing.length + i + 1}`,
     subtitle: 'Subtítulo',
-    description: 'Criada pela automação',
+    description: 'Created by automation',
     public: true,
     sections: [
       {

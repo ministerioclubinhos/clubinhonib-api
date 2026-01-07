@@ -1,7 +1,7 @@
 const { fetchAllPages } = require('../common/pagination');
 
 async function run({ http, logger }) {
-  logger.info('[coordinator-profiles/list-fix] listando coordinator-profiles (todas as páginas)...');
+  logger.info('[coordinator-profiles/list-fix] listing coordinator-profiles (all pages)...');
   const coords = await fetchAllPages(http.request, 'get', '/coordinator-profiles', {}, { limit: 100, maxPages: 200 });
 
   let empty = 0;

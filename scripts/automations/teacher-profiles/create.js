@@ -13,7 +13,7 @@ async function run({ http, logger }) {
     completed: true,
   };
 
-  logger.info(`[teacher-profiles/create] criando user teacher (${userDto.email})...`);
+  logger.info(`[teacher-profiles/create] creating teacher user (${userDto.email})...`);
   const userRes = await http.request('post', '/users', { data: userDto });
   await sleep(600);
 

@@ -22,7 +22,7 @@ async function createChildrenForClubs({ http, logger, clubs, countPerClub = 10 }
         const res = await http.request('post', '/children', { data: dto });
         created.push(res.data);
       } catch (e) {
-        logger.warn(`[children/create] falhou club #${club.number}: ${e.response?.data?.message || e.message}`);
+        logger.warn(`[children/create] failed club #${club.number}: ${e.response?.data?.message || e.message}`);
       }
     }
     logger.info(`[children/create] club #${club.number} +${countPerClub} children`);
@@ -36,9 +36,9 @@ async function run({ http, logger, ctx }) {
   const clubs = Array.isArray(clubsRes.data) ? clubsRes.data : [];
 
   const countPerClub = ctx?.childrenPerClub ?? 10;
-  logger.info(`[children/create] criando ${countPerClub} crianças por club (clubs=${clubs.length})...`);
+  logger.info(`[children/create] creating ${countPerClub} children per club (clubs=${clubs.length})...`);
   const children = await createChildrenForClubs({ http, logger, clubs, countPerClub });
-  logger.info(`[children/create] OK criadas=${children.length}`);
+  logger.info(`[children/create] OK created=${children.length}`);
   return { children };
 }
 

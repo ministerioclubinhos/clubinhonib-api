@@ -28,7 +28,7 @@ async function ensureAcademicPeriod({ http, year = ACADEMIC_YEAR }) {
 }
 
 async function run({ http, logger }) {
-  logger.info(`[club-control/create] garantindo período letivo ${ACADEMIC_YEAR}...`);
+  logger.info(`[club-control/create] ensuring academic period ${ACADEMIC_YEAR}...`);
   const period = await ensureAcademicPeriod({ http, year: ACADEMIC_YEAR });
   logger.info(`[club-control/create] OK período: ${period?.startDate} -> ${period?.endDate}`);
   return { period };

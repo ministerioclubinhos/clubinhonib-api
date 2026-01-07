@@ -1,7 +1,7 @@
 const { fetchAllPages } = require('../common/pagination');
 
 async function run({ http, logger }) {
-  logger.info('[teacher-profiles/list-fix] listando teacher-profiles (todas as páginas)...');
+  logger.info('[teacher-profiles/list-fix] listing teacher-profiles (all pages)...');
   const teachers = await fetchAllPages(http.request, 'get', '/teacher-profiles', {}, { limit: 100, maxPages: 200 });
 
   

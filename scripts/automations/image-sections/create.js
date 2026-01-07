@@ -6,13 +6,13 @@ async function run({ http, logger, ctx }) {
   const list = await http.request('get', '/image-sections');
   const existing = Array.isArray(list.data) ? list.data : [];
   const toCreate = Math.max(0, min - existing.length);
-  logger.info(`[image-sections/create] garantindo mínimo ${min} (atual=${existing.length}, criar=${toCreate})...`);
+  logger.info(`[image-sections/create] ensuring minimum ${min} (current=${existing.length}, creating=${toCreate})...`);
 
   const created = [];
   for (let i = 0; i < toCreate; i++) {
   const dto = {
     caption: 'Section (automação)',
-    description: 'Criada pela automação',
+    description: 'Created by automation',
     public: true,
     mediaItems: [
       {
@@ -27,7 +27,7 @@ async function run({ http, logger, ctx }) {
     ],
   };
 
-  logger.info('[image-sections/create] criando image-section (multipart)...');
+  logger.info('[image-sections/create] creating image-section (multipart)...');
   const res = await multipartRequest({
     http,
     method: 'POST',

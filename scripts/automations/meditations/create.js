@@ -84,7 +84,7 @@ async function run({ http, logger }) {
     ],
   };
 
-  logger.info('[meditations/create] criando meditação (multipart + file obrigatório)...');
+  logger.info('[meditations/create] creating meditation (multipart + required file)...');
   const res = await multipartRequest({
     http,
     method: 'POST',

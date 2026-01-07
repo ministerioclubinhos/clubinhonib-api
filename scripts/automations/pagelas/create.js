@@ -28,7 +28,7 @@ function computeTotalWeeks(period) {
 
 function getDateForWeek(period, week, weekday) {
   const startDate = parseDateOnly(period.startDate);
-  if (!startDate) throw new Error(`Período inválido: startDate=${period?.startDate}`);
+  if (!startDate) throw new Error(`Invalid period: startDate=${period?.startDate}`);
 
   const periodWeekStart = getWeekStart(startDate);
   const weekStart = new Date(periodWeekStart);
@@ -40,7 +40,7 @@ function getDateForWeek(period, week, weekday) {
   weekStart.setDate(weekStart.getDate() + (targetWeekday - currentWeekday));
 
   if (Number.isNaN(weekStart.getTime())) {
-    throw new Error(`Data inválida gerada week=${week} weekday=${weekday}`);
+    throw new Error(`Invalid generated date week=${week} weekday=${weekday}`);
   }
   return weekStart.toISOString().split('T')[0];
 }
@@ -52,7 +52,7 @@ async function run({ http, logger, ctx }) {
   
   const periodRes = await http.request('get', `/club-control/periods/${year}`);
   const period = periodRes.data;
-  if (!period?.startDate) throw new Error(`[pagelas/create] período ${year} inválido: ${JSON.stringify(period)}`);
+  if (!period?.startDate) throw new Error(`[pagelas/create] invalid period ${year}: ${JSON.stringify(period)}`);
 
   
   if (!weeks || weeks <= 0) {
@@ -70,7 +70,7 @@ async function run({ http, logger, ctx }) {
   if (childLimit > 0) children = children.slice(0, childLimit);
   const forcedChildId = ctx?.pagelasChildId ?? PAGELAS_CHILD_ID;
   if (forcedChildId) children = children.filter((c) => c?.id === forcedChildId);
-  logger.info(`[pagelas/create] criando pagelas year=${year} weeks=${weeks} para children=${children.length} (skip duplicadas)...`);
+  logger.info(`[pagelas/create] creating pagelas year=${year} weeks=${weeks} for children=${children.length} (skip duplicates)...`);
 
   let created = 0;
   let duplicates = 0;
@@ -110,7 +110,7 @@ async function run({ http, logger, ctx }) {
             present,
             didMeditation,
             recitedVerse,
-            notes: present ? `Semana ${week} - ${present ? 'Presente' : 'Ausente'}` : null,
+            notes: present ? `Week ${week} - ${present ? 'Present' : 'Absent'}` : null,
           },
         });
         created++;
@@ -121,7 +121,7 @@ async function run({ http, logger, ctx }) {
         const msg = e.response?.data?.message || e.response?.data || e.message;
         
         const isIgnored = status === 400 || status === 409 || status === 404;
-        if (isIgnored && typeof msg === 'string' && msg.includes('Já existe Pagela')) {
+        if (isIgnored && typeof msg === 'string' && msg.includes('Pagela already exists')) {
           duplicates++;
           if (!PAGELAS_DEBUG) continue;
         }
@@ -129,7 +129,7 @@ async function run({ http, logger, ctx }) {
         if (shownErrors < 25) {
           shownErrors++;
           logger.warn(
-            `[pagelas/create] erro child=${child.id} week=${week} status=${status ?? 'n/a'}: ${
+            `[pagelas/create] error child=${child.id} week=${week} status=${status ?? 'n/a'}: ${
               msg
             }`,
           );
