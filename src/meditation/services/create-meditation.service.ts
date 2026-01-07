@@ -120,7 +120,6 @@ export class CreateMeditationService {
 
       return savedMeditation;
     } catch (error) {
-      this.logger.error('❌ Erro ao criar meditação', error.stack);
       throw new BadRequestException(
         error?.message || 'Erro inesperado ao criar meditação.',
       );

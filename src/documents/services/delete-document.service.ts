@@ -52,7 +52,6 @@ export class DeleteDocumentService {
 
       this.logger.log(`✅ Documento removido com sucesso: ID=${id}`);
     } catch (error) {
-      this.logger.error(`❌ Erro ao remover documento ID=${id}`, error.stack);
       throw new InternalServerErrorException('Erro ao remover documento.');
     }
   }

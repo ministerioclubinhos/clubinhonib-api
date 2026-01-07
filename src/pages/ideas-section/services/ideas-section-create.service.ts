@@ -49,10 +49,9 @@ export class IdeasSectionCreateService {
 
       return IdeasSectionResponseDto.fromEntity(section, mediaItems);
     } catch (error) {
-      await queryRunner.rollbackTransaction();
-      this.logger.error('💥  Transaction rolled‑back', error.stack);
+      this.logger.error('💥  Transaction rolled‑back', err.stack);
       throw new BadRequestException(
-        `Erro ao criar a seção de ideias: ${error.message}`,
+        `Erro ao criar a seção de ideias: ${err.message}`,
       );
     } finally {
       await queryRunner.release();

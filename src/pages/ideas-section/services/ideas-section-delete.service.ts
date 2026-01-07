@@ -65,7 +65,6 @@ export class IdeasSectionDeleteService {
             await this.awsS3Service.delete(media.url);
             this.logger.debug(`✅ Arquivo removido do S3: ${media.url}`);
           } catch (error) {
-            this.logger.warn(
               `⚠️ Erro ao remover arquivo do S3: ${media.url}`,
               error,
             );
@@ -87,7 +86,6 @@ export class IdeasSectionDeleteService {
       await queryRunner.commitTransaction();
       this.logger.log(`✅ Seção de ideias ID=${id} excluída com sucesso`);
     } catch (error) {
-      await queryRunner.rollbackTransaction();
       this.logger.error(`❌ Erro ao excluir seção de ideias ID=${id}`, error);
 
       if (

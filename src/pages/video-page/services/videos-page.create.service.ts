@@ -88,7 +88,6 @@ export class CreateVideosPageService {
       await queryRunner.commitTransaction();
       return VideosPageResponseDto.fromEntity(finalPage, mediaItems);
     } catch (error) {
-      await queryRunner.rollbackTransaction();
       this.logger.error(
         '❌ Erro ao criar página de vídeos. Rollback executado.',
         error,

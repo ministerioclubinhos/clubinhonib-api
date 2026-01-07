@@ -209,9 +209,8 @@ export class IdeasPageUpdateService {
       );
       return finalIdeasPage;
     } catch (error) {
-      this.logger.error(
         `❌ Erro ao atualizar página de ideias com ID: ${id}. Iniciando rollback`,
-        error.stack,
+        err.stack,
       );
       this.logger.debug('🔙 Executando rollback da transação');
       await queryRunner.rollbackTransaction();
@@ -416,9 +415,8 @@ export class IdeasPageUpdateService {
             `✅ Arquivo removido do S3 com sucesso: ${media.url}`,
           );
         } catch (error) {
-          this.logger.error(
             `❌ Falha ao remover arquivo do S3: ${media.url}`,
-            error.stack,
+            err.stack,
           );
           throw new BadRequestException(
             `Falha ao remover arquivo do S3: ${media.url}`,

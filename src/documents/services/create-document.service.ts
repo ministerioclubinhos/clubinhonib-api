@@ -41,7 +41,7 @@ export class CreateDocumentService {
 
     try {
       const savedDoc = await this.persistDocument(runner, dto);
-      const route = await this.attachRoute(runner, savedDoc, dto);
+      await this.attachRoute(runner, savedDoc, dto);
       const media = await this.processMedia(runner, savedDoc.id, dto, file);
 
       await runner.commitTransaction();
@@ -49,8 +49,6 @@ export class CreateDocumentService {
 
       return DocumentDto.fromEntity(savedDoc, media);
     } catch (err) {
-      await runner.rollbackTransaction();
-      this.logger.error('💥  Transaction rolled‑back', err.stack);
       throw new BadRequestException(
         `Erro ao criar o documento: ${err.message}`,
       );
@@ -137,7 +135,6 @@ export class CreateDocumentService {
         originalName = file.originalname;
         size = file.size;
       } catch (error) {
-        this.logger.error(
           `❌ Erro no upload do arquivo: ${file.originalname}`,
           error.stack,
         );

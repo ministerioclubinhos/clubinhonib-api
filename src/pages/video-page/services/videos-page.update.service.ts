@@ -122,9 +122,8 @@ export class UpdateVideosPageService {
       );
       return VideosPageResponseDto.fromEntity(finalPage, mediaItems);
     } catch (error) {
-      this.logger.error(
         '❌ Erro ao atualizar página de vídeos. Iniciando rollback.',
-        error.stack,
+        err.stack,
       );
       this.logger.debug('🔙 Executando rollback da transação');
       await queryRunner.rollbackTransaction();
@@ -203,9 +202,8 @@ export class UpdateVideosPageService {
           await this.awsS3Service.delete(media.url);
           this.logger.debug(`✅ Arquivo removido do S3: ${media.url}`);
         } catch (error) {
-          this.logger.error(
             `❌ Falha ao remover arquivo do S3: ${media.url}`,
-            error.stack,
+            err.stack,
           );
           throw new BadRequestException(
             `Falha ao remover arquivo do S3: ${media.url}`,

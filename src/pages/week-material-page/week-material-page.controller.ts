@@ -72,7 +72,6 @@ export class WeekMaterialsPageController {
       this.logger.log(`✅ Página criada com sucesso: ID=${result.id}`);
       return result;
     } catch (err) {
-      this.logger.error('❌ Erro ao criar página de materiais', err);
       throw new BadRequestException(
         'Erro ao criar a página de materiais: ' + err.message,
       );
@@ -115,7 +114,6 @@ export class WeekMaterialsPageController {
       this.logger.log(`✅ Página atualizada com sucesso: ID=${result.id}`);
       return WeekMaterialsPageResponseDTO.fromEntity(result);
     } catch (err) {
-      this.logger.error(`❌ Erro ao atualizar página ID=${id}`, err);
       throw new BadRequestException(
         'Erro ao atualizar a página de materiais: ' + err.message,
       );
@@ -132,7 +130,6 @@ export class WeekMaterialsPageController {
       await this.removeService.removeWeekMaterial(id);
       this.logger.log(`✅ Página removida com sucesso: ID=${id}`);
     } catch (err) {
-      this.logger.error(`❌ Erro ao remover página ID=${id}`, err);
       throw new BadRequestException(
         'Erro ao remover a página de materiais: ' + err.message,
       );

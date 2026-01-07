@@ -74,7 +74,6 @@ export class IdeasPageController {
       this.logger.log(`✅ Página criada com sucesso: ID=${result.id}`);
       return result;
     } catch (err) {
-      this.logger.error('❌ Erro ao criar página de ideias', err);
       throw new BadRequestException(
         'Erro ao criar página de ideias: ' + err.message,
       );
@@ -125,7 +124,6 @@ export class IdeasPageController {
       );
       return IdeasPageResponseDto.fromEntity(result, new Map());
     } catch (error) {
-      this.logger.error('❌ Erro ao atualizar página de ideias', error);
       throw new BadRequestException('Erro ao atualizar a página de ideias.');
     }
   }
@@ -141,9 +139,8 @@ export class IdeasPageController {
       await this.ideasPageRemoveService.removeIdeasPage(id);
       this.logger.log(`✅ Página de ideias removida com sucesso: ID=${id}`);
     } catch (error) {
-      this.logger.error('❌ Erro ao remover página de ideias', error);
       throw new BadRequestException(
-        'Erro ao remover a página de ideias: ' + error.message,
+        'Erro ao remover a página de ideias: ' + err.message,
       );
     }
   }

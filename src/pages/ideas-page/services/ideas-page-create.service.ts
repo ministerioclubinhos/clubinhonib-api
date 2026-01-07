@@ -44,7 +44,6 @@ export class IdeasPageCreateService {
 
       return plainToInstance(IdeasPageResponseDto, page);
     } catch (err) {
-      await runner.rollbackTransaction();
       this.logger.error('💥  Transaction rolled‑back', err.stack);
       throw new BadRequestException(
         `Erro ao criar a página de ideias: ${err.message}`,

@@ -60,10 +60,9 @@ export class WeekMaterialsPageRemoveService {
       await queryRunner.commitTransaction();
       this.logger.debug(`✅ Página removida com sucesso. ID=${id}`);
     } catch (error) {
-      await queryRunner.rollbackTransaction();
       this.logger.error(
         '❌ Erro ao remover página. Rollback executado.',
-        error.stack,
+        err.stack,
       );
       throw new BadRequestException('Erro ao remover a página de materiais.');
     } finally {

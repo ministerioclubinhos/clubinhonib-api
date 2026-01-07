@@ -66,7 +66,6 @@ export class CreateEventService {
 
       return savedEvent;
     } catch (error) {
-      this.logger.error('❌ Erro ao criar evento', error.stack);
       throw new BadRequestException(
         error?.message || 'Erro inesperado ao criar evento.',
       );

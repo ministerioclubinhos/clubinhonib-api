@@ -160,7 +160,6 @@ export class IdeasSectionController {
       );
       return result;
     } catch (error) {
-      this.logger.error('❌ Erro ao editar e vincular seção', error);
       throw new BadRequestException(
         'Erro ao editar e vincular a seção de ideias.',
       );

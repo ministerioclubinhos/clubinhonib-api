@@ -65,7 +65,6 @@ export class AcademicWeekService {
         periodEndDate: period.endDate,
       };
     } catch (error) {
-      return {
         academicYear: period.year,
         academicWeek: 0,
         isWithinPeriod: false,

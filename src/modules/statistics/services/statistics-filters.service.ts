@@ -53,7 +53,6 @@ export class StatisticsFiltersService {
           );
         }
       } catch (error) {
-        // Fallback to date filters if conversion fails
         query.andWhere('pagela.referenceDate >= :startDate', {
           startDate: filters.startDate,
         });

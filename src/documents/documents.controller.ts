@@ -59,7 +59,6 @@ export class DocumentsController {
       dto = plainToInstance(CreateDocumentDto, parsed);
       await validateOrReject(dto);
     } catch (error) {
-      this.logger.error('❌ Erro ao processar dados do documento', error);
       throw new BadRequestException('Erro ao processar dados do documento.');
     }
 
@@ -112,7 +111,6 @@ export class DocumentsController {
       dto.id = id;
       await validateOrReject(dto);
     } catch (error) {
-      this.logger.error('❌ Erro ao processar dados do documento', error);
       throw new BadRequestException('Erro ao processar dados do documento.');
     }
 

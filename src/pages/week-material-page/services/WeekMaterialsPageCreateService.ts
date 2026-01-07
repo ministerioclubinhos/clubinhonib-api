@@ -99,10 +99,9 @@ export class WeekMaterialsPageCreateService {
 
       return WeekMaterialsPageResponseDTO.fromEntity(savedPage, mediaItems);
     } catch (error) {
-      await queryRunner.rollbackTransaction();
       this.logger.error('❌ Erro ao criar página. Rollback executado.', error);
       throw new BadRequestException(
-        `Erro ao criar a página de materiais: ${error.message}`,
+        `Erro ao criar a página de materiais: ${err.message}`,
       );
     } finally {
       await queryRunner.release();

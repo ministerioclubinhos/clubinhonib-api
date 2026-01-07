@@ -163,7 +163,6 @@ export class WeekMaterialsPageUpdateService {
       );
       return updatedPage;
     } catch (error) {
-      this.logger.error('❌ Erro ao atualizar página', error.stack);
       await queryRunner.rollbackTransaction();
       throw new BadRequestException('Erro ao atualizar a página de materiais.');
     } finally {

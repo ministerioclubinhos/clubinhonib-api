@@ -40,7 +40,6 @@ export class GetDocumentService {
         DocumentDto.fromEntity(doc, mediaMap.get(doc.id)),
       );
     } catch (error) {
-      this.logger.error('❌ Erro ao buscar documentos', error.stack);
       throw new InternalServerErrorException('Erro ao buscar documentos');
     }
   }

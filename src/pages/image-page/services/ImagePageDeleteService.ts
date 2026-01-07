@@ -81,7 +81,6 @@ export class ImagePageDeleteService {
       await queryRunner.commitTransaction();
       this.logger.log(`✅ Página de imagens removida com sucesso: ID=${id}`);
     } catch (error) {
-      this.logger.error(
         '❌ Erro ao remover galeria. Iniciando rollback.',
         error,
       );

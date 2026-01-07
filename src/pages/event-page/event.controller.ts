@@ -60,7 +60,6 @@ export class EventController {
       this.logger.log(`✅ Evento criado: ID=${result.id}`);
       return result;
     } catch (error) {
-      this.logger.error('❌ Erro ao criar evento', error.stack);
       const message = Array.isArray(error)
         ? error
             .map((e) => Object.values(e.constraints || {}))
@@ -106,7 +105,6 @@ export class EventController {
       const parsed = JSON.parse(rawEventData);
       dto = plainToInstance(UpdateEventDto, parsed);
     } catch (err) {
-      this.logger.error(`❌ JSON inválido para evento`, err.stack);
       throw new BadRequestException('JSON inválido no campo eventData');
     }
 

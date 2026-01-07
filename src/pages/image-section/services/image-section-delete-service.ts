@@ -61,7 +61,6 @@ export class ImageSectionDeleteService {
       await queryRunner.commitTransaction();
       this.logger.debug(`✅ Seção removida com sucesso: ID=${id}`);
     } catch (error) {
-      await queryRunner.rollbackTransaction();
       this.logger.error(
         '❌ Erro ao remover a seção. Rollback executado.',
         error,

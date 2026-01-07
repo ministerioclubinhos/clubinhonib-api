@@ -41,7 +41,6 @@ export class DeleteInformativeService {
       await this.informativeRepo.remove(informative);
       this.logger.log(`✅ Banner removido com sucesso: ID=${id}`);
     } catch (error) {
-      this.logger.error(`❌ Erro ao remover banner ID=${id}`, error.stack);
       throw new InternalServerErrorException('Erro ao remover banner.');
     }
   }

@@ -109,7 +109,6 @@ export class IdeasPageRemoveService {
       await queryRunner.commitTransaction();
       this.logger.log(`✅ Página de ideias removida com sucesso: ID=${id}`);
     } catch (error) {
-      this.logger.error(
         '❌ Erro ao remover página de ideias. Iniciando rollback.',
         error,
       );

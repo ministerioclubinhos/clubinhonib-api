@@ -62,7 +62,6 @@ export class MeditationController {
       this.logger.log(`✅ Meditação criada: ID=${result.id}`);
       return result;
     } catch (error) {
-      this.logger.error('❌ Erro ao criar meditação', error.stack);
       const message = Array.isArray(error)
         ? error
             .map((e) => Object.values(e.constraints || {}))
@@ -111,7 +110,6 @@ export class MeditationController {
       const parsed = JSON.parse(rawMeditationData);
       dto = plainToInstance(UpdateMeditationDto, parsed);
     } catch (err) {
-      this.logger.error(`❌ JSON inválido para meditação`, err.stack);
       throw new BadRequestException('JSON inválido no campo meditationData');
     }
 

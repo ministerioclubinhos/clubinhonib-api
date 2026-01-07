@@ -2197,7 +2197,6 @@ export class StatisticsRepository {
           weekData = this.getISOWeekYear(currentDateStr);
         }
       } catch (error) {
-        // Se a data está fora do período letivo, pular esta semana
         currentDate.setDate(currentDate.getDate() + 7);
         continue;
       }

@@ -110,9 +110,8 @@ export class WeekMaterialsPageGetService {
         `✅ Página ${weekPage.id} marcada como material da semana atual.`,
       );
     } catch (error) {
-      this.logger.error(
-        `❌ Erro ao definir página como atual: ${error.message}`,
-        error.stack,
+        `❌ Erro ao definir página como atual: ${err.message}`,
+        err.stack,
       );
       throw error;
     }

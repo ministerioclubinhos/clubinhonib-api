@@ -77,7 +77,6 @@ export class IdeasSectionUpdateService {
 
       return IdeasSectionResponseDto.fromEntity(savedSection, processedMedia);
     } catch (error) {
-      await queryRunner.rollbackTransaction();
       this.logger.error('❌ Erro ao atualizar seção', error);
 
       if (
@@ -207,7 +206,6 @@ export class IdeasSectionUpdateService {
       );
       return IdeasSectionResponseDto.fromEntity(savedSection, processedMedia);
     } catch (error) {
-      await queryRunner.rollbackTransaction();
       this.logger.error('❌ Erro ao editar e vincular seção', error);
 
       if (
@@ -351,9 +349,8 @@ export class IdeasSectionUpdateService {
             `✅ Arquivo removido do S3 com sucesso: ${media.url}`,
           );
         } catch (error) {
-          this.logger.error(
             `❌ Falha ao remover arquivo do S3: ${media.url}`,
-            error.stack,
+            err.stack,
           );
           throw new BadRequestException(
             `Falha ao remover arquivo do S3: ${media.url}`,

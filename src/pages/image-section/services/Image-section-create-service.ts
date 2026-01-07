@@ -63,7 +63,6 @@ export class ImageSectionCreateService {
 
       return ImageSectionResponseDto.fromEntity(savedSection, mediaItems);
     } catch (error) {
-      await queryRunner.rollbackTransaction();
       this.logger.error('❌ Erro ao criar seção', error);
       throw new BadRequestException('Erro ao criar a seção');
     } finally {

@@ -79,9 +79,8 @@ export class SiteFeedbackService {
 
       return updatedFeedback;
     } catch (error) {
-      this.logger.error(
         '❌ Erro ao buscar ou atualizar feedback do site',
-        error.stack,
+        err.stack,
       );
       throw new InternalServerErrorException(
         'Erro ao buscar ou atualizar feedback do site',

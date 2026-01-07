@@ -72,7 +72,6 @@ export class VideosPageController {
       );
       return result;
     } catch (error) {
-      this.logger.error('❌ Erro ao criar página de vídeos', error);
       throw new BadRequestException('Erro ao criar a página de vídeos.');
     }
   }
@@ -115,7 +114,6 @@ export class VideosPageController {
       );
       return result;
     } catch (error) {
-      this.logger.error('❌ Erro ao atualizar página de vídeos', error);
       throw new BadRequestException('Erro ao atualizar a página de vídeos.');
     }
   }
@@ -134,7 +132,6 @@ export class VideosPageController {
     try {
       return await this.getService.findOne(id);
     } catch (err) {
-      if (err instanceof NotFoundException) throw err;
       this.logger.error('❌ Erro ao buscar página de vídeos', err);
       throw new BadRequestException('Erro ao buscar página de vídeos.');
     }

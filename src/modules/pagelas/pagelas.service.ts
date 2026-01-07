@@ -78,7 +78,7 @@ export class PagelasService {
         week = academicWeek.week;
       } catch (error: any) {
         throw new BadRequestException(
-          error.message ||
+          err.message ||
             `Data ${dto.referenceDate} está fora do período letivo cadastrado.`,
         );
       }
@@ -173,7 +173,6 @@ export class PagelasService {
             dto.year = academicWeek.year;
           }
         } catch (error) {
-          // Se não conseguiu calcular, manter valores existentes ou os informados
         }
       }
     }

@@ -117,7 +117,6 @@ export class ImageSectionController {
       const obj = JSON.parse(raw);
       return plainToInstance(dtoClass, obj);
     } catch (error) {
-      this.logger.error('❌ Erro ao fazer o parse do JSON recebido.', error);
       throw new BadRequestException('Formato inválido de JSON.');
     }
   }

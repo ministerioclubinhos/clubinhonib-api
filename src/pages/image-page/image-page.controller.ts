@@ -61,7 +61,6 @@ export class ImageController {
 
       return result;
     } catch (error) {
-      this.logger.error('❌ Erro ao criar galeria', error);
       throw new BadRequestException('Erro ao criar a galeria.');
     }
   }
@@ -87,7 +86,6 @@ export class ImageController {
 
       return await this.updateService.updateImagePage(id, dto, filesDict);
     } catch (error) {
-      this.logger.error('❌ Erro ao atualizar galeria', error);
       throw new BadRequestException('Erro ao atualizar a galeria.');
     }
   }
@@ -124,7 +122,6 @@ export class ImageController {
     try {
       return await this.getService.findOne(id);
     } catch (error) {
-      if (error instanceof NotFoundException) throw error;
       throw new BadRequestException('Erro ao buscar galeria.');
     }
   }

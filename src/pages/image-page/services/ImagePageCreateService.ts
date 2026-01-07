@@ -166,7 +166,6 @@ export class ImagePageCreateService {
       this.logger.debug('📤 Preparando resposta DTO');
       return ImagePageResponseDto.fromEntity(finalGallery, mediaMap);
     } catch (error) {
-      this.logger.error('❌ Erro ao criar galeria. Iniciando rollback.', error);
       this.logger.debug('🔙 Executando rollback da transação');
       await queryRunner.rollbackTransaction();
       this.logger.debug('✅ Rollback concluído');

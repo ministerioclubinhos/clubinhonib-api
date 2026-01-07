@@ -36,7 +36,6 @@ export class CreateInformativeService {
 
       return informative;
     } catch (err) {
-      await runner.rollbackTransaction();
       this.logger.error('💥  Transaction rolled‑back', err.stack);
       throw new BadRequestException(
         `Erro ao criar o banner informativo: ${err.message}`,

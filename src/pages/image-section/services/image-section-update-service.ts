@@ -82,7 +82,6 @@ export class ImageSectionUpdateService {
       await queryRunner.commitTransaction();
       return ImageSectionResponseDto.fromEntity(savedSection, processedMedia);
     } catch (error) {
-      await queryRunner.rollbackTransaction();
       this.logger.error('❌ Erro ao atualizar a seção', error);
       throw new BadRequestException('Erro ao atualizar a seção');
     } finally {
