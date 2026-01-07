@@ -162,8 +162,10 @@ export class ImagePageUpdateService {
       this.logger.debug('📤 Preparando resposta DTO');
       return ImagePageResponseDto.fromEntity(finalImagePage, mediaMap);
     } catch (error) {
+      const err = error as Error;
+      this.logger.error(
         '❌ Erro ao atualizar galeria. Iniciando rollback.',
-        error,
+        err.stack,
       );
       this.logger.debug('🔙 Executando rollback da transação');
       await queryRunner.rollbackTransaction();
@@ -338,6 +340,8 @@ export class ImagePageUpdateService {
           await this.awsS3Service.delete(media.url);
           this.logger.debug(`✅ Arquivo removido do S3: ${media.url}`);
         } catch (error) {
+          const err = error as Error;
+          this.logger.error(
             `❌ Falha ao remover arquivo do S3: ${media.url}`,
             err.stack,
           );

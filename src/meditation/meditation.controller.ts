@@ -51,7 +51,7 @@ export class MeditationController {
     this.logger.log('📥 [POST /meditations] Criando nova meditação');
 
     try {
-      const parsed = JSON.parse(meditationDataRaw);
+      const parsed = JSON.parse(meditationDataRaw) as unknown;
       const dto = plainToInstance(CreateMeditationDto, parsed);
       await validateOrReject(dto, {
         whitelist: true,
@@ -62,12 +62,16 @@ export class MeditationController {
       this.logger.log(`✅ Meditação criada: ID=${result.id}`);
       return result;
     } catch (error) {
+      interface ValidationError {
+        constraints?: Record<string, string>;
+        message?: string;
+      }
       const message = Array.isArray(error)
         ? error
-            .map((e) => Object.values(e.constraints || {}))
+            .map((e: ValidationError) => Object.values(e.constraints || {}))
             .flat()
             .join('; ')
-        : error?.message || 'Erro ao criar meditação.';
+        : (error as Error)?.message || 'Erro ao criar meditação.';
       throw new BadRequestException(message);
     }
   }
@@ -107,9 +111,9 @@ export class MeditationController {
 
     let dto: UpdateMeditationDto;
     try {
-      const parsed = JSON.parse(rawMeditationData);
+      const parsed = JSON.parse(rawMeditationData) as unknown;
       dto = plainToInstance(UpdateMeditationDto, parsed);
-    } catch (err) {
+    } catch {
       throw new BadRequestException('JSON inválido no campo meditationData');
     }
 

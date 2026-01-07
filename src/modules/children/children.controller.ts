@@ -17,10 +17,7 @@ import { Request } from 'express';
 import { ChildrenService } from './children.service';
 import { CreateChildDto } from './dto/create-child.dto';
 import { UpdateChildDto } from './dto/update-child.dto';
-import {
-  QueryChildrenDto,
-  QueryChildrenSimpleDto,
-} from './dto/query-children.dto';
+import { QueryChildrenDto } from './dto/query-children.dto';
 import {
   PaginatedResponseDto,
   ChildResponseDto,

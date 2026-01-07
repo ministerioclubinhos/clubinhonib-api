@@ -36,9 +36,10 @@ export class CreateInformativeService {
 
       return informative;
     } catch (err) {
-      this.logger.error('💥  Transaction rolled‑back', err.stack);
+      const error = err as Error;
+      this.logger.error('💥  Transaction rolled‑back', error.stack);
       throw new BadRequestException(
-        `Erro ao criar o banner informativo: ${err.message}`,
+        `Erro ao criar o banner informativo: ${error.message}`,
       );
     } finally {
       await runner.release();

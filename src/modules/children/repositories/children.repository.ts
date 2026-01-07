@@ -168,9 +168,14 @@ export class ChildrenRepository {
       return false;
     }
 
-    const hasGetExists = typeof (qb as any).getExists === 'function';
+    interface QueryBuilderWithExists {
+      getExists?: () => Promise<boolean>;
+    }
+    const qbWithExists = qb as SelectQueryBuilder<ChildEntity> &
+      QueryBuilderWithExists;
+    const hasGetExists = typeof qbWithExists.getExists === 'function';
     return hasGetExists
-      ? !!(await (qb as any).getExists())
+      ? !!(await qbWithExists.getExists())
       : (await qb.getCount()) > 0;
   }
 

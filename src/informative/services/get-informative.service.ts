@@ -22,7 +22,7 @@ export class GetInformativeService {
     try {
       const list = await this.informativeRepo.findAllSorted();
       return list.map((entity) => InformativeResponseDto.fromEntity(entity));
-    } catch (error) {
+    } catch {
       throw new InternalServerErrorException(
         'Erro ao buscar banners informativos',
       );

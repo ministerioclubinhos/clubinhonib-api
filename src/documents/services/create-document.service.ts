@@ -49,8 +49,9 @@ export class CreateDocumentService {
 
       return DocumentDto.fromEntity(savedDoc, media);
     } catch (err) {
+      const error = err as Error;
       throw new BadRequestException(
-        `Erro ao criar o documento: ${err.message}`,
+        `Erro ao criar o documento: ${error.message}`,
       );
     } finally {
       await runner.release();

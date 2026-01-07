@@ -61,7 +61,7 @@ export class ClubControlRepository {
     page?: number,
     limit?: number,
   ): Promise<{ items: ClubPeriodEntity[]; total: number }> {
-    const where = { isActive: true } as any;
+    const where: { isActive: boolean } = { isActive: true };
     const total = await this.periodsRepository.count({ where });
     let items: ClubPeriodEntity[];
     if (page && limit) {
@@ -186,7 +186,7 @@ export class ClubControlRepository {
       .select('DISTINCT child.id', 'childId')
       .getRawMany();
 
-    return pagelas.map((p) => p.childId);
+    return pagelas.map((p: { childId: string }) => p.childId);
   }
 
   async countPagelasForChildren(
@@ -208,13 +208,13 @@ export class ClubControlRepository {
       .getCount();
   }
 
-  async findMissingChildrenList(
+  findMissingChildrenList(
     clubId: string,
     year: number,
     week: number,
     activeChildren: ChildEntity[],
     childrenWithPagelaIds: string[],
-  ): Promise<Array<{ childId: string; childName: string }>> {
+  ): Array<{ childId: string; childName: string }> {
     return activeChildren
       .filter((c) => !childrenWithPagelaIds.includes(c.id))
       .map((c) => ({

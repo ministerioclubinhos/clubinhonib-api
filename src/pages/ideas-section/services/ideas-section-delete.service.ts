@@ -65,8 +65,10 @@ export class IdeasSectionDeleteService {
             await this.awsS3Service.delete(media.url);
             this.logger.debug(`✅ Arquivo removido do S3: ${media.url}`);
           } catch (error) {
+            const err = error as Error;
+            this.logger.warn(
               `⚠️ Erro ao remover arquivo do S3: ${media.url}`,
-              error,
+              err.stack,
             );
           }
         }

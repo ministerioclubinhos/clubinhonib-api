@@ -59,7 +59,7 @@ export class QueryChildrenDto {
   @Transform(({ value }) => {
     if (value === 'true') return true;
     if (value === 'false') return false;
-    return value;
+    return value as boolean | undefined;
   })
   @IsOptional()
   @IsBoolean()

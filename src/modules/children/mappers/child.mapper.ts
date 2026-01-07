@@ -9,7 +9,16 @@ import { AcceptedChristShortDto } from 'src/modules/accepted-christs/dtos/accept
 const dateOnly = (v: unknown): string | null => {
   if (v === null || v === undefined) return null;
 
-  const s = String(v).trim();
+  let s: string;
+  if (typeof v === 'string') {
+    s = v.trim();
+  } else if (v instanceof Date) {
+    s = v.toISOString();
+  } else if (typeof v === 'number' || typeof v === 'boolean') {
+    s = String(v).trim();
+  } else {
+    return null;
+  }
   const m = s.match(/^(\d{4}-\d{2}-\d{2})$/);
   if (m) return m[1];
 
@@ -22,10 +31,15 @@ const dateOnly = (v: unknown): string | null => {
 };
 
 const toIsoDateTime = (v: unknown): string => {
-  const s = String(v);
-  if (/\d{4}-\d{2}-\d{2}T/.test(s)) return s;
-  const d = v instanceof Date ? v : new Date(s);
-  return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+  if (v instanceof Date) {
+    return isNaN(v.getTime()) ? new Date().toISOString() : v.toISOString();
+  }
+  if (typeof v === 'string') {
+    if (/\d{4}-\d{2}-\d{2}T/.test(v)) return v;
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+  }
+  return new Date().toISOString();
 };
 
 export const toChildListItemDto = (e: ChildEntity): ChildListItemDto => ({
@@ -46,7 +60,18 @@ export const toChildListItemDto = (e: ChildEntity): ChildListItemDto => ({
   ),
 });
 
-export const toAddressDto = (a: any): AddressResponseDto | null => {
+export const toAddressDto = (
+  a: {
+    id: string;
+    street: string;
+    number?: string | null;
+    district: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    complement?: string | null;
+  } | null,
+): AddressResponseDto | null => {
   if (!a) return null;
   return {
     id: a.id,
@@ -61,22 +86,22 @@ export const toAddressDto = (a: any): AddressResponseDto | null => {
 };
 
 export const toChildResponseDto = (e: ChildEntity): ChildResponseDto => ({
-  id: (e as any).id,
+  id: e.id,
   name: e.name,
-  birthDate: dateOnly((e as any).birthDate)!,
+  birthDate: dateOnly(e.birthDate)!,
   guardianName: e.guardianName,
   gender: e.gender,
   guardianPhone: e.guardianPhone,
-  joinedAt: dateOnly((e as any).joinedAt),
+  joinedAt: dateOnly(e.joinedAt),
   isActive: e.isActive,
-  club: (e as any).club
+  club: e.club
     ? {
-        id: (e as any).club.id,
-        number: (e as any).club.number,
-        weekday: String((e as any).club.weekday),
+        id: e.club.id,
+        number: e.club.number,
+        weekday: String(e.club.weekday),
       }
     : null,
-  address: toAddressDto((e as any).address),
-  createdAt: toIsoDateTime((e as any).createdAt),
-  updatedAt: toIsoDateTime((e as any).updatedAt),
+  address: toAddressDto(e.address ?? null),
+  createdAt: toIsoDateTime(e.createdAt),
+  updatedAt: toIsoDateTime(e.updatedAt),
 });

@@ -120,8 +120,9 @@ export class CreateMeditationService {
 
       return savedMeditation;
     } catch (error) {
+      const err = error as Error;
       throw new BadRequestException(
-        error?.message || 'Erro inesperado ao criar meditação.',
+        err?.message || 'Erro inesperado ao criar meditação.',
       );
     }
   }

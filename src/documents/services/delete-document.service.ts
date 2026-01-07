@@ -51,7 +51,7 @@ export class DeleteDocumentService {
       this.logger.log(`🛤️ Rota removida`);
 
       this.logger.log(`✅ Documento removido com sucesso: ID=${id}`);
-    } catch (error) {
+    } catch {
       throw new InternalServerErrorException('Erro ao remover documento.');
     }
   }

@@ -209,6 +209,8 @@ export class IdeasPageUpdateService {
       );
       return finalIdeasPage;
     } catch (error) {
+      const err = error as Error;
+      this.logger.error(
         `❌ Erro ao atualizar página de ideias com ID: ${id}. Iniciando rollback`,
         err.stack,
       );
@@ -415,6 +417,8 @@ export class IdeasPageUpdateService {
             `✅ Arquivo removido do S3 com sucesso: ${media.url}`,
           );
         } catch (error) {
+          const err = error as Error;
+          this.logger.error(
             `❌ Falha ao remover arquivo do S3: ${media.url}`,
             err.stack,
           );
