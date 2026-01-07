@@ -1,4 +1,13 @@
-import { IsBooleanString, IsInt, IsOptional, IsUUID, Max, Min, IsString, MaxLength } from 'class-validator';
+import {
+  IsBooleanString,
+  IsInt,
+  IsOptional,
+  IsUUID,
+  Max,
+  Min,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class PagelaFiltersDto {

@@ -2,7 +2,7 @@ import { IsString, IsBoolean, IsOptional } from 'class-validator';
 
 /**
  * DTO para atualizar Período Letivo GLOBAL
- * 
+ *
  * Exemplo:
  * {
  *   "startDate": "2024-02-05",
@@ -10,7 +10,7 @@ import { IsString, IsBoolean, IsOptional } from 'class-validator';
  *   "description": "Ano Letivo 2024",
  *   "isActive": true
  * }
- * 
+ *
  * NOTA: O campo `year` não pode ser alterado (é único e identifica o período)
  */
 export class UpdateClubPeriodDto {
@@ -30,4 +30,3 @@ export class UpdateClubPeriodDto {
   @IsBoolean()
   isActive?: boolean;
 }
-

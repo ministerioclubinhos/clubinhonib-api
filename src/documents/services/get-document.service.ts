@@ -27,12 +27,18 @@ export class GetDocumentService {
       if (!documents.length) return [];
 
       const ids = documents.map((d) => d.id);
-      const mediaItems = await this.mediaItemProcessor.findManyMediaItemsByTargets(ids, 'document');
+      const mediaItems =
+        await this.mediaItemProcessor.findManyMediaItemsByTargets(
+          ids,
+          'document',
+        );
 
-      const mediaMap = new Map<string, typeof mediaItems[number]>();
+      const mediaMap = new Map<string, (typeof mediaItems)[number]>();
       mediaItems.forEach((media) => mediaMap.set(media.targetId, media));
 
-      return documents.map((doc) => DocumentDto.fromEntity(doc, mediaMap.get(doc.id)));
+      return documents.map((doc) =>
+        DocumentDto.fromEntity(doc, mediaMap.get(doc.id)),
+      );
     } catch (error) {
       this.logger.error('❌ Erro ao buscar documentos', error.stack);
       throw new InternalServerErrorException('Erro ao buscar documentos');
@@ -48,7 +54,10 @@ export class GetDocumentService {
       throw new NotFoundException('Documento não encontrado');
     }
 
-    const media = await this.mediaItemProcessor.findMediaItemsByTarget(id, 'document');
+    const media = await this.mediaItemProcessor.findMediaItemsByTarget(
+      id,
+      'document',
+    );
     return DocumentDto.fromEntity(doc, media[0]);
   }
 }

@@ -39,7 +39,7 @@ export class MeditationController {
     private readonly updateService: UpdateMeditationService,
     private readonly deleteService: DeleteMeditationService,
     private readonly getService: GetMeditationService,
-  ) { }
+  ) {}
 
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Post()
@@ -53,17 +53,22 @@ export class MeditationController {
     try {
       const parsed = JSON.parse(meditationDataRaw);
       const dto = plainToInstance(CreateMeditationDto, parsed);
-      await validateOrReject(dto, { whitelist: true, forbidNonWhitelisted: true });
+      await validateOrReject(dto, {
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      });
 
       const result = await this.createService.create(dto, file);
       this.logger.log(`✅ Meditação criada: ID=${result.id}`);
       return result;
     } catch (error) {
       this.logger.error('❌ Erro ao criar meditação', error.stack);
-      const message =
-        Array.isArray(error)
-          ? error.map(e => Object.values(e.constraints || {})).flat().join('; ')
-          : error?.message || 'Erro ao criar meditação.';
+      const message = Array.isArray(error)
+        ? error
+            .map((e) => Object.values(e.constraints || {}))
+            .flat()
+            .join('; ')
+        : error?.message || 'Erro ao criar meditação.';
       throw new BadRequestException(message);
     }
   }
@@ -78,7 +83,9 @@ export class MeditationController {
   @Get('/this-week')
   @UseGuards(JwtAuthGuard)
   async getThisWeek(): Promise<WeekMeditationResponseDto> {
-    this.logger.log('📆 [GET /meditations/this-week] Buscando meditação da semana');
+    this.logger.log(
+      '📆 [GET /meditations/this-week] Buscando meditação da semana',
+    );
     return this.getService.getThisWeekMeditation();
   }
 
@@ -108,16 +115,23 @@ export class MeditationController {
       throw new BadRequestException('JSON inválido no campo meditationData');
     }
 
-    const errors = validateSync(dto, { whitelist: true, forbidNonWhitelisted: true });
+    const errors = validateSync(dto, {
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    });
     if (errors.length > 0) {
       const message = errors
-        .map(err => Object.values(err.constraints ?? {}).join(', '))
+        .map((err) => Object.values(err.constraints ?? {}).join(', '))
         .join(' | ');
       this.logger.warn(`❌ Erros de validação: ${message}`);
       throw new BadRequestException(message);
     }
 
-    const result = await this.updateService.update(id, { ...dto, isLocalFile: !!file }, file);
+    const result = await this.updateService.update(
+      id,
+      { ...dto, isLocalFile: !!file },
+      file,
+    );
     this.logger.log(`✅ Meditação atualizada: ID=${result.id}`);
     return result;
   }

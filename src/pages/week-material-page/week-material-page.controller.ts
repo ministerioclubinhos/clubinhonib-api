@@ -38,7 +38,7 @@ export class WeekMaterialsPageController {
     private readonly updateService: WeekMaterialsPageUpdateService,
     private readonly removeService: WeekMaterialsPageRemoveService,
     private readonly getService: WeekMaterialsPageGetService,
-  ) { }
+  ) {}
 
   @UseGuards(AdminRoleGuard)
   @Post()
@@ -47,25 +47,35 @@ export class WeekMaterialsPageController {
     @UploadedFiles() files: Express.Multer.File[],
     @Body('weekMaterialsPageData') raw: string,
   ): Promise<WeekMaterialsPageResponseDTO> {
-    this.logger.debug('📥 [POST /week-material-pages] Criando nova página de materiais');
+    this.logger.debug(
+      '📥 [POST /week-material-pages] Criando nova página de materiais',
+    );
 
-    if (!raw) throw new BadRequestException('weekMaterialsPageData é obrigatório.');
+    if (!raw)
+      throw new BadRequestException('weekMaterialsPageData é obrigatório.');
 
     try {
       const parsed = JSON.parse(raw);
-      const dto: CreateWeekMaterialsPageDto = await new ValidationPipe({ transform: true }).transform(parsed, {
+      const dto: CreateWeekMaterialsPageDto = await new ValidationPipe({
+        transform: true,
+      }).transform(parsed, {
         type: 'body',
         metatype: CreateWeekMaterialsPageDto,
       });
 
       const filesDict = Object.fromEntries(files.map((f) => [f.fieldname, f]));
 
-      const result = await this.createService.createWeekMaterialsPage(dto, filesDict);
+      const result = await this.createService.createWeekMaterialsPage(
+        dto,
+        filesDict,
+      );
       this.logger.log(`✅ Página criada com sucesso: ID=${result.id}`);
       return result;
     } catch (err) {
       this.logger.error('❌ Erro ao criar página de materiais', err);
-      throw new BadRequestException('Erro ao criar a página de materiais: ' + err.message);
+      throw new BadRequestException(
+        'Erro ao criar a página de materiais: ' + err.message,
+      );
     }
   }
 
@@ -77,63 +87,90 @@ export class WeekMaterialsPageController {
     @UploadedFiles() files: Express.Multer.File[],
     @Body('weekMaterialsPageData') raw: string,
   ): Promise<WeekMaterialsPageResponseDTO> {
-    this.logger.debug(`✏️ [PATCH /week-material-pages/${id}] Atualizando página de materiais`);
+    this.logger.debug(
+      `✏️ [PATCH /week-material-pages/${id}] Atualizando página de materiais`,
+    );
 
-    if (!raw) throw new BadRequestException('weekMaterialsPageData é obrigatório.');
+    if (!raw)
+      throw new BadRequestException('weekMaterialsPageData é obrigatório.');
 
     try {
       const parsed = JSON.parse(raw);
       const dto = plainToInstance(UpdateWeekMaterialsPageDto, parsed);
-      const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
+      const errors = await validate(dto, {
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      });
 
-      if (errors.length > 0) throw new BadRequestException('Dados inválidos na requisição');
+      if (errors.length > 0)
+        throw new BadRequestException('Dados inválidos na requisição');
 
       const filesDict = Object.fromEntries(files.map((f) => [f.fieldname, f]));
 
-      const result = await this.updateService.updateWeekMaterialsPage(id, dto, filesDict);
+      const result = await this.updateService.updateWeekMaterialsPage(
+        id,
+        dto,
+        filesDict,
+      );
       this.logger.log(`✅ Página atualizada com sucesso: ID=${result.id}`);
       return WeekMaterialsPageResponseDTO.fromEntity(result);
     } catch (err) {
       this.logger.error(`❌ Erro ao atualizar página ID=${id}`, err);
-      throw new BadRequestException('Erro ao atualizar a página de materiais: ' + err.message);
+      throw new BadRequestException(
+        'Erro ao atualizar a página de materiais: ' + err.message,
+      );
     }
   }
 
   @UseGuards(AdminRoleGuard)
   @Delete(':id')
   async remove(@Param('id') id: string): Promise<void> {
-    this.logger.debug(`🗑️ [DELETE /week-material-pages/${id}] Removendo página de materiais`);
+    this.logger.debug(
+      `🗑️ [DELETE /week-material-pages/${id}] Removendo página de materiais`,
+    );
     try {
       await this.removeService.removeWeekMaterial(id);
       this.logger.log(`✅ Página removida com sucesso: ID=${id}`);
     } catch (err) {
       this.logger.error(`❌ Erro ao remover página ID=${id}`, err);
-      throw new BadRequestException('Erro ao remover a página de materiais: ' + err.message);
+      throw new BadRequestException(
+        'Erro ao remover a página de materiais: ' + err.message,
+      );
     }
   }
 
   @Get()
   async findAll(): Promise<WeekMaterialsPageResponseDTO[]> {
-    this.logger.debug('📄 [GET /week-material-pages] Listando todas as páginas de materiais');
+    this.logger.debug(
+      '📄 [GET /week-material-pages] Listando todas as páginas de materiais',
+    );
     return this.getService.findAllPagesWithMedia();
   }
 
   @Get('/current-week')
   async getCurrentWeek() {
-    this.logger.debug('📆 [GET /week-material-pages/current-week] Buscando página atual');
+    this.logger.debug(
+      '📆 [GET /week-material-pages/current-week] Buscando página atual',
+    );
     return this.getService.getCurrentWeek();
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string): Promise<WeekMaterialsPageResponseDTO> {
-    this.logger.debug(`🔍 [GET /week-material-pages/${id}] Buscando página de materiais`);
+  async findOne(
+    @Param('id') id: string,
+  ): Promise<WeekMaterialsPageResponseDTO> {
+    this.logger.debug(
+      `🔍 [GET /week-material-pages/${id}] Buscando página de materiais`,
+    );
     return this.getService.findPageWithMedia(id);
   }
 
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Post('/current-week/:id')
   async setCurrentWeek(@Param('id') id: string): Promise<any> {
-    this.logger.debug(`📌 [POST /week-material-pages/current-week/${id}] Definindo página atual`);
+    this.logger.debug(
+      `📌 [POST /week-material-pages/current-week/${id}] Definindo página atual`,
+    );
     return this.getService.setCurrentWeek(id);
   }
 }

@@ -6,7 +6,6 @@ import { TeacherProfileEntity } from 'src/modules/teacher-profiles/entities/teac
 @Entity('pagelas')
 @Unique('UQ_pagela_child_year_week', ['child', 'year', 'week'])
 export class PagelaEntity extends BaseEntity {
-  
   /**
    * Semana do ANO LETIVO (não semana ISO do ano calendário)
    * A primeira semana dentro do período letivo é a "semana 1" do ano letivo
@@ -44,7 +43,10 @@ export class PagelaEntity extends BaseEntity {
   @JoinColumn({ name: 'child_id' })
   child: ChildEntity;
 
-  @ManyToOne(() => TeacherProfileEntity, { nullable: true, onDelete: 'SET NULL' })
+  @ManyToOne(() => TeacherProfileEntity, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
   @JoinColumn({ name: 'teacher_profile_id' })
   teacher?: TeacherProfileEntity | null;
 }

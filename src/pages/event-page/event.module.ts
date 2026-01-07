@@ -12,8 +12,14 @@ import { MediaModule } from 'src/share/media/media.module';
 
 @Module({
   imports: [TypeOrmModule.forFeature([EventEntity]), RouteModule, MediaModule],
-  providers: [EventRepository, CreateEventService, UpdateEventService, DeleteEventService, GetEventService],
+  providers: [
+    EventRepository,
+    CreateEventService,
+    UpdateEventService,
+    DeleteEventService,
+    GetEventService,
+  ],
   controllers: [EventController],
   exports: [EventRepository],
 })
-export class EventModule { }
+export class EventModule {}

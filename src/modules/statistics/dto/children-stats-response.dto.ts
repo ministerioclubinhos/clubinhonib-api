@@ -49,7 +49,7 @@ export class ChildStatsItemDto {
 
   // Activity status
   isActive: boolean; // Teve pagela nos últimos 30 dias
-  
+
   // Ranking
   rank?: number;
 }
@@ -111,5 +111,3 @@ export class ChildrenStatsResponseDto {
     hasPrevious: boolean;
   };
 }
-
-

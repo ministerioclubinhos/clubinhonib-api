@@ -24,11 +24,13 @@ export class IdeasSectionMediaItemDto {
   @IsString({ message: 'O campo "description" da mídia deve ser uma string.' })
   description?: string;
 
-  @IsEnum(UploadType, { message: 'O campo "uploadType" deve ser "upload" ou "link".' })
+  @IsEnum(UploadType, {
+    message: 'O campo "uploadType" deve ser "upload" ou "link".',
+  })
   uploadType: UploadType;
 
-  @IsEnum(IdeasSectionMediaType, { 
-    message: 'O campo "mediaType" deve ser "video", "document" ou "image".' 
+  @IsEnum(IdeasSectionMediaType, {
+    message: 'O campo "mediaType" deve ser "video", "document" ou "image".',
   })
   mediaType: IdeasSectionMediaType;
 
@@ -40,7 +42,9 @@ export class IdeasSectionMediaItemDto {
   url?: string;
 
   @IsOptional()
-  @IsEnum(PlatformType, { message: 'O campo "platformType" deve conter uma plataforma válida.' })
+  @IsEnum(PlatformType, {
+    message: 'O campo "platformType" deve conter uma plataforma válida.',
+  })
   platformType?: PlatformType;
 
   @IsOptional()

@@ -1,14 +1,8 @@
-import {
-  IsArray,
-  IsBoolean,
-  IsString,
-  ValidateNested,
-} from 'class-validator';
+import { IsArray, IsBoolean, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { MediaItemDto } from 'src/share/share-dto/media-item-dto';
 
 class SectionDto {
-
   @IsString({ message: 'O campo "caption" da seção deve ser uma string.' })
   caption: string;
 
@@ -25,11 +19,12 @@ class SectionDto {
 }
 
 export class CreateImagePageDto {
-
   @IsString({ message: 'O campo "title" da galeria deve ser uma string.' })
   title: string;
 
-  @IsString({ message: 'O campo "description" da galeria deve ser uma string.' })
+  @IsString({
+    message: 'O campo "description" da galeria deve ser uma string.',
+  })
   description: string;
 
   @IsBoolean({ message: 'O campo "public" da galeria deve ser booleano.' })

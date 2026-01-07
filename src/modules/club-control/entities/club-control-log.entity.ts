@@ -33,16 +33,23 @@ export class ClubControlLogEntity extends BaseEntity {
   @Column({ type: 'int', default: 0 })
   childrenWithPagela: number; // Crianças que tiveram pagela
 
-  @Column({ type: 'enum', enum: ['ok', 'missing', 'partial', 'exception'], default: 'ok' })
+  @Column({
+    type: 'enum',
+    enum: ['ok', 'missing', 'partial', 'exception'],
+    default: 'ok',
+  })
   status: string;
 
   @Column({ type: 'text', nullable: true })
   alertMessage?: string | null; // Mensagem de alerta se houver problema
 
-  @Column({ type: 'enum', enum: ['critical', 'warning', 'info'], nullable: true })
+  @Column({
+    type: 'enum',
+    enum: ['critical', 'warning', 'info'],
+    nullable: true,
+  })
   severity?: string | null;
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   checkedAt: Date; // Quando foi verificado
 }
-

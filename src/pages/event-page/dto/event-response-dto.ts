@@ -1,4 +1,8 @@
-import { MediaType, PlatformType, UploadType } from "src/share/media/media-item/media-item.entity";
+import {
+  MediaType,
+  PlatformType,
+  UploadType,
+} from 'src/share/media/media-item/media-item.entity';
 
 export class MediaItemDto {
   id: string;
@@ -20,7 +24,7 @@ export class MediaItemDto {
       title: entity.title,
       description: entity.description,
       mediaType: entity.mediaType,
-      typeUpload: entity.uploadType, 
+      typeUpload: entity.uploadType,
       url: entity.url,
       isLocalFile: entity.isLocalFile,
       platformType: entity.platformType ?? undefined,

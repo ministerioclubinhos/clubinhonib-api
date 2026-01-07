@@ -38,7 +38,11 @@ export class ClubAttendanceAnalysisDto {
   missingWeeks: MissingWeekDto[];
 
   alerts: {
-    type: 'missing_weeks' | 'low_attendance' | 'inactive' | 'consecutive_missing';
+    type:
+      | 'missing_weeks'
+      | 'low_attendance'
+      | 'inactive'
+      | 'consecutive_missing';
     severity: 'critical' | 'warning' | 'info';
     message: string;
     weeksMissing?: number;
@@ -106,4 +110,3 @@ export class WeeklyAttendanceDto {
     attendanceRate: number;
   };
 }
-

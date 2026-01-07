@@ -26,13 +26,11 @@ export class AuthContextService {
     if (q['access_token']) return String(q['access_token']);
 
     return null;
-    }
+  }
 
   async verifyToken(token: string): Promise<JwtPayload> {
     const secret =
-      this.config.get<string>('JWT_SECRET') ??
-      process.env.JWT_SECRET ??
-      '';
+      this.config.get<string>('JWT_SECRET') ?? process.env.JWT_SECRET ?? '';
     if (!secret) {
       throw new UnauthorizedException('JWT secret não configurado');
     }
@@ -41,7 +39,7 @@ export class AuthContextService {
   }
 
   decodeToken(token: string): JwtPayload | null {
-    const payload = this.jwt.decode(token) as JwtPayload | null;
+    const payload = this.jwt.decode(token);
     return payload ? this.normalizePayload(payload) : null;
   }
 
@@ -89,7 +87,7 @@ export class AuthContextService {
     return role === UserRole.COORDINATOR;
   }
 
-    async isLoggedIn(req: Request): Promise<boolean> {
+  async isLoggedIn(req: Request): Promise<boolean> {
     const token = this.getTokenFromRequest(req);
     if (!token) return false;
 

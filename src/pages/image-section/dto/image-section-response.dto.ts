@@ -11,7 +11,10 @@ export class ImageSectionResponseDto {
   updatedAt: Date;
   mediaItems: MediaItemDto[];
 
-  static fromEntity(section: ImageSectionEntity, mediaItems: MediaItemEntity[]): ImageSectionResponseDto {
+  static fromEntity(
+    section: ImageSectionEntity,
+    mediaItems: MediaItemEntity[],
+  ): ImageSectionResponseDto {
     return {
       id: section.id,
       caption: section.caption,

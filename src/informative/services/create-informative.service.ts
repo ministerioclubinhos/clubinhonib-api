@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { DataSource, QueryRunner } from 'typeorm';
 import { RouteService } from 'src/route/route.service';
 import { RouteType } from 'src/route/route-page.entity';
@@ -19,7 +15,7 @@ export class CreateInformativeService {
     private readonly dataSource: DataSource,
     private readonly informativeRepo: InformativeRepository,
     private readonly routeService: RouteService,
-  ) { }
+  ) {}
 
   async createInformative(
     dto: CreateInformativeDto,

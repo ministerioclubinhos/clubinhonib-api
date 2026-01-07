@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { IdeasPageRepository } from '../repositories/ideas-page.repository';
 import { MediaItemProcessor } from 'src/share/media/media-item-processor';
 import { MediaTargetType } from 'src/share/media/media-target-type.enum';

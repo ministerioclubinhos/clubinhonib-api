@@ -21,7 +21,9 @@ export class CommentService {
   async findAllPublished(): Promise<CommentEntity[]> {
     this.logger.debug('📄 Buscando comentários publicados');
     const comments = await this.commentRepo.findAllPublished();
-    this.logger.log(`✅ Comentários publicados encontrados: ${comments.length}`);
+    this.logger.log(
+      `✅ Comentários publicados encontrados: ${comments.length}`,
+    );
     return comments;
   }
 

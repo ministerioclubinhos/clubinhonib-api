@@ -45,7 +45,10 @@ export class ImageSectionController {
   ): Promise<ImageSectionResponseDto> {
     this.logger.debug('🚀 Criando nova section');
 
-    const dto = this.parseDto<CreateImageSectionDto>(raw, CreateImageSectionDto);
+    const dto = this.parseDto<CreateImageSectionDto>(
+      raw,
+      CreateImageSectionDto,
+    );
     await this.validateDto(dto);
 
     const filesDict = this.mapFiles(files);
@@ -64,7 +67,10 @@ export class ImageSectionController {
   ): Promise<ImageSectionResponseDto> {
     this.logger.debug(`🚀 Atualizando section ID=${id}`);
 
-    const dto = this.parseDto<UpdateImageSectionDto>(raw, UpdateImageSectionDto);
+    const dto = this.parseDto<UpdateImageSectionDto>(
+      raw,
+      UpdateImageSectionDto,
+    );
     await this.validateDto(dto);
 
     const filesDict = this.mapFiles(files);
@@ -117,17 +123,28 @@ export class ImageSectionController {
   }
 
   private async validateDto(dto: object): Promise<void> {
-    const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
+    const errors = await validate(dto, {
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    });
     if (errors.length > 0) {
-      this.logger.error('❌ Erros de validação:', JSON.stringify(errors, null, 2));
+      this.logger.error(
+        '❌ Erros de validação:',
+        JSON.stringify(errors, null, 2),
+      );
       throw new BadRequestException('Dados inválidos na requisição.');
     }
   }
 
-  private mapFiles(files: Express.Multer.File[]): Record<string, Express.Multer.File> {
-    return files.reduce((acc, file) => {
-      acc[file.fieldname] = file;
-      return acc;
-    }, {} as Record<string, Express.Multer.File>);
+  private mapFiles(
+    files: Express.Multer.File[],
+  ): Record<string, Express.Multer.File> {
+    return files.reduce(
+      (acc, file) => {
+        acc[file.fieldname] = file;
+        return acc;
+      },
+      {} as Record<string, Express.Multer.File>,
+    );
   }
 }

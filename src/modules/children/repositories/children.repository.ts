@@ -15,7 +15,7 @@ export class ChildrenRepository {
     private readonly repo: Repository<ChildEntity>,
     @InjectRepository(ClubEntity)
     private readonly clubRepo: Repository<ClubEntity>,
-  ) { }
+  ) {}
 
   private baseQB(): SelectQueryBuilder<ChildEntity> {
     return this.repo
@@ -41,7 +41,10 @@ export class ChildrenRepository {
     }
   }
 
-  async findAllPaginated(q: QueryChildrenDto, ctx?: RoleCtx): Promise<PaginatedRows<ChildEntity>> {
+  async findAllPaginated(
+    q: QueryChildrenDto,
+    ctx?: RoleCtx,
+  ): Promise<PaginatedRows<ChildEntity>> {
     const page = q.page ?? 1;
     const limit = q.limit ?? 20;
 
@@ -62,11 +65,18 @@ export class ChildrenRepository {
       qb.andWhere('club.id = :clubId', { clubId: q.clubId });
     }
 
-    if (q.city) qb.andWhere('LOWER(addr.city) LIKE :city', { city: `%${q.city.toLowerCase()}%` });
-    if (q.state) qb.andWhere('LOWER(addr.state) LIKE :state', { state: `%${q.state.toLowerCase()}%` });
+    if (q.city)
+      qb.andWhere('LOWER(addr.city) LIKE :city', {
+        city: `%${q.city.toLowerCase()}%`,
+      });
+    if (q.state)
+      qb.andWhere('LOWER(addr.state) LIKE :state', {
+        state: `%${q.state.toLowerCase()}%`,
+      });
 
     if (q.birthDate) qb.andWhere('c.birthDate = :b', { b: q.birthDate });
-    if (q.birthDateFrom) qb.andWhere('c.birthDate >= :bf', { bf: q.birthDateFrom });
+    if (q.birthDateFrom)
+      qb.andWhere('c.birthDate >= :bf', { bf: q.birthDateFrom });
     if (q.birthDateTo) qb.andWhere('c.birthDate <= :bt', { bt: q.birthDateTo });
 
     if (q.joinedAt) qb.andWhere('c.joinedAt = :j', { j: q.joinedAt });
@@ -94,7 +104,9 @@ export class ChildrenRepository {
     const order: 'ASC' | 'DESC' =
       (q.order ?? 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
-    qb.orderBy(orderBy, order).skip((page - 1) * limit).take(limit);
+    qb.orderBy(orderBy, order)
+      .skip((page - 1) * limit)
+      .take(limit);
 
     const [items, total] = await qb.getManyAndCount();
     return { items, total };
@@ -125,8 +137,10 @@ export class ChildrenRepository {
     return qb.getMany();
   }
 
-
-  async findOneForResponse(id: string, ctx?: RoleCtx): Promise<ChildEntity | null> {
+  async findOneForResponse(
+    id: string,
+    ctx?: RoleCtx,
+  ): Promise<ChildEntity | null> {
     const qb = this.baseQB().where('c.id = :id', { id });
     this.applyRoleFilter(qb, ctx);
     return qb.getOne();
@@ -138,7 +152,9 @@ export class ChildrenRepository {
     if (!role || role === 'admin') return true;
     if (!userId) return false;
 
-    const qb = this.clubRepo.createQueryBuilder('club').where('club.id = :clubId', { clubId });
+    const qb = this.clubRepo
+      .createQueryBuilder('club')
+      .where('club.id = :clubId', { clubId });
 
     if (role === 'coordinator') {
       qb.leftJoin('club.coordinator', 'coord')
@@ -153,7 +169,9 @@ export class ChildrenRepository {
     }
 
     const hasGetExists = typeof (qb as any).getExists === 'function';
-    return hasGetExists ? !!(await (qb as any).getExists()) : (await qb.getCount()) > 0;
+    return hasGetExists
+      ? !!(await (qb as any).getExists())
+      : (await qb.getCount()) > 0;
   }
 
   create(partial: Partial<ChildEntity>): ChildEntity {

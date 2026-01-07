@@ -21,12 +21,16 @@ export class ImageSectionRepository extends Repository<ImageSectionEntity> {
     });
   }
 
-  async upsertSection(sectionData: Partial<ImageSectionEntity>): Promise<ImageSectionEntity> {
+  async upsertSection(
+    sectionData: Partial<ImageSectionEntity>,
+  ): Promise<ImageSectionEntity> {
     if (sectionData.id) {
       const existing = await this.findOne({ where: { id: sectionData.id } });
 
       if (!existing) {
-        throw new NotFoundException(`Seção com ID=${sectionData.id} não encontrada.`);
+        throw new NotFoundException(
+          `Seção com ID=${sectionData.id} não encontrada.`,
+        );
       }
 
       const merged = this.merge(existing, sectionData);

@@ -6,9 +6,14 @@ export class StatisticsPeriodService {
   /**
    * Aplica filtro de período em qualquer DTO que tenha period, startDate, endDate
    */
-  applyPeriodFilter<T extends { period?: PeriodShortcut; startDate?: string; endDate?: string; year?: number }>(
-    filters: T,
-  ): T {
+  applyPeriodFilter<
+    T extends {
+      period?: PeriodShortcut;
+      startDate?: string;
+      endDate?: string;
+      year?: number;
+    },
+  >(filters: T): T {
     // Se não tem period definido, retorna os filtros como estão
     if (!filters.period) {
       return filters;
@@ -28,9 +33,9 @@ export class StatisticsPeriodService {
   /**
    * Retorna um resumo legível do período aplicado
    */
-  getPeriodSummary<T extends { period?: PeriodShortcut; startDate?: string; endDate?: string }>(
-    filters: T,
-  ): string {
+  getPeriodSummary<
+    T extends { period?: PeriodShortcut; startDate?: string; endDate?: string },
+  >(filters: T): string {
     if (filters.period) {
       return PeriodCalculator.getPeriodLabel(filters);
     }

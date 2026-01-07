@@ -10,15 +10,22 @@ import {
 } from '@nestjs/common';
 import { CoordinatorProfilesService } from './services/coordinator-profiles.service';
 import { CoordinatorResponseDto } from './dto/coordinator-profile.response.dto';
-import { AssignClubDto, MoveClubDto, UnassignClubDto } from './dto/add-club.dto';
+import {
+  AssignClubDto,
+  MoveClubDto,
+  UnassignClubDto,
+} from './dto/add-club.dto';
 import { CoordinatorSimpleListDto } from './dto/coordinator-simple-list.dto';
-import { CoordinatorProfilesQueryDto, PageDto } from './dto/coordinator-profiles.query.dto';
+import {
+  CoordinatorProfilesQueryDto,
+  PageDto,
+} from './dto/coordinator-profiles.query.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 
 @Controller('coordinator-profiles')
 @UseGuards(JwtAuthGuard)
 export class CoordinatorProfilesController {
-  constructor(private readonly service: CoordinatorProfilesService) { }
+  constructor(private readonly service: CoordinatorProfilesService) {}
 
   @Get()
   findPage(
@@ -33,12 +40,16 @@ export class CoordinatorProfilesController {
   }
 
   @Get(':id')
-  findOne(@Param('id', new ParseUUIDPipe()) id: string): Promise<CoordinatorResponseDto> {
+  findOne(
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ): Promise<CoordinatorResponseDto> {
     return this.service.findOne(id);
   }
 
   @Get('by-club/:clubId')
-  findByClubId(@Param('clubId', new ParseUUIDPipe()) clubId: string): Promise<CoordinatorResponseDto> {
+  findByClubId(
+    @Param('clubId', new ParseUUIDPipe()) clubId: string,
+  ): Promise<CoordinatorResponseDto> {
     return this.service.findByClubId(clubId);
   }
 
@@ -65,7 +76,13 @@ export class CoordinatorProfilesController {
     @Param('fromCoordinatorId', new ParseUUIDPipe()) fromCoordinatorId: string,
     @Body() dto: MoveClubDto,
   ): Promise<{ message: string }> {
-    await this.service.moveClub(fromCoordinatorId, dto.clubId, dto.toCoordinatorProfileId);
-    return { message: 'Clubinho movido para o coordenador de destino com sucesso' };
+    await this.service.moveClub(
+      fromCoordinatorId,
+      dto.clubId,
+      dto.toCoordinatorProfileId,
+    );
+    return {
+      message: 'Clubinho movido para o coordenador de destino com sucesso',
+    };
   }
 }

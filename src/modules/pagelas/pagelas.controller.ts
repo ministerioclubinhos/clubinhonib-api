@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { PagelasService } from './pagelas.service';
 import { CreatePagelaDto } from './dto/create-pagela.dto';
 import { UpdatePagelaDto } from './dto/update-pagela.dto';

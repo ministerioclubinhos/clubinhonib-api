@@ -19,13 +19,15 @@ export class ImageSectionCreateService {
     private readonly awsS3Service: AwsS3Service,
     private readonly mediaItemProcessor: MediaItemProcessor,
     private readonly imageSectionRepository: ImageSectionRepository,
-  ) { }
+  ) {}
 
   async createSection(
     dto: CreateImageSectionDto,
     filesDict: Record<string, Express.Multer.File>,
   ): Promise<ImageSectionResponseDto> {
-    this.logger.log('🚀 Iniciando criação de seção órfã (sem página associada)');
+    this.logger.log(
+      '🚀 Iniciando criação de seção órfã (sem página associada)',
+    );
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -43,18 +45,19 @@ export class ImageSectionCreateService {
 
       this.validateFiles(dto, filesDict);
 
-      const preparedMediaItems = dto.mediaItems.map(item => ({
+      const preparedMediaItems = dto.mediaItems.map((item) => ({
         ...item,
         fileField: item.fieldKey,
       }));
 
-      const mediaItems: MediaItemEntity[] = await this.mediaItemProcessor.processMediaItemsPolymorphic(
-        preparedMediaItems,
-        savedSection.id,
-        MediaTargetType.ImagesPage,
-        filesDict,
-        this.awsS3Service.upload.bind(this.awsS3Service),
-      );
+      const mediaItems: MediaItemEntity[] =
+        await this.mediaItemProcessor.processMediaItemsPolymorphic(
+          preparedMediaItems,
+          savedSection.id,
+          MediaTargetType.ImagesPage,
+          filesDict,
+          this.awsS3Service.upload.bind(this.awsS3Service),
+        );
 
       await queryRunner.commitTransaction();
 
@@ -68,14 +71,19 @@ export class ImageSectionCreateService {
     }
   }
 
-  private validateFiles(dto: CreateImageSectionDto, filesDict: Record<string, Express.Multer.File>) {
+  private validateFiles(
+    dto: CreateImageSectionDto,
+    filesDict: Record<string, Express.Multer.File>,
+  ) {
     for (const media of dto.mediaItems) {
       if (media.uploadType === UploadType.UPLOAD && media.isLocalFile) {
         if (!media.originalName) {
           throw new BadRequestException('Campo originalName ausente');
         }
         if (!media.fieldKey || !filesDict[media.fieldKey]) {
-          throw new BadRequestException(`Arquivo não encontrado para fieldKey: ${media.fieldKey}`);
+          throw new BadRequestException(
+            `Arquivo não encontrado para fieldKey: ${media.fieldKey}`,
+          );
         }
       }
     }

@@ -15,10 +15,7 @@ import { ImageSectionCreateService } from './services/Image-section-create-servi
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      ImageSectionEntity,
-      ImagePageEntity
-    ]),
+    TypeOrmModule.forFeature([ImageSectionEntity, ImagePageEntity]),
     MediaModule,
     AwsModule,
   ],

@@ -471,4 +471,3 @@ export class ConsolidatedReportDto {
     action: string;
   }[];
 }
-

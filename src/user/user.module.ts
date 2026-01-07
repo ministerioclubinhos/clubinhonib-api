@@ -20,8 +20,21 @@ import { DeleteUserService } from './services/delete-user.service';
     TeacherProfilesModule,
     CoordinatorProfilesModule,
   ],
-  providers: [UserRepository, CreateUserService, GetUsersService, UpdateUserService, DeleteUserService],
+  providers: [
+    UserRepository,
+    CreateUserService,
+    GetUsersService,
+    UpdateUserService,
+    DeleteUserService,
+  ],
   controllers: [UserController],
-  exports: [UserRepository,  CreateUserService, GetUsersService, UpdateUserService, DeleteUserService, TypeOrmModule],
+  exports: [
+    UserRepository,
+    CreateUserService,
+    GetUsersService,
+    UpdateUserService,
+    DeleteUserService,
+    TypeOrmModule,
+  ],
 })
 export class UserModule {}

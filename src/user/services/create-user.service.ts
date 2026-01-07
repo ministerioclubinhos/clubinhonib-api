@@ -1,7 +1,4 @@
-import {
-  Injectable,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 
 import { UserRepository } from '../user.repository';
@@ -20,7 +17,7 @@ export class CreateUserService {
     private readonly userRepo: UserRepository,
     private readonly teacherService: TeacherProfilesService,
     private readonly coordinatorService: CoordinatorProfilesService,
-  ) { }
+  ) {}
 
   async create(dto: CreateUserDto): Promise<UserEntity> {
     this.logger.debug(`Creating user with email: ${dto.email}`);

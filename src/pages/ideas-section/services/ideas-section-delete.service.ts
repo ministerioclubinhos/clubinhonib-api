@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { AwsS3Service } from 'src/aws/aws-s3.service';
 import { IdeasSectionRepository } from '../repository/ideas-section.repository';
@@ -16,7 +21,7 @@ export class IdeasSectionDeleteService {
     private readonly awsS3Service: AwsS3Service,
     private readonly ideasSectionRepository: IdeasSectionRepository,
     private readonly mediaItemProcessor: MediaItemProcessor,
-  ) { }
+  ) {}
 
   async deleteSection(id: string): Promise<void> {
     this.logger.log(`🚀 Iniciando exclusão de seção de ideias ID=${id}`);
@@ -26,18 +31,23 @@ export class IdeasSectionDeleteService {
     await queryRunner.startTransaction();
 
     try {
-      const existingSection = await queryRunner.manager.findOne(IdeasSectionEntity, {
-        where: { id },
-      });
+      const existingSection = await queryRunner.manager.findOne(
+        IdeasSectionEntity,
+        {
+          where: { id },
+        },
+      );
 
       if (!existingSection) {
-        throw new NotFoundException(`Seção de ideias com ID=${id} não encontrada`);
+        throw new NotFoundException(
+          `Seção de ideias com ID=${id} não encontrada`,
+        );
       }
 
       if (existingSection.page) {
         throw new BadRequestException(
           `Seção de ideias ID=${id} está vinculada à página ID=${existingSection.page.id}. ` +
-          `Remova a vinculação primeiro ou delete a página.`
+            `Remova a vinculação primeiro ou delete a página.`,
         );
       }
 
@@ -55,7 +65,10 @@ export class IdeasSectionDeleteService {
             await this.awsS3Service.delete(media.url);
             this.logger.debug(`✅ Arquivo removido do S3: ${media.url}`);
           } catch (error) {
-            this.logger.warn(`⚠️ Erro ao remover arquivo do S3: ${media.url}`, error);
+            this.logger.warn(
+              `⚠️ Erro ao remover arquivo do S3: ${media.url}`,
+              error,
+            );
           }
         }
       }
@@ -73,12 +86,14 @@ export class IdeasSectionDeleteService {
 
       await queryRunner.commitTransaction();
       this.logger.log(`✅ Seção de ideias ID=${id} excluída com sucesso`);
-
     } catch (error) {
       await queryRunner.rollbackTransaction();
       this.logger.error(`❌ Erro ao excluir seção de ideias ID=${id}`, error);
 
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
 

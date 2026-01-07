@@ -13,7 +13,7 @@ export class WeekMaterialsPageGetService {
   constructor(
     private readonly repo: WeekMaterialsPageRepository,
     private readonly mediaItemProcessor: MediaItemProcessor,
-  ) { }
+  ) {}
 
   async findAllPages(): Promise<WeekMaterialsPageEntity[]> {
     this.logger.debug('📥 Buscando todas as páginas');
@@ -46,10 +46,13 @@ export class WeekMaterialsPageGetService {
       MediaTargetType.WeekMaterialsPage,
     );
 
-    const grouped = pageIds.reduce((acc, id) => {
-      acc[id] = allMedia.filter((m) => m.targetId === id);
-      return acc;
-    }, {} as Record<string, MediaItemEntity[]>);
+    const grouped = pageIds.reduce(
+      (acc, id) => {
+        acc[id] = allMedia.filter((m) => m.targetId === id);
+        return acc;
+      },
+      {} as Record<string, MediaItemEntity[]>,
+    );
 
     return pages.map((page) =>
       WeekMaterialsPageResponseDTO.fromEntity(page, grouped[page.id] || []),
@@ -57,7 +60,9 @@ export class WeekMaterialsPageGetService {
   }
 
   async setCurrentWeek(id: string): Promise<any> {
-    this.logger.debug('📥 Iniciando processo para definir "material da semana atual"...');
+    this.logger.debug(
+      '📥 Iniciando processo para definir "material da semana atual"...',
+    );
 
     try {
       this.logger.debug(`🔎 Buscando página pelo ID: ${id}`);
@@ -68,38 +73,54 @@ export class WeekMaterialsPageGetService {
         throw new Error(`Página com ID ${id} não encontrada.`);
       }
 
-      this.logger.debug(`📄 Página alvo encontrada: ${weekPage.id} - ${weekPage.title}`);
+      this.logger.debug(
+        `📄 Página alvo encontrada: ${weekPage.id} - ${weekPage.title}`,
+      );
 
       const weekPageCurrent = await this.repo.findCurrentWeek();
       if (weekPageCurrent) {
-        this.logger.debug(`📌 Página atual marcada como "semana atual": ${weekPageCurrent.id} - ${weekPageCurrent.title}`);
+        this.logger.debug(
+          `📌 Página atual marcada como "semana atual": ${weekPageCurrent.id} - ${weekPageCurrent.title}`,
+        );
       } else {
         this.logger.debug('ℹ️ Nenhuma página estava marcada como atual.');
       }
 
       if (weekPageCurrent && weekPageCurrent.id !== weekPage.id) {
-        this.logger.debug(`🧼 Limpando flag "currentWeek" da página anterior: ${weekPageCurrent.id}`);
+        this.logger.debug(
+          `🧼 Limpando flag "currentWeek" da página anterior: ${weekPageCurrent.id}`,
+        );
         weekPageCurrent.currentWeek = false;
         weekPageCurrent.route.current = false;
         await this.repo.savePage(weekPageCurrent);
-        this.logger.debug(`✅ Página ${weekPageCurrent.id} atualizada com currentWeek=false`);
+        this.logger.debug(
+          `✅ Página ${weekPageCurrent.id} atualizada com currentWeek=false`,
+        );
       }
 
-      this.logger.debug(`🏁 Atualizando página ${weekPage.id} para currentWeek=true`);
+      this.logger.debug(
+        `🏁 Atualizando página ${weekPage.id} para currentWeek=true`,
+      );
       weekPage.currentWeek = true;
       weekPage.route.current = true;
       weekPage.route.public = true;
 
       await this.repo.savePage(weekPage);
-      this.logger.debug(`✅ Página ${weekPage.id} marcada como material da semana atual.`);
-
+      this.logger.debug(
+        `✅ Página ${weekPage.id} marcada como material da semana atual.`,
+      );
     } catch (error) {
-      this.logger.error(`❌ Erro ao definir página como atual: ${error.message}`, error.stack);
+      this.logger.error(
+        `❌ Erro ao definir página como atual: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
 
-  async getCurrentWeek(): Promise<WeekMaterialsPageEntity | { message: string }> {
+  async getCurrentWeek(): Promise<
+    WeekMaterialsPageEntity | { message: string }
+  > {
     this.logger.debug(`📄 Buscando página de material da semana atual`);
     const page = await this.repo.findCurrentWeek();
     if (!page) {
@@ -108,5 +129,4 @@ export class WeekMaterialsPageGetService {
     }
     return page;
   }
-
 }

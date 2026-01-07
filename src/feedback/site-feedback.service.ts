@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, Logger, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  Logger,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { SiteFeedbackEntity } from './entity/site-feedback.entity';
 import { SiteFeedbackRepository } from './repository/site-feedback.repository';
 import { CreateSiteFeedbackDto } from './dto/create-site-feedback.dto';
@@ -8,7 +13,7 @@ import { UpdateSiteFeedbackDto } from './dto/update-site-feedback.dto';
 export class SiteFeedbackService {
   private readonly logger = new Logger(SiteFeedbackService.name);
 
-  constructor(private readonly siteFeedbackRepo: SiteFeedbackRepository) { }
+  constructor(private readonly siteFeedbackRepo: SiteFeedbackRepository) {}
 
   async create(dto: CreateSiteFeedbackDto): Promise<SiteFeedbackEntity> {
     this.logger.debug(`📝 Criando novo feedback do site`);
@@ -21,7 +26,9 @@ export class SiteFeedbackService {
   async findAll(): Promise<SiteFeedbackEntity[]> {
     this.logger.debug('📄 Buscando todos os feedbacks do site');
     const feedbacks = await this.siteFeedbackRepo.findAll();
-    this.logger.log(`✅ Total de feedbacks do site encontrados: ${feedbacks.length}`);
+    this.logger.log(
+      `✅ Total de feedbacks do site encontrados: ${feedbacks.length}`,
+    );
     return feedbacks;
   }
 
@@ -36,7 +43,10 @@ export class SiteFeedbackService {
     return feedback;
   }
 
-  async update(id: string, dto: UpdateSiteFeedbackDto): Promise<SiteFeedbackEntity> {
+  async update(
+    id: string,
+    dto: UpdateSiteFeedbackDto,
+  ): Promise<SiteFeedbackEntity> {
     this.logger.debug(`✏️ Atualizando feedback do site ID=${id}`);
     const feedback = await this.findOne(id);
     Object.assign(feedback, dto);
@@ -69,8 +79,13 @@ export class SiteFeedbackService {
 
       return updatedFeedback;
     } catch (error) {
-      this.logger.error('❌ Erro ao buscar ou atualizar feedback do site', error.stack);
-      throw new InternalServerErrorException('Erro ao buscar ou atualizar feedback do site');
+      this.logger.error(
+        '❌ Erro ao buscar ou atualizar feedback do site',
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        'Erro ao buscar ou atualizar feedback do site',
+      );
     }
   }
 }

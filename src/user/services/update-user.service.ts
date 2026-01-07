@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 
 import { UserRepository } from '../user.repository';
@@ -21,7 +17,7 @@ export class UpdateUserService {
     private readonly userRepo: UserRepository,
     private readonly teacherService: TeacherProfilesService,
     private readonly coordinatorService: CoordinatorProfilesService,
-  ) { }
+  ) {}
 
   async update(id: string, dto: Partial<UpdateUserDto>): Promise<UserEntity> {
     this.logger.debug(`Updating user ID: ${id}`);
@@ -32,22 +28,23 @@ export class UpdateUserService {
       dto.password = await bcrypt.hash(dto.password, 10);
     }
 
-    const nextRole: UserRole = (dto.role ?? current.role) as UserRole;
+    const nextRole: UserRole = dto.role ?? current.role;
     const activeInDto = typeof dto.active === 'boolean';
-    const nextActive: boolean = (dto.active ?? current.active) as boolean;
+    const nextActive: boolean = dto.active ?? current.active;
 
     const willChangeRole = dto.role !== undefined && dto.role !== current.role;
 
     if (willChangeRole) {
-      this.logger.debug(`Role change: ${current.role} -> ${nextRole} (active alvo: ${nextActive})`);
+      this.logger.debug(
+        `Role change: ${current.role} -> ${nextRole} (active alvo: ${nextActive})`,
+      );
 
       if (nextRole === UserRole.TEACHER) {
         await this.coordinatorService.removeByUserId(id);
         if (nextActive) {
           try {
             await this.teacherService.createForUser(id);
-          } catch {
-          }
+          } catch {}
         } else {
           await this.teacherService.removeByUserId(id);
         }
@@ -56,8 +53,7 @@ export class UpdateUserService {
         if (nextActive) {
           try {
             await this.coordinatorService.createForUser(id);
-          } catch {
-          }
+          } catch {}
         } else {
           await this.coordinatorService.removeByUserId(id);
         }
@@ -68,14 +64,15 @@ export class UpdateUserService {
     }
 
     if (!willChangeRole && activeInDto) {
-      this.logger.debug(`Active toggled for same role: role=${nextRole} active=${nextActive}`);
+      this.logger.debug(
+        `Active toggled for same role: role=${nextRole} active=${nextActive}`,
+      );
 
       if (nextRole === UserRole.TEACHER) {
         if (nextActive) {
           try {
             await this.teacherService.createForUser(id);
-          } catch {
-          }
+          } catch {}
         } else {
           await this.teacherService.removeByUserId(id);
         }
@@ -83,8 +80,7 @@ export class UpdateUserService {
         if (nextActive) {
           try {
             await this.coordinatorService.createForUser(id);
-          } catch {
-          }
+          } catch {}
         } else {
           await this.coordinatorService.removeByUserId(id);
         }

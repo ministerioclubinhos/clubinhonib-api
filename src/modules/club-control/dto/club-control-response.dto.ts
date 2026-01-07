@@ -24,7 +24,7 @@ export class ClubControlWeeklyCheckDto {
   };
 
   status: 'ok' | 'partial' | 'missing' | 'exception';
-  
+
   alerts: {
     type: 'all_ok' | 'some_missing' | 'no_pagela' | 'exception';
     severity: 'success' | 'warning' | 'critical' | 'info';
@@ -117,4 +117,3 @@ export class ClubExceptionResponseDto {
   notes?: string;
   isActive: boolean;
 }
-

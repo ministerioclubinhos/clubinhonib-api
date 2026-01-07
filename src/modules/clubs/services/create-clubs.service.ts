@@ -11,7 +11,7 @@ export class CreateClubsService {
   constructor(
     private readonly clubsRepository: ClubsRepository,
     private readonly authCtx: AuthContextService,
-  ) { }
+  ) {}
 
   private async getCtx(req: Request): Promise<Ctx> {
     const p = await this.authCtx.tryGetPayload(req);
@@ -25,11 +25,14 @@ export class CreateClubsService {
     }
 
     if (ctx.role === 'coordinator') {
-      const myCoordId = await this.clubsRepository.getCoordinatorProfileIdByUserId(ctx.userId!);
+      const myCoordId =
+        await this.clubsRepository.getCoordinatorProfileIdByUserId(ctx.userId!);
       if (!myCoordId) throw new ForbiddenException('Acesso negado');
 
       if (dto.coordinatorProfileId && dto.coordinatorProfileId !== myCoordId) {
-        throw new ForbiddenException('Não é permitido atribuir outro coordenador');
+        throw new ForbiddenException(
+          'Não é permitido atribuir outro coordenador',
+        );
       }
       dto.coordinatorProfileId = myCoordId;
     }

@@ -16,5 +16,9 @@ export class CoordinatorSimpleListDto {
   vinculado!: boolean;
 }
 
-export const toCoordinatorSimple = (entity: CoordinatorProfileEntity): CoordinatorSimpleListDto =>
-  plainToInstance(CoordinatorSimpleListDto, entity, { excludeExtraneousValues: true });
+export const toCoordinatorSimple = (
+  entity: CoordinatorProfileEntity,
+): CoordinatorSimpleListDto =>
+  plainToInstance(CoordinatorSimpleListDto, entity, {
+    excludeExtraneousValues: true,
+  });

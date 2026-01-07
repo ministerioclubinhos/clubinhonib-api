@@ -21,7 +21,10 @@ import { UpdateClubsService } from './services/update-clubs.service';
 import { GetClubsService } from './services/get-clubs.service';
 import { CreateClubsService } from './services/create-clubs.service';
 import { Paginated } from 'src/share/dto/paginated.dto';
-import { ClubResponseDto, ClubSimpleResponseDto } from './dto/club.response.dto';
+import {
+  ClubResponseDto,
+  ClubSimpleResponseDto,
+} from './dto/club.response.dto';
 import { ClubSelectOptionDto } from './dto/club-select-option.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 
@@ -33,7 +36,7 @@ export class ClubsController {
     private readonly updateService: UpdateClubsService,
     private readonly getService: GetClubsService,
     private readonly createService: CreateClubsService,
-  ) { }
+  ) {}
 
   @Post()
   create(@Body() dto: CreateClubDto, @Req() req: Request) {

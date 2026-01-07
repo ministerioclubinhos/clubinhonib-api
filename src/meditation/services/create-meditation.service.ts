@@ -53,7 +53,9 @@ export class CreateMeditationService {
       });
 
       if (hasConflict) {
-        throw new BadRequestException('Conflito com datas de uma meditação existente.');
+        throw new BadRequestException(
+          'Conflito com datas de uma meditação existente.',
+        );
       }
 
       const meditation = this.meditationRepo.create({
@@ -95,19 +97,21 @@ export class CreateMeditationService {
         MediaTargetType.Meditation,
       );
 
-      const savedMedia = await this.mediaItemProcessor.saveMediaItem(mediaEntity);
+      const savedMedia =
+        await this.mediaItemProcessor.saveMediaItem(mediaEntity);
       this.logger.log(`🎞️ Mídia salva: ID=${savedMedia.id}`);
 
       const route = await this.routeService.createRoute({
         title: savedMeditation.topic,
         subtitle: '',
         idToFetch: savedMeditation.id,
-        entityType:  MediaTargetType.Meditation,
+        entityType: MediaTargetType.Meditation,
         description: `Meditação semanal de ${dto.startDate} a ${dto.endDate}`,
         entityId: savedMeditation.id,
         type: RouteType.DOC,
         prefix: 'meditacao_',
-        image: 'https://bucket-clubinho-galeria.s3.amazonaws.com/uploads/img_card.jpg',
+        image:
+          'https://bucket-clubinho-galeria.s3.amazonaws.com/uploads/img_card.jpg',
         public: false,
       });
 

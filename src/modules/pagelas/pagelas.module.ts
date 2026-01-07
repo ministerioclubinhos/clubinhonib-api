@@ -17,4 +17,4 @@ import { ClubControlModule } from '../club-control/club-control.module';
   providers: [PagelasRepository, PagelasService],
   exports: [PagelasService, PagelasRepository],
 })
-export class PagelasModule { }
+export class PagelasModule {}

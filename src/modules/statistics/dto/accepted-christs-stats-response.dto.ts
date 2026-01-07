@@ -31,4 +31,3 @@ export class AcceptedChristsStatsResponseDto {
     notes?: string | null;
   }[];
 }
-

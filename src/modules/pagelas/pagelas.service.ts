@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PagelasRepository } from './pagelas.repository';
 import { CreatePagelaDto } from './dto/create-pagela.dto';
 import { UpdatePagelaDto } from './dto/update-pagela.dto';
@@ -13,16 +17,16 @@ export class PagelasService {
   constructor(
     private readonly repo: PagelasRepository,
     private readonly clubControlRepository: ClubControlRepository,
-  ) { }
+  ) {}
 
   /**
    * Criar uma pagela
-   * 
+   *
    * REGRA CRÍTICA: A semana e o ano são calculados automaticamente baseado no período letivo
    * - Se week/year não for informado, será calculado automaticamente
    * - A semana é do ANO LETIVO, não da semana ISO do ano calendário
    * - A primeira semana dentro do período letivo é a "semana 1" do ano letivo
-   * 
+   *
    * @throws BadRequestException se a data estiver fora do período letivo
    * @throws NotFoundException se não houver período letivo cadastrado
    */
@@ -38,22 +42,27 @@ export class PagelasService {
       // Calcular automaticamente baseado no período letivo
       const referenceDate = new Date(dto.referenceDate + 'T00:00:00');
       const referenceYear = referenceDate.getFullYear();
-      
+
       // Buscar período letivo do ano da data de referência
-      let period = await this.clubControlRepository.findPeriodByYear(referenceYear);
-      
+      let period =
+        await this.clubControlRepository.findPeriodByYear(referenceYear);
+
       // Se não encontrou, tentar ano anterior ou próximo (período pode cruzar anos)
       if (!period) {
-        period = await this.clubControlRepository.findPeriodByYear(referenceYear - 1);
+        period = await this.clubControlRepository.findPeriodByYear(
+          referenceYear - 1,
+        );
       }
       if (!period) {
-        period = await this.clubControlRepository.findPeriodByYear(referenceYear + 1);
+        period = await this.clubControlRepository.findPeriodByYear(
+          referenceYear + 1,
+        );
       }
-      
+
       if (!period) {
         throw new NotFoundException(
           `Não há período letivo cadastrado para a data ${dto.referenceDate}. ` +
-          `Por favor, cadastre um período letivo antes de criar pagelas.`
+            `Por favor, cadastre um período letivo antes de criar pagelas.`,
         );
       }
 
@@ -63,13 +72,14 @@ export class PagelasService {
           dto.referenceDate,
           period.startDate,
           period.endDate,
-          period.year
+          period.year,
         );
         year = academicWeek.year;
         week = academicWeek.week;
       } catch (error: any) {
         throw new BadRequestException(
-          error.message || `Data ${dto.referenceDate} está fora do período letivo cadastrado.`
+          error.message ||
+            `Data ${dto.referenceDate} está fora do período letivo cadastrado.`,
         );
       }
     }
@@ -89,7 +99,9 @@ export class PagelasService {
     return PagelaResponseDto.fromEntity(created);
   }
 
-  async findAllSimple(filters?: PagelaFiltersDto): Promise<PagelaResponseDto[]> {
+  async findAllSimple(
+    filters?: PagelaFiltersDto,
+  ): Promise<PagelaResponseDto[]> {
     const items = await this.repo.findAllSimple(filters);
     return items.map(PagelaResponseDto.fromEntity);
   }
@@ -99,7 +111,11 @@ export class PagelasService {
     page: number,
     limit: number,
   ): Promise<PaginatedResponse<PagelaResponseDto>> {
-    const { items, total } = await this.repo.findAllPaginated(filters, page, limit);
+    const { items, total } = await this.repo.findAllPaginated(
+      filters,
+      page,
+      limit,
+    );
     return {
       items: items.map(PagelaResponseDto.fromEntity),
       total,
@@ -116,7 +132,7 @@ export class PagelasService {
 
   /**
    * Atualizar uma pagela
-   * 
+   *
    * REGRA: Se referenceDate for alterada, week e year serão recalculados automaticamente
    * baseado no período letivo, a menos que sejam informados explicitamente.
    */
@@ -125,25 +141,30 @@ export class PagelasService {
     if (dto.referenceDate && (!dto.week || !dto.year)) {
       const referenceDate = new Date(dto.referenceDate + 'T00:00:00');
       const referenceYear = referenceDate.getFullYear();
-      
+
       // Buscar período letivo
-      let period = await this.clubControlRepository.findPeriodByYear(referenceYear);
+      let period =
+        await this.clubControlRepository.findPeriodByYear(referenceYear);
       if (!period) {
-        period = await this.clubControlRepository.findPeriodByYear(referenceYear - 1);
+        period = await this.clubControlRepository.findPeriodByYear(
+          referenceYear - 1,
+        );
       }
       if (!period) {
-        period = await this.clubControlRepository.findPeriodByYear(referenceYear + 1);
+        period = await this.clubControlRepository.findPeriodByYear(
+          referenceYear + 1,
+        );
       }
-      
+
       if (period) {
         try {
           const academicWeek = getAcademicWeekYear(
             dto.referenceDate,
             period.startDate,
             period.endDate,
-            period.year
+            period.year,
           );
-          
+
           // Se week/year não foram informados, usar os calculados
           if (!dto.week) {
             dto.week = academicWeek.week;
@@ -158,9 +179,12 @@ export class PagelasService {
     }
 
     const updated = await this.repo.updateOne(id, {
-      teacher: dto.teacherProfileId === undefined
-        ? undefined
-        : (dto.teacherProfileId ? ({ id: dto.teacherProfileId } as any) : null),
+      teacher:
+        dto.teacherProfileId === undefined
+          ? undefined
+          : dto.teacherProfileId
+            ? ({ id: dto.teacherProfileId } as any)
+            : null,
 
       referenceDate: dto.referenceDate ?? undefined,
       year: dto.year ?? undefined,

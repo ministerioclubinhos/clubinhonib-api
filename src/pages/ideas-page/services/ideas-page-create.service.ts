@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { DataSource, QueryRunner } from 'typeorm';
 import { plainToInstance } from 'class-transformer';
 import { AwsS3Service } from 'src/aws/aws-s3.service';
@@ -25,7 +21,7 @@ export class IdeasPageCreateService {
     private readonly s3: AwsS3Service,
     private readonly routeService: RouteService,
     private readonly mediaProcessor: MediaItemProcessor,
-  ) { }
+  ) {}
 
   async createIdeasPage(
     dto: CreateIdeasPageDto,
@@ -116,7 +112,8 @@ export class IdeasPageCreateService {
         entityId: page.id,
         idToFetch: page.id,
         entityType: MediaTargetType.IdeasPage,
-        image: 'https://clubinho-nib.s3.us-east-1.amazonaws.com/production/cards/card_ideias.png',
+        image:
+          'https://clubinho-nib.s3.us-east-1.amazonaws.com/production/cards/card_ideias.png',
         public: false,
       },
     );
@@ -150,7 +147,11 @@ export class IdeasPageCreateService {
       const normalized = secDto.medias.map((item) => ({
         ...item,
         mediaType:
-          item.mediaType === MediaType.VIDEO ? MediaType.VIDEO : item.mediaType === MediaType.DOCUMENT ? MediaType.DOCUMENT : MediaType.IMAGE,
+          item.mediaType === MediaType.VIDEO
+            ? MediaType.VIDEO
+            : item.mediaType === MediaType.DOCUMENT
+              ? MediaType.DOCUMENT
+              : MediaType.IMAGE,
         type: item.uploadType,
         fileField:
           item.uploadType === 'upload' && item.isLocalFile

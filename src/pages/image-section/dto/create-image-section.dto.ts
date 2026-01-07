@@ -9,7 +9,6 @@ import { Type } from 'class-transformer';
 import { MediaItemDto } from 'src/share/share-dto/media-item-dto';
 
 export class CreateImageSectionDto {
-
   @IsString({ message: 'O campo "caption" deve ser uma string.' })
   caption: string;
 

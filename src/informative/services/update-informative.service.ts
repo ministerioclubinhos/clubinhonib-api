@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { InformativeRepository } from '../informative.repository';
 import { UpdateInformativeDto } from '../dto/update-informative.dto';
@@ -19,9 +15,12 @@ export class UpdateInformativeService {
     private readonly dataSource: DataSource,
     private readonly informativeRepo: InformativeRepository,
     private readonly routeService: RouteService,
-  ) { }
+  ) {}
 
-  async execute(id: string, dto: UpdateInformativeDto): Promise<InformativeEntity> {
+  async execute(
+    id: string,
+    dto: UpdateInformativeDto,
+  ): Promise<InformativeEntity> {
     this.logger.log(`🛠️ Atualizando banner informativo ID=${id}`);
 
     const existing = await this.informativeRepo.findOneWithRelations(id);
@@ -58,7 +57,9 @@ export class UpdateInformativeService {
     dto: UpdateInformativeDto,
     informativeId: string,
   ): Promise<RouteEntity> {
-    this.logger.debug(`🔄 Atualizando rota do banner informativo ID: ${routeId}`);
+    this.logger.debug(
+      `🔄 Atualizando rota do banner informativo ID: ${routeId}`,
+    );
 
     const routeData: Partial<RouteEntity> = {
       title: dto.title,

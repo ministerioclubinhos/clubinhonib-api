@@ -24,12 +24,14 @@ import { AdminRoleGuard } from 'src/auth/guards/role-guard';
 export class SiteFeedbackController {
   private readonly logger = new Logger(SiteFeedbackController.name);
 
-  constructor(private readonly siteFeedbackService: SiteFeedbackService) { }
+  constructor(private readonly siteFeedbackService: SiteFeedbackService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard)
   @UsePipes(new ValidationPipe({ whitelist: true }))
-  async create(@Body() dto: CreateSiteFeedbackDto): Promise<SiteFeedbackResponseDto> {
+  async create(
+    @Body() dto: CreateSiteFeedbackDto,
+  ): Promise<SiteFeedbackResponseDto> {
     this.logger.debug('📝 Recebendo requisição para criar feedback do site');
     const created = await this.siteFeedbackService.create(dto);
     this.logger.log(`✅ Feedback do site criado com ID: ${created.id}`);

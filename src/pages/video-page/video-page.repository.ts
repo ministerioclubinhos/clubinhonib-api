@@ -26,7 +26,9 @@ export class VideosPageRepository extends Repository<VideosPage> {
     if (data.id) {
       const existing = await this.preload(data);
       if (!existing) {
-        throw new Error(`Página de vídeos com id=${data.id} não encontrada para atualização`);
+        throw new Error(
+          `Página de vídeos com id=${data.id} não encontrada para atualização`,
+        );
       }
       return this.save(existing);
     }

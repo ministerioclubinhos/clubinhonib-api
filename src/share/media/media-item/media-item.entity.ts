@@ -1,8 +1,5 @@
 import { BaseEntity } from 'src/share/share-entity/base.entity';
-import {
-  Entity,
-  Column,
-} from 'typeorm';
+import { Entity, Column } from 'typeorm';
 
 export enum MediaType {
   VIDEO = 'video',
@@ -21,12 +18,11 @@ export enum PlatformType {
   GOOGLE_DRIVE = 'googledrive',
   ONEDRIVE = 'onedrive',
   DROPBOX = 'dropbox',
-  ANY= 'ANY',
+  ANY = 'ANY',
 }
 
 @Entity('media_items')
 export class MediaItemEntity extends BaseEntity {
-
   @Column()
   title: string;
 
@@ -66,7 +62,7 @@ export class MediaItemEntity extends BaseEntity {
 
   @Column()
   targetId: string;
-  
+
   @Column()
   targetType: string;
 }

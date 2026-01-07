@@ -31,8 +31,8 @@ export class UserController {
     private readonly createUserService: CreateUserService,
     private readonly deleteUserService: DeleteUserService,
     private readonly updateUserService: UpdateUserService,
-    private readonly getUsersService: GetUsersService
-  ) { }
+    private readonly getUsersService: GetUsersService,
+  ) {}
 
   @Post()
   async create(@Body() dto: CreateUserDto) {
@@ -56,7 +56,7 @@ export class UserController {
   @Put(':id')
   async update(
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() dto: UpdateUserDto
+    @Body() dto: UpdateUserDto,
   ): Promise<UserEntity> {
     this.logger.debug(`✏️ [PUT /users/${id}] Atualizando usuário`);
     const result = await this.updateUserService.update(id, dto);

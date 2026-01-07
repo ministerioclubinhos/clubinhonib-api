@@ -17,11 +17,14 @@ export class AwsS3Service {
   constructor(private readonly configService: ConfigService) {
     this.region = this.configService.get<string>('AWS_REGION') || 'us-east-2';
 
-    const accessKeyId = this.configService.get<string>('AWS_ACCESS_KEY_ID') ?? '';
-    const secretAccessKey = this.configService.get<string>('AWS_SECRET_ACCESS_KEY') ?? '';
+    const accessKeyId =
+      this.configService.get<string>('AWS_ACCESS_KEY_ID') ?? '';
+    const secretAccessKey =
+      this.configService.get<string>('AWS_SECRET_ACCESS_KEY') ?? '';
     this.environment = this.configService.get<string>('ENVIRONMENT') ?? '';
 
-    this.bucketName = this.configService.get<string>('AWS_S3_BUCKET_NAME') || '';
+    this.bucketName =
+      this.configService.get<string>('AWS_S3_BUCKET_NAME') || '';
     if (!this.bucketName) {
       this.logger.error('❌ AWS_S3_BUCKET_NAME não foi definido!');
     }
@@ -36,7 +39,10 @@ export class AwsS3Service {
   }
 
   async upload(file: Express.Multer.File): Promise<string> {
-    const sanitizedFilename = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+    const sanitizedFilename = file.originalname.replace(
+      /[^a-zA-Z0-9.\-_]/g,
+      '_',
+    );
 
     const key = `${this.environment}/uploads/${Date.now()}_${sanitizedFilename}`;
     const command = new PutObjectCommand({
@@ -59,7 +65,9 @@ export class AwsS3Service {
   async delete(url: string): Promise<void> {
     const key = url.split(`${this.bucketName}.s3.amazonaws.com/`)[1];
     if (!key) {
-      this.logger.warn(`⚠️ Não foi possível extrair a chave do S3 da URL: ${url}`);
+      this.logger.warn(
+        `⚠️ Não foi possível extrair a chave do S3 da URL: ${url}`,
+      );
       return;
     }
 
@@ -69,12 +77,10 @@ export class AwsS3Service {
     });
 
     try {
-     // await this.s3Client.send(command);
+      // await this.s3Client.send(command);
       this.logger.log(`🗑️ Arquivo removido: ${key}`);
     } catch (err) {
       this.logger.error(`❌ Erro ao remover do S3: ${err.message}`);
     }
   }
-
-
 }

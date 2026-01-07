@@ -68,7 +68,9 @@ export class DocumentsController {
       : undefined;
 
     if (dto.media?.fileField && !file) {
-      this.logger.warn(`⚠️ Nenhum arquivo encontrado com fieldname: ${dto.media.fileField}`);
+      this.logger.warn(
+        `⚠️ Nenhum arquivo encontrado com fieldname: ${dto.media.fileField}`,
+      );
     }
 
     const result = await this.createService.createDocument(dto, file);
@@ -119,7 +121,9 @@ export class DocumentsController {
       : undefined;
 
     if (dto.media?.fileField && !file) {
-      this.logger.warn(`⚠️ Nenhum arquivo encontrado com fieldname: ${dto.media.fileField}`);
+      this.logger.warn(
+        `⚠️ Nenhum arquivo encontrado com fieldname: ${dto.media.fileField}`,
+      );
     }
 
     const result = await this.updateService.execute(id, dto, file);

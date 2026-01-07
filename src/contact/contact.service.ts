@@ -25,14 +25,19 @@ export class ContactService {
   }
 
   async createContact(data: Partial<ContactEntity>): Promise<ContactEntity> {
-    this.logger.debug(`📩 Iniciando processo de criação de contato para: ${data.email}`);
+    this.logger.debug(
+      `📩 Iniciando processo de criação de contato para: ${data.email}`,
+    );
 
     let contact: ContactEntity;
     try {
       contact = await this.contactRepo.saveContact(data);
       this.logger.log(`✅ Contato salvo no banco: ID=${contact.id}`);
     } catch (error) {
-      this.logger.error(`❌ Erro ao salvar contato no banco: ${error.message}`, error.stack);
+      this.logger.error(
+        `❌ Erro ao salvar contato no banco: ${error.message}`,
+        error.stack,
+      );
       throw new InternalServerErrorException('Erro ao salvar o contato');
     }
 
@@ -44,8 +49,13 @@ export class ContactService {
       await this.sesService.sendEmailViaSES(to || '', subject, '', htmlBody);
       this.logger.log(`📧 E-mail enviado com sucesso para: ${to}`);
     } catch (error) {
-      this.logger.error(`❌ Erro ao enviar e-mail: ${error.message}`, error.stack);
-      throw new InternalServerErrorException('Erro ao enviar e-mail de contato');
+      this.logger.error(
+        `❌ Erro ao enviar e-mail: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        'Erro ao enviar e-mail de contato',
+      );
     }
 
     const whatsappFrom = process.env.TWILIO_WHATSAPP_FROM;
@@ -54,14 +64,25 @@ export class ContactService {
     if (whatsappFrom && whatsappTo) {
       const message = this.generateWhatsappMessage(contact);
       try {
-        const result = await this.twilio.messages.create({ body: message, from: whatsappFrom, to: whatsappTo, });
+        const result = await this.twilio.messages.create({
+          body: message,
+          from: whatsappFrom,
+          to: whatsappTo,
+        });
         this.logger.log(`📲 WhatsApp enviado com sucesso! SID: ${result.sid}`);
       } catch (err) {
-        this.logger.error(`❌ Erro ao enviar WhatsApp: ${err.message}`, err.stack);
-        throw new InternalServerErrorException('Erro ao enviar WhatsApp de contato');
+        this.logger.error(
+          `❌ Erro ao enviar WhatsApp: ${err.message}`,
+          err.stack,
+        );
+        throw new InternalServerErrorException(
+          'Erro ao enviar WhatsApp de contato',
+        );
       }
     } else {
-      this.logger.warn('⚠️ TWILIO_WHATSAPP_FROM ou TO não estão definidos no .env — WhatsApp não será enviado.');
+      this.logger.warn(
+        '⚠️ TWILIO_WHATSAPP_FROM ou TO não estão definidos no .env — WhatsApp não será enviado.',
+      );
     }
 
     return contact;
@@ -87,7 +108,7 @@ ${contact.message}
       month: 'long',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     });
 
     return `
@@ -283,7 +304,9 @@ ${contact.message}
       return contact;
     } catch (error) {
       this.logger.error('❌ Erro ao buscar ou atualizar contato', error.stack);
-      throw new InternalServerErrorException('Erro ao buscar ou atualizar contato');
+      throw new InternalServerErrorException(
+        'Erro ao buscar ou atualizar contato',
+      );
     }
   }
 

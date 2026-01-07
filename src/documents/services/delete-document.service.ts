@@ -22,7 +22,7 @@ export class DeleteDocumentService {
     private readonly routeService: RouteService,
 
     private readonly mediaItemProcessor: MediaItemProcessor,
-  ) { }
+  ) {}
 
   async execute(id: string): Promise<void> {
     this.logger.log(`🗑️ [DELETE] Iniciando remoção do documento ID=${id}`);
@@ -34,9 +34,15 @@ export class DeleteDocumentService {
     }
 
     try {
-      const media = await this.mediaItemProcessor.findMediaItemsByTarget(id, 'document');
+      const media = await this.mediaItemProcessor.findMediaItemsByTarget(
+        id,
+        'document',
+      );
       if (media.length > 0) {
-        await this.mediaItemProcessor.deleteMediaItems(media, this.s3Service.delete.bind(this.s3Service));
+        await this.mediaItemProcessor.deleteMediaItems(
+          media,
+          this.s3Service.delete.bind(this.s3Service),
+        );
         this.logger.log(`🧹 ${media.length} mídias associadas removidas`);
       }
 

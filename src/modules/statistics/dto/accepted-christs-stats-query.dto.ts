@@ -72,4 +72,3 @@ export class AcceptedChristsStatsQueryDto {
   @IsEnum(['day', 'week', 'month', 'year'])
   groupBy?: 'day' | 'week' | 'month' | 'year';
 }
-

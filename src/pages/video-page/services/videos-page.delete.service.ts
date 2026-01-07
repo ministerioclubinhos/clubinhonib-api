@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { AwsS3Service } from 'src/aws/aws-s3.service';
 import { RouteService } from 'src/route/route.service';
@@ -25,12 +30,14 @@ export class DeleteVideosPageService {
 
     try {
       const page = await this.videosPageRepo.findById(id);
-      if (!page) throw new NotFoundException(`Página com id ${id} não encontrada`);
+      if (!page)
+        throw new NotFoundException(`Página com id ${id} não encontrada`);
 
-      const mediaItems: MediaItemEntity[] = await this.mediaItemProcessor.findMediaItemsByTarget(
-        page.id,
-        'VideosPage',
-      );
+      const mediaItems: MediaItemEntity[] =
+        await this.mediaItemProcessor.findMediaItemsByTarget(
+          page.id,
+          'VideosPage',
+        );
 
       await this.mediaItemProcessor.deleteMediaItems(
         mediaItems,
@@ -46,7 +53,10 @@ export class DeleteVideosPageService {
       this.logger.debug(`✅ Página de vídeos removida com sucesso: ID=${id}`);
     } catch (error) {
       await queryRunner.rollbackTransaction();
-      this.logger.error('❌ Erro ao remover página de vídeos. Rollback executado.', error);
+      this.logger.error(
+        '❌ Erro ao remover página de vídeos. Rollback executado.',
+        error,
+      );
       throw new BadRequestException('Erro ao remover a página de vídeos.');
     } finally {
       await queryRunner.release();

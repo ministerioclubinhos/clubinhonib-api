@@ -22,7 +22,10 @@ export class SiteFeedbackRepository extends Repository<SiteFeedbackEntity> {
     return this.findOneBy({ id });
   }
 
-  async updateAndSave(entity: SiteFeedbackEntity, dto: CreateSiteFeedbackDto): Promise<SiteFeedbackEntity> {
+  async updateAndSave(
+    entity: SiteFeedbackEntity,
+    dto: CreateSiteFeedbackDto,
+  ): Promise<SiteFeedbackEntity> {
     Object.assign(entity, dto);
     return this.save(entity);
   }

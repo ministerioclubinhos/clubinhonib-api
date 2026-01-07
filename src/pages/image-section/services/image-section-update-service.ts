@@ -8,7 +8,10 @@ import { ConfigService } from '@nestjs/config';
 import { DataSource, QueryRunner } from 'typeorm';
 import { AwsS3Service } from 'src/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/share/media/media-item-processor';
-import { UploadType, MediaItemEntity } from 'src/share/media/media-item/media-item.entity';
+import {
+  UploadType,
+  MediaItemEntity,
+} from 'src/share/media/media-item/media-item.entity';
 import { MediaTargetType } from 'src/share/media/media-target-type.enum';
 import { ImageSectionRepository } from '../repository/image-section.repository';
 import { ImagePageRepository } from 'src/pages/image-page/repository/image-page.repository';
@@ -27,7 +30,7 @@ export class ImageSectionUpdateService {
     private readonly mediaItemProcessor: MediaItemProcessor,
     private readonly sectionRepo: ImageSectionRepository,
     private readonly pageRepo: ImagePageRepository,
-  ) { }
+  ) {}
 
   async updateSection(
     id: string,
@@ -45,19 +48,31 @@ export class ImageSectionUpdateService {
         throw new NotFoundException('Seção não encontrada');
       }
 
-      const pageIdFromEnv = this.configService.get<string>('FEED_CLUBINHO_PAGE_ID');
+      const pageIdFromEnv = this.configService.get<string>(
+        'FEED_CLUBINHO_PAGE_ID',
+      );
       const page = await this.pageRepo.findOneBy({ id: pageIdFromEnv });
       if (!page) {
         throw new NotFoundException('Página padrão não encontrada');
       }
 
-      const existingMedia = await this.mediaItemProcessor.findManyMediaItemsByTargets(
-        [section.id],
-        MediaTargetType.ImagesPage,
-      );
+      const existingMedia =
+        await this.mediaItemProcessor.findManyMediaItemsByTargets(
+          [section.id],
+          MediaTargetType.ImagesPage,
+        );
 
-      await this.deleteObsoleteMedia(existingMedia, dto.mediaItems, queryRunner);
-      const processedMedia = await this.processMedia(dto.mediaItems, section.id, filesDict, queryRunner);
+      await this.deleteObsoleteMedia(
+        existingMedia,
+        dto.mediaItems,
+        queryRunner,
+      );
+      const processedMedia = await this.processMedia(
+        dto.mediaItems,
+        section.id,
+        filesDict,
+        queryRunner,
+      );
       section.caption = dto.caption;
       section.description = dto.description;
       section.public = dto.public || false;
@@ -80,8 +95,10 @@ export class ImageSectionUpdateService {
     incomingMedia: MediaItemDto[],
     queryRunner: QueryRunner,
   ): Promise<void> {
-    const incomingIds = incomingMedia.map(m => m.id).filter((id): id is string => !!id);
-    const toRemove = existingMedia.filter(m => !incomingIds.includes(m.id));
+    const incomingIds = incomingMedia
+      .map((m) => m.id)
+      .filter((id): id is string => !!id);
+    const toRemove = existingMedia.filter((m) => !incomingIds.includes(m.id));
 
     if (toRemove.length > 0) {
       await this.mediaItemProcessor.deleteMediaItems(toRemove, async (url) => {
@@ -100,10 +117,20 @@ export class ImageSectionUpdateService {
 
     for (const mediaInput of mediaItems) {
       if (mediaInput.id) {
-        const updated = await this.upsertMedia(mediaInput, sectionId, filesDict, queryRunner);
+        const updated = await this.upsertMedia(
+          mediaInput,
+          sectionId,
+          filesDict,
+          queryRunner,
+        );
         processed.push(updated);
       } else {
-        const created = await this.addMedia(mediaInput, sectionId, filesDict, queryRunner);
+        const created = await this.addMedia(
+          mediaInput,
+          sectionId,
+          filesDict,
+          queryRunner,
+        );
         processed.push(created);
       }
     }
@@ -145,10 +172,13 @@ export class ImageSectionUpdateService {
     filesDict: Record<string, Express.Multer.File>,
     queryRunner: QueryRunner,
   ): Promise<MediaItemEntity> {
-
-    const existingMedia = await queryRunner.manager.findOneBy(MediaItemEntity, { id: mediaInput.id });
+    const existingMedia = await queryRunner.manager.findOneBy(MediaItemEntity, {
+      id: mediaInput.id,
+    });
     if (!existingMedia) {
-      throw new NotFoundException(`Mídia com id=${mediaInput.id} não encontrada`);
+      throw new NotFoundException(
+        `Mídia com id=${mediaInput.id} não encontrada`,
+      );
     }
 
     const updatedMedia = this.mediaItemProcessor.buildBaseMediaItem(
@@ -176,6 +206,9 @@ export class ImageSectionUpdateService {
       updatedMedia.isLocalFile = false;
     }
 
-    return await this.mediaItemProcessor.upsertMediaItem(mediaInput.id, updatedMedia);
+    return await this.mediaItemProcessor.upsertMediaItem(
+      mediaInput.id,
+      updatedMedia,
+    );
   }
 }

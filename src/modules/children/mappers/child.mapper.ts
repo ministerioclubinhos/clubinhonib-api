@@ -28,7 +28,6 @@ const toIsoDateTime = (v: unknown): string => {
   return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
 };
 
-
 export const toChildListItemDto = (e: ChildEntity): ChildListItemDto => ({
   id: e.id,
   name: e.name,
@@ -37,12 +36,14 @@ export const toChildListItemDto = (e: ChildEntity): ChildListItemDto => ({
   guardianPhone: e.guardianPhone,
   isActive: e.isActive,
   clubId: e.club?.id ?? null,
-  acceptedChrists: (e.acceptedChrists ?? []).map((a): AcceptedChristShortDto => ({
-    id: a.id,
-    decision: a.decision,
-    createdAt: a.createdAt.toISOString(),
-    updatedAt: a.updatedAt.toISOString(),
-  })),
+  acceptedChrists: (e.acceptedChrists ?? []).map(
+    (a): AcceptedChristShortDto => ({
+      id: a.id,
+      decision: a.decision,
+      createdAt: a.createdAt.toISOString(),
+      updatedAt: a.updatedAt.toISOString(),
+    }),
+  ),
 });
 
 export const toAddressDto = (a: any): AddressResponseDto | null => {
@@ -70,10 +71,10 @@ export const toChildResponseDto = (e: ChildEntity): ChildResponseDto => ({
   isActive: e.isActive,
   club: (e as any).club
     ? {
-      id: (e as any).club.id,
-      number: (e as any).club.number,
-      weekday: String((e as any).club.weekday),
-    }
+        id: (e as any).club.id,
+        number: (e as any).club.number,
+        weekday: String((e as any).club.weekday),
+      }
     : null,
   address: toAddressDto((e as any).address),
   createdAt: toIsoDateTime((e as any).createdAt),

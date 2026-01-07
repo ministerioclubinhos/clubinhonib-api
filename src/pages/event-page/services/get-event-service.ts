@@ -89,11 +89,14 @@ export class GetEventService {
     });
   }
 
-  private async buildMediaMap(ids: string[]): Promise<Map<string, MediaItemEntity[]>> {
-    const mediaItems = await this.mediaItemProcessor.findManyMediaItemsByTargets(
-      ids,
-      MediaTargetType.Event,
-    );
+  private async buildMediaMap(
+    ids: string[],
+  ): Promise<Map<string, MediaItemEntity[]>> {
+    const mediaItems =
+      await this.mediaItemProcessor.findManyMediaItemsByTargets(
+        ids,
+        MediaTargetType.Event,
+      );
 
     const map = new Map<string, MediaItemEntity[]>();
 

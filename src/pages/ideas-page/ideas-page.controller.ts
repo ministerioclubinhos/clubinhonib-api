@@ -67,7 +67,10 @@ export class IdeasPageController {
         filesDict[f.fieldname] = f;
       });
 
-      const result = await this.ideasPageCreateService.createIdeasPage(dto, filesDict);
+      const result = await this.ideasPageCreateService.createIdeasPage(
+        dto,
+        filesDict,
+      );
       this.logger.log(`✅ Página criada com sucesso: ID=${result.id}`);
       return result;
     } catch (err) {
@@ -86,10 +89,13 @@ export class IdeasPageController {
     @UploadedFiles() files: Express.Multer.File[],
     @Body('ideasMaterialsPageData') raw: string,
   ): Promise<IdeasPageResponseDto> {
-    this.logger.debug(`🚀 [PATCH /ideas-pages/${id}] Atualizando página de ideias`);
+    this.logger.debug(
+      `🚀 [PATCH /ideas-pages/${id}] Atualizando página de ideias`,
+    );
 
     try {
-      if (!raw) throw new BadRequestException('ideasMaterialsPageData é obrigatório.');
+      if (!raw)
+        throw new BadRequestException('ideasMaterialsPageData é obrigatório.');
 
       const parsedData = JSON.parse(raw);
       const dto = plainToInstance(UpdateIdeasPageDto, parsedData);
@@ -99,15 +105,24 @@ export class IdeasPageController {
       });
 
       if (validationErrors.length > 0) {
-        this.logger.error('❌ Erros de validação:', JSON.stringify(validationErrors, null, 2));
+        this.logger.error(
+          '❌ Erros de validação:',
+          JSON.stringify(validationErrors, null, 2),
+        );
         throw new BadRequestException('Dados inválidos na requisição');
       }
 
       const filesDict: Record<string, Express.Multer.File> = {};
       files.forEach((file) => (filesDict[file.fieldname] = file));
 
-      const result = await this.updateIdeasPageService.updateIdeasPage(id, dto, filesDict);
-      this.logger.log(`✅ Página de ideias atualizada com sucesso: ID=${result.id}`);
+      const result = await this.updateIdeasPageService.updateIdeasPage(
+        id,
+        dto,
+        filesDict,
+      );
+      this.logger.log(
+        `✅ Página de ideias atualizada com sucesso: ID=${result.id}`,
+      );
       return IdeasPageResponseDto.fromEntity(result, new Map());
     } catch (error) {
       this.logger.error('❌ Erro ao atualizar página de ideias', error);
@@ -118,7 +133,9 @@ export class IdeasPageController {
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Delete(':id')
   async remove(@Param('id') id: string): Promise<void> {
-    this.logger.debug(`🚀 [DELETE /ideas-pages/${id}] Removendo página de ideias`);
+    this.logger.debug(
+      `🚀 [DELETE /ideas-pages/${id}] Removendo página de ideias`,
+    );
 
     try {
       await this.ideasPageRemoveService.removeIdeasPage(id);
@@ -133,7 +150,9 @@ export class IdeasPageController {
 
   @Get()
   async findAll(): Promise<IdeasPageResponseDto[]> {
-    this.logger.debug('📥 [GET /ideas-pages] Listando todas as páginas de ideias');
+    this.logger.debug(
+      '📥 [GET /ideas-pages] Listando todas as páginas de ideias',
+    );
     return this.ideasPageGetService.findAllPagesWithMedia();
   }
 

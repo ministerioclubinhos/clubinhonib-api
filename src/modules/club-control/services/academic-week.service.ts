@@ -23,7 +23,7 @@ export class AcademicWeekService {
     const period = await this.periodsRepository.findOne({
       where: { year: currentYear, isActive: true },
     });
-    
+
     if (!period) {
       return {
         academicYear: null,
@@ -38,7 +38,7 @@ export class AcademicWeekService {
     const endDate = new Date(period.endDate + 'T23:59:59');
     const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const nowDateStr = nowDate.toISOString().split('T')[0];
-    
+
     if (nowDate < startDate || nowDate > endDate) {
       return {
         academicYear: period.year,
@@ -54,9 +54,9 @@ export class AcademicWeekService {
         nowDateStr,
         period.startDate,
         period.endDate,
-        period.year
+        period.year,
       );
-      
+
       return {
         academicYear: weekData.year,
         academicWeek: weekData.week,
@@ -92,25 +92,25 @@ export class AcademicWeekService {
     };
 
     const targetWeekday = weekdayMap[weekday?.toLowerCase()];
-    
+
     if (targetWeekday === undefined) {
       throw new Error(`Invalid weekday: ${weekday}`);
     }
 
     const periodStartDate = new Date(period.startDate + 'T00:00:00');
     const startWeekStart = this.getWeekStartDate(periodStartDate);
-    
+
     const academicWeekStart = new Date(startWeekStart);
     academicWeekStart.setDate(startWeekStart.getDate() + (week - 1) * 7);
-    
+
     const date = new Date(academicWeekStart);
     const currentDay = date.getDay();
-    
+
     let dayDiff = targetWeekday - currentDay;
     if (dayDiff < 0) {
       dayDiff += 7;
     }
-    
+
     date.setDate(academicWeekStart.getDate() + dayDiff);
 
     return date.toISOString().split('T')[0];
@@ -119,11 +119,14 @@ export class AcademicWeekService {
   calculateMaxAcademicWeek(period: ClubPeriodEntity): number {
     const start = new Date(period.startDate);
     const end = new Date(period.endDate);
-    
+
     const startWeekStart = this.getWeekStartDate(start);
     const endWeekStart = this.getWeekStartDate(end);
-    
-    const daysDiff = Math.floor((endWeekStart.getTime() - startWeekStart.getTime()) / (1000 * 60 * 60 * 24));
+
+    const daysDiff = Math.floor(
+      (endWeekStart.getTime() - startWeekStart.getTime()) /
+        (1000 * 60 * 60 * 24),
+    );
     return Math.floor(daysDiff / 7) + 1;
   }
 
@@ -131,28 +134,43 @@ export class AcademicWeekService {
     year: number,
     week: number,
     period: ClubPeriodEntity | null,
-    weekDates: string[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'],
+    weekDates: string[] = [
+      'monday',
+      'tuesday',
+      'wednesday',
+      'thursday',
+      'friday',
+      'saturday',
+    ],
   ): boolean {
     if (!period) return false;
 
     const periodStart = new Date(period.startDate + 'T00:00:00');
     const periodEnd = new Date(period.endDate + 'T23:59:59');
-    
+
     for (const weekday of weekDates) {
-      const expectedDate = this.getExpectedDateForAcademicWeek(year, week, weekday, period);
+      const expectedDate = this.getExpectedDateForAcademicWeek(
+        year,
+        week,
+        weekday,
+        period,
+      );
       const expectedDateObj = new Date(expectedDate + 'T00:00:00');
-      
+
       if (expectedDateObj >= periodStart && expectedDateObj <= periodEnd) {
         return true;
       }
     }
-    
+
     return false;
   }
 
-  isExpectedDateWithinPeriod(expectedDate: string, period: ClubPeriodEntity | null): boolean {
+  isExpectedDateWithinPeriod(
+    expectedDate: string,
+    period: ClubPeriodEntity | null,
+  ): boolean {
     if (!period || !expectedDate) return false;
-    
+
     const expectedDateObj = new Date(expectedDate);
     const startDateObj = new Date(period.startDate);
     const endDateObj = new Date(period.endDate);
@@ -165,19 +183,27 @@ export class AcademicWeekService {
     week: number,
   ): Promise<{ isCurrent: boolean; isFuture: boolean; isPast: boolean }> {
     const currentAcademicWeek = await this.calculateCurrentAcademicWeek();
-    
-    if (!currentAcademicWeek || !currentAcademicWeek.isWithinPeriod || 
-        currentAcademicWeek.academicYear === null || currentAcademicWeek.academicWeek === null) {
+
+    if (
+      !currentAcademicWeek ||
+      !currentAcademicWeek.isWithinPeriod ||
+      currentAcademicWeek.academicYear === null ||
+      currentAcademicWeek.academicWeek === null
+    ) {
       return { isCurrent: false, isFuture: false, isPast: true };
     }
 
-    const isCurrent = currentAcademicWeek.academicYear === year && 
-                     currentAcademicWeek.academicWeek === week;
-    
+    const isCurrent =
+      currentAcademicWeek.academicYear === year &&
+      currentAcademicWeek.academicWeek === week;
+
     let isFuture = false;
     if (year > currentAcademicWeek.academicYear) {
       isFuture = true;
-    } else if (year === currentAcademicWeek.academicYear && week > currentAcademicWeek.academicWeek) {
+    } else if (
+      year === currentAcademicWeek.academicYear &&
+      week > currentAcademicWeek.academicWeek
+    ) {
       isFuture = true;
     }
 
@@ -186,7 +212,11 @@ export class AcademicWeekService {
     return { isCurrent, isFuture, isPast };
   }
 
-  hasPassedClubDay(expectedDate: string, isCurrentWeek: boolean, isFutureWeek: boolean): boolean {
+  hasPassedClubDay(
+    expectedDate: string,
+    isCurrentWeek: boolean,
+    isFutureWeek: boolean,
+  ): boolean {
     if (isFutureWeek) {
       return false;
     }

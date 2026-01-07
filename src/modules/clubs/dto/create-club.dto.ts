@@ -25,14 +25,17 @@ class AddressInputDto {
 }
 
 export class CreateClubDto {
-  @IsInt() @Min(1)
+  @IsInt()
+  @Min(1)
   number!: number;
 
   @IsEnum(Weekday)
   weekday!: Weekday;
 
   @IsOptional()
-  @Matches(/^([01]?\d|2[0-3]):([0-5]\d)$/, { message: 'time deve ser H:mm ou HH:mm (0:00–23:59)' })
+  @Matches(/^([01]?\d|2[0-3]):([0-5]\d)$/, {
+    message: 'time deve ser H:mm ou HH:mm (0:00–23:59)',
+  })
   time?: string;
 
   @IsOptional() @IsBoolean() isActive?: boolean;
@@ -41,7 +44,8 @@ export class CreateClubDto {
   @Type(() => AddressInputDto)
   address!: AddressInputDto;
 
-  @IsOptional() @IsUUID()
+  @IsOptional()
+  @IsUUID()
   coordinatorProfileId?: string;
 
   @IsOptional()

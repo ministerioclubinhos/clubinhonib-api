@@ -44,7 +44,11 @@ export class PeriodFilterDto {
  * Helper para calcular períodos baseados em atalhos
  */
 export class PeriodCalculator {
-  static calculatePeriod(filter: PeriodFilterDto): { startDate: string; endDate: string; groupBy?: string } {
+  static calculatePeriod(filter: PeriodFilterDto): {
+    startDate: string;
+    endDate: string;
+    groupBy?: string;
+  } {
     const now = new Date();
     const today = now.toISOString().split('T')[0];
 

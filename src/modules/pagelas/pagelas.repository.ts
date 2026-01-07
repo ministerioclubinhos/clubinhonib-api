@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository, SelectQueryBuilder } from 'typeorm';
 import { PagelaEntity } from './entities/pagela.entity';
@@ -16,7 +20,7 @@ export class PagelasRepository {
     private readonly childRepo: Repository<ChildEntity>,
     @InjectRepository(TeacherProfileEntity)
     private readonly teacherRepo: Repository<TeacherProfileEntity>,
-  ) { }
+  ) {}
 
   private baseQB(): SelectQueryBuilder<PagelaEntity> {
     return this.repo
@@ -50,7 +54,7 @@ export class PagelasRepository {
     if (f.searchString?.trim()) {
       const raw = f.searchString.trim();
       const parts = raw.split('-');
-      
+
       if (parts.length === 2) {
         // Formato "2025-48" (ano-semana)
         const year = Number(parts[0]);
@@ -112,9 +116,14 @@ export class PagelasRepository {
     limit: number,
   ): Promise<{ items: PagelaEntity[]; total: number }> {
     const qb = this.applyFilters(this.baseQB(), filters);
-    qb.orderBy('p.year', 'DESC').addOrderBy('p.week', 'DESC').addOrderBy('child.name', 'ASC');
+    qb.orderBy('p.year', 'DESC')
+      .addOrderBy('p.week', 'DESC')
+      .addOrderBy('child.name', 'ASC');
 
-    const [items, total] = await qb.skip((page - 1) * limit).take(limit).getManyAndCount();
+    const [items, total] = await qb
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
     return { items, total };
   }
 
@@ -125,7 +134,11 @@ export class PagelasRepository {
     return item;
   }
 
-  async findOneByChildYearWeekOrNull(childId: string, year: number, week: number): Promise<PagelaEntity | null> {
+  async findOneByChildYearWeekOrNull(
+    childId: string,
+    year: number,
+    week: number,
+  ): Promise<PagelaEntity | null> {
     return this.repo.findOne({
       where: { child: { id: childId }, year, week },
       relations: { child: true, teacher: true },
@@ -150,16 +163,21 @@ export class PagelasRepository {
 
       const [child, teacher] = await Promise.all([
         txChild.findOne({ where: { id: data.childId } }),
-        data.teacherProfileId ? txTeacher.findOne({ where: { id: data.teacherProfileId } }) : Promise.resolve(null),
+        data.teacherProfileId
+          ? txTeacher.findOne({ where: { id: data.teacherProfileId } })
+          : Promise.resolve(null),
       ]);
       if (!child) throw new NotFoundException('Child não encontrado');
-      if (data.teacherProfileId && !teacher) throw new NotFoundException('TeacherProfile não encontrado');
+      if (data.teacherProfileId && !teacher)
+        throw new NotFoundException('TeacherProfile não encontrado');
 
       const existing = await txPagela.findOne({
         where: { child: { id: child.id }, year: data.year, week: data.week },
       });
       if (existing) {
-        throw new BadRequestException('Já existe Pagela para esta criança nesta semana/ano');
+        throw new BadRequestException(
+          'Já existe Pagela para esta criança nesta semana/ano',
+        );
       }
 
       const entity = txPagela.create({
@@ -177,7 +195,10 @@ export class PagelasRepository {
     });
   }
 
-  async updateOne(id: string, data: Partial<PagelaEntity>): Promise<PagelaEntity> {
+  async updateOne(
+    id: string,
+    data: Partial<PagelaEntity>,
+  ): Promise<PagelaEntity> {
     return this.dataSource.transaction(async (manager) => {
       const txPagela = manager.withRepository(this.repo);
       const entity = await txPagela.findOne({
@@ -194,7 +215,9 @@ export class PagelasRepository {
         return await txPagela.save(entity);
       } catch (e: any) {
         if (e?.code === 'ER_DUP_ENTRY') {
-          throw new BadRequestException('Já existe Pagela para esta criança nesta semana/ano');
+          throw new BadRequestException(
+            'Já existe Pagela para esta criança nesta semana/ano',
+          );
         }
         throw e;
       }

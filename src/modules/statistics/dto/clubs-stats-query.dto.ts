@@ -123,5 +123,3 @@ export class ClubsStatsQueryDto {
   @Min(0)
   minTeachers?: number; // Mínimo de professores no clube
 }
-
-

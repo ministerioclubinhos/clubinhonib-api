@@ -86,7 +86,8 @@ export class ClubIndicatorsService {
             missingRate: Math.round(missingRate * 10) / 10,
             isPerfect: false,
             needsAttention: true,
-            urgency: missingRate > 50 ? 'high' : missingRate > 25 ? 'medium' : 'low',
+            urgency:
+              missingRate > 50 ? 'high' : missingRate > 25 ? 'medium' : 'low',
           },
         });
       }
@@ -123,7 +124,8 @@ export class ClubIndicatorsService {
               isPerfect: false,
               needsAttention: false,
               urgency: 'low',
-              possibleIssue: 'Clubinho pode estar inativo ou sem configuração de crianças',
+              possibleIssue:
+                'Clubinho pode estar inativo ou sem configuração de crianças',
             },
           });
         }

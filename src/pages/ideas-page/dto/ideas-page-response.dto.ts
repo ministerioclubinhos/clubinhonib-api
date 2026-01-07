@@ -106,7 +106,6 @@ export class IdeasPageResponseDto {
   route: IdeasRouteDto;
   sections: IdeasSectionResponseDto[];
 
-
   static fromEntity(
     page: IdeasPageEntity,
     mediaMap: Map<string, MediaItemEntity[]>,

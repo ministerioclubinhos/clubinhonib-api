@@ -1,4 +1,12 @@
-import { IsOptional, IsInt, Min, Max, IsString, IsBoolean, IsEnum } from 'class-validator';
+import {
+  IsOptional,
+  IsInt,
+  Min,
+  Max,
+  IsString,
+  IsBoolean,
+  IsEnum,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { Transform } from 'class-transformer';
 import { PeriodShortcut } from './period-filter.dto';
@@ -123,5 +131,3 @@ export class TeachersStatsQueryDto {
   @IsString()
   search?: string; // Busca por nome do professor
 }
-
-

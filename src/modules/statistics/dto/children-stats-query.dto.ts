@@ -1,4 +1,12 @@
-import { IsOptional, IsInt, Min, Max, IsString, IsEnum, IsBoolean } from 'class-validator';
+import {
+  IsOptional,
+  IsInt,
+  Min,
+  Max,
+  IsString,
+  IsEnum,
+  IsBoolean,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { Transform } from 'class-transformer';
 import { PeriodShortcut } from './period-filter.dto';
@@ -175,5 +183,3 @@ export class ChildrenStatsQueryDto {
   @Max(100)
   maxPresenceRate?: number; // Taxa máxima de presença (para encontrar crianças faltosas)
 }
-
-

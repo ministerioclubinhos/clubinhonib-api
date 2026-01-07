@@ -12,7 +12,7 @@ import { UserRole } from '../auth.types';
 export class AdminRoleGuard implements CanActivate {
   private readonly logger = new Logger(AdminRoleGuard.name);
 
-  constructor(private readonly reflector: Reflector) { }
+  constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
@@ -26,7 +26,9 @@ export class AdminRoleGuard implements CanActivate {
     }
 
     const { userId, email, role } = user;
-    this.logger.debug(`👤 Usuário recebido: { id: ${userId}, email: ${email}, role: ${role ?? 'undefined'} }`);
+    this.logger.debug(
+      `👤 Usuário recebido: { id: ${userId}, email: ${email}, role: ${role ?? 'undefined'} }`,
+    );
 
     if (!role) {
       this.logger.warn('❌ Acesso negado: role ausente no token');

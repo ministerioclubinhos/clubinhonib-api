@@ -5,7 +5,10 @@ import { InformativeEntity } from './entities/informative.entity';
 @Injectable()
 export class InformativeRepository extends Repository<InformativeEntity> {
   constructor(private readonly dataSource: DataSource) {
-    super(InformativeEntity, dataSource.getRepository(InformativeEntity).manager);
+    super(
+      InformativeEntity,
+      dataSource.getRepository(InformativeEntity).manager,
+    );
   }
 
   async findPublic(): Promise<InformativeEntity[]> {
@@ -29,7 +32,6 @@ export class InformativeRepository extends Repository<InformativeEntity> {
   }
 
   async findOneById(id: string): Promise<InformativeEntity | null> {
-    return this.findOne({ where: { id },
-        relations: ['route'], });
+    return this.findOne({ where: { id }, relations: ['route'] });
   }
 }

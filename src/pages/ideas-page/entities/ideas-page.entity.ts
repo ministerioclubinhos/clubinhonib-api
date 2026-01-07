@@ -1,7 +1,7 @@
-import { BaseEntity } from "src/share/share-entity/base.entity";
-import { Column, Entity, JoinColumn, OneToMany, OneToOne } from "typeorm";
-import { IdeasSectionEntity } from "./ideas-section.entity";
-import { RouteEntity } from "src/route/route-page.entity";
+import { BaseEntity } from 'src/share/share-entity/base.entity';
+import { Column, Entity, JoinColumn, OneToMany, OneToOne } from 'typeorm';
+import { IdeasSectionEntity } from './ideas-section.entity';
+import { RouteEntity } from 'src/route/route-page.entity';
 
 @Entity({ name: 'ideas_pages' })
 export class IdeasPageEntity extends BaseEntity {

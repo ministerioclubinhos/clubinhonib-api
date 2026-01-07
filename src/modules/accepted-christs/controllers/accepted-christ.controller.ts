@@ -12,7 +12,7 @@ export class AcceptedChristController {
     @Body() dto: CreateAcceptedChristDto,
   ): Promise<AcceptedChristEntity> {
     console.log('Creating AcceptedChrist with DTO:', dto);
-    
+
     return this.acceptedChristService.create(dto);
   }
 }

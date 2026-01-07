@@ -4,7 +4,6 @@ import { BaseEntity } from 'src/share/share-entity/base.entity';
 
 @Entity('image_sections')
 export class ImageSectionEntity extends BaseEntity {
-
   @Column()
   caption: string;
 
@@ -14,6 +13,9 @@ export class ImageSectionEntity extends BaseEntity {
   @Column({ default: true })
   public: boolean;
 
-  @ManyToOne(() => ImagePageEntity, (page) => page.sections, { onDelete: 'CASCADE', nullable: true })
+  @ManyToOne(() => ImagePageEntity, (page) => page.sections, {
+    onDelete: 'CASCADE',
+    nullable: true,
+  })
   page?: ImagePageEntity | null;
 }

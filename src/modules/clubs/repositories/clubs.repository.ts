@@ -21,7 +21,10 @@ import { ClubEntity } from '../entities/club.entity/club.entity';
 import { AddressEntity } from 'src/modules/addresses/entities/address.entity/address.entity';
 import { CoordinatorProfileEntity } from 'src/modules/coordinator-profiles/entities/coordinator-profile.entity/coordinator-profile.entity';
 import { TeacherProfileEntity } from 'src/modules/teacher-profiles/entities/teacher-profile.entity/teacher-profile.entity';
-import { ClubSelectOptionDto, toClubSelectOption } from '../dto/club-select-option.dto';
+import {
+  ClubSelectOptionDto,
+  toClubSelectOption,
+} from '../dto/club-select-option.dto';
 
 type RoleCtx = { role?: string; userId?: string | null };
 
@@ -41,9 +44,11 @@ export class ClubsRepository {
 
     @InjectRepository(TeacherProfileEntity)
     private readonly teacherProfileRepo: Repository<TeacherProfileEntity>,
-  ) { }
+  ) {}
 
-  private buildClubBaseQB(manager?: EntityManager): SelectQueryBuilder<ClubEntity> {
+  private buildClubBaseQB(
+    manager?: EntityManager,
+  ): SelectQueryBuilder<ClubEntity> {
     const repo = manager ? manager.getRepository(ClubEntity) : this.clubRepo;
     return repo
       .createQueryBuilder('club')
@@ -100,7 +105,10 @@ export class ClubsRepository {
     return club;
   }
 
-  async findOneOrFailForResponse(id: string, ctx?: RoleCtx): Promise<ClubEntity | null> {
+  async findOneOrFailForResponse(
+    id: string,
+    ctx?: RoleCtx,
+  ): Promise<ClubEntity | null> {
     const qb = this.buildClubBaseQB()
       .where('club.id = :id', { id })
       .orderBy('club.number', 'ASC')
@@ -169,7 +177,7 @@ export class ClubsRepository {
     };
     const orderBy = sortMap[sort] ?? 'club.number';
     const orderDir = (order || 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
-    qb.orderBy(orderBy, orderDir as 'ASC' | 'DESC');
+    qb.orderBy(orderBy, orderDir);
 
     qb.skip((page - 1) * limit).take(limit);
 
@@ -264,7 +272,10 @@ export class ClubsRepository {
           );
         }
 
-        await teacherRepo.update({ id: In(ids) }, { club: { id: club.id } as any });
+        await teacherRepo.update(
+          { id: In(ids) },
+          { club: { id: club.id } as any },
+        );
       }
       return this.findOneOrFailForResponseTx(manager, club.id);
     });
@@ -322,7 +333,11 @@ export class ClubsRepository {
       await clubRepo.save(club);
 
       if (dto.teacherProfileIds !== undefined) {
-        await this.syncTeachersForClubTx(teacherRepo, club.id, dto.teacherProfileIds);
+        await this.syncTeachersForClubTx(
+          teacherRepo,
+          club.id,
+          dto.teacherProfileIds,
+        );
       }
 
       return this.findOneOrFailForResponseTx(manager, club.id);
@@ -360,9 +375,9 @@ export class ClubsRepository {
 
     const attachProfiles = toAttach.length
       ? await txTeacherRepo.find({
-        where: { id: In(toAttach) },
-        relations: { club: true },
-      })
+          where: { id: In(toAttach) },
+          relations: { club: true },
+        })
       : [];
 
     if (attachProfiles.length !== toAttach.length) {
@@ -445,10 +460,14 @@ export class ClubsRepository {
       .andWhere('coord_user.id = :uid', { uid: userId });
 
     const hasGetExists = typeof (qb as any).getExists === 'function';
-    return hasGetExists ? !!(await (qb as any).getExists()) : (await qb.getCount()) > 0;
+    return hasGetExists
+      ? !!(await (qb as any).getExists())
+      : (await qb.getCount()) > 0;
   }
 
-  async getCoordinatorProfileIdByUserId(userId: string): Promise<string | null> {
+  async getCoordinatorProfileIdByUserId(
+    userId: string,
+  ): Promise<string | null> {
     const coord = await this.coordRepo.findOne({
       where: { user: { id: userId } as any },
       select: { id: true },

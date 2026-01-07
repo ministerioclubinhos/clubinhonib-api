@@ -1,10 +1,18 @@
-import { IsNotEmpty, IsInt, Min, Max, IsString, IsBoolean, IsOptional } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsInt,
+  Min,
+  Max,
+  IsString,
+  IsBoolean,
+  IsOptional,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 /**
  * DTO para criar Período Letivo GLOBAL
  * Um único período por ano, válido para todos os clubes
- * 
+ *
  * Exemplo:
  * {
  *   "year": 2024,

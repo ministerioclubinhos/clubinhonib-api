@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { AwsS3Service } from 'src/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/share/media/media-item-processor';
@@ -32,13 +37,16 @@ export class ImageSectionDeleteService {
       }
 
       this.logger.debug(`🔍 Buscando mídias associadas à seção`);
-      const mediaItems: MediaItemEntity[] = await this.mediaItemProcessor.findMediaItemsByTarget(
-        section.id,
-        MediaTargetType.ImagesPage,
-      );
+      const mediaItems: MediaItemEntity[] =
+        await this.mediaItemProcessor.findMediaItemsByTarget(
+          section.id,
+          MediaTargetType.ImagesPage,
+        );
 
       if (mediaItems.length > 0) {
-        this.logger.debug(`🗑️ Iniciando remoção de ${mediaItems.length} mídias`);
+        this.logger.debug(
+          `🗑️ Iniciando remoção de ${mediaItems.length} mídias`,
+        );
         await this.mediaItemProcessor.deleteMediaItems(
           mediaItems,
           this.awsS3Service.delete.bind(this.awsS3Service),
@@ -54,7 +62,10 @@ export class ImageSectionDeleteService {
       this.logger.debug(`✅ Seção removida com sucesso: ID=${id}`);
     } catch (error) {
       await queryRunner.rollbackTransaction();
-      this.logger.error('❌ Erro ao remover a seção. Rollback executado.', error);
+      this.logger.error(
+        '❌ Erro ao remover a seção. Rollback executado.',
+        error,
+      );
       throw new BadRequestException('Erro ao remover a seção.');
     } finally {
       await queryRunner.release();

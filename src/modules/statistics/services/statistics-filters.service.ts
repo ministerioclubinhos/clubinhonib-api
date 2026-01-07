@@ -20,15 +20,25 @@ export class StatisticsFiltersService {
         const periodEndDate = '2025-12-31';
         const periodYear = 2025;
 
-        const startWeek = getAcademicWeekYear(filters.startDate, periodStartDate, periodEndDate, periodYear);
-        const endWeek = getAcademicWeekYear(filters.endDate, periodStartDate, periodEndDate, periodYear);
+        const startWeek = getAcademicWeekYear(
+          filters.startDate,
+          periodStartDate,
+          periodEndDate,
+          periodYear,
+        );
+        const endWeek = getAcademicWeekYear(
+          filters.endDate,
+          periodStartDate,
+          periodEndDate,
+          periodYear,
+        );
 
         // Apply week range filter instead of date range
         if (startWeek.year === endWeek.year) {
           query.andWhere('pagela.year = :year', { year: startWeek.year });
           query.andWhere('pagela.week BETWEEN :startWeek AND :endWeek', {
             startWeek: startWeek.week,
-            endWeek: endWeek.week
+            endWeek: endWeek.week,
           });
         } else {
           // Handle cross-year ranges (rare but possible)
@@ -38,14 +48,18 @@ export class StatisticsFiltersService {
               startYear: startWeek.year,
               startWeek: startWeek.week,
               endYear: endWeek.year,
-              endWeek: endWeek.week
-            }
+              endWeek: endWeek.week,
+            },
           );
         }
       } catch (error) {
         // Fallback to date filters if conversion fails
-        query.andWhere('pagela.referenceDate >= :startDate', { startDate: filters.startDate });
-        query.andWhere('pagela.referenceDate <= :endDate', { endDate: filters.endDate });
+        query.andWhere('pagela.referenceDate >= :startDate', {
+          startDate: filters.startDate,
+        });
+        query.andWhere('pagela.referenceDate <= :endDate', {
+          endDate: filters.endDate,
+        });
       }
     } else {
       // Apply original filters
@@ -56,10 +70,14 @@ export class StatisticsFiltersService {
         query.andWhere('pagela.week = :week', { week: filters.week });
       }
       if (filters.startDate) {
-        query.andWhere('pagela.referenceDate >= :startDate', { startDate: filters.startDate });
+        query.andWhere('pagela.referenceDate >= :startDate', {
+          startDate: filters.startDate,
+        });
       }
       if (filters.endDate) {
-        query.andWhere('pagela.referenceDate <= :endDate', { endDate: filters.endDate });
+        query.andWhere('pagela.referenceDate <= :endDate', {
+          endDate: filters.endDate,
+        });
       }
     }
 
@@ -67,10 +85,14 @@ export class StatisticsFiltersService {
       query.andWhere('child.club.id = :clubId', { clubId: filters.clubId });
     }
     if (filters.teacherId) {
-      query.andWhere('pagela.teacher.id = :teacherId', { teacherId: filters.teacherId });
+      query.andWhere('pagela.teacher.id = :teacherId', {
+        teacherId: filters.teacherId,
+      });
     }
     if (filters.coordinatorId) {
-      query.andWhere('club.coordinator.id = :coordinatorId', { coordinatorId: filters.coordinatorId });
+      query.andWhere('club.coordinator.id = :coordinatorId', {
+        coordinatorId: filters.coordinatorId,
+      });
     }
 
     if (filters.gender) {
@@ -79,15 +101,23 @@ export class StatisticsFiltersService {
     if (filters.minAge !== undefined || filters.maxAge !== undefined) {
       const today = new Date();
       if (filters.maxAge !== undefined) {
-        const minBirthDate = new Date(today.getFullYear() - filters.maxAge - 1, today.getMonth(), today.getDate());
-        query.andWhere('child.birthDate >= :minBirthDate', { 
-          minBirthDate: minBirthDate.toISOString().split('T')[0] 
+        const minBirthDate = new Date(
+          today.getFullYear() - filters.maxAge - 1,
+          today.getMonth(),
+          today.getDate(),
+        );
+        query.andWhere('child.birthDate >= :minBirthDate', {
+          minBirthDate: minBirthDate.toISOString().split('T')[0],
         });
       }
       if (filters.minAge !== undefined) {
-        const maxBirthDate = new Date(today.getFullYear() - filters.minAge, today.getMonth(), today.getDate());
-        query.andWhere('child.birthDate <= :maxBirthDate', { 
-          maxBirthDate: maxBirthDate.toISOString().split('T')[0] 
+        const maxBirthDate = new Date(
+          today.getFullYear() - filters.minAge,
+          today.getMonth(),
+          today.getDate(),
+        );
+        query.andWhere('child.birthDate <= :maxBirthDate', {
+          maxBirthDate: maxBirthDate.toISOString().split('T')[0],
         });
       }
     }
@@ -99,24 +129,34 @@ export class StatisticsFiltersService {
       query.andWhere('address.state = :state', { state: filters.state });
     }
     if (filters.district) {
-      query.andWhere('address.district = :district', { district: filters.district });
+      query.andWhere('address.district = :district', {
+        district: filters.district,
+      });
     }
 
     if (filters.joinedAfter) {
-      query.andWhere('child.joinedAt >= :joinedAfter', { joinedAfter: filters.joinedAfter });
+      query.andWhere('child.joinedAt >= :joinedAfter', {
+        joinedAfter: filters.joinedAfter,
+      });
     }
     if (filters.joinedBefore) {
-      query.andWhere('child.joinedAt <= :joinedBefore', { joinedBefore: filters.joinedBefore });
+      query.andWhere('child.joinedAt <= :joinedBefore', {
+        joinedBefore: filters.joinedBefore,
+      });
     }
 
     if (filters.onlyPresent) {
       query.andWhere('pagela.present = :present', { present: true });
     }
     if (filters.onlyDidMeditation) {
-      query.andWhere('pagela.didMeditation = :didMeditation', { didMeditation: true });
+      query.andWhere('pagela.didMeditation = :didMeditation', {
+        didMeditation: true,
+      });
     }
     if (filters.onlyRecitedVerse) {
-      query.andWhere('pagela.recitedVerse = :recitedVerse', { recitedVerse: true });
+      query.andWhere('pagela.recitedVerse = :recitedVerse', {
+        recitedVerse: true,
+      });
     }
   }
 
@@ -125,7 +165,9 @@ export class StatisticsFiltersService {
     filters: AcceptedChristsStatsQueryDto,
   ): void {
     if (filters.startDate) {
-      query.andWhere('ac.createdAt >= :startDate', { startDate: filters.startDate });
+      query.andWhere('ac.createdAt >= :startDate', {
+        startDate: filters.startDate,
+      });
     }
     if (filters.endDate) {
       query.andWhere('ac.createdAt <= :endDate', { endDate: filters.endDate });
@@ -135,7 +177,9 @@ export class StatisticsFiltersService {
       query.andWhere('child.club.id = :clubId', { clubId: filters.clubId });
     }
     if (filters.coordinatorId) {
-      query.andWhere('club.coordinator.id = :coordinatorId', { coordinatorId: filters.coordinatorId });
+      query.andWhere('club.coordinator.id = :coordinatorId', {
+        coordinatorId: filters.coordinatorId,
+      });
     }
 
     if (filters.decision) {
@@ -148,15 +192,23 @@ export class StatisticsFiltersService {
     if (filters.minAge !== undefined || filters.maxAge !== undefined) {
       const today = new Date();
       if (filters.maxAge !== undefined) {
-        const minBirthDate = new Date(today.getFullYear() - filters.maxAge - 1, today.getMonth(), today.getDate());
-        query.andWhere('child.birthDate >= :minBirthDate', { 
-          minBirthDate: minBirthDate.toISOString().split('T')[0] 
+        const minBirthDate = new Date(
+          today.getFullYear() - filters.maxAge - 1,
+          today.getMonth(),
+          today.getDate(),
+        );
+        query.andWhere('child.birthDate >= :minBirthDate', {
+          minBirthDate: minBirthDate.toISOString().split('T')[0],
         });
       }
       if (filters.minAge !== undefined) {
-        const maxBirthDate = new Date(today.getFullYear() - filters.minAge, today.getMonth(), today.getDate());
-        query.andWhere('child.birthDate <= :maxBirthDate', { 
-          maxBirthDate: maxBirthDate.toISOString().split('T')[0] 
+        const maxBirthDate = new Date(
+          today.getFullYear() - filters.minAge,
+          today.getMonth(),
+          today.getDate(),
+        );
+        query.andWhere('child.birthDate <= :maxBirthDate', {
+          maxBirthDate: maxBirthDate.toISOString().split('T')[0],
         });
       }
     }
@@ -168,18 +220,27 @@ export class StatisticsFiltersService {
       query.andWhere('address.state = :state', { state: filters.state });
     }
     if (filters.district) {
-      query.andWhere('address.district = :district', { district: filters.district });
+      query.andWhere('address.district = :district', {
+        district: filters.district,
+      });
     }
 
     if (filters.joinedAfter) {
-      query.andWhere('child.joinedAt >= :joinedAfter', { joinedAfter: filters.joinedAfter });
+      query.andWhere('child.joinedAt >= :joinedAfter', {
+        joinedAfter: filters.joinedAfter,
+      });
     }
     if (filters.joinedBefore) {
-      query.andWhere('child.joinedAt <= :joinedBefore', { joinedBefore: filters.joinedBefore });
+      query.andWhere('child.joinedAt <= :joinedBefore', {
+        joinedBefore: filters.joinedBefore,
+      });
     }
   }
 
-  getDateGroupFormat(groupBy: 'day' | 'week' | 'month' | 'year'): { format: string; groupBy: string } {
+  getDateGroupFormat(groupBy: 'day' | 'week' | 'month' | 'year'): {
+    format: string;
+    groupBy: string;
+  } {
     switch (groupBy) {
       case 'day':
         return {
@@ -205,4 +266,3 @@ export class StatisticsFiltersService {
     }
   }
 }
-

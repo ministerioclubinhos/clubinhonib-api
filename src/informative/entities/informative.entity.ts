@@ -1,10 +1,5 @@
 import { BaseEntity } from 'src/share/share-entity/base.entity';
-import {
-  Entity,
-  Column,
-  OneToOne,
-  JoinColumn,
-} from 'typeorm';
+import { Entity, Column, OneToOne, JoinColumn } from 'typeorm';
 import { RouteEntity } from 'src/route/route-page.entity';
 
 @Entity('informatives')

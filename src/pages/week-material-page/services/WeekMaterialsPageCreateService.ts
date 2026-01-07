@@ -6,7 +6,11 @@ import { RouteType } from 'src/route/route-page.entity';
 import { MediaTargetType } from 'src/share/media/media-target-type.enum';
 import { MediaItemProcessor } from 'src/share/media/media-item-processor';
 import { WeekMaterialsPageRepository } from '../week-material.repository';
-import { MediaItemEntity, MediaType, UploadType } from 'src/share/media/media-item/media-item.entity';
+import {
+  MediaItemEntity,
+  MediaType,
+  UploadType,
+} from 'src/share/media/media-item/media-item.entity';
 import { CreateWeekMaterialsPageDto } from '../dto/create-week-material.dto';
 import { WeekMaterialsPageResponseDTO } from '../dto/week-material-response.dto';
 import { WeekMaterialsPageEntity } from '../entities/week-material-page.entity';
@@ -22,7 +26,7 @@ export class WeekMaterialsPageCreateService {
     private readonly s3: AwsS3Service,
     private readonly routeService: RouteService,
     private readonly mediaItemProcessor: MediaItemProcessor,
-  ) { }
+  ) {}
 
   async createWeekMaterialsPage(
     dto: CreateWeekMaterialsPageDto,
@@ -46,20 +50,27 @@ export class WeekMaterialsPageCreateService {
       savedPage = await queryRunner.manager.save(page);
       this.logger.debug(`💾 Página salva. ID=${savedPage.id}`);
 
-      const path = await this.routeService.generateAvailablePath(dto.pageTitle, 'materiais_semanal_');
-      const route = await this.routeService.createRouteWithManager(queryRunner.manager, {
-        title: dto.pageTitle,
-        subtitle: dto.pageSubtitle,
-        description: dto.pageDescription,
-        path,
-        type: RouteType.PAGE,
-        entityId: savedPage.id,
-        idToFetch: savedPage.id,
-        entityType: 'WeekMaterialsPage',
-        image: 'https://clubinho-nib.s3.us-east-1.amazonaws.com/production/cards/card_materiais.png',
-        public: true,
-        current: false
-      });
+      const path = await this.routeService.generateAvailablePath(
+        dto.pageTitle,
+        'materiais_semanal_',
+      );
+      const route = await this.routeService.createRouteWithManager(
+        queryRunner.manager,
+        {
+          title: dto.pageTitle,
+          subtitle: dto.pageSubtitle,
+          description: dto.pageDescription,
+          path,
+          type: RouteType.PAGE,
+          entityId: savedPage.id,
+          idToFetch: savedPage.id,
+          entityType: 'WeekMaterialsPage',
+          image:
+            'https://clubinho-nib.s3.us-east-1.amazonaws.com/production/cards/card_materiais.png',
+          public: true,
+          current: false,
+        },
+      );
       this.logger.debug(`🛤️ Rota criada. ID=${route.id}`);
 
       savedPage.route = route;
@@ -71,7 +82,9 @@ export class WeekMaterialsPageCreateService {
         images: dto.images || [],
         audios: dto.audios || [],
       });
-      this.logger.debug(`Itens de mídia ajustados: ${JSON.stringify(adjustedMediaItems)}`);
+      this.logger.debug(
+        `Itens de mídia ajustados: ${JSON.stringify(adjustedMediaItems)}`,
+      );
 
       mediaItems = await this.mediaItemProcessor.processMediaItemsPolymorphic(
         adjustedMediaItems,
@@ -88,7 +101,9 @@ export class WeekMaterialsPageCreateService {
     } catch (error) {
       await queryRunner.rollbackTransaction();
       this.logger.error('❌ Erro ao criar página. Rollback executado.', error);
-      throw new BadRequestException(`Erro ao criar a página de materiais: ${error.message}`);
+      throw new BadRequestException(
+        `Erro ao criar a página de materiais: ${error.message}`,
+      );
     } finally {
       await queryRunner.release();
     }
@@ -100,33 +115,50 @@ export class WeekMaterialsPageCreateService {
     images: MediaItemDto[];
     audios: MediaItemDto[];
   }): MediaItemDto[] {
-
     const videos = (dto.videos || []).map((media) => ({
       ...media,
       mediaType: MediaType.VIDEO,
-      fileField: media.uploadType === UploadType.UPLOAD && media.isLocalFile ? media.fieldKey : undefined,
+      fileField:
+        media.uploadType === UploadType.UPLOAD && media.isLocalFile
+          ? media.fieldKey
+          : undefined,
     }));
     const documents = (dto.documents || []).map((media) => ({
       ...media,
       mediaType: MediaType.DOCUMENT,
-      fileField: media.uploadType === UploadType.UPLOAD && media.isLocalFile ? media.fieldKey : undefined,
+      fileField:
+        media.uploadType === UploadType.UPLOAD && media.isLocalFile
+          ? media.fieldKey
+          : undefined,
     }));
     const images = (dto.images || []).map((media) => ({
       ...media,
       mediaType: MediaType.IMAGE,
-      fileField:  media.uploadType === UploadType.UPLOAD && media.isLocalFile ? media.fieldKey : undefined,
+      fileField:
+        media.uploadType === UploadType.UPLOAD && media.isLocalFile
+          ? media.fieldKey
+          : undefined,
     }));
     const audios = (dto.audios || []).map((media) => ({
       ...media,
       mediaType: MediaType.AUDIO,
-      fileField:  media.uploadType === UploadType.UPLOAD && media.isLocalFile ? media.fieldKey : undefined,
+      fileField:
+        media.uploadType === UploadType.UPLOAD && media.isLocalFile
+          ? media.fieldKey
+          : undefined,
     }));
 
     const mediaItems = [...videos, ...documents, ...images, ...audios];
 
     mediaItems.forEach((item) => {
-      if ( item.uploadType === UploadType.UPLOAD && item.isLocalFile && !item.fileField) {
-        throw new BadRequestException(`fieldKey ausente para item de mídia: ${item.title}`);
+      if (
+        item.uploadType === UploadType.UPLOAD &&
+        item.isLocalFile &&
+        !item.fileField
+      ) {
+        throw new BadRequestException(
+          `fieldKey ausente para item de mídia: ${item.title}`,
+        );
       }
     });
 

@@ -35,7 +35,7 @@ export class VideosPageController {
     private readonly updateService: UpdateVideosPageService,
     private readonly getService: GetVideosPageService,
     private readonly deleteService: DeleteVideosPageService,
-  ) { }
+  ) {}
 
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Post()
@@ -56,7 +56,10 @@ export class VideosPageController {
       });
 
       if (validationErrors.length > 0) {
-        this.logger.error('❌ Erros de validação:', JSON.stringify(validationErrors, null, 2));
+        this.logger.error(
+          '❌ Erros de validação:',
+          JSON.stringify(validationErrors, null, 2),
+        );
         throw new BadRequestException('Dados inválidos na requisição');
       }
 
@@ -64,7 +67,9 @@ export class VideosPageController {
       files.forEach((file) => (filesDict[file.fieldname] = file));
 
       const result = await this.createService.execute(dto, filesDict);
-      this.logger.log(`✅ Página de vídeos criada com sucesso: ID=${result.id}`);
+      this.logger.log(
+        `✅ Página de vídeos criada com sucesso: ID=${result.id}`,
+      );
       return result;
     } catch (error) {
       this.logger.error('❌ Erro ao criar página de vídeos', error);
@@ -80,7 +85,9 @@ export class VideosPageController {
     @UploadedFiles() files: Express.Multer.File[],
     @Body('videosPageData') raw: string,
   ): Promise<VideosPageResponseDto> {
-    this.logger.debug(`✏️ [PATCH /video-pages/${id}] Atualizando página de vídeos`);
+    this.logger.debug(
+      `✏️ [PATCH /video-pages/${id}] Atualizando página de vídeos`,
+    );
 
     try {
       const parsedData = JSON.parse(raw);
@@ -92,7 +99,10 @@ export class VideosPageController {
       });
 
       if (validationErrors.length > 0) {
-        this.logger.error('❌ Erros de validação:', JSON.stringify(validationErrors, null, 2));
+        this.logger.error(
+          '❌ Erros de validação:',
+          JSON.stringify(validationErrors, null, 2),
+        );
         throw new BadRequestException('Dados inválidos na requisição');
       }
 
@@ -100,7 +110,9 @@ export class VideosPageController {
       files.forEach((file) => (filesDict[file.fieldname] = file));
 
       const result = await this.updateService.execute(id, dto, filesDict);
-      this.logger.log(`✅ Página de vídeos atualizada com sucesso: ID=${result.id}`);
+      this.logger.log(
+        `✅ Página de vídeos atualizada com sucesso: ID=${result.id}`,
+      );
       return result;
     } catch (error) {
       this.logger.error('❌ Erro ao atualizar página de vídeos', error);
@@ -110,7 +122,9 @@ export class VideosPageController {
 
   @Get()
   async findAll(): Promise<VideosPageResponseDto[]> {
-    this.logger.debug('📄 [GET /video-pages] Listando todas as páginas de vídeos');
+    this.logger.debug(
+      '📄 [GET /video-pages] Listando todas as páginas de vídeos',
+    );
     return this.getService.findAll();
   }
 
@@ -129,7 +143,9 @@ export class VideosPageController {
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Delete(':id')
   async remove(@Param('id') id: string): Promise<{ message: string }> {
-    this.logger.debug(`🗑️ [DELETE /video-pages/${id}] Removendo página de vídeos`);
+    this.logger.debug(
+      `🗑️ [DELETE /video-pages/${id}] Removendo página de vídeos`,
+    );
     await this.deleteService.execute(id);
     this.logger.log(`✅ Página de vídeos removida com sucesso: ID=${id}`);
     return { message: 'Página de vídeos removida com sucesso' };

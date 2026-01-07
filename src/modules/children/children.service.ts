@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { Request } from 'express';
 
 import { ChildrenRepository } from './repositories/children.repository';
@@ -7,7 +11,10 @@ import { GetClubsService } from '../clubs/services/get-clubs.service';
 
 import { CreateChildDto } from './dto/create-child.dto';
 import { UpdateChildDto } from './dto/update-child.dto';
-import { QueryChildrenDto, QueryChildrenSimpleDto } from './dto/query-children.dto';
+import {
+  QueryChildrenDto,
+  QueryChildrenSimpleDto,
+} from './dto/query-children.dto';
 import {
   PaginatedResponseDto,
   ChildResponseDto,
@@ -19,7 +26,8 @@ import { AuthContextService } from 'src/auth/services/auth-context.service';
 
 const toDateOnlyStr = (v: string | Date | undefined | null): string | null => {
   if (v === undefined || v === null) return null;
-  if (v instanceof Date && !isNaN(v.getTime())) return v.toISOString().slice(0, 10);
+  if (v instanceof Date && !isNaN(v.getTime()))
+    return v.toISOString().slice(0, 10);
   const s = String(v).trim();
   const m = s.match(/^(\d{4}-\d{2}-\d{2})$/);
   if (m) return m[1];
@@ -36,7 +44,7 @@ export class ChildrenService {
     private readonly addressesService: AddressesService,
     private readonly getClubsService: GetClubsService,
     private readonly authContextService: AuthContextService,
-  ) { }
+  ) {}
 
   private async getCtx(request: Request): Promise<AccessCtx> {
     const payload = await this.authContextService.tryGetPayload(request);
@@ -54,7 +62,10 @@ export class ChildrenService {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
 
-    const { items, total } = await this.childrenRepo.findAllPaginated(query, ctx);
+    const { items, total } = await this.childrenRepo.findAllPaginated(
+      query,
+      ctx,
+    );
 
     return {
       data: items.map(toChildResponseDto),
@@ -69,7 +80,7 @@ export class ChildrenService {
     };
   }
 
-  async findAllSimples(request: Request,): Promise<ChildListItemDto[]> {
+  async findAllSimples(request: Request): Promise<ChildListItemDto[]> {
     const ctx = await this.getCtx(request);
     const rows = await this.childrenRepo.findAllSimple(ctx);
     return rows.map(toChildListItemDto);
@@ -78,16 +89,24 @@ export class ChildrenService {
   async findOne(id: string, request: Request): Promise<ChildResponseDto> {
     const ctx = await this.getCtx(request);
     const entity = await this.childrenRepo.findOneForResponse(id, ctx);
-    if (!entity) throw new NotFoundException('Criança não encontrada ou sem acesso');
+    if (!entity)
+      throw new NotFoundException('Criança não encontrada ou sem acesso');
     return toChildResponseDto(entity);
   }
 
-  async create(dto: CreateChildDto, request: Request): Promise<ChildResponseDto> {
+  async create(
+    dto: CreateChildDto,
+    request: Request,
+  ): Promise<ChildResponseDto> {
     const ctx = await this.getCtx(request);
 
     if (ctx.role && ctx.role !== 'admin' && dto.clubId) {
-      const allowed = await this.childrenRepo.userHasAccessToClub(dto.clubId, ctx);
-      if (!allowed) throw new ForbiddenException('Sem acesso ao clubinho informado');
+      const allowed = await this.childrenRepo.userHasAccessToClub(
+        dto.clubId,
+        ctx,
+      );
+      if (!allowed)
+        throw new ForbiddenException('Sem acesso ao clubinho informado');
     }
 
     const child = this.childrenRepo.create({
@@ -115,18 +134,26 @@ export class ChildrenService {
     return toChildResponseDto(withRels!);
   }
 
-  async update(id: string, dto: UpdateChildDto, request: Request): Promise<ChildResponseDto> {
+  async update(
+    id: string,
+    dto: UpdateChildDto,
+    request: Request,
+  ): Promise<ChildResponseDto> {
     const ctx = await this.getCtx(request);
 
     const entity = await this.childrenRepo.findOneForResponse(id, ctx);
-    if (!entity) throw new NotFoundException('Criança não encontrada ou sem acesso');
+    if (!entity)
+      throw new NotFoundException('Criança não encontrada ou sem acesso');
 
     if (dto.name !== undefined) entity.name = dto.name;
     if (dto.guardianName !== undefined) entity.guardianName = dto.guardianName;
     if (dto.gender !== undefined) entity.gender = dto.gender;
-    if (dto.guardianPhone !== undefined) entity.guardianPhone = dto.guardianPhone;
-    if (dto.birthDate !== undefined) entity.birthDate = toDateOnlyStr(dto.birthDate) as any;
-    if (dto.joinedAt !== undefined) entity.joinedAt = toDateOnlyStr(dto.joinedAt) as any;
+    if (dto.guardianPhone !== undefined)
+      entity.guardianPhone = dto.guardianPhone;
+    if (dto.birthDate !== undefined)
+      entity.birthDate = toDateOnlyStr(dto.birthDate) as any;
+    if (dto.joinedAt !== undefined)
+      entity.joinedAt = toDateOnlyStr(dto.joinedAt) as any;
     if (dto.isActive !== undefined) entity.isActive = dto.isActive;
 
     if (dto.clubId !== undefined) {
@@ -135,8 +162,12 @@ export class ChildrenService {
       } else {
         await this.getClubsService.findOne(dto.clubId, request);
         if (ctx.role && ctx.role !== 'admin') {
-          const allowed = await this.childrenRepo.userHasAccessToClub(dto.clubId, ctx);
-          if (!allowed) throw new ForbiddenException('Sem acesso ao novo clubinho');
+          const allowed = await this.childrenRepo.userHasAccessToClub(
+            dto.clubId,
+            ctx,
+          );
+          if (!allowed)
+            throw new ForbiddenException('Sem acesso ao novo clubinho');
         }
         (entity as any).club = { id: dto.clubId } as ClubEntity;
       }
@@ -162,19 +193,20 @@ export class ChildrenService {
   async remove(id: string, request: Request): Promise<void> {
     const ctx = await this.getCtx(request);
     const entity = await this.childrenRepo.findOneForResponse(id, ctx);
-    if (!entity) throw new NotFoundException('Criança não encontrada ou sem acesso');
+    if (!entity)
+      throw new NotFoundException('Criança não encontrada ou sem acesso');
     await this.childrenRepo.delete(id);
   }
-
 
   async toggleActive(id: string, request: Request): Promise<ChildResponseDto> {
     const ctx = await this.getCtx(request);
     const entity = await this.childrenRepo.findOneForResponse(id, ctx);
-    if (!entity) throw new NotFoundException('Criança não encontrada ou sem acesso');
-    
+    if (!entity)
+      throw new NotFoundException('Criança não encontrada ou sem acesso');
+
     entity.isActive = !entity.isActive;
     await this.childrenRepo.save(entity);
-    
+
     const reloaded = await this.childrenRepo.findOneForResponse(id, ctx);
     return toChildResponseDto(reloaded!);
   }

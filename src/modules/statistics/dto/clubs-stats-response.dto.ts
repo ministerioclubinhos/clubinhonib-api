@@ -129,5 +129,3 @@ export class ClubsStatsResponseDto {
     fromInactiveClubs: number;
   };
 }
-
-

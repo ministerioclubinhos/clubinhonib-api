@@ -67,4 +67,4 @@ import { ClubControlModule } from './modules/club-control/club-control.module';
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule { }
+export class AppModule {}

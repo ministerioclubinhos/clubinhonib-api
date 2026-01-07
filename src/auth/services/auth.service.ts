@@ -1,4 +1,9 @@
-import { Injectable, UnauthorizedException, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
@@ -26,7 +31,7 @@ export class AuthService {
     private readonly createUserService: CreateUserService,
     private readonly updateUserService: UpdateUserService,
     private readonly getUsersService: GetUsersService,
-    private readonly userRepo: UserRepository
+    private readonly userRepo: UserRepository,
   ) {
     this.googleClient = new OAuth2Client(
       configService.getOrThrow<string>('GOOGLE_CLIENT_ID'),
@@ -40,7 +45,9 @@ export class AuthService {
     const accessToken = this.jwtService.sign(payload);
     const refreshToken = this.jwtService.sign(payload, {
       secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
-      expiresIn: this.configService.getOrThrow<string>('JWT_REFRESH_EXPIRES_IN'),
+      expiresIn: this.configService.getOrThrow<string>(
+        'JWT_REFRESH_EXPIRES_IN',
+      ),
     });
 
     return { accessToken, refreshToken };
@@ -54,7 +61,6 @@ export class AuthService {
       this.logger.warn(`Credenciais inválidas: ${email}`);
       throw new UnauthorizedException('Invalid credentials');
     }
-
 
     const tokens = this.generateTokens(user);
     await this.updateRefreshToken(user.id, tokens.refreshToken);
@@ -98,24 +104,49 @@ export class AuthService {
           role: UserRole.TEACHER,
         });
 
-        return { email, name, completed: user.completed, commonUser: user.commonUser, newUser: true };
+        return {
+          email,
+          name,
+          completed: user.completed,
+          commonUser: user.commonUser,
+          newUser: true,
+        };
       }
 
       if (!user.completed) {
-        this.logger.log(`Usuário Google existente sem cadastro completo: ${email}`);
-        return { email, name, completed: false, commonUser: user.commonUser, newUser: true };
+        this.logger.log(
+          `Usuário Google existente sem cadastro completo: ${email}`,
+        );
+        return {
+          email,
+          name,
+          completed: false,
+          commonUser: user.commonUser,
+          newUser: true,
+        };
       }
 
       if (!(user as any).active) {
         this.logger.warn(`Usuário Google inativo: ${email}`);
-        return { message: 'UserEntity is inactive', active: false, completed: user.completed, commonUser: user.commonUser, newUser: false };
+        return {
+          message: 'UserEntity is inactive',
+          active: false,
+          completed: user.completed,
+          commonUser: user.commonUser,
+          newUser: false,
+        };
       }
 
       const tokens = this.generateTokens(user);
       await this.updateRefreshToken(user.id, tokens.refreshToken);
 
       this.logger.log(`Login Google bem-sucedido: ${email}`);
-      return { message: 'Login successful', isNewUser: false, user: this.buildUserResponse(user), ...tokens };
+      return {
+        message: 'Login successful',
+        isNewUser: false,
+        user: this.buildUserResponse(user),
+        ...tokens,
+      };
     } catch (error) {
       this.logger.error(`Erro durante login Google: ${error.message}`);
       throw new UnauthorizedException('Invalid Google token');
@@ -173,29 +204,29 @@ export class AuthService {
       role: user.role,
       teacherProfile: user.teacherProfile
         ? {
-          id: user.teacherProfile.id,
-          active: user.teacherProfile.active,
-          club: user.teacherProfile.club
-            ? {
-              id: user.teacherProfile.club.id,
-              number: user.teacherProfile.club.number,
-              weekday: user.teacherProfile.club.weekday,
-            }
-            : null,
-        }
+            id: user.teacherProfile.id,
+            active: user.teacherProfile.active,
+            club: user.teacherProfile.club
+              ? {
+                  id: user.teacherProfile.club.id,
+                  number: user.teacherProfile.club.number,
+                  weekday: user.teacherProfile.club.weekday,
+                }
+              : null,
+          }
         : null,
       coordinatorProfile: user.coordinatorProfile
         ? {
-          id: user.coordinatorProfile.id,
-          active: user.coordinatorProfile.active,
-          clubs: Array.isArray(user.coordinatorProfile.clubs)
-            ? user.coordinatorProfile.clubs.map((c) => ({
-              id: c.id,
-              number: c.number,
-              weekday: c.weekday,
-            }))
-            : [],
-        }
+            id: user.coordinatorProfile.id,
+            active: user.coordinatorProfile.active,
+            clubs: Array.isArray(user.coordinatorProfile.clubs)
+              ? user.coordinatorProfile.clubs.map((c) => ({
+                  id: c.id,
+                  number: c.number,
+                  weekday: c.weekday,
+                }))
+              : [],
+          }
         : null,
     };
   }
@@ -217,7 +248,9 @@ export class AuthService {
 
     const user = await this.getUsersService.findByEmail(data.email);
     if (!user) {
-      this.logger.warn(`Usuário não encontrado no completeRegister: ${data.email}`);
+      this.logger.warn(
+        `Usuário não encontrado no completeRegister: ${data.email}`,
+      );
       throw new NotFoundException('UserEntity not found');
     }
 
@@ -243,7 +276,9 @@ export class AuthService {
 
     const existingUser = await this.getUsersService.findByEmail(data.email);
     if (existingUser) {
-      this.logger.warn(`Tentativa de registrar email já existente: ${data.email}`);
+      this.logger.warn(
+        `Tentativa de registrar email já existente: ${data.email}`,
+      );
       throw new UnauthorizedException('UserEntity already exists');
     }
 
@@ -259,7 +294,10 @@ export class AuthService {
     });
 
     this.logger.log(`Usuário registrado com sucesso: ${user.email}`);
-    return { message: 'Registration successful', user: this.buildUserResponse(user) };
+    return {
+      message: 'Registration successful',
+      user: this.buildUserResponse(user),
+    };
   }
 
   private buildUserResponse(user: UserEntity): Partial<UserEntity> {
@@ -277,7 +315,10 @@ export class AuthService {
     };
   }
 
-  async updateRefreshToken(userId: string, token: string | null): Promise<void> {
+  async updateRefreshToken(
+    userId: string,
+    token: string | null,
+  ): Promise<void> {
     this.logger.debug(`Updating refresh token for user ID: ${userId}`);
     await this.userRepo.updateRefreshToken(userId, token);
   }

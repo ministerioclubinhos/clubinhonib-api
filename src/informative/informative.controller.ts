@@ -30,11 +30,13 @@ export class InformativeController {
     private readonly getService: GetInformativeService,
     private readonly updateService: UpdateInformativeService,
     private readonly deleteService: DeleteInformativeService,
-  ) { }
+  ) {}
 
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Post()
-  async create(@Body() dto: CreateInformativeDto): Promise<InformativeResponseDto> {
+  async create(
+    @Body() dto: CreateInformativeDto,
+  ): Promise<InformativeResponseDto> {
     this.logger.log('📥 [POST /informatives] Criando banner informativo');
     const result = await this.createService.createInformative(dto);
     this.logger.log(`✅ Banner criado com ID: ${result.id}`);

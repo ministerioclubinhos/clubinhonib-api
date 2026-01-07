@@ -34,15 +34,23 @@ export class UpdateMeditationService {
     const existing = await this.meditationRepo.findOneWithRelations(id);
     if (!existing) throw new NotFoundException('Meditação não encontrada');
 
-    const startDate = dto.startDate ? parseDateAsLocal(dto.startDate) : existing.startDate;
-    const endDate = dto.endDate ? parseDateAsLocal(dto.endDate) : existing.endDate;
+    const startDate = dto.startDate
+      ? parseDateAsLocal(dto.startDate)
+      : existing.startDate;
+    const endDate = dto.endDate
+      ? parseDateAsLocal(dto.endDate)
+      : existing.endDate;
 
     if (dto.startDate && startDate.getDay() !== 1) {
-      throw new BadRequestException('startDate deve ser uma segunda-feira (Monday)');
+      throw new BadRequestException(
+        'startDate deve ser uma segunda-feira (Monday)',
+      );
     }
 
     if (dto.endDate && endDate.getDay() !== 5) {
-      throw new BadRequestException('endDate deve ser uma sexta-feira (Friday)');
+      throw new BadRequestException(
+        'endDate deve ser uma sexta-feira (Friday)',
+      );
     }
 
     const all = await this.meditationRepo.findAllWithRelations();
@@ -68,7 +76,10 @@ export class UpdateMeditationService {
         endDate,
       });
 
-      const savedMeditation = await manager.save(MeditationEntity, updatedMeditation);
+      const savedMeditation = await manager.save(
+        MeditationEntity,
+        updatedMeditation,
+      );
       this.logger.log(`✅ Meditação atualizada: ${savedMeditation.id}`);
 
       if (dto.days) {
@@ -85,7 +96,8 @@ export class UpdateMeditationService {
             id: dto.media.id,
             title: dto.media.title ?? savedMeditation.topic,
             description:
-              dto.media.description ?? `Material da meditação: ${savedMeditation.topic}`,
+              dto.media.description ??
+              `Material da meditação: ${savedMeditation.topic}`,
             mediaType: dto.media.mediaType,
             uploadType: dto.media.uploadType,
             platformType: dto.media.isLocalFile ? null : dto.media.platformType,
@@ -94,25 +106,27 @@ export class UpdateMeditationService {
             size: dto.media.size,
             isLocalFile: dto.media.isLocalFile,
             fileField: dto.media.fieldKey ?? 'file',
-            public: false
+            public: false,
           },
         ];
 
         const filesDict = file ? { [dto.media.fieldKey ?? 'file']: file } : {};
-        const existingMedia = await this.mediaItemProcessor.findMediaItemsByTarget(
-          savedMeditation.id,
-          MediaTargetType.Meditation,
-        );
+        const existingMedia =
+          await this.mediaItemProcessor.findMediaItemsByTarget(
+            savedMeditation.id,
+            MediaTargetType.Meditation,
+          );
 
-        const [mediaEntity] = await this.mediaItemProcessor.cleanAndReplaceMediaItems(
-          mediaItemsInput,
-          savedMeditation.id,
-          MediaTargetType.Meditation,
-          filesDict,
-          existingMedia,
-          (url) => this.s3Service.delete(url),
-          (file) => this.s3Service.upload(file),
-        );
+        const [mediaEntity] =
+          await this.mediaItemProcessor.cleanAndReplaceMediaItems(
+            mediaItemsInput,
+            savedMeditation.id,
+            MediaTargetType.Meditation,
+            filesDict,
+            existingMedia,
+            (url) => this.s3Service.delete(url),
+            (file) => this.s3Service.upload(file),
+          );
 
         this.logger.log(`📎 Mídia atualizada: ${mediaEntity.title}`);
       }

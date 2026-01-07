@@ -1,9 +1,15 @@
-import { IsNotEmpty, IsString, IsEnum, IsBoolean, IsOptional } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsString,
+  IsEnum,
+  IsBoolean,
+  IsOptional,
+} from 'class-validator';
 
 /**
  * DTO para criar Exceção GLOBAL
  * Uma exceção por data, válida para todos os clubes que funcionam naquele dia da semana
- * 
+ *
  * Exemplo:
  * {
  *   "exceptionDate": "2024-11-15",
@@ -11,7 +17,7 @@ import { IsNotEmpty, IsString, IsEnum, IsBoolean, IsOptional } from 'class-valid
  *   "type": "holiday",
  *   "isRecurrent": true
  * }
- * 
+ *
  * Se 15/11/2024 cai numa quarta-feira, TODOS os clubes de quarta não funcionam
  */
 export class CreateClubExceptionDto {

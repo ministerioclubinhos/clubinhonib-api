@@ -33,7 +33,9 @@ export class DeleteInformativeService {
     try {
       if (informative.route) {
         await this.routeRepo.delete(informative.route.id);
-        this.logger.log(`🧹 Rota associada removida: routeId=${informative.route.id}`);
+        this.logger.log(
+          `🧹 Rota associada removida: routeId=${informative.route.id}`,
+        );
       }
 
       await this.informativeRepo.remove(informative);

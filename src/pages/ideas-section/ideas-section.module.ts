@@ -24,9 +24,6 @@ import { MediaModule } from 'src/share/media/media.module';
     IdeasSectionDeleteService,
     IdeasSectionRepository,
   ],
-  exports: [
-    IdeasSectionRepository,
-    IdeasSectionGetService,
-  ],
+  exports: [IdeasSectionRepository, IdeasSectionGetService],
 })
-export class IdeasSectionModule { }
+export class IdeasSectionModule {}

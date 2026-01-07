@@ -30,7 +30,9 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     const { sub: userId, email, role } = payload;
 
     if (!role) {
-      this.logger.warn(`⚠️ Atenção: Role ausente no payload do JWT (userId: ${userId})`);
+      this.logger.warn(
+        `⚠️ Atenção: Role ausente no payload do JWT (userId: ${userId})`,
+      );
     } else {
       this.logger.log(`✅ Payload válido: userId=${userId}, role=${role}`);
     }

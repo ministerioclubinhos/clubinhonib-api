@@ -21,4 +21,4 @@ import { AuthModule } from 'src/auth/auth.module';
   providers: [ChildrenService, ChildrenRepository],
   exports: [ChildrenService, ChildrenRepository],
 })
-export class ChildrenModule { }
+export class ChildrenModule {}

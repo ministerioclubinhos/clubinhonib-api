@@ -18,7 +18,7 @@ import { MeditationModule } from 'src/meditation/meditation.module';
   imports: [
     TypeOrmModule.forFeature([DocumentEntity]),
     MediaModule,
-    MeditationModule
+    MeditationModule,
   ],
   controllers: [DocumentsController],
   providers: [
@@ -29,10 +29,11 @@ import { MeditationModule } from 'src/meditation/meditation.module';
     DeleteDocumentService,
     {
       provide: DocumentRepository,
-      useFactory: (dataSource: DataSource) => new DocumentRepository(dataSource),
+      useFactory: (dataSource: DataSource) =>
+        new DocumentRepository(dataSource),
       inject: [DataSource],
     },
-    RouteRepository
+    RouteRepository,
   ],
   exports: [
     CreateDocumentService,
@@ -41,4 +42,4 @@ import { MeditationModule } from 'src/meditation/meditation.module';
     DeleteDocumentService,
   ],
 })
-export class DocumentModule { }
+export class DocumentModule {}

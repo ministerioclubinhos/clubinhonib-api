@@ -49,7 +49,10 @@ export class UserRepository {
     await this.repo.delete(id);
   }
 
-  async updateRefreshToken(id: string, refreshToken: string | null): Promise<void> {
+  async updateRefreshToken(
+    id: string,
+    refreshToken: string | null,
+  ): Promise<void> {
     await this.repo.update(id, { refreshToken });
   }
 
@@ -79,18 +82,20 @@ export class UserRepository {
     const sortCol = sortable[sort] ?? 'u.updatedAt';
     const sortDir = (order || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
-    const qb = this.repo.createQueryBuilder('u').select([
-      'u.id',
-      'u.createdAt',
-      'u.updatedAt',
-      'u.email',
-      'u.phone',
-      'u.name',
-      'u.active',
-      'u.completed',
-      'u.commonUser',
-      'u.role',
-    ]);
+    const qb = this.repo
+      .createQueryBuilder('u')
+      .select([
+        'u.id',
+        'u.createdAt',
+        'u.updatedAt',
+        'u.email',
+        'u.phone',
+        'u.name',
+        'u.active',
+        'u.completed',
+        'u.commonUser',
+        'u.role',
+      ]);
 
     qb.andWhere('LOWER(u.role) <> :adminRole', { adminRole: 'admin' });
 
@@ -111,7 +116,9 @@ export class UserRepository {
     }
 
     if (typeof completed === 'string') {
-      qb.andWhere('u.completed = :completed', { completed: completed === 'true' });
+      qb.andWhere('u.completed = :completed', {
+        completed: completed === 'true',
+      });
     }
 
     qb.orderBy(sortCol, sortDir).skip(skip).take(limit);

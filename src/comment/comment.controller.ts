@@ -23,7 +23,7 @@ import { AdminRoleGuard } from 'src/auth/guards/role-guard';
 export class CommentController {
   private readonly logger = new Logger(CommentController.name);
 
-  constructor(private readonly commentService: CommentService) { }
+  constructor(private readonly commentService: CommentService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard)

@@ -26,7 +26,7 @@ export class CreateDocumentService {
     private readonly s3Service: AwsS3Service,
     private readonly routeService: RouteService,
     private readonly mediaProcessor: MediaItemProcessor,
-  ) { }
+  ) {}
 
   async createDocument(
     dto: CreateDocumentDto,

@@ -4,9 +4,9 @@ import { Entity, Column, Unique } from 'typeorm';
 /**
  * Período Letivo GLOBAL
  * Define o período letivo para TODOS os clubes
- * 
+ *
  * REGRA: Um único período letivo por ano, válido para todos os clubes
- * 
+ *
  * Exemplo: Ano Letivo 2024 - 05/02/2024 a 15/12/2024
  * - Todos os clubes seguem o mesmo calendário
  * - A primeira semana dentro do período é a "semana 1" do ano letivo
@@ -29,4 +29,3 @@ export class ClubPeriodEntity extends BaseEntity {
   @Column({ type: 'boolean', default: true })
   isActive: boolean; // Se este período está ativo
 }
-

@@ -1,39 +1,59 @@
-import { IsIn, IsInt, IsOptional, IsString, IsUUID, Min, IsNumber, IsBoolean } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Min,
+  IsNumber,
+  IsBoolean,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class QueryChildrenDto {
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   searchString?: string;
 
-  @IsOptional() @IsUUID()
+  @IsOptional()
+  @IsUUID()
   clubId?: string;
 
   @Transform(({ value }) => Number(value))
-  @IsOptional() @IsNumber()
+  @IsOptional()
+  @IsNumber()
   clubNumber?: number;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   city?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   state?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   birthDate?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   birthDateFrom?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   birthDateTo?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   joinedAt?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   joinedFrom?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   joinedTo?: string;
 
   @Transform(({ value }) => {
@@ -41,29 +61,39 @@ export class QueryChildrenDto {
     if (value === 'false') return false;
     return value;
   })
-  @IsOptional() @IsBoolean()
+  @IsOptional()
+  @IsBoolean()
   isActive?: boolean;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   orderBy?: 'name' | 'birthDate' | 'joinedAt' | 'createdAt';
 
-  @IsOptional() @IsIn(['ASC', 'DESC'])
+  @IsOptional()
+  @IsIn(['ASC', 'DESC'])
   order?: 'ASC' | 'DESC' = 'ASC';
 
   @Transform(({ value }) => Number(value))
-  @IsOptional() @IsInt() @Min(1)
+  @IsOptional()
+  @IsInt()
+  @Min(1)
   page?: number = 1;
 
   @Transform(({ value }) => Number(value))
-  @IsOptional() @IsInt() @Min(1)
+  @IsOptional()
+  @IsInt()
+  @Min(1)
   limit?: number = 20;
 }
 
 export class QueryChildrenSimpleDto {
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   searchString?: string;
 
   @Transform(({ value }) => Number(value))
-  @IsOptional() @IsInt() @Min(1)
+  @IsOptional()
+  @IsInt()
+  @Min(1)
   limit?: number = 20;
 }

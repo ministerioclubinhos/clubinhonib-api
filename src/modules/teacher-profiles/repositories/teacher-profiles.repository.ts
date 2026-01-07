@@ -9,7 +9,10 @@ import { DataSource, Repository, SelectQueryBuilder } from 'typeorm';
 import { TeacherProfileEntity } from '../entities/teacher-profile.entity/teacher-profile.entity';
 import { ClubEntity } from 'src/modules/clubs/entities/club.entity/club.entity';
 import { UserEntity } from 'src/user/user.entity';
-import { TeacherSimpleListDto, toTeacherSimple } from '../dto/teacher-simple-list.dto';
+import {
+  TeacherSimpleListDto,
+  toTeacherSimple,
+} from '../dto/teacher-simple-list.dto';
 import { TeacherProfilesQueryDto } from '../dto/teacher-profiles.query.dto';
 
 type RoleCtx = { role?: string; userId?: string | null };
@@ -28,7 +31,7 @@ export class TeacherProfilesRepository {
 
     @InjectRepository(UserEntity)
     private readonly userRepo: Repository<UserEntity>,
-  ) { }
+  ) {}
 
   private baseQB(): SelectQueryBuilder<TeacherProfileEntity> {
     return this.teacherRepo
@@ -78,7 +81,10 @@ export class TeacherProfilesRepository {
     return map[sort ?? 'updatedAt'] ?? 'teacher.updatedAt';
   }
 
-  private applyRoleFilter(qb: SelectQueryBuilder<TeacherProfileEntity>, ctx?: RoleCtx) {
+  private applyRoleFilter(
+    qb: SelectQueryBuilder<TeacherProfileEntity>,
+    ctx?: RoleCtx,
+  ) {
     const role = ctx?.role?.toLowerCase();
     const userId = ctx?.userId;
     if (!role || role === 'admin' || !userId) return;
@@ -139,7 +145,9 @@ export class TeacherProfilesRepository {
     return qb;
   }
 
-  async findAllWithClubAndCoordinator(ctx?: RoleCtx): Promise<TeacherProfileEntity[]> {
+  async findAllWithClubAndCoordinator(
+    ctx?: RoleCtx,
+  ): Promise<TeacherProfileEntity[]> {
     const qb = this.baseQB()
       .orderBy('teacher.createdAt', 'ASC')
       .addOrderBy('club.number', 'ASC');
@@ -148,7 +156,10 @@ export class TeacherProfilesRepository {
     return qb.getMany();
   }
 
-  async findOneWithClubAndCoordinatorOrFail(id: string, ctx?: RoleCtx): Promise<TeacherProfileEntity> {
+  async findOneWithClubAndCoordinatorOrFail(
+    id: string,
+    ctx?: RoleCtx,
+  ): Promise<TeacherProfileEntity> {
     const qb = this.baseQB().andWhere('teacher.id = :id', { id });
     this.applyRoleFilter(qb, ctx);
 
@@ -157,7 +168,10 @@ export class TeacherProfilesRepository {
     return teacher;
   }
 
-  async findByClubIdWithCoordinator(clubId: string, ctx?: RoleCtx): Promise<TeacherProfileEntity[]> {
+  async findByClubIdWithCoordinator(
+    clubId: string,
+    ctx?: RoleCtx,
+  ): Promise<TeacherProfileEntity[]> {
     const club = await this.clubRepo.findOne({ where: { id: clubId } });
     if (!club) throw new NotFoundException('Clubinho não encontrado');
 
@@ -181,15 +195,11 @@ export class TeacherProfilesRepository {
     page: number;
     limit: number;
   }> {
-    const {
-      page = 1,
-      limit = 12,
-      sort = 'updatedAt',
-      order = 'desc',
-    } = query;
+    const { page = 1, limit = 12, sort = 'updatedAt', order = 'desc' } = query;
 
     const sortColumn = this.resolveSort(sort);
-    const sortDir: SortDir = (order || 'desc').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+    const sortDir: SortDir =
+      (order || 'desc').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
     const offset = (page - 1) * limit;
 
     const totalQB = this.applyFilters(this.baseIdsQuery(), query)
@@ -241,24 +251,29 @@ export class TeacherProfilesRepository {
     return items.map(toTeacherSimple);
   }
 
-
   async assignTeacherToClub(teacherId: string, clubId: string): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
       const txTeacherRepo = manager.withRepository(this.teacherRepo);
       const txClubRepo = manager.withRepository(this.clubRepo);
 
       const [teacher, club] = await Promise.all([
-        txTeacherRepo.findOne({ where: { id: teacherId }, relations: { club: true } }),
+        txTeacherRepo.findOne({
+          where: { id: teacherId },
+          relations: { club: true },
+        }),
         txClubRepo.findOne({ where: { id: clubId } }),
       ]);
 
-      if (!teacher) throw new NotFoundException('TeacherProfile não encontrado');
+      if (!teacher)
+        throw new NotFoundException('TeacherProfile não encontrado');
       if (!club) throw new NotFoundException('Clubinho não encontrado');
 
       if (teacher.club && teacher.club.id === clubId) return;
 
       if (teacher.club && teacher.club.id !== clubId) {
-        throw new BadRequestException('Teacher já está vinculado a outro Clubinho');
+        throw new BadRequestException(
+          'Teacher já está vinculado a outro Clubinho',
+        );
       }
 
       teacher.club = club;
@@ -266,7 +281,10 @@ export class TeacherProfilesRepository {
     });
   }
 
-  async unassignTeacherFromClub(teacherId: string, expectedClubId?: string): Promise<void> {
+  async unassignTeacherFromClub(
+    teacherId: string,
+    expectedClubId?: string,
+  ): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
       const txTeacherRepo = manager.withRepository(this.teacherRepo);
 
@@ -274,12 +292,15 @@ export class TeacherProfilesRepository {
         where: { id: teacherId },
         relations: { club: true },
       });
-      if (!teacher) throw new NotFoundException('TeacherProfile não encontrado');
+      if (!teacher)
+        throw new NotFoundException('TeacherProfile não encontrado');
 
       if (!teacher.club) return;
 
       if (expectedClubId && teacher.club.id !== expectedClubId) {
-        throw new BadRequestException('Teacher não pertence ao clubinho informado');
+        throw new BadRequestException(
+          'Teacher não pertence ao clubinho informado',
+        );
       }
 
       teacher.club = null as any;
@@ -295,10 +316,16 @@ export class TeacherProfilesRepository {
       const user = await txUser.findOne({ where: { id: userId } });
       if (!user) throw new NotFoundException('User não encontrado');
 
-      const existing = await txTeacher.findOne({ where: { user: { id: userId } } });
+      const existing = await txTeacher.findOne({
+        where: { user: { id: userId } },
+      });
       if (existing) return existing;
 
-      const entity = txTeacher.create({ user: user as any, active: true, club: null as any });
+      const entity = txTeacher.create({
+        user: user as any,
+        active: true,
+        club: null as any,
+      });
       return txTeacher.save(entity);
     });
   }
@@ -306,7 +333,9 @@ export class TeacherProfilesRepository {
   async removeByUserId(userId: string): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
       const txTeacher = manager.withRepository(this.teacherRepo);
-      const profile = await txTeacher.findOne({ where: { user: { id: userId } } });
+      const profile = await txTeacher.findOne({
+        where: { user: { id: userId } },
+      });
       if (!profile) return;
       await txTeacher.delete(profile.id);
     });
@@ -318,7 +347,9 @@ export class TeacherProfilesRepository {
     if (!role || role === 'admin') return true;
     if (!userId) return false;
 
-    const qb = this.clubRepo.createQueryBuilder('club').where('club.id = :clubId', { clubId });
+    const qb = this.clubRepo
+      .createQueryBuilder('club')
+      .where('club.id = :clubId', { clubId });
 
     if (role === 'coordinator') {
       qb.leftJoin('club.coordinator', 'coord')
@@ -329,6 +360,8 @@ export class TeacherProfilesRepository {
     }
 
     const hasGetExists = typeof (qb as any).getExists === 'function';
-    return hasGetExists ? !!(await (qb as any).getExists()) : (await qb.getCount()) > 0;
+    return hasGetExists
+      ? !!(await (qb as any).getExists())
+      : (await qb.getCount()) > 0;
   }
 }
