@@ -2,7 +2,6 @@ import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { ClubEntity } from 'src/modules/clubs/entities/club.entity/club.entity';
 import { ChildEntity } from 'src/modules/children/entities/child.entity';
 import { ClubPeriodEntity } from '../entities/club-period.entity';
-import { ClubExceptionEntity } from '../entities/club-exception.entity';
 import { ClubControlRepository } from '../repositories/club-control.repository';
 import { AcademicWeekService } from './academic-week.service';
 import { ClubStatusService } from './club-status.service';

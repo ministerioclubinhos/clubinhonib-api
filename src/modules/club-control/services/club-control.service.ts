@@ -103,8 +103,52 @@ export class ClubControlService {
     return this.clubControlRepository.deleteException(id);
   }
 
-  async checkClubWeek(clubId: string, year: number, week: number) {
-    return this.clubWeekCheckService.checkClubWeek(clubId, year, week);
+  async checkClubWeek(
+    clubId: string,
+    year: number,
+    week: number,
+  ): Promise<{
+    clubId: string;
+    clubNumber: number;
+    weekday: string;
+    week: { year: number; week: number; expectedDate: string };
+    children: {
+      total: number;
+      withPagela: number;
+      missing: number;
+      missingList: Array<{ childId: string; childName: string }>;
+      notAttendingCount?: number;
+      notAttendingList?: Array<{ childId: string; childName: string }>;
+    };
+    status: string;
+    alerts?: Array<unknown>;
+    indicators?: Array<unknown>;
+    isException: boolean;
+    exceptionReason?: string | null;
+  }> {
+    return this.clubWeekCheckService.checkClubWeek(
+      clubId,
+      year,
+      week,
+    ) as Promise<{
+      clubId: string;
+      clubNumber: number;
+      weekday: string;
+      week: { year: number; week: number; expectedDate: string };
+      children: {
+        total: number;
+        withPagela: number;
+        missing: number;
+        missingList: Array<{ childId: string; childName: string }>;
+        notAttendingCount?: number;
+        notAttendingList?: Array<{ childId: string; childName: string }>;
+      };
+      status: string;
+      alerts?: Array<unknown>;
+      indicators?: Array<unknown>;
+      isException: boolean;
+      exceptionReason?: string | null;
+    }>;
   }
 
   async checkAllClubsWeek(
@@ -314,10 +358,24 @@ export class ClubControlService {
     );
 
     let totalChildrenNotAttending = 0;
-    const childrenNotAttendingList: any[] = [];
+    const childrenNotAttendingList: Array<{
+      childId: string;
+      childName: string;
+    }> = [];
 
-    clubsResults.forEach((result) => {
-      if (result.children.notAttendingCount > 0) {
+    type ClubResult = {
+      children: {
+        notAttendingCount?: number;
+        notAttendingList?: Array<{ childId: string; childName: string }>;
+      };
+      status: string;
+    };
+
+    clubsResults.forEach((result: ClubResult) => {
+      if (
+        result.children.notAttendingCount &&
+        result.children.notAttendingCount > 0
+      ) {
         totalChildrenNotAttending += result.children.notAttendingCount;
         childrenNotAttendingList.push(
           ...(result.children.notAttendingList || []),
@@ -325,8 +383,11 @@ export class ClubControlService {
       }
     });
 
-    inactiveClubsResults.forEach((result) => {
-      if (result.children.notAttendingCount > 0) {
+    inactiveClubsResults.forEach((result: ClubResult) => {
+      if (
+        result.children.notAttendingCount &&
+        result.children.notAttendingCount > 0
+      ) {
         totalChildrenNotAttending += result.children.notAttendingCount;
         childrenNotAttendingList.push(
           ...(result.children.notAttendingList || []),
@@ -344,7 +405,7 @@ export class ClubControlService {
       ok: 7,
     };
 
-    clubsResults.sort((a, b) => {
+    clubsResults.sort((a: { status: string }, b: { status: string }) => {
       const priorityA = statusPriority[a.status] || 99;
       const priorityB = statusPriority[b.status] || 99;
 
@@ -355,18 +416,31 @@ export class ClubControlService {
       return a.clubNumber - b.clubNumber;
     });
 
+    type ClubResultWithStatus = { status: string };
     const summary = {
       totalClubs: activeClubs.length,
       totalClubsInactive: inactiveClubs.length,
-      clubsOk: clubsResults.filter((r) => r.status === 'ok').length,
-      clubsPending: clubsResults.filter((r) => r.status === 'pending').length,
-      clubsPartial: clubsResults.filter((r) => r.status === 'partial').length,
-      clubsMissing: clubsResults.filter((r) => r.status === 'missing').length,
-      clubsException: clubsResults.filter((r) => r.status === 'exception')
-        .length,
-      clubsInactive: clubsResults.filter((r) => r.status === 'inactive').length,
-      clubsOutOfPeriod: clubsResults.filter((r) => r.status === 'out_of_period')
-        .length,
+      clubsOk: clubsResults.filter(
+        (r: ClubResultWithStatus) => r.status === 'ok',
+      ).length,
+      clubsPending: clubsResults.filter(
+        (r: ClubResultWithStatus) => r.status === 'pending',
+      ).length,
+      clubsPartial: clubsResults.filter(
+        (r: ClubResultWithStatus) => r.status === 'partial',
+      ).length,
+      clubsMissing: clubsResults.filter(
+        (r: ClubResultWithStatus) => r.status === 'missing',
+      ).length,
+      clubsException: clubsResults.filter(
+        (r: ClubResultWithStatus) => r.status === 'exception',
+      ).length,
+      clubsInactive: clubsResults.filter(
+        (r: ClubResultWithStatus) => r.status === 'inactive',
+      ).length,
+      clubsOutOfPeriod: clubsResults.filter(
+        (r: ClubResultWithStatus) => r.status === 'out_of_period',
+      ).length,
       totalChildrenNotAttending,
       inactiveClubsCount: inactiveClubs.length,
     };
@@ -458,7 +532,7 @@ export class ClubControlService {
       page?: number;
       limit?: number;
     },
-  ) {
+  ): Promise<unknown> {
     return this.clubControlRepository.getDetailedIndicators(
       year,
       week,

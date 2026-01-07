@@ -208,13 +208,15 @@ export class PagelasRepository {
       if (!entity) throw new NotFoundException('Pagela não encontrada');
 
       if (data.teacher) {
+        // Teacher assignment handled elsewhere
       }
 
       Object.assign(entity, data);
       try {
         return await txPagela.save(entity);
-      } catch (e: any) {
-        if (e?.code === 'ER_DUP_ENTRY') {
+      } catch (e: unknown) {
+        const error = e as { code?: string };
+        if (error?.code === 'ER_DUP_ENTRY') {
           throw new BadRequestException(
             'Já existe Pagela para esta criança nesta semana/ano',
           );

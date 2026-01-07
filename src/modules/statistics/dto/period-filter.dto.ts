@@ -128,8 +128,10 @@ export class PeriodCalculator {
         }
 
         // Fallback: último mês
-        const oneMonthAgo = new Date(now);
-        oneMonthAgo.setMonth(now.getMonth() - 1);
+        {
+          const oneMonthAgo = new Date(now);
+          oneMonthAgo.setMonth(now.getMonth() - 1);
+        }
 
         return {
           startDate: oneMonthAgo.toISOString().split('T')[0],

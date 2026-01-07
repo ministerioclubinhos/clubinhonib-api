@@ -96,12 +96,17 @@ export class ClubResponseDto {
 
   @Expose()
   @Type(() => CoordinatorWithUserDto)
-  @Transform(({ value }) => value ?? null)
+  @Transform(
+    ({ value }: { value: CoordinatorWithUserDto | null }) => value ?? null,
+  )
   coordinator!: CoordinatorWithUserDto | null;
 
   @Expose()
   @Type(() => TeacherWithUserDto)
-  @Transform(({ value }) => (Array.isArray(value) ? value : []))
+  @Transform(({ value }: { value: TeacherWithUserDto[] }) => {
+    if (Array.isArray(value)) return value;
+    return [] as TeacherWithUserDto[];
+  })
   teachers!: TeacherWithUserDto[];
 
   @Expose() weekday!: Weekday;

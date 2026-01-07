@@ -72,6 +72,7 @@ export class ClubIndicatorsService {
         });
       }
     } else if (status === 'pending') {
+      // Status pending - no indicators needed
     } else if (status === 'partial') {
       if (hasPassedClubDay) {
         indicators.push({

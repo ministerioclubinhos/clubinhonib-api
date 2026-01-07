@@ -52,7 +52,8 @@ export class StatisticsFiltersService {
             },
           );
         }
-      } catch (error) {
+      } catch {
+        // Ignore errors when parsing date
         query.andWhere('pagela.referenceDate >= :startDate', {
           startDate: filters.startDate,
         });

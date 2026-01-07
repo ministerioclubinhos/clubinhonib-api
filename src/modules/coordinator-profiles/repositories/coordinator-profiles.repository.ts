@@ -86,7 +86,21 @@ export class CoordinatorProfilesRepository {
 
   private coerceClubNumber(input: unknown): number | undefined {
     if (input === undefined || input === null || input === '') return undefined;
-    const n = Number(String(input).trim());
+    let inputStr: string;
+    if (typeof input === 'string') {
+      inputStr = input.trim();
+    } else if (typeof input === 'number') {
+      inputStr = String(input);
+    } else if (typeof input === 'object' && input !== null) {
+      inputStr = JSON.stringify(input);
+    } else if (input === null || input === undefined) {
+      inputStr = '';
+    } else {
+      // For other types, convert to string safely
+      // eslint-disable-next-line @typescript-eslint/no-base-to-string
+      inputStr = String(input).trim();
+    }
+    const n = Number(inputStr);
     return Number.isInteger(n) ? n : undefined;
   }
 
@@ -96,7 +110,9 @@ export class CoordinatorProfilesRepository {
   ) {
     const text = (params.searchString ?? params.q)?.trim();
     const { active, hasClubs } = params;
-    const clubNumber = this.coerceClubNumber((params as any).clubNumber);
+    const clubNumber = this.coerceClubNumber(
+      (params as { clubNumber?: unknown }).clubNumber,
+    );
 
     if (text) {
       const like = `%${text.toLowerCase()}%`;
@@ -288,7 +304,7 @@ export class CoordinatorProfilesRepository {
         );
       }
 
-      club.coordinator = null as any;
+      club.coordinator = null;
       await clubRepo.save(club);
     });
   }
@@ -351,7 +367,7 @@ export class CoordinatorProfilesRepository {
       });
       if (existing) return existing;
 
-      const entity = txCoord.create({ user: user as any, active: true });
+      const entity = txCoord.create({ user, active: true });
       return txCoord.save(entity);
     });
   }
@@ -371,7 +387,7 @@ export class CoordinatorProfilesRepository {
         await txClub
           .createQueryBuilder()
           .update(ClubEntity)
-          .set({ coordinator: null as any })
+          .set({ coordinator: null })
           .where('coordinator_profile_id = :id', { id: coord.id })
           .execute();
       }

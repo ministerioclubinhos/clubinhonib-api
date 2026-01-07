@@ -227,12 +227,12 @@ export class ClubControlRepository {
     return this.clubsRepository.find();
   }
 
-  async checkClubWeek(
-    clubId: string,
-    year: number,
-    week: number,
-    includeCurrentWeek?: boolean,
-  ): Promise<any> {
+  checkClubWeek(
+    _clubId: string,
+    _year: number,
+    _week: number,
+    _includeCurrentWeek?: boolean,
+  ): never {
     throw new Error(
       'checkClubWeek foi movido para ClubWeekCheckService. Use o service ao invés do repository.',
     );
@@ -473,7 +473,9 @@ export class ClubControlRepository {
     const childrenMissing = totalChildren - childrenWithPagela;
 
     // Listar crianças sem pagela (apenas as ativas e que já tinham entrado)
-    const childIdsWithPagela = pagelas.map((p) => p.childId);
+    const childIdsWithPagela = pagelas.map(
+      (p: { childId: string }) => p.childId,
+    );
     const childrenMissingList = activeChildren
       .filter((c) => !childIdsWithPagela.includes(c.id))
       .map((c) => ({
@@ -976,76 +978,117 @@ export class ClubControlRepository {
 
     // Coletar informações sobre crianças que não frequentam mais
     let totalChildrenNotAttending = 0;
-    const childrenNotAttendingList: any[] = [];
+    const childrenNotAttendingList: Array<{
+      childId: string;
+      childName: string;
+    }> = [];
 
     // Crianças inativas de clubinhos ativos
-    clubsResults.forEach((result) => {
-      if (result.children.notAttendingCount > 0) {
-        totalChildrenNotAttending += result.children.notAttendingCount;
-        childrenNotAttendingList.push(
-          ...(result.children.notAttendingList || []),
-        );
-      }
-    });
+    clubsResults.forEach(
+      (result: {
+        children: {
+          notAttendingCount: number;
+          notAttendingList?: Array<{ childId: string; childName: string }>;
+        };
+      }) => {
+        if (result.children.notAttendingCount > 0) {
+          totalChildrenNotAttending += result.children.notAttendingCount;
+          childrenNotAttendingList.push(
+            ...(result.children.notAttendingList || []),
+          );
+        }
+      },
+    );
 
     // Todas as crianças de clubinhos inativos
-    inactiveClubsResults.forEach((result) => {
-      if (result.children.notAttendingCount > 0) {
-        totalChildrenNotAttending += result.children.notAttendingCount;
-        childrenNotAttendingList.push(
-          ...(result.children.notAttendingList || []),
-        );
-      }
-    });
+    inactiveClubsResults.forEach(
+      (result: {
+        children: {
+          notAttendingCount: number;
+          notAttendingList?: Array<{ childId: string; childName: string }>;
+        };
+      }) => {
+        if (result.children.notAttendingCount > 0) {
+          totalChildrenNotAttending += result.children.notAttendingCount;
+          childrenNotAttendingList.push(
+            ...(result.children.notAttendingList || []),
+          );
+        }
+      },
+    );
 
     // Aplicar filtros
     if (filters) {
       if (filters.status) {
-        clubsResults = clubsResults.filter((r) => r.status === filters.status);
+        clubsResults = clubsResults.filter(
+          (r: { status: string }) => r.status === filters.status,
+        );
       }
 
       if (filters.weekday) {
         clubsResults = clubsResults.filter(
-          (r) => r.weekday?.toLowerCase() === filters.weekday?.toLowerCase(),
+          (r: { weekday?: string }) =>
+            r.weekday?.toLowerCase() === filters.weekday?.toLowerCase(),
         );
       }
 
       if (filters.hasProblems !== undefined) {
         if (filters.hasProblems) {
-          clubsResults = clubsResults.filter((r) => {
-            const hasCritical = r.indicators?.some(
-              (i: any) => i.severity === 'critical',
-            );
-            const hasWarning = r.indicators?.some(
-              (i: any) => i.severity === 'warning',
-            );
-            return (
-              hasCritical ||
-              hasWarning ||
-              r.status === 'partial' ||
-              r.status === 'missing'
-            );
-          });
+          clubsResults = clubsResults.filter(
+            (r: {
+              indicators?: Array<{ severity: string }>;
+              status: string;
+            }) => {
+              const hasCritical = r.indicators?.some(
+                (i: { severity: string }) => i.severity === 'critical',
+              );
+              const hasWarning = r.indicators?.some(
+                (i: { severity: string }) => i.severity === 'warning',
+              );
+              return (
+                hasCritical ||
+                hasWarning ||
+                r.status === 'partial' ||
+                r.status === 'missing'
+              );
+            },
+          );
         } else {
-          clubsResults = clubsResults.filter((r) => r.status === 'ok');
+          clubsResults = clubsResults.filter(
+            (r: { status: string }) => r.status === 'ok',
+          );
         }
       }
 
       if (filters.severity) {
-        clubsResults = clubsResults.filter((r) =>
-          r.indicators?.some((i: any) => i.severity === filters.severity),
+        clubsResults = clubsResults.filter(
+          (r: { indicators?: Array<{ severity: string }> }) =>
+            r.indicators?.some(
+              (i: { severity: string }) => i.severity === filters.severity,
+            ),
         );
       }
 
       if (filters.indicatorType) {
-        clubsResults = clubsResults.filter((r) =>
-          r.indicators?.some((i: any) => i.type === filters.indicatorType),
+        clubsResults = clubsResults.filter(
+          (r: { indicators?: Array<{ type: string }> }) =>
+            r.indicators?.some(
+              (i: { type: string }) => i.type === filters.indicatorType,
+            ),
         );
       }
     }
 
     // Agrupar por tipo de indicador e status
-    const indicatorsByType: Record<string, any[]> = {
+    type IndicatorItem = {
+      clubId: string;
+      clubNumber: number;
+      weekday?: string;
+      indicator: unknown;
+      children: unknown;
+      week?: unknown;
+    };
+    const indicatorsByType: Record<string, IndicatorItem[]> = {
       all_ok: [],
       some_missing: [],
       no_pagela: [],
@@ -1067,58 +1110,81 @@ export class ClubControlRepository {
     };
 
     // Estatísticas agregadas
+    type ClubResult = {
+      clubId: string;
+      clubNumber: number;
+      weekday?: string;
+      status: string;
+      indicators?: Array<unknown>;
+      alerts?: Array<unknown>;
+      children: unknown;
+      week?: unknown;
+    };
     let totalChildrenAll = 0;
     let totalChildrenWithPagela = 0;
     let totalChildrenMissing = 0;
-    const clubsWithProblems: any[] = [];
-    const clubsCritical: any[] = [];
-    const clubsWarning: any[] = [];
+    const clubsWithProblems: ClubResult[] = [];
+    const clubsCritical: ClubResult[] = [];
+    const clubsWarning: ClubResult[] = [];
 
-    clubsResults.forEach((result) => {
-      // Agrupar por status
-      if (!clubsByStatus[result.status]) {
-        clubsByStatus[result.status] = [];
-      }
-      clubsByStatus[result.status].push(result);
-
-      // Processar indicadores
-      if (result.indicators && result.indicators.length > 0) {
-        result.indicators.forEach((indicator: any) => {
-          const type = indicator.type;
-          if (indicatorsByType[type]) {
-            indicatorsByType[type].push({
-              clubId: result.clubId,
-              clubNumber: result.clubNumber,
-              weekday: result.weekday,
-              indicator,
-              children: result.children,
-              week: result.week,
-            });
-          }
-        });
-
-        // Identificar problemas críticos
-        const hasCritical = result.indicators.some(
-          (i: any) => i.severity === 'critical',
-        );
-        const hasWarning = result.indicators.some(
-          (i: any) => i.severity === 'warning',
-        );
-
-        if (hasCritical) {
-          clubsCritical.push(result);
-          clubsWithProblems.push(result);
-        } else if (hasWarning) {
-          clubsWarning.push(result);
-          clubsWithProblems.push(result);
+    clubsResults.forEach(
+      (result: {
+        status: string;
+        indicators?: Array<{ severity: string; type: string }>;
+      }) => {
+        // Agrupar por status
+        const status = result.status;
+        if (!clubsByStatus[status]) {
+          clubsByStatus[status] = [];
         }
-      }
+        clubsByStatus[status].push(result);
 
-      // Acumular estatísticas
-      totalChildrenAll += result.children.total || 0;
-      totalChildrenWithPagela += result.children.withPagela || 0;
-      totalChildrenMissing += result.children.missing || 0;
-    });
+        // Processar indicadores
+        if (result.indicators && result.indicators.length > 0) {
+          result.indicators.forEach(
+            (indicator: { type: string; severity: string }) => {
+              const type = indicator.type;
+              if (indicatorsByType[type]) {
+                indicatorsByType[type].push({
+                  clubId: (result as { clubId: string }).clubId,
+                  clubNumber: (result as { clubNumber: number }).clubNumber,
+                  weekday: (result as { weekday?: string }).weekday,
+                  indicator,
+                  children: (result as { children: unknown }).children,
+                  week: (result as { week: unknown }).week,
+                });
+              }
+            },
+          );
+
+          // Identificar problemas críticos
+          const hasCritical = result.indicators.some(
+            (i: { severity: string }) => i.severity === 'critical',
+          );
+          const hasWarning = result.indicators.some(
+            (i: { severity: string }) => i.severity === 'warning',
+          );
+
+          if (hasCritical) {
+            clubsCritical.push(result);
+            clubsWithProblems.push(result);
+          } else if (hasWarning) {
+            clubsWarning.push(result);
+            clubsWithProblems.push(result);
+          }
+        }
+
+        // Acumular estatísticas
+        const children = result.children as {
+          total?: number;
+          withPagela?: number;
+          missing?: number;
+        };
+        totalChildrenAll += children.total || 0;
+        totalChildrenWithPagela += children.withPagela || 0;
+        totalChildrenMissing += children.missing || 0;
+      },
+    );
 
     // Calcular percentuais gerais
     const overallCompletionRate =
@@ -1132,9 +1198,10 @@ export class ClubControlRepository {
 
     // Calcular estatísticas por dia da semana
     const statsByWeekday: Record<string, any> = {};
-    clubsResults.forEach((result) => {
+    clubsResults.forEach((result: { weekday?: string }) => {
       if (result.weekday) {
-        if (!statsByWeekday[result.weekday]) {
+        const weekday = result.weekday;
+        if (!statsByWeekday[weekday]) {
           statsByWeekday[result.weekday] = {
             weekday: result.weekday,
             totalClubs: 0,
@@ -1148,16 +1215,31 @@ export class ClubControlRepository {
             completionRate: 0,
           };
         }
-        const stats = statsByWeekday[result.weekday];
+        const stats = statsByWeekday[weekday] as {
+          totalClubs: number;
+          clubsOk: number;
+          clubsPending: number;
+          clubsPartial: number;
+          clubsMissing: number;
+          totalChildren: number;
+          childrenWithPagela: number;
+          childrenMissing: number;
+          completionRate: number;
+        };
         stats.totalClubs++;
         if (result.status === 'ok') stats.clubsOk++;
         if (result.status === 'pending')
           stats.clubsPending = (stats.clubsPending || 0) + 1;
         if (result.status === 'partial') stats.clubsPartial++;
         if (result.status === 'missing') stats.clubsMissing++;
-        stats.totalChildren += result.children.total || 0;
-        stats.childrenWithPagela += result.children.withPagela || 0;
-        stats.childrenMissing += result.children.missing || 0;
+        const children = result.children as {
+          total?: number;
+          withPagela?: number;
+          missing?: number;
+        };
+        stats.totalChildren += children.total || 0;
+        stats.childrenWithPagela += children.withPagela || 0;
+        stats.childrenMissing += children.missing || 0;
         stats.completionRate =
           stats.totalChildren > 0
             ? (stats.childrenWithPagela / stats.totalChildren) * 100
@@ -1203,7 +1285,9 @@ export class ClubControlRepository {
       week: {
         year,
         week,
-        expectedDate: clubsResults[0]?.week?.expectedDate || null,
+        expectedDate:
+          (clubsResults[0] as { week?: { expectedDate?: string } })?.week
+            ?.expectedDate || null,
       },
       overall: {
         totalClubs: activeClubs.length,
@@ -1228,19 +1312,30 @@ export class ClubControlRepository {
         // Informações sobre crianças que não frequentam mais
         notAttending: {
           total: totalChildrenNotAttending,
-          fromInactiveClubs: inactiveClubsResults.reduce(
-            (sum, r) => sum + (r.children.notAttendingCount || 0),
+          fromInactiveClubs: inactiveClubsResults.reduce<number>(
+            (
+              sum: number,
+              r: {
+                children: { notAttendingCount?: number };
+              },
+            ) => sum + (r.children.notAttendingCount || 0),
             0,
           ),
-          fromInactiveChildren: clubsResults.reduce(
-            (sum, r) => sum + (r.children.notAttendingCount || 0),
+          fromInactiveChildren: clubsResults.reduce<number>(
+            (
+              sum: number,
+              r: {
+                children: { notAttendingCount?: number };
+              },
+            ) => sum + (r.children.notAttendingCount || 0),
             0,
           ),
         },
       },
       indicators: {
-        total: clubsResults.reduce(
-          (sum, r) => sum + (r.indicators?.length || 0),
+        total: clubsResults.reduce<number>(
+          (sum: number, r: { alerts?: Array<unknown> }) =>
+            sum + (r.alerts?.length || 0),
           0,
         ),
         byType: Object.keys(indicatorsByType).reduce(
@@ -1251,17 +1346,29 @@ export class ClubControlRepository {
           {} as Record<string, number>,
         ),
         bySeverity: {
-          critical: clubsResults.filter((r) =>
-            r.indicators?.some((i: any) => i.severity === 'critical'),
+          critical: clubsResults.filter(
+            (r: { indicators?: Array<{ severity: string }> }) =>
+              r.indicators?.some(
+                (i: { severity: string }) => i.severity === 'critical',
+              ),
           ).length,
-          warning: clubsResults.filter((r) =>
-            r.indicators?.some((i: any) => i.severity === 'warning'),
+          warning: clubsResults.filter(
+            (r: { indicators?: Array<{ severity: string }> }) =>
+              r.indicators?.some(
+                (i: { severity: string }) => i.severity === 'warning',
+              ),
           ).length,
-          info: clubsResults.filter((r) =>
-            r.indicators?.some((i: any) => i.severity === 'info'),
+          info: clubsResults.filter(
+            (r: { indicators?: Array<{ severity: string }> }) =>
+              r.indicators?.some(
+                (i: { severity: string }) => i.severity === 'info',
+              ),
           ).length,
-          success: clubsResults.filter((r) =>
-            r.indicators?.some((i: any) => i.severity === 'success'),
+          success: clubsResults.filter(
+            (r: { indicators?: Array<{ severity: string }> }) =>
+              r.indicators?.some(
+                (i: { severity: string }) => i.severity === 'success',
+              ),
           ).length,
         },
       },
@@ -1271,17 +1378,25 @@ export class ClubControlRepository {
       executiveSummary,
       indicators: {
         byType: indicatorsByType,
-        critical: indicatorsByType.no_pagela.map((item: any) => ({
-          clubId: item.clubId,
-          clubNumber: item.clubNumber,
-          weekday: item.weekday,
-          indicator: item.indicator,
-          children: item.children,
-        })),
+        critical: indicatorsByType.no_pagela.map(
+          (item: {
+            clubId: string;
+            clubNumber: number;
+            weekday?: string;
+            indicator: unknown;
+            children: unknown;
+          }) => ({
+            clubId: item.clubId,
+            clubNumber: item.clubNumber,
+            weekday: item.weekday,
+            indicator: item.indicator,
+            children: item.children,
+          }),
+        ),
         warning: [
           ...indicatorsByType.some_missing,
           ...indicatorsByType.no_children,
-        ].map((item: any) => ({
+        ].map((item: IndicatorItem) => ({
           clubId: item.clubId,
           clubNumber: item.clubNumber,
           weekday: item.weekday,
@@ -1291,7 +1406,7 @@ export class ClubControlRepository {
       },
       clubs: {
         byStatus: clubsByStatus,
-        withProblems: clubsWithProblems.map((c) => ({
+        withProblems: clubsWithProblems.map((c: ClubResult) => ({
           clubId: c.clubId,
           clubNumber: c.clubNumber,
           weekday: c.weekday,

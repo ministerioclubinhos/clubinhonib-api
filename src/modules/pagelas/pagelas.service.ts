@@ -8,7 +8,7 @@ import { CreatePagelaDto } from './dto/create-pagela.dto';
 import { UpdatePagelaDto } from './dto/update-pagela.dto';
 import { PagelaResponseDto } from './dto/pagela-response.dto';
 import { PagelaFiltersDto } from './dto/pagela-filters.dto';
-import { PaginationQueryDto, PaginatedResponse } from './dto/paginated.dto';
+import { PaginatedResponse } from './dto/paginated.dto';
 import { getAcademicWeekYear } from './week.util';
 import { ClubControlRepository } from '../club-control/repositories/club-control.repository';
 
@@ -76,7 +76,8 @@ export class PagelasService {
         );
         year = academicWeek.year;
         week = academicWeek.week;
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const err = error as { message?: string };
         throw new BadRequestException(
           err.message ||
             `Data ${dto.referenceDate} está fora do período letivo cadastrado.`,
@@ -103,7 +104,7 @@ export class PagelasService {
     filters?: PagelaFiltersDto,
   ): Promise<PagelaResponseDto[]> {
     const items = await this.repo.findAllSimple(filters);
-    return items.map(PagelaResponseDto.fromEntity);
+    return items.map((item) => PagelaResponseDto.fromEntity(item));
   }
 
   async findAllPaginated(
@@ -117,7 +118,7 @@ export class PagelasService {
       limit,
     );
     return {
-      items: items.map(PagelaResponseDto.fromEntity),
+      items: items.map((item) => PagelaResponseDto.fromEntity(item)),
       total,
       page,
       limit,
@@ -172,26 +173,39 @@ export class PagelasService {
           if (!dto.year) {
             dto.year = academicWeek.year;
           }
-        } catch (error) {}
+        } catch {
+          // Ignore errors when calculating academic week
+        }
       }
     }
 
-    const updated = await this.repo.updateOne(id, {
-      teacher:
-        dto.teacherProfileId === undefined
-          ? undefined
-          : dto.teacherProfileId
-            ? ({ id: dto.teacherProfileId } as any)
-            : null,
+    const updateData: Partial<{
+      teacher: { id: string } | null;
+      referenceDate: string;
+      year: number;
+      week: number;
+      present: boolean;
+      didMeditation: boolean;
+      recitedVerse: boolean;
+      notes: string;
+    }> = {};
 
-      referenceDate: dto.referenceDate ?? undefined,
-      year: dto.year ?? undefined,
-      week: dto.week ?? undefined,
-      present: dto.present ?? undefined,
-      didMeditation: dto.didMeditation ?? undefined,
-      recitedVerse: dto.recitedVerse ?? undefined,
-      notes: dto.notes ?? undefined,
-    } as any);
+    if (dto.teacherProfileId !== undefined) {
+      updateData.teacher =
+        dto.teacherProfileId === null ? null : { id: dto.teacherProfileId };
+    }
+    if (dto.referenceDate !== undefined)
+      updateData.referenceDate = dto.referenceDate;
+    if (dto.year !== undefined) updateData.year = dto.year;
+    if (dto.week !== undefined) updateData.week = dto.week;
+    if (dto.present !== undefined) updateData.present = dto.present;
+    if (dto.didMeditation !== undefined)
+      updateData.didMeditation = dto.didMeditation;
+    if (dto.recitedVerse !== undefined)
+      updateData.recitedVerse = dto.recitedVerse;
+    if (dto.notes !== undefined) updateData.notes = dto.notes;
+
+    const updated = await this.repo.updateOne(id, updateData);
 
     return PagelaResponseDto.fromEntity(updated);
   }

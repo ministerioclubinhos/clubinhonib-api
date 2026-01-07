@@ -52,7 +52,7 @@ export class PagelasController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
+  async remove(@Param('id') id: string): Promise<void> {
     return this.service.remove(id);
   }
 }

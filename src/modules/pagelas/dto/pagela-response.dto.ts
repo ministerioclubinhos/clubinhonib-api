@@ -20,8 +20,18 @@ export class PagelaResponseDto {
   static fromEntity(e: PagelaEntity): PagelaResponseDto {
     return {
       id: e.id,
-      createdAt: (e as any).createdAt?.toISOString?.() ?? (e as any).createdAt,
-      updatedAt: (e as any).updatedAt?.toISOString?.() ?? (e as any).updatedAt,
+      createdAt:
+        e.createdAt instanceof Date
+          ? e.createdAt.toISOString()
+          : typeof e.createdAt === 'string'
+            ? e.createdAt
+            : null,
+      updatedAt:
+        e.updatedAt instanceof Date
+          ? e.updatedAt.toISOString()
+          : typeof e.updatedAt === 'string'
+            ? e.updatedAt
+            : null,
       childId: e.child?.id,
       teacherProfileId: e.teacher?.id ?? null,
       referenceDate: e.referenceDate,

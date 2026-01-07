@@ -48,9 +48,10 @@ export class StatisticsController {
         `GET /statistics/pagelas/charts -> success in ${Date.now() - started}ms`,
       );
       return result;
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const error = err as { message?: string };
       this.logger.error(
-        `GET /statistics/pagelas/charts -> error in ${Date.now() - started}ms: ${err?.message}`,
+        `GET /statistics/pagelas/charts -> error in ${Date.now() - started}ms: ${error?.message || 'Unknown error'}`,
       );
       throw err;
     }
@@ -94,9 +95,10 @@ export class StatisticsController {
         `GET /statistics/accepted-christs/charts -> success in ${Date.now() - started}ms`,
       );
       return result;
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const error = err as { message?: string };
       this.logger.error(
-        `GET /statistics/accepted-christs/charts -> error in ${Date.now() - started}ms: ${err?.message}`,
+        `GET /statistics/accepted-christs/charts -> error in ${Date.now() - started}ms: ${error?.message || 'Unknown error'}`,
       );
       throw err;
     }
@@ -145,7 +147,10 @@ export class StatisticsController {
     Object.keys(allFilters).forEach((key) => {
       if (key.startsWith('pagelas_')) {
         const cleanKey = key.replace('pagelas_', '');
-        pagelasFilters[cleanKey] = allFilters[key];
+        const value = allFilters[key];
+        if (value !== undefined) {
+          pagelasFilters[cleanKey] = value;
+        }
       } else if (key.startsWith('ac_')) {
         const cleanKey = key.replace('ac_', '');
         acFilters[cleanKey] = allFilters[key];
