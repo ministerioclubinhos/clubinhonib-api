@@ -7,8 +7,8 @@
   "license": "UNLICENSED",
   "scripts": {
     "build": "nest build",
-    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
@@ -24,7 +24,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "test:api": "node scripts/test-api-real.js",
     "test:all": "node scripts/run-all-testes.js",
-    "populate": "node scripts/populate-mass.js"
+    "populate": "node scripts/populate-mass.js",
+    "prepare": "husky"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.758.0",
@@ -71,7 +72,9 @@
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",
     "globals": "^16.0.0",
+    "husky": "^9.1.7",
     "jest": "^29.7.0",
+    "lint-staged": "^16.2.7",
     "prettier": "^3.4.2",
     "source-map-support": "^0.5.21",
     "supertest": "^7.0.0",
@@ -98,5 +101,13 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
+  },
+  "lint-staged": {
+    "**/*.{js,json,css,scss,md,ts,html,graphql}": [
+      "prettier --write"
+    ],
+    "**/*.{js,ts}": [
+      "eslint --fix"
+    ]
   }
 }
