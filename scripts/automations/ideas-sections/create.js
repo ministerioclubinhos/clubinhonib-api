@@ -6,13 +6,13 @@ async function run({ http, logger, ctx }) {
   const list = await http.request('get', '/ideas-sections');
   const existing = Array.isArray(list.data) ? list.data : [];
   const toCreate = Math.max(0, min - existing.length);
-  logger.info(`[ideas-sections/create] garantindo mínimo ${min} (atual=${existing.length}, criar=${toCreate})...`);
+  logger.info(`[ideas-sections/create] ensuring minimum ${min} (current=${existing.length}, creating=${toCreate})...`);
 
   const created = [];
   for (let i = 0; i < toCreate; i++) {
   const dto = {
     title: `Seção de Ideias (automação) #${existing.length + i + 1}`,
-    description: 'Criada pela automação',
+    description: 'Created by automation',
     public: true,
     medias: [
       {

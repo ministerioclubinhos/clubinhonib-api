@@ -1,9 +1,4 @@
-/**
- * Runner focado para debugar criação de pagelas sem travar o run-all completo.
- *
- * Exemplo:
- * PAGELAS_DEBUG=1 PAGELAS_CHILD_LIMIT=1 WEEKS=2 node scripts/run-pagelas-debug.js
- */
+
 const { createHttpClient } = require('./automations/common/http');
 const { createLogger } = require('./automations/logger');
 const { WEEKS, PAGELAS_CHILD_LIMIT, PAGELAS_DEBUG } = require('./automations/common/config');
@@ -23,18 +18,18 @@ async function main() {
   const ctx = { weeks: WEEKS, pagelasChildLimit: PAGELAS_CHILD_LIMIT };
   await clubControlCreate.run({ http, logger, ctx });
 
-  // primeiro fix (verifica se já tem e cria faltantes)
+  
   await pagelasListFix.run({ http, logger, ctx });
-  // depois create "bruta"
+  
   await pagelasCreate.run({ http, logger, ctx });
-  // re-fix para validar
+  
   await pagelasListFix.run({ http, logger, ctx });
 
   logger.info('[pagelas-debug] done');
 }
 
 main().catch((err) => {
-  console.error('\n❌ Erro fatal:', err?.message || err);
+  console.error('\n❌ Fatal error:', err?.message || err);
   console.error(err?.stack || '');
   process.exit(1);
 });

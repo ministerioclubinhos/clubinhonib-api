@@ -1,11 +1,11 @@
 const { sleep } = require('./sleep');
 
 function extractItemsAndPages(data, { page, limit }) {
-  // Shapes conhecidos:
-  // - { data: [], total, page, limit, pageCount }
-  // - { data: [], meta: { totalPages, totalItems, page, limit } }
-  // - { items: [], total, page, limit, totalPages }
-  // - { items: [], total, page, limit } (calcular totalPages)
+  
+  
+  
+  
+  
 
   let items = null;
   if (Array.isArray(data?.data)) items = data.data;
@@ -26,7 +26,7 @@ function extractItemsAndPages(data, { page, limit }) {
     totalPages = Math.ceil(total / limit);
   }
 
-  // fallback: se não há metadata, tenta parar quando vier vazio
+  
   if (!Number.isFinite(totalPages)) totalPages = null;
 
   return { items, totalPages };
@@ -61,8 +61,8 @@ async function fetchAllPages(requestFn, method, url, params = {}, options = {}) 
 
     if (totalPages == null && Number.isFinite(tp)) totalPages = tp;
 
-    // Guardrail: se a API ignorar o parâmetro page e devolver sempre a mesma lista,
-    // isso vira loop infinito (especialmente quando não há meta). Detectamos repetição.
+    
+    
     if (detectRepeat) {
       const sig = JSON.stringify(items.map((it) => it?.id ?? it).slice(0, 10));
       if (lastSig && sig === lastSig) repeatCount += 1;
@@ -72,7 +72,7 @@ async function fetchAllPages(requestFn, method, url, params = {}, options = {}) 
     }
 
     const reachedEndByMeta = totalPages != null && page >= totalPages;
-    const reachedEndByEmpty = items.length === 0; // fallback quando não tem meta
+    const reachedEndByEmpty = items.length === 0; 
 
     if (reachedEndByMeta || (totalPages == null && reachedEndByEmpty)) break;
 

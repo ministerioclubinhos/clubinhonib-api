@@ -1,10 +1,10 @@
 async function run({ http, logger }) {
-  logger.info('[informatives/list-fix] listando banners...');
+  logger.info('[informatives/list-fix] listing banners...');
   const res = await http.request('get', '/informatives');
   const items = Array.isArray(res.data) ? res.data : [];
   logger.info(`[informatives/list-fix] OK total=${items.length}`);
 
-  // Fix: garantir public=true no primeiro item
+  
   if (items[0]?.id) {
     const it = items[0];
     if (it.public !== true) {
@@ -14,7 +14,7 @@ async function run({ http, logger }) {
         });
         logger.info(`[informatives/list-fix] set public=true id=${it.id}`);
       } catch (e) {
-        logger.warn(`[informatives/list-fix] falhou update id=${it.id}: ${e.response?.data?.message || e.message}`);
+        logger.warn(`[informatives/list-fix] update failed id=${it.id}: ${e.response?.data?.message || e.message}`);
       }
     }
     await http.request('get', `/informatives/${it.id}`);

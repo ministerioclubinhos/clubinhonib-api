@@ -125,7 +125,7 @@ export class ClubsRepository {
     const qb = this.buildClubBaseQB().distinct(true);
     this.applyRoleFilter(qb, ctx);
 
-    // Busca: endereço (bairro, cidade) e número do clubinho
+    
     if (searchString?.trim()) {
       const raw = searchString.trim();
       const like = `%${raw}%`;
@@ -133,7 +133,7 @@ export class ClubsRepository {
       const isNum = Number.isInteger(n) && n > 0;
 
       if (isNum) {
-        // Se for número, busca pelo número do clube OU no bairro/cidade
+        
         qb.andWhere(
           `(
             club.number = :clubNum OR
@@ -143,7 +143,7 @@ export class ClubsRepository {
           { clubNum: n, like },
         );
       } else {
-        // Caso contrário, busca apenas em bairro e cidade
+        
         qb.andWhere(
           `(
             LOWER(address.district) LIKE LOWER(:like) OR

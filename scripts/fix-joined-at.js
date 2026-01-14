@@ -1,9 +1,4 @@
-/**
- * Script para atualizar todas as crianças sem "No clubinho desde" (joinedAt)
- * 
- * Para executar:
- * node scripts/fix-joined-at.js
- */
+
 
 const axios = require('axios');
 
@@ -13,7 +8,7 @@ const SUPERUSER_PASSWORD = 'Abc@123';
 
 let authToken = '';
 
-// Gerar data aleatória de entrada no clubinho (entre 2020-01-01 e hoje)
+
 function randomJoinedAt() {
   const startDate = new Date('2020-01-01');
   const endDate = new Date();
@@ -28,14 +23,14 @@ function randomJoinedAt() {
 }
 
 async function login() {
-  console.log('\n🔐 Fazendo login...');
+  console.log('\n🔐 Logging in...');
   const response = await axios.post(`${API_BASE_URL}/auth/login`, {
     email: SUPERUSER_EMAIL,
     password: SUPERUSER_PASSWORD,
   });
   
   authToken = response.data.accessToken;
-  console.log('✅ Login realizado com sucesso\n');
+  console.log('✅ Login successful\n');
   return authToken;
 }
 
@@ -58,7 +53,7 @@ async function authenticatedRequest(method, path, data = null) {
 }
 
 async function updateChildrenWithoutJoinedAt() {
-  console.log('📅 Verificando e atualizando crianças sem "No clubinho desde" (joinedAt)...\n');
+  console.log('📅 Checking and updating children without "No clubinho desde" (joinedAt)...\n');
   
   let page = 1;
   const limit = 100;
@@ -66,25 +61,25 @@ async function updateChildrenWithoutJoinedAt() {
   let totalChecked = 0;
   let totalPages = 1;
   
-  // Primeiro, buscar para saber quantas páginas temos
+  
   try {
     const firstResponse = await authenticatedRequest('get', '/children', { page: 1, limit });
     totalPages = firstResponse.data.meta?.totalPages || 1;
-    console.log(`📊 Total de páginas: ${totalPages} (${firstResponse.data.meta?.totalItems || 0} crianças no total)\n`);
+    console.log(`📊 Total pages: ${totalPages} (${firstResponse.data.meta?.totalItems || 0} children total)\n`);
   } catch (error) {
-    console.error('❌ Erro ao buscar informações:', error.response?.data?.message || error.message);
+    console.error('❌ Error fetching information:', error.response?.data?.message || error.message);
     return;
   }
   
-  // Processar todas as páginas
+  
   while (page <= totalPages) {
     try {
-      console.log(`📄 Processando página ${page}/${totalPages}...`);
+      console.log(`📄 Processing page ${page}/${totalPages}...`);
       const response = await authenticatedRequest('get', '/children', { page, limit });
       const children = response.data.data || [];
       
       if (children.length === 0) {
-        console.log('  ⚠️ Nenhuma criança encontrada nesta página\n');
+        console.log('  ⚠️ No children found on this page\n');
         break;
       }
       
@@ -93,7 +88,7 @@ async function updateChildrenWithoutJoinedAt() {
       for (const child of children) {
         totalChecked++;
         
-        // Verificar se não tem joinedAt ou se está null/undefined
+        
         if (!child.joinedAt || child.joinedAt === null || child.joinedAt === 'null') {
           try {
             const joinedAt = randomJoinedAt();
@@ -104,68 +99,68 @@ async function updateChildrenWithoutJoinedAt() {
             pageUpdated++;
             
             if (totalUpdated % 50 === 0) {
-              console.log(`  ✅ ${totalUpdated} crianças atualizadas até agora...`);
+              console.log(`  ✅ ${totalUpdated} children updated so far...`);
             }
           } catch (error) {
-            console.error(`  ❌ Erro ao atualizar criança ${child.id} (${child.name}):`, error.response?.data?.message || error.message);
+            console.error(`  ❌ Error updating child ${child.id} (${child.name}):`, error.response?.data?.message || error.message);
           }
         }
       }
       
       if (pageUpdated > 0) {
-        console.log(`  ✅ Página ${page}: ${pageUpdated} crianças atualizadas (${children.length} verificadas)\n`);
+        console.log(`  ✅ Page ${page}: ${pageUpdated} children updated (${children.length} checked)\n`);
       } else {
-        console.log(`  ✅ Página ${page}: Todas as ${children.length} crianças já têm joinedAt\n`);
+        console.log(`  ✅ Page ${page}: All ${children.length} children already have joinedAt\n`);
       }
       
       page++;
       
-      // Pequeno delay para não sobrecarregar a API
+      
       if (page <= totalPages) {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
     } catch (error) {
-      console.error(`  ❌ Erro ao processar página ${page}:`, error.response?.data?.message || error.message);
+      console.error(`  ❌ Error processing page ${page}:`, error.response?.data?.message || error.message);
       page++;
     }
   }
   
   console.log('\n📊 ============================================');
-  console.log('📊 RESUMO');
+  console.log('📊 SUMMARY');
   console.log('📊 ============================================');
-  console.log(`✅ Crianças verificadas: ${totalChecked}`);
-  console.log(`✅ Crianças atualizadas: ${totalUpdated}`);
-  console.log(`✅ Crianças que já tinham joinedAt: ${totalChecked - totalUpdated}`);
-  console.log('\n🎉 Processo concluído!\n');
+  console.log(`✅ Children checked: ${totalChecked}`);
+  console.log(`✅ Children updated: ${totalUpdated}`);
+  console.log(`✅ Children that already had joinedAt: ${totalChecked - totalUpdated}`);
+  console.log('\n🎉 Process completed!\n');
   
   return totalUpdated;
 }
 
 async function main() {
   console.log('🚀 ============================================');
-  console.log('🚀 ATUALIZAÇÃO DE "NO CLUBINHO DESDE"');
+  console.log('🚀 UPDATING "NO CLUBINHO DESDE"');
   console.log('🚀 ============================================\n');
   
-  // Verificar se a API está rodando
+  
   try {
     await axios.get(`${API_BASE_URL}/`);
   } catch (error) {
     if (error.code === 'ECONNREFUSED') {
-      console.error('❌ API não está rodando em localhost:3000. Por favor, inicie a API primeiro.');
+      console.error('❌ API is not running on localhost:3000. Please start the API first.');
       process.exit(1);
     }
   }
   
-  // Login
+  
   await login();
   
-  // Atualizar crianças
+  
   await updateChildrenWithoutJoinedAt();
 }
 
-// Executar
+
 main().catch(error => {
-  console.error('\n❌ Erro fatal:', error.message);
+  console.error('\n❌ Fatal error:', error.message);
   console.error(error.stack);
   process.exit(1);
 });

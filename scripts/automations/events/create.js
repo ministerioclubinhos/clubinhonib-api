@@ -12,7 +12,7 @@ async function run({ http, logger, ctx }) {
   const list = await http.request('get', '/events');
   const existing = Array.isArray(list.data) ? list.data : [];
   const toCreate = Math.max(0, min - existing.length);
-  logger.info(`[events/create] garantindo mínimo ${min} (atual=${existing.length}, criar=${toCreate})...`);
+  logger.info(`[events/create] ensuring minimum ${min} (current=${existing.length}, creating=${toCreate})...`);
 
   const created = [];
   for (let i = 0; i < toCreate; i++) {
@@ -20,7 +20,7 @@ async function run({ http, logger, ctx }) {
     title: `Evento Automação #${existing.length + i + 1}`,
     date: isoDatePlus(7 + i),
     location: 'Local Teste',
-    description: 'Criado pela automação',
+    description: 'Created by automation',
     media: {
       title: 'Capa',
       description: 'dummy',

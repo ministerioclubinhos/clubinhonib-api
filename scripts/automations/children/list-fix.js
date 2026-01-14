@@ -2,7 +2,7 @@ const { fetchAllPages } = require('../common/pagination');
 const { randomJoinedAt } = require('../common/random');
 
 async function run({ http, logger }) {
-  logger.info('[children/list-fix] listando children (todas as páginas) e corrigindo joinedAt ausente...');
+  logger.info('[children/list-fix] listing children (all pages) and fixing missing joinedAt...');
   const children = await fetchAllPages(http.request, 'get', '/children', {}, { limit: 100 });
 
   let fixed = 0;
@@ -16,7 +16,7 @@ async function run({ http, logger }) {
       });
       fixed++;
     } catch (e) {
-      logger.warn(`[children/list-fix] falhou update child=${child.id}: ${e.response?.data?.message || e.message}`);
+      logger.warn(`[children/list-fix] update failed child=${child.id}: ${e.response?.data?.message || e.message}`);
     }
   }
 

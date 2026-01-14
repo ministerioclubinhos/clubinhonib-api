@@ -15,7 +15,7 @@ async function createClubs({ http, logger, count = 5 }) {
       created.push(res.data);
       logger.info(`[clubs/create] +1 club #${dto.number}`);
     } catch (e) {
-      logger.warn(`[clubs/create] falhou #${dto.number}: ${e.response?.data?.message || e.message}`);
+      logger.warn(`[clubs/create] failed #${dto.number}: ${e.response?.data?.message || e.message}`);
     }
   }
   return created;
@@ -23,12 +23,12 @@ async function createClubs({ http, logger, count = 5 }) {
 
 async function run({ http, logger, ctx }) {
   const minClubs = ctx?.minClubs ?? 10;
-  logger.info(`[clubs/create] garantindo pelo menos ${minClubs} clubes...`);
+  logger.info(`[clubs/create] ensuring at least ${minClubs} clubs...`);
 
   const existing = await http.request('get', '/clubs/all');
   const clubs = Array.isArray(existing.data) ? existing.data : [];
   if (clubs.length >= minClubs) {
-    logger.info(`[clubs/create] OK já existem ${clubs.length} clubes`);
+    logger.info(`[clubs/create] OK already exist ${clubs.length} clubs`);
     return { clubs, created: [] };
   }
 
@@ -36,7 +36,7 @@ async function run({ http, logger, ctx }) {
   const created = await createClubs({ http, logger, count: toCreate });
   const updated = await http.request('get', '/clubs/all');
   const final = Array.isArray(updated.data) ? updated.data : [];
-  logger.info(`[clubs/create] OK total=${final.length} (criados=${created.length})`);
+  logger.info(`[clubs/create] OK total=${final.length} (created=${created.length})`);
   return { clubs: final, created };
 }
 

@@ -12,18 +12,18 @@ export class StatisticsFiltersService {
     query: SelectQueryBuilder<PagelaEntity>,
     filters: PagelasStatsQueryDto,
   ): void {
-    // Handle date range filters when grouping by week
+    
     if (filters.startDate && filters.endDate && filters.groupBy === 'week') {
-      // Convert date range to academic week range
+      
       try {
-        const periodStartDate = '2025-01-01'; // TODO: Get from active period
+        const periodStartDate = '2025-01-01'; 
         const periodEndDate = '2025-12-31';
         const periodYear = 2025;
 
         const startWeek = getAcademicWeekYear(filters.startDate, periodStartDate, periodEndDate, periodYear);
         const endWeek = getAcademicWeekYear(filters.endDate, periodStartDate, periodEndDate, periodYear);
 
-        // Apply week range filter instead of date range
+        
         if (startWeek.year === endWeek.year) {
           query.andWhere('pagela.year = :year', { year: startWeek.year });
           query.andWhere('pagela.week BETWEEN :startWeek AND :endWeek', {
@@ -31,7 +31,7 @@ export class StatisticsFiltersService {
             endWeek: endWeek.week
           });
         } else {
-          // Handle cross-year ranges (rare but possible)
+          
           query.andWhere(
             '(pagela.year = :startYear AND pagela.week >= :startWeek) OR (pagela.year = :endYear AND pagela.week <= :endWeek)',
             {
@@ -43,12 +43,12 @@ export class StatisticsFiltersService {
           );
         }
       } catch (error) {
-        // Fallback to date filters if conversion fails
+        
         query.andWhere('pagela.referenceDate >= :startDate', { startDate: filters.startDate });
         query.andWhere('pagela.referenceDate <= :endDate', { endDate: filters.endDate });
       }
     } else {
-      // Apply original filters
+      
       if (filters.year) {
         query.andWhere('pagela.year = :year', { year: filters.year });
       }

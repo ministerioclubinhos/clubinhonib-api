@@ -2,7 +2,7 @@ const { randomName, randomEmail, randomPhone } = require('../common/random');
 const { sleep } = require('../common/sleep');
 
 async function run({ http, logger }) {
-  // Criação de coordinator-profile acontece via /users (role=coordinator)
+  
   const userDto = {
     name: randomName(),
     email: randomEmail('coordinator'),
@@ -13,7 +13,7 @@ async function run({ http, logger }) {
     completed: true,
   };
 
-  logger.info(`[coordinator-profiles/create] criando user coordinator (${userDto.email})...`);
+  logger.info(`[coordinator-profiles/create] creating coordinator user (${userDto.email})...`);
   const userRes = await http.request('post', '/users', { data: userDto });
   await sleep(600);
 

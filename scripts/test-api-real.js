@@ -1,10 +1,4 @@
-/**
- * Testes E2E que rodam contra a API real em localhost:3000
- * 
- * Para executar:
- * 1. Certifique-se de que a API está rodando em localhost:3000
- * 2. Execute: node scripts/test-api-real.js
- */
+
 const axios = require('axios');
 
 const API_BASE_URL = 'http://localhost:3000';
@@ -13,7 +7,7 @@ const SUPERUSER_PASSWORD = 'Abc@123';
 
 let authToken = '';
 
-// Helper para fazer login
+
 async function login() {
   try {
     const response = await axios.post(`${API_BASE_URL}/auth/login`, {
@@ -22,11 +16,11 @@ async function login() {
     });
     return response.data.accessToken;
   } catch (error) {
-    throw new Error(`Login falhou: ${error.response?.data?.message || error.message}`);
+    throw new Error(`Login failed: ${error.response?.data?.message || error.message}`);
   }
 }
 
-// Helper para fazer requisições autenticadas
+
 async function authenticatedRequest(method, path, data = null) {
   const config = {
     method,
@@ -45,12 +39,12 @@ async function authenticatedRequest(method, path, data = null) {
   return axios(config);
 }
 
-// Função para testar AcceptedChrist
+
 async function testAcceptedChrist() {
-  console.log('\n🧪 Testando AcceptedChristController...');
+  console.log('\n🧪 Testing AcceptedChristController...');
   
   try {
-    // Buscar uma criança
+    
     const childrenResponse = await authenticatedRequest('get', '/children/simple');
     const children = childrenResponse.data;
     
@@ -61,7 +55,7 @@ async function testAcceptedChrist() {
     
     const childId = children[0].id;
     
-    // Criar accepted christ
+    
     const response = await axios.post(`${API_BASE_URL}/accepted-christs`, {
       childId: childId,
       decision: 'ACCEPTED',
@@ -69,32 +63,32 @@ async function testAcceptedChrist() {
     });
     
     if (response.status === 201 && response.data.id) {
-      console.log('  ✅ AcceptedChrist criado com sucesso');
+      console.log('  ✅ AcceptedChrist created successfully');
     } else {
-      console.log('  ❌ Falha ao criar AcceptedChrist');
+      console.log('  ❌ Failed to create AcceptedChrist');
     }
   } catch (error) {
-    console.log(`  ❌ Erro: ${error.response?.data?.message || error.message}`);
+    console.log(`  ❌ Error: ${error.response?.data?.message || error.message}`);
   }
 }
 
-// Função para testar Children
+
 async function testChildren() {
-  console.log('\n🧪 Testando ChildrenController...');
+  console.log('\n🧪 Testing ChildrenController...');
   
   try {
-    // Buscar clubes
+    
     const clubsResponse = await authenticatedRequest('get', '/clubs/all');
     const clubs = clubsResponse.data;
     
     if (clubs.length === 0) {
-      console.log('  ⚠️ Nenhum clube encontrado. Pulando teste.');
+      console.log('  ⚠️ No clubs found. Skipping test.');
       return;
     }
     
     const clubId = clubs[0].id;
     
-    // Criar criança
+    
     const createResponse = await authenticatedRequest('post', '/children', {
       name: 'João Silva Teste',
       birthDate: '2015-05-15',
@@ -106,37 +100,37 @@ async function testChildren() {
     });
     
     if (createResponse.status === 201 && createResponse.data.id) {
-      console.log('  ✅ Criança criada com sucesso');
+      console.log('  ✅ Child created successfully');
       const childId = createResponse.data.id;
       
-      // Listar crianças
+      
       const listResponse = await authenticatedRequest('get', '/children', { page: 1, limit: 10 });
       if (listResponse.status === 200 && Array.isArray(listResponse.data.data)) {
-        console.log('  ✅ Listagem de crianças funcionando');
+        console.log('  ✅ Children listing working');
       }
       
-      // Limpar
+      
       await authenticatedRequest('delete', `/children/${childId}`);
     } else {
-      console.log('  ❌ Falha ao criar criança');
+      console.log('  ❌ Failed to create child');
     }
   } catch (error) {
-    console.log(`  ❌ Erro: ${error.response?.data?.message || error.message}`);
+    console.log(`  ❌ Error: ${error.response?.data?.message || error.message}`);
   }
 }
 
-// Função para testar Clubs
+
 async function testClubs() {
-  console.log('\n🧪 Testando ClubsController...');
+  console.log('\n🧪 Testing ClubsController...');
   
   try {
-    // Listar clubes
+    
     const listResponse = await authenticatedRequest('get', '/clubs', { page: 1, limit: 10 });
     if (listResponse.status === 200 && listResponse.data.data) {
-      console.log('  ✅ Listagem de clubes funcionando');
+      console.log('  ✅ Clubs listing working');
     }
     
-    // Criar clube
+    
     const createResponse = await authenticatedRequest('post', '/clubs', {
       number: 999,
       weekday: 'monday',
@@ -153,25 +147,25 @@ async function testClubs() {
     });
     
     if (createResponse.status === 201 && createResponse.data.id) {
-      console.log('  ✅ Clube criado com sucesso');
+      console.log('  ✅ Club created successfully');
       const clubId = createResponse.data.id;
       
-      // Limpar
+      
       await authenticatedRequest('delete', `/clubs/${clubId}`);
     } else {
-      console.log('  ❌ Falha ao criar clube');
+      console.log('  ❌ Failed to create club');
     }
   } catch (error) {
-    console.log(`  ❌ Erro: ${error.response?.data?.message || error.message}`);
+    console.log(`  ❌ Error: ${error.response?.data?.message || error.message}`);
   }
 }
 
-// Função para testar Users
+
 async function testUsers() {
-  console.log('\n🧪 Testando UserController...');
+  console.log('\n🧪 Testing UserController...');
   
   try {
-    // Criar usuário
+    
     const createResponse = await authenticatedRequest('post', '/users', {
       name: 'Usuário Teste',
       email: `teste.${Date.now()}@example.com`,
@@ -182,31 +176,31 @@ async function testUsers() {
     });
     
     if (createResponse.status === 201 && createResponse.data.id) {
-      console.log('  ✅ Usuário criado com sucesso');
+      console.log('  ✅ User created successfully');
       const userId = createResponse.data.id;
       
-      // Listar usuários
+      
       const listResponse = await authenticatedRequest('get', '/users', { page: 1, limit: 10 });
       if (listResponse.status === 200) {
-        console.log('  ✅ Listagem de usuários funcionando');
+        console.log('  ✅ Users listing working');
       }
       
-      // Limpar
+      
       await authenticatedRequest('delete', `/users/${userId}`);
     } else {
-      console.log('  ❌ Falha ao criar usuário');
+      console.log('  ❌ Failed to create user');
     }
   } catch (error) {
-    console.log(`  ❌ Erro: ${error.response?.data?.message || error.message}`);
+    console.log(`  ❌ Error: ${error.response?.data?.message || error.message}`);
   }
 }
 
-// Função para testar Pagelas
+
 async function testPagelas() {
-  console.log('\n🧪 Testando PagelasController...');
+  console.log('\n🧪 Testing PagelasController...');
   
   try {
-    // Buscar uma criança
+    
     const childrenResponse = await authenticatedRequest('get', '/children/simple');
     const children = childrenResponse.data;
     
@@ -217,7 +211,7 @@ async function testPagelas() {
     
     const childId = children[0].id;
     
-    // Criar pagela
+    
     const createResponse = await authenticatedRequest('post', '/pagelas', {
       childId: childId,
       referenceDate: '2025-01-15',
@@ -229,61 +223,61 @@ async function testPagelas() {
     });
     
     if (createResponse.status === 201 && createResponse.data.id) {
-      console.log('  ✅ Pagela criada com sucesso');
+      console.log('  ✅ Pagela created successfully');
       const pagelaId = createResponse.data.id;
       
-      // Listar pagelas
+      
       const listResponse = await authenticatedRequest('get', '/pagelas');
       if (listResponse.status === 200 && Array.isArray(listResponse.data)) {
-        console.log('  ✅ Listagem de pagelas funcionando');
+        console.log('  ✅ Pagelas listing working');
       }
       
-      // Limpar
+      
       await authenticatedRequest('delete', `/pagelas/${pagelaId}`);
     } else {
-      console.log('  ❌ Falha ao criar pagela');
+      console.log('  ❌ Failed to create pagela');
     }
   } catch (error) {
-    console.log(`  ❌ Erro: ${error.response?.data?.message || error.message}`);
+    console.log(`  ❌ Error: ${error.response?.data?.message || error.message}`);
   }
 }
 
-// Função principal
+
 async function runTests() {
-  console.log('🚀 Iniciando testes E2E contra API real...\n');
+  console.log('🚀 Starting E2E tests against real API...\n');
   
-  // Verificar se a API está rodando
+  
   try {
     await axios.get(`${API_BASE_URL}/`);
   } catch (error) {
     if (error.code === 'ECONNREFUSED') {
-      console.error('❌ API não está rodando em localhost:3000. Por favor, inicie a API primeiro.');
+      console.error('❌ API is not running on localhost:3000. Please start the API first.');
       process.exit(1);
     }
   }
   
-  // Fazer login
+  
   try {
     authToken = await login();
-    console.log('✅ Login realizado com sucesso\n');
+    console.log('✅ Login successful\n');
   } catch (error) {
-    console.error(`❌ Erro no login: ${error.message}`);
+    console.error(`❌ Login error: ${error.message}`);
     process.exit(1);
   }
   
-  // Executar testes
+  
   await testAcceptedChrist();
   await testChildren();
   await testClubs();
   await testUsers();
   await testPagelas();
   
-  console.log('\n✅ Todos os testes concluídos!');
+  console.log('\n✅ All tests completed!');
 }
 
-// Executar
+
 runTests().catch(error => {
-  console.error('\n❌ Erro fatal:', error.message);
+  console.error('\n❌ Fatal error:', error.message);
   process.exit(1);
 });
 

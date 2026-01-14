@@ -19,7 +19,7 @@ async function ensureCoordinatorForClub({ http, logger, clubId, clubNumber }) {
   const coordinator = details.data?.coordinator;
   if (coordinator?.id) return { ensured: true, created: false };
 
-  // criar user coordinator
+  
   const userRes = await http.request('post', '/users', {
     data: {
       name: randomName(),
@@ -34,14 +34,14 @@ async function ensureCoordinatorForClub({ http, logger, clubId, clubNumber }) {
   await sleep(500);
   const coordProfile = await findCoordinatorProfileByUserId({ http, userId: userRes.data?.id });
   if (!coordProfile?.id) {
-    logger.warn(`[clubs/list-fix] coordenador profile não encontrado p/ user=${userRes.data?.id} club=${clubNumber}`);
+    logger.warn(`[clubs/list-fix] coordinator profile not found for user=${userRes.data?.id} club=${clubNumber}`);
     return { ensured: false, created: true };
   }
 
   await http.request('patch', `/coordinator-profiles/${coordProfile.id}/assign-club`, {
     data: { clubId },
   });
-  logger.info(`[clubs/list-fix] club #${clubNumber} recebeu coordenador=${coordProfile.id}`);
+  logger.info(`[clubs/list-fix] club #${clubNumber} received coordinator=${coordProfile.id}`);
   return { ensured: true, created: true };
 }
 
@@ -69,14 +69,14 @@ async function ensureTeachersForClub({ http, logger, clubId, clubNumber, minTeac
       await sleep(500);
       const teacherProfile = await findTeacherProfileByUserId({ http, userId: userRes.data?.id });
       if (!teacherProfile?.id) {
-        logger.warn(`[clubs/list-fix] teacher profile não encontrado p/ user=${userRes.data?.id} club=${clubNumber}`);
+        logger.warn(`[clubs/list-fix] teacher profile not found for user=${userRes.data?.id} club=${clubNumber}`);
         continue;
       }
       await http.request('patch', `/teacher-profiles/${teacherProfile.id}/assign-club`, { data: { clubId } });
       created++;
       logger.info(`[clubs/list-fix] club #${clubNumber} +teacher=${teacherProfile.id}`);
     } catch (e) {
-      logger.warn(`[clubs/list-fix] erro ao criar/vincular teacher club #${clubNumber}: ${e.response?.data?.message || e.message}`);
+      logger.warn(`[clubs/list-fix] error creating/linking teacher club #${clubNumber}: ${e.response?.data?.message || e.message}`);
     }
   }
   return { ensured: true, created };
@@ -85,7 +85,7 @@ async function ensureTeachersForClub({ http, logger, clubId, clubNumber, minTeac
 async function run({ http, logger, ctx }) {
   const minTeachers = ctx?.minTeachersPerClub ?? 10;
 
-  logger.info('[clubs/list-fix] listando clubs paginados (todas as páginas)...');
+  logger.info('[clubs/list-fix] listing paginated clubs (all pages)...');
   const clubs = await fetchAllPages(http.request, 'get', '/clubs', { sort: 'updatedAt', order: 'DESC' }, { limit: 50 });
   logger.info(`[clubs/list-fix] total clubs=${clubs.length}`);
 

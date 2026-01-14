@@ -16,8 +16,8 @@ function parseYYYYMMDD(yyyyMMdd) {
 
 function nextMondayFrom(date) {
   const d = new Date(date);
-  const dow = d.getDay(); // 0..6 (Sun..Sat)
-  const diff = (1 - dow + 7) % 7; // Monday=1
+  const dow = d.getDay(); 
+  const diff = (1 - dow + 7) % 7; 
   d.setDate(d.getDate() + diff);
   return d;
 }
@@ -29,10 +29,10 @@ function addDays(date, days) {
 }
 
 async function run({ http, logger }) {
-  // Regra do domínio:
-  // - startDate precisa ser segunda-feira
-  // - endDate precisa ser sexta-feira
-  // - não pode conflitar com outra meditação existente
+  
+  
+  
+  
   let base = new Date();
   let ranges = [];
   try {
@@ -47,15 +47,15 @@ async function run({ http, logger }) {
       .filter((r) => r.start && r.end);
 
     const maxEnd = ranges.map((r) => r.end).reduce((acc, d) => (acc && acc > d ? acc : d), null);
-    if (maxEnd) base = addDays(maxEnd, 3); // empurra para depois do período atual
+    if (maxEnd) base = addDays(maxEnd, 3); 
   } catch (_) {}
 
   const hasConflict = (s, e) =>
     ranges.some((r) => (s >= r.start && s <= r.end) || (e >= r.start && e <= r.end) || (s <= r.start && e >= r.end));
 
   let start = nextMondayFrom(base);
-  let end = addDays(start, 4); // sexta
-  // pula semanas até encontrar um intervalo livre
+  let end = addDays(start, 4); 
+  
   for (let i = 0; i < 60 && hasConflict(start, end); i++) {
     start = addDays(start, 7);
     end = addDays(start, 4);
@@ -84,7 +84,7 @@ async function run({ http, logger }) {
     ],
   };
 
-  logger.info('[meditations/create] criando meditação (multipart + file obrigatório)...');
+  logger.info('[meditations/create] creating meditation (multipart + required file)...');
   const res = await multipartRequest({
     http,
     method: 'POST',

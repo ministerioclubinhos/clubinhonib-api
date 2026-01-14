@@ -7,18 +7,11 @@ import { TeacherProfileEntity } from 'src/modules/teacher-profiles/entities/teac
 @Unique('UQ_pagela_child_year_week', ['child', 'year', 'week'])
 export class PagelaEntity extends BaseEntity {
   
-  /**
-   * Semana do ANO LETIVO (não semana ISO do ano calendário)
-   * A primeira semana dentro do período letivo é a "semana 1" do ano letivo
-   * Exemplo: Se o período letivo começa em 05/02/2024, essa é a semana 1 do ano letivo
-   */
+  
   @Column({ type: 'tinyint', unsigned: true })
   week: number;
 
-  /**
-   * Ano do período letivo (não ano calendário)
-   * Exemplo: Ano letivo 2024 (período de 05/02/2024 a 15/12/2024)
-   */
+  
   @Column({ type: 'smallint', unsigned: true })
   year: number;
 

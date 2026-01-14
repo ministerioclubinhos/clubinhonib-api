@@ -12,26 +12,26 @@ export enum PeriodShortcut {
 }
 
 export class PeriodFilterDto {
-  // Atalho rápido de período
+  
   @IsOptional()
   @IsEnum(PeriodShortcut)
   period?: PeriodShortcut;
 
-  // Datas customizadas (quando period = 'custom')
+  
   @IsOptional()
   @IsString()
-  startDate?: string; // YYYY-MM-DD
+  startDate?: string; 
 
   @IsOptional()
   @IsString()
-  endDate?: string; // YYYY-MM-DD
+  endDate?: string; 
 
-  // Agrupamento
+  
   @IsOptional()
   @IsEnum(['day', 'week', 'month', 'year'])
   groupBy?: 'day' | 'week' | 'month' | 'year';
 
-  // Ano específico (opcional)
+  
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -40,9 +40,7 @@ export class PeriodFilterDto {
   year?: number;
 }
 
-/**
- * Helper para calcular períodos baseados em atalhos
- */
+
 export class PeriodCalculator {
   static calculatePeriod(filter: PeriodFilterDto): { startDate: string; endDate: string; groupBy?: string } {
     const now = new Date();
@@ -114,7 +112,7 @@ export class PeriodCalculator {
 
       case PeriodShortcut.CUSTOM:
       default:
-        // Se tem startDate e endDate customizados, usa eles
+        
         if (filter.startDate && filter.endDate) {
           return {
             startDate: filter.startDate,
@@ -123,7 +121,7 @@ export class PeriodCalculator {
           };
         }
 
-        // Fallback: último mês
+        
         const oneMonthAgo = new Date(now);
         oneMonthAgo.setMonth(now.getMonth() - 1);
 
@@ -135,9 +133,7 @@ export class PeriodCalculator {
     }
   }
 
-  /**
-   * Retorna o label amigável do período
-   */
+  
   static getPeriodLabel(filter: PeriodFilterDto): string {
     switch (filter.period) {
       case PeriodShortcut.TODAY:

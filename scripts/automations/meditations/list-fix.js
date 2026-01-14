@@ -1,5 +1,5 @@
 async function run({ http, logger }) {
-  logger.info('[meditations/list-fix] listando meditações...');
+  logger.info('[meditations/list-fix] listing meditations...');
   const res = await http.request('get', '/meditations');
   const raw = Array.isArray(res.data) ? res.data : [];
   const items = raw.map((x) => x?.meditation || x).filter(Boolean);
@@ -9,7 +9,7 @@ async function run({ http, logger }) {
     await http.request('get', '/meditations/this-week');
     logger.info('[meditations/list-fix] OK /meditations/this-week');
   } catch (e) {
-    logger.warn(`[meditations/list-fix] this-week falhou: ${e.response?.data?.message || e.message}`);
+    logger.warn(`[meditations/list-fix] this-week failed: ${e.response?.data?.message || e.message}`);
   }
 
   if (items[0]?.id) {

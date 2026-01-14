@@ -8,7 +8,7 @@ function createHttpClient({ baseURL = API_BASE_URL } = {}) {
   async function login(email = SUPERUSER_EMAIL, password = SUPERUSER_PASSWORD) {
     const res = await client.post('/auth/login', { email, password });
     token = res.data?.accessToken || '';
-    if (!token) throw new Error('Login falhou: accessToken não retornou');
+    if (!token) throw new Error('Login failed: accessToken not returned');
     return token;
   }
 

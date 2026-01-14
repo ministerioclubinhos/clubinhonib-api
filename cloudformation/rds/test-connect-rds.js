@@ -1,14 +1,11 @@
-/**
- * Script para testar conexão com o RDS
- * Uso: node test-connect-rds.js
- */
+
 
 const mysql = require('mysql2/promise');
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-// Cores para output
+
 const colors = {
     reset: '\x1b[0m',
     green: '\x1b[32m',
@@ -44,7 +41,7 @@ async function getStackOutputs(stackName) {
             { encoding: 'utf-8' }
         ).trim();
 
-        // Obter senha do arquivo params.json (na mesma pasta)
+        
         const paramsFile = path.join(__dirname, 'params.json');
         const params = JSON.parse(fs.readFileSync(paramsFile, 'utf-8'));
         const password = params.find(p => p.ParameterKey === 'DBPassword')?.ParameterValue;
@@ -89,7 +86,7 @@ async function testConnection(config) {
         log('✅ Conexão estabelecida com sucesso!', 'green');
         log('');
 
-        // Testar query simples
+        
         log('📊 Testando query...', 'yellow');
         const [rows] = await connection.execute('SELECT VERSION() as version, DATABASE() as db_name, USER() as db_user');
         
@@ -101,7 +98,7 @@ async function testConnection(config) {
         log(`   User: ${rows[0].db_user}`, 'green');
         log('');
 
-        // Testar criação de tabela de teste
+        
         log('🧪 Testando criação de tabela...', 'yellow');
         await connection.execute(`
             CREATE TABLE IF NOT EXISTS test_connection (
@@ -113,7 +110,7 @@ async function testConnection(config) {
         log('✅ Tabela de teste criada/verificada!', 'green');
         log('');
 
-        // Inserir e ler dados
+        
         log('📝 Testando inserção e leitura...', 'yellow');
         await connection.execute(
             'INSERT INTO test_connection (message) VALUES (?)',

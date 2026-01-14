@@ -1,5 +1,5 @@
 async function run({ http, logger }) {
-  logger.info('[image-sections/list-fix] listando image-sections...');
+  logger.info('[image-sections/list-fix] listing image-sections...');
   const res = await http.request('get', '/image-sections');
   const items = Array.isArray(res.data) ? res.data : [];
   logger.info(`[image-sections/list-fix] OK total=${items.length}`);

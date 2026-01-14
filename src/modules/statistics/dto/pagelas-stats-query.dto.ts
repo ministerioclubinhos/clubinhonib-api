@@ -3,7 +3,7 @@ import { Type } from 'class-transformer';
 import { Transform } from 'class-transformer';
 
 export class PagelasStatsQueryDto {
-  // Time filters
+  
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -20,13 +20,13 @@ export class PagelasStatsQueryDto {
 
   @IsOptional()
   @IsString()
-  startDate?: string; // YYYY-MM-DD
+  startDate?: string; 
 
   @IsOptional()
   @IsString()
-  endDate?: string; // YYYY-MM-DD
+  endDate?: string; 
 
-  // Entity filters
+  
   @IsOptional()
   @IsString()
   clubId?: string;
@@ -39,10 +39,10 @@ export class PagelasStatsQueryDto {
   @IsString()
   coordinatorId?: string;
 
-  // Child demographic filters
+  
   @IsOptional()
   @IsString()
-  gender?: string; // 'M' | 'F' | etc
+  gender?: string; 
 
   @IsOptional()
   @Type(() => Number)
@@ -58,7 +58,7 @@ export class PagelasStatsQueryDto {
   @Max(100)
   maxAge?: number;
 
-  // Geographic filters
+  
   @IsOptional()
   @IsString()
   city?: string;
@@ -71,16 +71,16 @@ export class PagelasStatsQueryDto {
   @IsString()
   district?: string;
 
-  // Participation time filters
+  
   @IsOptional()
   @IsString()
-  joinedAfter?: string; // YYYY-MM-DD
+  joinedAfter?: string; 
 
   @IsOptional()
   @IsString()
-  joinedBefore?: string; // YYYY-MM-DD
+  joinedBefore?: string; 
 
-  // Activity filters
+  
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
@@ -96,7 +96,7 @@ export class PagelasStatsQueryDto {
   @IsBoolean()
   onlyRecitedVerse?: boolean;
 
-  // Grouping for charts
+  
   @IsOptional()
   @IsEnum(['day', 'week', 'month', 'year'])
   groupBy?: 'day' | 'week' | 'month' | 'year';

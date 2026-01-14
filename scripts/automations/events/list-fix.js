@@ -1,5 +1,5 @@
 async function run({ http, logger }) {
-  logger.info('[events/list-fix] listando eventos...');
+  logger.info('[events/list-fix] listing events...');
   const res = await http.request('get', '/events');
   const events = Array.isArray(res.data) ? res.data : [];
   logger.info(`[events/list-fix] OK total=${events.length}`);

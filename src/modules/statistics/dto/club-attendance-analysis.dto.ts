@@ -1,14 +1,12 @@
-/**
- * DTOs para análise de frequência e alertas de clubes
- */
+
 
 export class MissingWeekDto {
   year: number;
   week: number;
-  expectedDate: string; // Data esperada da pagela (baseado no dia da semana do clube)
+  expectedDate: string; 
   weekRange: {
-    start: string; // Início da semana
-    end: string; // Fim da semana
+    start: string; 
+    end: string; 
   };
   reason: 'no_pagela' | 'club_inactive' | 'vacation_period';
   severity: 'critical' | 'warning' | 'info';
@@ -23,14 +21,14 @@ export class ClubAttendanceAnalysisDto {
     startDate: string;
     endDate: string;
     totalWeeks: number;
-    activeWeeks: number; // Semanas que o clube deveria funcionar
+    activeWeeks: number; 
   };
 
   attendance: {
     weeksWithPagela: number;
     weeksExpected: number;
     weeksMissing: number;
-    attendanceRate: number; // % de semanas com pagela
+    attendanceRate: number; 
     consecutiveWeeksPresent: number;
     consecutiveWeeksMissing: number;
   };

@@ -5,10 +5,10 @@ async function run({ http, logger }) {
     name: randomName(),
     email: randomEmail('feedback'),
     rating: 5,
-    comment: 'Feedback criado pela automação',
+    comment: 'Feedback created by automation',
     category: 'other',
   };
-  logger.info('[site-feedbacks/create] criando feedback...');
+  logger.info('[site-feedbacks/create] creating feedback...');
   const res = await http.request('post', '/site-feedbacks', { data: dto });
   logger.info(`[site-feedbacks/create] OK id=${res.data?.id ?? 'n/a'}`);
   return { feedback: res.data };

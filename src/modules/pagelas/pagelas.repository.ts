@@ -45,14 +45,14 @@ export class PagelasRepository {
       qb.andWhere('p.week = :week', { week: f.week });
     }
 
-    // Busca: semana e ano
-    // Aceita formatos: "2025" (ano), "48" (semana), "2025-48" (ano-semana)
+    
+    
     if (f.searchString?.trim()) {
       const raw = f.searchString.trim();
       const parts = raw.split('-');
       
       if (parts.length === 2) {
-        // Formato "2025-48" (ano-semana)
+        
         const year = Number(parts[0]);
         const week = Number(parts[1]);
         if (Number.isInteger(year) && year >= 2000 && year <= 9999) {
@@ -62,14 +62,14 @@ export class PagelasRepository {
           qb.andWhere('p.week = :searchWeek', { searchWeek: week });
         }
       } else {
-        // Formato único: pode ser ano ou semana
+        
         const num = Number(raw);
         if (Number.isInteger(num)) {
           if (num >= 2000 && num <= 9999) {
-            // Provavelmente é um ano
+            
             qb.andWhere('p.year = :searchYear', { searchYear: num });
           } else if (num >= 1 && num <= 53) {
-            // Provavelmente é uma semana
+            
             qb.andWhere('p.week = :searchWeek', { searchWeek: num });
           }
         }

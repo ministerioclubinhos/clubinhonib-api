@@ -4,12 +4,12 @@ import { Transform } from 'class-transformer';
 import { PeriodShortcut } from './period-filter.dto';
 
 export class TeachersStatsQueryDto {
-  // ⭐ NOVO: Atalho rápido de período
+  
   @IsOptional()
   @IsEnum(PeriodShortcut)
-  period?: PeriodShortcut; // 'today' | 'this_week' | 'this_month' | 'last_7_days' | 'last_30_days' | 'this_year' | 'custom'
+  period?: PeriodShortcut; 
 
-  // Time filters (for pagelas period)
+  
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -19,13 +19,13 @@ export class TeachersStatsQueryDto {
 
   @IsOptional()
   @IsString()
-  startDate?: string; // YYYY-MM-DD
+  startDate?: string; 
 
   @IsOptional()
   @IsString()
-  endDate?: string; // YYYY-MM-DD
+  endDate?: string; 
 
-  // Entity filters
+  
   @IsOptional()
   @IsString()
   clubId?: string;
@@ -34,7 +34,7 @@ export class TeachersStatsQueryDto {
   @IsString()
   coordinatorId?: string;
 
-  // Geographic filters
+  
   @IsOptional()
   @IsString()
   city?: string;
@@ -43,7 +43,7 @@ export class TeachersStatsQueryDto {
   @IsString()
   state?: string;
 
-  // Activity filters
+  
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -73,18 +73,18 @@ export class TeachersStatsQueryDto {
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
-  isActive?: boolean; // Teve pagela nos últimos 30 dias
+  isActive?: boolean; 
 
-  // Sorting
+  
   @IsOptional()
   @IsString()
-  sortBy?: string; // "name" | "effectivenessScore" | "totalPagelas" | "presenceRate" | "meditationRate" | "childrenWithDecisions"
+  sortBy?: string; 
 
   @IsOptional()
   @IsString()
   sortOrder?: 'ASC' | 'DESC';
 
-  // Pagination
+  
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -98,30 +98,30 @@ export class TeachersStatsQueryDto {
   @Max(100)
   limit?: number;
 
-  // ⭐ NOVO: Filtros avançados combinados
+  
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
   @Max(100)
-  maxEffectivenessScore?: number; // Score máximo (identificar professores que precisam apoio)
+  maxEffectivenessScore?: number; 
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
   @Max(100)
-  maxPresenceRate?: number; // Taxa máxima de presença (identificar problemas)
+  maxPresenceRate?: number; 
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
-  minDecisions?: number; // Mínimo de crianças com decisões alcançadas
+  minDecisions?: number; 
 
   @IsOptional()
   @IsString()
-  search?: string; // Busca por nome do professor
+  search?: string; 
 }
 
 

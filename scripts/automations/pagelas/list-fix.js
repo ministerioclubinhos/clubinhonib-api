@@ -28,7 +28,7 @@ function computeTotalWeeks(period) {
 
 function getDateForWeek(period, week, weekday) {
   const startDate = parseDateOnly(period.startDate);
-  if (!startDate) throw new Error(`Período inválido: startDate=${period?.startDate}`);
+  if (!startDate) throw new Error(`Invalid period: startDate=${period?.startDate}`);
 
   const periodWeekStart = getWeekStart(startDate);
   const weekStart = new Date(periodWeekStart);
@@ -39,7 +39,7 @@ function getDateForWeek(period, week, weekday) {
   const currentWeekday = weekStart.getDay() || 7;
   weekStart.setDate(weekStart.getDate() + (targetWeekday - currentWeekday));
 
-  if (Number.isNaN(weekStart.getTime())) throw new Error(`Data inválida week=${week} weekday=${weekday}`);
+  if (Number.isNaN(weekStart.getTime())) throw new Error(`Invalid date week=${week} weekday=${weekday}`);
   return weekStart.toISOString().split('T')[0];
 }
 
@@ -59,9 +59,9 @@ async function run({ http, logger, ctx }) {
 
   const periodRes = await http.request('get', `/club-control/periods/${year}`);
   const period = periodRes.data;
-  if (!period?.startDate) throw new Error(`[pagelas/list-fix] período ${year} inválido: ${JSON.stringify(period)}`);
+  if (!period?.startDate) throw new Error(`[pagelas/list-fix] invalid period ${year}: ${JSON.stringify(period)}`);
 
-  // auto = calcula semanas pelo período
+  
   if (!weeks || weeks <= 0) {
     weeks = computeTotalWeeks(period);
   }
@@ -75,7 +75,7 @@ async function run({ http, logger, ctx }) {
   if (childLimit > 0) children = children.slice(0, childLimit);
   const forcedChildId = ctx?.pagelasChildId ?? PAGELAS_CHILD_ID;
   if (forcedChildId) children = children.filter((c) => c?.id === forcedChildId);
-  logger.info(`[pagelas/list-fix] verificando missing pagelas year=${year} children=${children.length}...`);
+  logger.info(`[pagelas/list-fix] checking missing pagelas year=${year} children=${children.length}...`);
 
   let created = 0;
   let shownErrors = 0;
@@ -83,7 +83,7 @@ async function run({ http, logger, ctx }) {
     const club = clubMap.get(child.clubId || child.club?.id);
     const weekday = club?.weekday || 'saturday';
 
-    // respeitar joinedAt: começa da semana aproximada (se tiver)
+    
     let startWeek = 1;
     if (child.joinedAt) {
       const joinedDate = parseDateOnly(child.joinedAt);
@@ -94,7 +94,7 @@ async function run({ http, logger, ctx }) {
       }
     }
 
-    // Check rápido: se total já cobre todas as semanas esperadas, pula sem buscar todas as páginas
+    
     const expected = Math.max(0, weeks - startWeek + 1);
     if (expected === 0) continue;
     try {
@@ -104,14 +104,14 @@ async function run({ http, logger, ctx }) {
       const totalQuick = Number(quick.data?.total ?? 0);
       if (totalQuick >= expected) continue;
     } catch (_) {
-      // se falhar o quick, segue para o fluxo completo
+      
     }
 
     let existing = [];
     try {
       existing = await getAllPagelasForChild({ http, childId: child.id, year });
     } catch (e) {
-      logger.warn(`[pagelas/list-fix] erro ao listar pagelas child=${child.id}: ${e.response?.data?.message || e.message}`);
+      logger.warn(`[pagelas/list-fix] error listing pagelas child=${child.id}: ${e.response?.data?.message || e.message}`);
       continue;
     }
 
@@ -133,7 +133,7 @@ async function run({ http, logger, ctx }) {
             present,
             didMeditation,
             recitedVerse,
-            notes: present ? `Semana ${week} - ${present ? 'Presente' : 'Ausente'}` : null,
+            notes: present ? `Week ${week} - ${present ? 'Present' : 'Absent'}` : null,
           },
         });
         created++;
@@ -146,7 +146,7 @@ async function run({ http, logger, ctx }) {
         if (shownErrors < 25) {
           shownErrors++;
           logger.warn(
-            `[pagelas/list-fix] erro create child=${child.id} week=${week} status=${status ?? 'n/a'}: ${
+            `[pagelas/list-fix] error create child=${child.id} week=${week} status=${status ?? 'n/a'}: ${
               e.response?.data?.message || e.response?.data || e.message
             }`,
           );

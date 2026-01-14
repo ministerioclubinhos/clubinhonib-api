@@ -1,10 +1,10 @@
 async function run({ http, logger }) {
-  logger.info('[accepted-christs/create] criando accepted-christ (precisa 1 childId)...');
+  logger.info('[accepted-christs/create] creating accepted-christ (needs 1 childId)...');
 
   const childrenRes = await http.request('get', '/children/simple');
   const children = Array.isArray(childrenRes.data) ? childrenRes.data : [];
   if (children.length === 0) {
-    logger.warn('[accepted-christs/create] sem children. pulando.');
+    logger.warn('[accepted-christs/create] no children. skipping.');
     return { created: false };
   }
 
@@ -14,15 +14,15 @@ async function run({ http, logger }) {
       data: {
         childId,
         decision: 'ACCEPTED',
-        notes: 'Criado pela automação',
+        notes: 'Created by automation',
       },
     });
     logger.info(`[accepted-christs/create] OK id=${res.data?.id ?? 'n/a'} childId=${childId}`);
     return { created: true };
   } catch (e) {
     const status = e.response?.status;
-    // 409/400 pode ser duplicado/regras
-    logger.warn(`[accepted-christs/create] falhou status=${status ?? 'n/a'}: ${e.response?.data?.message || e.message}`);
+    
+    logger.warn(`[accepted-christs/create] failed status=${status ?? 'n/a'}: ${e.response?.data?.message || e.message}`);
     return { created: false };
   }
 }

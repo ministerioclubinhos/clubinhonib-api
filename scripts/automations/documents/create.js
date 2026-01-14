@@ -3,7 +3,7 @@ const { multipartRequest } = require('../common/multipart');
 async function run({ http, logger }) {
   const docData = {
     name: 'Documento Automação',
-    description: 'Criado pela automação',
+    description: 'Created by automation',
     media: {
       title: 'Arquivo',
       description: 'dummy',
@@ -14,7 +14,7 @@ async function run({ http, logger }) {
     },
   };
 
-  logger.info('[documents/create] criando documento (multipart)...');
+  logger.info('[documents/create] creating document (multipart)...');
   const res = await multipartRequest({
     http,
     method: 'POST',

@@ -15,34 +15,24 @@ export class PagelasService {
     private readonly clubControlRepository: ClubControlRepository,
   ) { }
 
-  /**
-   * Criar uma pagela
-   * 
-   * REGRA CRÍTICA: A semana e o ano são calculados automaticamente baseado no período letivo
-   * - Se week/year não for informado, será calculado automaticamente
-   * - A semana é do ANO LETIVO, não da semana ISO do ano calendário
-   * - A primeira semana dentro do período letivo é a "semana 1" do ano letivo
-   * 
-   * @throws BadRequestException se a data estiver fora do período letivo
-   * @throws NotFoundException se não houver período letivo cadastrado
-   */
+  
   async create(dto: CreatePagelaDto): Promise<PagelaResponseDto> {
     let year: number;
     let week: number;
 
-    // Se week e year foram informados, usar diretamente (para compatibilidade)
+    
     if (dto.week && dto.year) {
       year = dto.year;
       week = dto.week;
     } else {
-      // Calcular automaticamente baseado no período letivo
+      
       const referenceDate = new Date(dto.referenceDate + 'T00:00:00');
       const referenceYear = referenceDate.getFullYear();
       
-      // Buscar período letivo do ano da data de referência
+      
       let period = await this.clubControlRepository.findPeriodByYear(referenceYear);
       
-      // Se não encontrou, tentar ano anterior ou próximo (período pode cruzar anos)
+      
       if (!period) {
         period = await this.clubControlRepository.findPeriodByYear(referenceYear - 1);
       }
@@ -58,7 +48,7 @@ export class PagelasService {
       }
 
       try {
-        // Calcular semana do ano letivo
+        
         const academicWeek = getAcademicWeekYear(
           dto.referenceDate,
           period.startDate,
@@ -114,19 +104,14 @@ export class PagelasService {
     return PagelaResponseDto.fromEntity(item);
   }
 
-  /**
-   * Atualizar uma pagela
-   * 
-   * REGRA: Se referenceDate for alterada, week e year serão recalculados automaticamente
-   * baseado no período letivo, a menos que sejam informados explicitamente.
-   */
+  
   async update(id: string, dto: UpdatePagelaDto): Promise<PagelaResponseDto> {
-    // Se referenceDate foi alterada e week/year não foram informados, recalcular
+    
     if (dto.referenceDate && (!dto.week || !dto.year)) {
       const referenceDate = new Date(dto.referenceDate + 'T00:00:00');
       const referenceYear = referenceDate.getFullYear();
       
-      // Buscar período letivo
+      
       let period = await this.clubControlRepository.findPeriodByYear(referenceYear);
       if (!period) {
         period = await this.clubControlRepository.findPeriodByYear(referenceYear - 1);
@@ -144,7 +129,7 @@ export class PagelasService {
             period.year
           );
           
-          // Se week/year não foram informados, usar os calculados
+          
           if (!dto.week) {
             dto.week = academicWeek.week;
           }
@@ -152,7 +137,7 @@ export class PagelasService {
             dto.year = academicWeek.year;
           }
         } catch (error) {
-          // Se não conseguiu calcular, manter valores existentes ou os informados
+          
         }
       }
     }

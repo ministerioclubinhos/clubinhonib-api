@@ -6,17 +6,17 @@ async function run({ http, logger, ctx }) {
   const list = await http.request('get', '/week-material-pages');
   const existing = Array.isArray(list.data) ? list.data : [];
   const toCreate = Math.max(0, min - existing.length);
-  logger.info(`[week-material-pages/create] garantindo mínimo ${min} (atual=${existing.length}, criar=${toCreate})...`);
+  logger.info(`[week-material-pages/create] ensuring minimum ${min} (current=${existing.length}, creating=${toCreate})...`);
 
   const created = [];
   for (let i = 0; i < toCreate; i++) {
   const dto = {
-    pageTitle: `Materiais da Semana (automação) #${existing.length + i + 1}`,
-    pageSubtitle: 'Subtítulo automação',
-    pageDescription: 'Criado pela automação',
+    pageTitle: `Week Materials (automation) #${existing.length + i + 1}`,
+    pageSubtitle: 'Automation subtitle',
+    pageDescription: 'Created by automation',
     videos: [
       {
-        title: 'Vídeo',
+        title: 'Video',
         description: 'link',
         uploadType: 'link',
         mediaType: 'video',
@@ -27,7 +27,7 @@ async function run({ http, logger, ctx }) {
     ],
     documents: [
       {
-        title: 'Documento',
+        title: 'Document',
         description: 'link',
         uploadType: 'link',
         mediaType: 'document',

@@ -28,7 +28,7 @@ function computeTotalWeeks(period) {
 
 function getDateForWeek(period, week, weekday) {
   const startDate = parseDateOnly(period.startDate);
-  if (!startDate) throw new Error(`Período inválido: startDate=${period?.startDate}`);
+  if (!startDate) throw new Error(`Invalid period: startDate=${period?.startDate}`);
 
   const periodWeekStart = getWeekStart(startDate);
   const weekStart = new Date(periodWeekStart);
@@ -40,7 +40,7 @@ function getDateForWeek(period, week, weekday) {
   weekStart.setDate(weekStart.getDate() + (targetWeekday - currentWeekday));
 
   if (Number.isNaN(weekStart.getTime())) {
-    throw new Error(`Data inválida gerada week=${week} weekday=${weekday}`);
+    throw new Error(`Invalid generated date week=${week} weekday=${weekday}`);
   }
   return weekStart.toISOString().split('T')[0];
 }
@@ -49,28 +49,28 @@ async function run({ http, logger, ctx }) {
   const year = ctx?.year ?? ACADEMIC_YEAR;
   let weeks = ctx?.weeks ?? 48;
 
-  // precisa existir período (garantido no passo club-control)
+  
   const periodRes = await http.request('get', `/club-control/periods/${year}`);
   const period = periodRes.data;
-  if (!period?.startDate) throw new Error(`[pagelas/create] período ${year} inválido: ${JSON.stringify(period)}`);
+  if (!period?.startDate) throw new Error(`[pagelas/create] invalid period ${year}: ${JSON.stringify(period)}`);
 
-  // auto = calcula semanas pelo período
+  
   if (!weeks || weeks <= 0) {
     weeks = computeTotalWeeks(period);
   }
 
-  // mapa clubId -> weekday
+  
   const clubsRes = await http.request('get', '/clubs/all');
   const clubs = Array.isArray(clubsRes.data) ? clubsRes.data : [];
   const clubMap = new Map(clubs.map((c) => [c.id, c]));
 
-  // children: pega todos (ou limita)
+  
   let children = await fetchAllPages(http.request, 'get', '/children', {}, { limit: 100 });
   const childLimit = (ctx?.pagelasChildLimit ?? PAGELAS_CHILD_LIMIT) || 0;
   if (childLimit > 0) children = children.slice(0, childLimit);
   const forcedChildId = ctx?.pagelasChildId ?? PAGELAS_CHILD_ID;
   if (forcedChildId) children = children.filter((c) => c?.id === forcedChildId);
-  logger.info(`[pagelas/create] criando pagelas year=${year} weeks=${weeks} para children=${children.length} (skip duplicadas)...`);
+  logger.info(`[pagelas/create] creating pagelas year=${year} weeks=${weeks} for children=${children.length} (skip duplicates)...`);
 
   let created = 0;
   let duplicates = 0;
@@ -80,7 +80,7 @@ async function run({ http, logger, ctx }) {
     const club = clubMap.get(child.clubId || child.club?.id);
     const weekday = club?.weekday || 'saturday';
 
-    // respeitar joinedAt (mesma regra do list-fix)
+    
     let startWeek = 1;
     if (child.joinedAt) {
       const joinedDate = parseDateOnly(child.joinedAt);
@@ -110,7 +110,7 @@ async function run({ http, logger, ctx }) {
             present,
             didMeditation,
             recitedVerse,
-            notes: present ? `Semana ${week} - ${present ? 'Presente' : 'Ausente'}` : null,
+            notes: present ? `Week ${week} - ${present ? 'Present' : 'Absent'}` : null,
           },
         });
         created++;
@@ -119,9 +119,9 @@ async function run({ http, logger, ctx }) {
       } catch (e) {
         const status = e.response?.status;
         const msg = e.response?.data?.message || e.response?.data || e.message;
-        // Em debug, mostrar também 400/409/404 (até um limite) para achar o real motivo de "created=0"
+        
         const isIgnored = status === 400 || status === 409 || status === 404;
-        if (isIgnored && typeof msg === 'string' && msg.includes('Já existe Pagela')) {
+        if (isIgnored && typeof msg === 'string' && msg.includes('Pagela already exists')) {
           duplicates++;
           if (!PAGELAS_DEBUG) continue;
         }
@@ -129,7 +129,7 @@ async function run({ http, logger, ctx }) {
         if (shownErrors < 25) {
           shownErrors++;
           logger.warn(
-            `[pagelas/create] erro child=${child.id} week=${week} status=${status ?? 'n/a'}: ${
+            `[pagelas/create] error child=${child.id} week=${week} status=${status ?? 'n/a'}: ${
               msg
             }`,
           );

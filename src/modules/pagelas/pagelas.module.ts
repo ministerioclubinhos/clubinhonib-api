@@ -11,7 +11,7 @@ import { ClubControlModule } from '../club-control/club-control.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([PagelaEntity, ChildEntity, TeacherProfileEntity]),
-    ClubControlModule, // Importar para usar ClubControlRepository
+    ClubControlModule, 
   ],
   controllers: [PagelasController],
   providers: [PagelasRepository, PagelasService],

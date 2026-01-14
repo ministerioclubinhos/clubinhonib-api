@@ -45,7 +45,7 @@ const routesListFix = require('./routes/list-fix');
 const siteSmokeCreate = require('./site-smoke/create');
 const siteSmokeListFix = require('./site-smoke/list-fix');
 
-// content controllers (site)
+
 const commentsCreate = require('./comments/create');
 const commentsListFix = require('./comments/list-fix');
 const contactCreate = require('./contact/create');
@@ -87,12 +87,12 @@ async function runAll({ ctx = {} } = {}) {
     ...ctx,
   };
 
-  logger.info('[run-all] verificando API + login...');
+  logger.info('[run-all] checking API + login...');
   try {
     await http.login();
   } catch (err) {
     if (err?.code === 'ECONNREFUSED') {
-      throw new Error('API não está rodando em localhost:3000 (ECONNREFUSED)');
+      throw new Error('API is not running on localhost:3000 (ECONNREFUSED)');
     }
     throw err;
   }
@@ -100,54 +100,54 @@ async function runAll({ ctx = {} } = {}) {
 
   const started = Date.now();
 
-  // 0) auth smoke
+  
   await authCreate.run({ http, logger, ctx: mergedCtx });
   await authListFix.run({ http, logger, ctx: mergedCtx });
 
-  // 1) club-control
+  
   await clubControlCreate.run({ http, logger, ctx: mergedCtx });
   await clubControlListFix.run({ http, logger, ctx: mergedCtx });
 
-  // 2) users (criação + listagem)
+  
   await usersCreate.run({ http, logger, ctx: mergedCtx });
   await usersListFix.run({ http, logger, ctx: mergedCtx });
 
-  // 2.1) profiles (criação + listagem)
+  
   await teacherProfilesCreate.run({ http, logger, ctx: mergedCtx });
   await teacherProfilesListFix.run({ http, logger, ctx: mergedCtx });
   await coordinatorProfilesCreate.run({ http, logger, ctx: mergedCtx });
   await coordinatorProfilesListFix.run({ http, logger, ctx: mergedCtx });
 
-  // 3) clubs (criação + list/fix)
+  
   await clubsCreate.run({ http, logger, ctx: mergedCtx });
   await clubsListFix.run({ http, logger, ctx: mergedCtx });
 
-  // 4) children (fix -> create -> fix)
+  
   await childrenListFix.run({ http, logger, ctx: mergedCtx });
   await childrenCreate.run({ http, logger, ctx: mergedCtx });
   await childrenListFix.run({ http, logger, ctx: mergedCtx });
 
-  // 5) pagelas (fix -> create -> fix)
-  // 5.0) garantir que nenhuma criança fique com total=0
+  
+  
   await pagelasFixZero.run({ http, logger, ctx: mergedCtx });
-  // 5.1) depois, completa missing (parcial) + tenta create bruto (respeita joinedAt)
+  
   await pagelasListFix.run({ http, logger, ctx: mergedCtx });
   await pagelasCreate.run({ http, logger, ctx: mergedCtx });
   await pagelasListFix.run({ http, logger, ctx: mergedCtx });
 
-  // 6) accepted-christs
+  
   await acceptedChristsCreate.run({ http, logger, ctx: mergedCtx });
   await acceptedChristsListFix.run({ http, logger, ctx: mergedCtx });
 
-  // 7) statistics (read-only)
+  
   await statisticsCreate.run({ http, logger, ctx: mergedCtx });
   await statisticsListFix.run({ http, logger, ctx: mergedCtx });
 
-  // 8) routes + site/content (GET smokes)
+  
   await routesCreate.run({ http, logger, ctx: mergedCtx });
   await routesListFix.run({ http, logger, ctx: mergedCtx });
 
-  // 9) content/site controllers (create + list-fix)
+  
   await commentsCreate.run({ http, logger, ctx: mergedCtx });
   await commentsListFix.run({ http, logger, ctx: mergedCtx });
 
@@ -187,12 +187,12 @@ async function runAll({ ctx = {} } = {}) {
   await weekMaterialPagesCreate.run({ http, logger, ctx: mergedCtx });
   await weekMaterialPagesListFix.run({ http, logger, ctx: mergedCtx });
 
-  // 10) site-smoke (GETs extra)
+  
   await siteSmokeCreate.run({ http, logger, ctx: mergedCtx });
   await siteSmokeListFix.run({ http, logger, ctx: mergedCtx });
 
   const durationS = ((Date.now() - started) / 1000).toFixed(2);
-  logger.info(`[run-all] concluído em ${durationS}s`);
+  logger.info(`[run-all] completed in ${durationS}s`);
 }
 
 module.exports = { runAll };
