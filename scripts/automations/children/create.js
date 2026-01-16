@@ -15,8 +15,7 @@ async function createChildrenForClubs({ http, logger, clubs, countPerClub = 10 }
         joinedAt: randomJoinedAt(),
         isActive: Math.random() > 0.2,
         clubId: club.id,
-        address: Math.random() > 0.3 ? randomAddressnode run-all-testes.js
-() : undefined,
+        address: Math.random() > 0.3 ? randomAddress() : undefined,
       };
       try {
         const res = await http.request('post', '/children', { data: dto });
