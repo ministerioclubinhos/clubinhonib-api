@@ -69,7 +69,6 @@ export class AwsS3Service {
     });
 
     try {
-     
       await this.s3Client.send(command);
       this.logger.log(`🗑️ Arquivo removido: ${key}`);
     } catch (err) {
