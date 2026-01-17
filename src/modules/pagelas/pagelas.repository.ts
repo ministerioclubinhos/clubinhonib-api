@@ -42,9 +42,38 @@ export class PagelasRepository {
     }
 
     if (f.week != null) {
-      console.log('f.week', f.week);
-
       qb.andWhere('p.week = :week', { week: f.week });
+    }
+
+    
+    
+    if (f.searchString?.trim()) {
+      const raw = f.searchString.trim();
+      const parts = raw.split('-');
+      
+      if (parts.length === 2) {
+        
+        const year = Number(parts[0]);
+        const week = Number(parts[1]);
+        if (Number.isInteger(year) && year >= 2000 && year <= 9999) {
+          qb.andWhere('p.year = :searchYear', { searchYear: year });
+        }
+        if (Number.isInteger(week) && week >= 1 && week <= 53) {
+          qb.andWhere('p.week = :searchWeek', { searchWeek: week });
+        }
+      } else {
+        
+        const num = Number(raw);
+        if (Number.isInteger(num)) {
+          if (num >= 2000 && num <= 9999) {
+            
+            qb.andWhere('p.year = :searchYear', { searchYear: num });
+          } else if (num >= 1 && num <= 53) {
+            
+            qb.andWhere('p.week = :searchWeek', { searchWeek: num });
+          }
+        }
+      }
     }
 
     if (f.present) {

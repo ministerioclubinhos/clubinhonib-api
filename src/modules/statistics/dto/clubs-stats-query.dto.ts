@@ -1,8 +1,14 @@
 import { IsOptional, IsInt, Min, Max, IsString, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
+import { PeriodShortcut } from './period-filter.dto';
 
 export class ClubsStatsQueryDto {
-  // Time filters (for pagelas period)
+  
+  @IsOptional()
+  @IsEnum(PeriodShortcut)
+  period?: PeriodShortcut; 
+
+  
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -12,22 +18,22 @@ export class ClubsStatsQueryDto {
 
   @IsOptional()
   @IsString()
-  startDate?: string; // YYYY-MM-DD
+  startDate?: string; 
 
   @IsOptional()
   @IsString()
-  endDate?: string; // YYYY-MM-DD
+  endDate?: string; 
 
-  // Entity filters
+  
   @IsOptional()
   @IsString()
   coordinatorId?: string;
 
   @IsOptional()
   @IsString()
-  weekday?: string; // MONDAY, TUESDAY, etc.
+  weekday?: string; 
 
-  // Geographic filters
+  
   @IsOptional()
   @IsString()
   city?: string;
@@ -40,7 +46,7 @@ export class ClubsStatsQueryDto {
   @IsString()
   district?: string;
 
-  // Performance filters
+  
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -61,16 +67,16 @@ export class ClubsStatsQueryDto {
   @Max(100)
   minPerformanceScore?: number;
 
-  // Sorting
+  
   @IsOptional()
   @IsString()
-  sortBy?: string; // "number" | "performanceScore" | "totalChildren" | "presenceRate"
+  sortBy?: string; 
 
   @IsOptional()
   @IsString()
   sortOrder?: 'ASC' | 'DESC';
 
-  // Pagination
+  
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -83,6 +89,39 @@ export class ClubsStatsQueryDto {
   @Min(1)
   @Max(100)
   limit?: number;
+
+  
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  maxChildren?: number; 
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  maxPresenceRate?: number; 
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  maxPerformanceScore?: number; 
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  minDecisions?: number; 
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  minTeachers?: number; 
 }
 
 

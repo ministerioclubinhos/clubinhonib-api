@@ -217,11 +217,9 @@ export class ClubControlRepository {
     throw new Error('checkClubWeek foi movido para ClubWeekCheckService. Use o service ao invés do repository.');
   }
 
-  /**
-   * @deprecated Código antigo removido - use ClubWeekCheckService
-   */
+  
   private async _oldCheckClubWeek(clubId: string, year: number, week: number): Promise<any> {
-    // Código antigo removido - não usar
+    
     const club = await this.clubsRepository.findOne({
       where: { id: clubId },
     });
@@ -230,12 +228,12 @@ export class ClubControlRepository {
       throw new Error('Clubinho not found');
     }
 
-    // ✅ VERIFICAR PERÍODO LETIVO PRIMEIRO (antes de buscar pagelas)
-    // Isso garante que apenas semanas dentro do período sejam processadas
+    
+    
     const period = await this.findPeriodByYear(year);
     
-    // ⚠️ CRÍTICO: Calcular total de semanas do período letivo
-    // Se o período tem 30 semanas, semana 31+ NÃO deve ser processada
+    
+    
     let maxAcademicWeek = 0;
     if (period) {
       const start = new Date(period.startDate);
@@ -252,11 +250,11 @@ export class ClubControlRepository {
       const endWeekStart = getWeekStartDate(end);
       
       const daysDiff = Math.floor((endWeekStart.getTime() - startWeekStart.getTime()) / (1000 * 60 * 60 * 24));
-      maxAcademicWeek = Math.floor(daysDiff / 7) + 1; // Última semana do período letivo
+      maxAcademicWeek = Math.floor(daysDiff / 7) + 1; 
     }
     
-    // ⚠️ CRÍTICO: Validar se a semana passada está dentro do período letivo
-    // Se período tem 30 semanas, semana > 30 não deve ser processada
+    
+    
     if (period && maxAcademicWeek > 0 && week > maxAcademicWeek) {
       return {
         clubId: club.id,
@@ -279,7 +277,7 @@ export class ClubControlRepository {
           note: "Apenas crianças ATIVAS e que já tinham entrado são consideradas nos indicadores normais",
         },
         status: 'out_of_period',
-        indicators: [], // SEM indicadores quando está fora do período
+        indicators: [], 
         exception: null,
         period: {
           year: period.year,
@@ -290,22 +288,22 @@ export class ClubControlRepository {
       };
     }
 
-    // Calcular data esperada primeiro para verificar data de entrada
-    // ⚠️ CRÍTICO: Usar semana ACADÊMICA, não ISO
+    
+    
     const expectedDate = club.weekday && period ? this.getExpectedDateForAcademicWeek(year, week, club.weekday, period) : null;
 
-    // Buscar TODAS as crianças do clube (ativas e inativas)
+    
     const allChildren = await this.childrenRepository.find({
       where: { club: { id: clubId } },
     });
 
-    // ⚠️ NOVA REGRA: Se o clubinho está DESATIVADO, todas as crianças entram no indicador de "não frequentam mais"
+    
     if (club.isActive === false) {
-      // Separar crianças ativas e inativas
+      
     const expectedDateObj = expectedDate ? new Date(expectedDate) : null;
       const childrenNotAttending = allChildren.filter((child) => {
-        // Incluir todas as crianças (ativas e inativas) se o clubinho está desativado
-        // Mas verificar se já tinha entrado antes/durante a semana
+        
+        
         if (child.joinedAt && expectedDateObj) {
           const joinedDate = new Date(child.joinedAt);
           return joinedDate <= expectedDateObj;
@@ -323,7 +321,7 @@ export class ClubControlRepository {
           expectedDate,
         },
         children: {
-          total: 0, // Não há crianças ativas para indicadores normais
+          total: 0, 
           activeCount: 0,
           inactiveCount: allChildren.length,
           withPagela: 0,
@@ -369,35 +367,35 @@ export class ClubControlRepository {
       };
     }
 
-    // ✅ Se o clubinho está ATIVO, separar crianças ativas das inativas
+    
     const expectedDateObj = expectedDate ? new Date(expectedDate) : null;
     
-    // Crianças ATIVAS (entram nos indicadores normais)
+    
     const activeChildren = allChildren.filter((child) => {
-      // 1. Deve estar ativa
+      
       if (child.isActive === false) {
         return false;
       }
 
-      // 2. Se tem joinedAt, verificar se já tinha entrado antes/durante a semana
+      
       if (child.joinedAt && expectedDateObj) {
         const joinedDate = new Date(child.joinedAt);
-        // Considerar que a criança só precisa de pagela se já tinha entrado antes/durante a semana
+        
         return joinedDate <= expectedDateObj;
       }
 
-      // Se não tem joinedAt, considerar como se sempre estivesse no clube
+      
       return true;
     });
 
-    // Crianças INATIVAS (entram APENAS no indicador de "não frequentam mais")
+    
     const inactiveChildren = allChildren.filter((child) => {
-      // Deve estar inativa
+      
       if (child.isActive !== false) {
         return false;
       }
 
-      // Verificar se já tinha entrado antes/durante a semana
+      
       if (child.joinedAt && expectedDateObj) {
         const joinedDate = new Date(child.joinedAt);
         return joinedDate <= expectedDateObj;
@@ -409,14 +407,14 @@ export class ClubControlRepository {
     const totalChildren = activeChildren.length;
     const inactiveCount = inactiveChildren.length;
 
-    // ⚠️ IMPORTANTE: Buscar pagelas pela semana do ANO LETIVO
-    // year e week são do período letivo, não semana ISO
-    // As pagelas são armazenadas com semana do ano letivo
-    // 
-    // ⚠️ CRÍTICO: A busca já filtra por year e week específicos
-    // Se período tem 30 semanas e buscamos semana 31, não encontrará nenhuma pagela (correto)
-    // Se período tem 30 semanas e buscamos semana 30, encontrará apenas pagelas da semana 30
-    // Se não há pagela da semana 1 até 30, childrenWithPagela será 0 e entrará como "falta"
+    
+    
+    
+    
+    
+    
+    
+    
     const childIds = activeChildren.map(c => c.id);
     const pagelas = childIds.length > 0 ? await this.pagelasRepository
       .createQueryBuilder('pagela')
@@ -424,21 +422,21 @@ export class ClubControlRepository {
       .leftJoin('child.club', 'club')
       .where('club.id = :clubId', { clubId })
       .andWhere('club.isActive = :clubActive', { clubActive: true })
-      .andWhere('pagela.year = :year', { year }) // Ano do período letivo
-      .andWhere('pagela.week = :week', { week }) // Semana do ano letivo (1-N, onde N = total de semanas do período)
+      .andWhere('pagela.year = :year', { year }) 
+      .andWhere('pagela.week = :week', { week }) 
       .andWhere('child.id IN (:...childIds)', { childIds })
       .select('DISTINCT child.id', 'childId')
       .getRawMany() : [];
     
-    // ⚠️ CRÍTICO: Se a semana passada está fora do período letivo (semana > maxAcademicWeek),
-    // não encontrará nenhuma pagela, o que é correto. A validação já foi feita acima.
-    // Se não há pagela da semana 1 até 30 (dentro do período), childrenWithPagela será 0
-    // e childrenMissing será igual a totalChildren, gerando indicador negativo (correto!)
+    
+    
+    
+    
 
     const childrenWithPagela = pagelas.length;
     const childrenMissing = totalChildren - childrenWithPagela;
 
-    // Listar crianças sem pagela (apenas as ativas e que já tinham entrado)
+    
     const childIdsWithPagela = pagelas.map((p) => p.childId);
     const childrenMissingList = activeChildren
       .filter((c) => !childIdsWithPagela.includes(c.id))
@@ -447,7 +445,7 @@ export class ClubControlRepository {
         childName: c.name,
       }));
 
-    // Validar weekday - se não tiver, retornar status especial
+    
     if (!club.weekday) {
       return {
         clubId: club.id,
@@ -479,11 +477,11 @@ export class ClubControlRepository {
       };
     }
 
-    // ✅ Verificar se está dentro do período letivo (precisa de expectedDate)
-    // O período já foi buscado acima e maxAcademicWeek já foi calculado
+    
+    
     let isWithinPeriod = false;
     
-    // Se não há período letivo cadastrado, retorna SEM indicadores
+    
     if (!period) {
       return {
         clubId: club.id,
@@ -509,14 +507,14 @@ export class ClubControlRepository {
           })) : [],
           note: "Apenas crianças ATIVAS e que já tinham entrado são consideradas nos indicadores normais",
         },
-        status: 'ok', // Status neutro quando não há período letivo
-        indicators: [], // SEM indicadores quando não há período letivo
+        status: 'ok', 
+        indicators: [], 
         exception: null,
         note: 'Período letivo não cadastrado - indicadores não são gerados',
       };
     }
     
-    // Verificar se está dentro do período letivo (precisa de expectedDate)
+    
     if (period && expectedDate) {
       const expectedDateObj = new Date(expectedDate);
       const startDateObj = new Date(period.startDate);
@@ -524,7 +522,7 @@ export class ClubControlRepository {
 
       isWithinPeriod = expectedDateObj >= startDateObj && expectedDateObj <= endDateObj;
       
-      // Se a data está FORA do período letivo, retorna SEM indicadores
+      
       if (!isWithinPeriod) {
         return {
           clubId: club.id,
@@ -551,7 +549,7 @@ export class ClubControlRepository {
             note: "Apenas crianças ATIVAS e que já tinham entrado são consideradas nos indicadores normais",
           },
           status: 'out_of_period',
-          indicators: [], // SEM indicadores quando está fora do período
+          indicators: [], 
           exception: null,
           period: {
             year: period.year,
@@ -562,7 +560,7 @@ export class ClubControlRepository {
         };
       }
     } else if (period && !expectedDate) {
-      // Se há período mas não há expectedDate (sem weekday), retorna SEM indicadores
+      
       return {
         clubId: club.id,
         clubNumber: club.number,
@@ -588,31 +586,31 @@ export class ClubControlRepository {
           note: "Apenas crianças ATIVAS e que já tinham entrado são consideradas nos indicadores normais",
         },
         status: 'ok',
-        indicators: [], // SEM indicadores quando não há expectedDate
+        indicators: [], 
         exception: null,
         note: 'Sem data esperada - indicadores não são gerados',
       };
     }
 
-    // ⚠️ Se chegou aqui, está DENTRO do período letivo e tem expectedDate
-    // Agora sim pode gerar indicadores (positivos e negativos)
+    
+    
 
-    // Verificar se é exceção GLOBAL (apenas se expectedDate não for null)
+    
     const exception = expectedDate ? await this.findExceptionByDate(expectedDate) : null;
 
-    // ⚠️ CRÍTICO: Verificar se já passou o dia do clubinho DA SEMANA ATUAL
-    // Indicadores negativos só são retornados se:
-    // 1. A semana consultada é a SEMANA ATUAL do ano letivo
-    // 2. E o dia do clubinho da semana atual já passou
-    // Exemplo: Se clubinho é no sábado e hoje é sexta → não mostra indicadores negativos
-    // Exemplo: Se clubinho é no sábado e hoje é domingo → mostra indicadores negativos
+    
+    
+    
+    
+    
+    
     let hasPassedClubDay = false;
-    let isCurrentWeek = false; // Variável para usar na determinação de status
-    let isFutureWeek = false; // Variável para identificar semanas futuras
+    let isCurrentWeek = false; 
+    let isFutureWeek = false; 
     if (expectedDate) {
-      // 1. Primeiro verificar se a semana consultada é a semana ATUAL, PASSADA ou FUTURA
-      // Cachear o cálculo da semana atual para evitar múltiplas chamadas
-      // (será calculado uma vez no início de checkAllClubsWeek)
+      
+      
+      
       const currentAcademicWeek = await this.academicWeekService.calculateCurrentAcademicWeek();
       
       isCurrentWeek = !!(currentAcademicWeek && 
@@ -620,82 +618,82 @@ export class ClubControlRepository {
                          currentAcademicWeek.academicWeek === week &&
                          currentAcademicWeek.isWithinPeriod);
       
-      // Verificar se é semana futura
+      
       if (currentAcademicWeek && currentAcademicWeek.isWithinPeriod && 
           currentAcademicWeek.academicYear !== null && currentAcademicWeek.academicWeek !== null) {
         if (year > currentAcademicWeek.academicYear) {
-          isFutureWeek = true; // Ano futuro
+          isFutureWeek = true; 
         } else if (year === currentAcademicWeek.academicYear && week > currentAcademicWeek.academicWeek) {
-          isFutureWeek = true; // Mesmo ano, mas semana futura
+          isFutureWeek = true; 
         }
       }
       
       if (isFutureWeek) {
-        // ⚠️ SEMANA FUTURA: Não deve ter indicadores negativos
-        // Ainda não chegou essa semana, então não faz sentido mostrar indicadores negativos
+        
+        
         hasPassedClubDay = false;
       } else if (!isCurrentWeek) {
-        // Não é a semana atual e não é futura → é semana PASSADA
-        // Para semanas passadas, sempre considerar que já passou o dia
-        // (para calcular status corretamente: ok, partial, missing)
-        hasPassedClubDay = true; // Semanas passadas: sempre considerar que já passou (para calcular status correto)
-      } else {
-        // É a semana atual → verificar se o dia já passou
-        const today = new Date();
-        const todayStr = today.toISOString().split('T')[0]; // Formato: YYYY-MM-DD
         
-        // Comparar strings de data diretamente (YYYY-MM-DD)
-        // Se hoje é maior que o dia esperado, já passou o dia do clubinho (mostrar indicadores negativos)
-        // Exemplo: Se clube é no sábado (2025-11-22) e hoje é sexta (2025-11-21) → não passou (false, não mostra indicador)
-        // Exemplo: Se clube é no sábado (2025-11-22) e hoje é domingo (2025-11-23) → passou (true, mostra indicador)
+        
+        
+        hasPassedClubDay = true; 
+      } else {
+        
+        const today = new Date();
+        const todayStr = today.toISOString().split('T')[0]; 
+        
+        
+        
+        
+        
         hasPassedClubDay = todayStr > expectedDate;
       }
     }
 
-    // ⚠️ CRÍTICO: Determinar status
-    // Status 'pending' APENAS para semana ATUAL quando ainda não passou o dia
-    // Para semanas passadas, sempre calcular status baseado em pagelas (ok, partial, missing)
-    // Para semanas futuras, não deve ter indicadores negativos
+    
+    
+    
+    
     let status: string;
     if (exception) {
       status = 'exception';
     } else if (isFutureWeek) {
-      // ⚠️ SEMANA FUTURA: Status baseado apenas em pagelas (se já foram lançadas antecipadamente)
-      // Não deve ter indicadores negativos, pois ainda não chegou essa semana
+      
+      
       if (childrenWithPagela === totalChildren && totalChildren > 0) {
-        status = 'ok'; // Todas as crianças já têm pagela (lançadas antecipadamente)
+        status = 'ok'; 
       } else if (childrenWithPagela > 0) {
-        status = 'partial'; // Algumas crianças têm pagela
+        status = 'partial'; 
       } else {
-        status = 'pending'; // Ainda não tem pagelas, mas é semana futura (não é problema)
+        status = 'pending'; 
       }
     } else if (!hasPassedClubDay && isCurrentWeek) {
-      // ⚠️ APENAS para semana ATUAL quando ainda não passou o dia
-      // Se ainda não passou o dia do clubinho na semana atual
+      
+      
       if (childrenWithPagela === totalChildren && totalChildren > 0) {
-        // Todas as crianças já têm pagela (lançaram antecipadamente)
+        
         status = 'ok';
       } else {
-        // Ainda não passou o dia, mas não tem pagelas (ou parcial)
-        // Status 'pending' = pendente, mas ainda dentro do prazo (não está atrasado)
+        
+        
         status = 'pending';
       }
     } else if (childrenWithPagela === totalChildren) {
-      // Já passou o dia (ou semana passada) e todas as crianças têm pagela
+      
       status = 'ok';
     } else if (childrenWithPagela > 0) {
-      // Já passou o dia (ou semana passada) e algumas crianças têm pagela
+      
       status = 'partial';
     } else {
-      // Já passou o dia (ou semana passada) e nenhuma criança tem pagela
+      
       status = 'missing';
     }
 
-    // ⚠️ CRÍTICO: Indicadores SÓ são gerados se estiver DENTRO do período letivo
-    // (se chegou aqui, está dentro do período e tem expectedDate)
+    
+    
     const indicators: any[] = [];
     
-    // ⚠️ NOVA REGRA: Adicionar indicador de crianças que não frequentam mais (se houver crianças inativas)
+    
     if (inactiveChildren.length > 0) {
       indicators.push({
         type: 'children_not_attending',
@@ -714,14 +712,14 @@ export class ClubControlRepository {
       });
     }
     
-    // Calcular percentuais e estatísticas (só se estiver dentro do período)
-    // ⚠️ IMPORTANTE: Apenas crianças ATIVAS entram nos cálculos de indicadores normais
+    
+    
     const completionRate = totalChildren > 0 ? (childrenWithPagela / totalChildren) * 100 : 0;
     const missingRate = totalChildren > 0 ? (childrenMissing / totalChildren) * 100 : 0;
     
     if (!exception) {
       if (status === 'ok') {
-        // Só mostra indicador positivo se houver crianças ATIVAS no clube
+        
         if (totalChildren > 0) {
         indicators.push({
           type: 'all_ok',
@@ -737,15 +735,15 @@ export class ClubControlRepository {
             },
           });
         }
-        // Se não há crianças, não mostra indicador (clube vazio)
+        
       } else if (status === 'pending') {
-        // Status 'pending' = pendente, mas ainda dentro do prazo (dia do clubinho ainda não passou)
-        // Não mostra indicadores negativos porque ainda não está atrasado
-        // Status 'pending' não tem indicadores - apenas informa que está pendente mas dentro do prazo
+        
+        
+        
       } else if (status === 'partial') {
-        // ⚠️ CRÍTICO: Só mostra indicador negativo se JÁ PASSOU o dia do clubinho
-        // Se ainda não passou o dia, não mostra indicador negativo (não há como cobrar antes do evento)
-        // ⚠️ IMPORTANTE: Apenas crianças ATIVAS entram neste indicador
+        
+        
+        
         if (hasPassedClubDay) {
         indicators.push({
           type: 'some_missing',
@@ -763,11 +761,11 @@ export class ClubControlRepository {
             },
           });
         }
-        // Se ainda não passou o dia do clubinho, não mostra indicador negativo (status continua 'partial' mas sem indicador)
+        
       } else if (status === 'missing') {
-        // ⚠️ CRÍTICO: Só mostra indicador negativo se JÁ PASSOU o dia do clubinho
-        // Se ainda não passou o dia, não mostra indicador negativo (não há como cobrar antes do evento)
-        // ⚠️ IMPORTANTE: Apenas crianças ATIVAS entram neste indicador
+        
+        
+        
         if (hasPassedClubDay) {
           if (totalChildren > 0) {
         indicators.push({
@@ -787,7 +785,7 @@ export class ClubControlRepository {
               },
             });
           } else {
-            // Se não há crianças mas status é missing, pode ser um erro de configuração
+            
             indicators.push({
               type: 'no_children',
               severity: 'warning',
@@ -806,10 +804,10 @@ export class ClubControlRepository {
             });
           }
         }
-        // Se ainda não passou o dia do clubinho, não mostra indicador negativo (status continua 'missing' mas sem indicador)
+        
       }
     } else {
-      // Exceção sempre mostra indicador com detalhes
+      
       indicators.push({
         type: 'exception',
         severity: 'info',
@@ -837,7 +835,7 @@ export class ClubControlRepository {
         expectedDate,
       },
       children: {
-        total: totalChildren, // Apenas crianças ATIVAS para indicadores normais
+        total: totalChildren, 
         activeCount: totalChildren,
         inactiveCount: inactiveCount,
         withPagela: childrenWithPagela,
@@ -862,19 +860,7 @@ export class ClubControlRepository {
   }
 
 
-  /**
-   * Análise detalhada dos indicadores de uma semana
-   * Retorna informações completas sobre todos os indicadores, problemas e recomendações
-   * 
-   * Filtros disponíveis:
-   * - status: Filtrar por status
-   * - severity: Filtrar por severidade
-   * - weekday: Filtrar por dia da semana
-   * - indicatorType: Filtrar por tipo de indicador
-   * - hasProblems: Apenas clubes com problemas
-   * - page: Página para paginação
-   * - limit: Limite por página
-   */
+  
   async getDetailedIndicators(
     year: number, 
     week: number,
@@ -888,7 +874,7 @@ export class ClubControlRepository {
       limit?: number;
     }
   ): Promise<any> {
-    // Buscar TODOS os clubinhos (ativos e inativos)
+    
     const allClubs = await this.clubsRepository.find();
     const activeClubs = allClubs.filter(c => c.isActive === true);
     const inactiveClubs = allClubs.filter(c => c.isActive === false);
@@ -901,11 +887,11 @@ export class ClubControlRepository {
       inactiveClubs.map((club) => this.clubWeekCheckService.checkClubWeek(club.id, year, week)),
     );
 
-    // Coletar informações sobre crianças que não frequentam mais
+    
     let totalChildrenNotAttending = 0;
     const childrenNotAttendingList: any[] = [];
     
-    // Crianças inativas de clubinhos ativos
+    
     clubsResults.forEach((result) => {
       if (result.children.notAttendingCount > 0) {
         totalChildrenNotAttending += result.children.notAttendingCount;
@@ -913,7 +899,7 @@ export class ClubControlRepository {
       }
     });
 
-    // Todas as crianças de clubinhos inativos
+    
     inactiveClubsResults.forEach((result) => {
       if (result.children.notAttendingCount > 0) {
         totalChildrenNotAttending += result.children.notAttendingCount;
@@ -921,7 +907,7 @@ export class ClubControlRepository {
       }
     });
 
-    // Aplicar filtros
+    
     if (filters) {
       if (filters.status) {
         clubsResults = clubsResults.filter(r => r.status === filters.status);
@@ -958,7 +944,7 @@ export class ClubControlRepository {
       }
     }
 
-    // Agrupar por tipo de indicador e status
+    
     const indicatorsByType: Record<string, any[]> = {
       all_ok: [],
       some_missing: [],
@@ -980,7 +966,7 @@ export class ClubControlRepository {
       out_of_period: [],
     };
 
-    // Estatísticas agregadas
+    
     let totalChildrenAll = 0;
     let totalChildrenWithPagela = 0;
     let totalChildrenMissing = 0;
@@ -989,13 +975,13 @@ export class ClubControlRepository {
     const clubsWarning: any[] = [];
 
     clubsResults.forEach((result) => {
-      // Agrupar por status
+      
       if (!clubsByStatus[result.status]) {
         clubsByStatus[result.status] = [];
       }
       clubsByStatus[result.status].push(result);
 
-      // Processar indicadores
+      
       if (result.indicators && result.indicators.length > 0) {
         result.indicators.forEach((indicator: any) => {
           const type = indicator.type;
@@ -1011,7 +997,7 @@ export class ClubControlRepository {
           }
         });
 
-        // Identificar problemas críticos
+        
         const hasCritical = result.indicators.some((i: any) => i.severity === 'critical');
         const hasWarning = result.indicators.some((i: any) => i.severity === 'warning');
 
@@ -1024,13 +1010,13 @@ export class ClubControlRepository {
         }
       }
 
-      // Acumular estatísticas
+      
       totalChildrenAll += result.children.total || 0;
       totalChildrenWithPagela += result.children.withPagela || 0;
       totalChildrenMissing += result.children.missing || 0;
     });
 
-    // Calcular percentuais gerais
+    
     const overallCompletionRate = totalChildrenAll > 0 
       ? (totalChildrenWithPagela / totalChildrenAll) * 100 
       : 0;
@@ -1038,7 +1024,7 @@ export class ClubControlRepository {
       ? (totalChildrenMissing / totalChildrenAll) * 100 
       : 0;
 
-    // Calcular estatísticas por dia da semana
+    
     const statsByWeekday: Record<string, any> = {};
     clubsResults.forEach((result) => {
       if (result.weekday) {
@@ -1071,7 +1057,7 @@ export class ClubControlRepository {
       }
     });
 
-    // Gerar recomendações
+    
     const recommendations: string[] = [];
     
     if (clubsCritical.length > 0) {
@@ -1094,7 +1080,7 @@ export class ClubControlRepository {
       recommendations.push(`⚠️ ${indicatorsByType.some_missing.length} clube(s) com pagelas parciais - algumas crianças faltando`);
     }
 
-    // Resumo executivo
+    
     const executiveSummary = {
       week: {
         year,
@@ -1121,7 +1107,7 @@ export class ClubControlRepository {
         missing: totalChildrenMissing,
         completionRate: Math.round(overallCompletionRate * 10) / 10,
         missingRate: Math.round(overallMissingRate * 10) / 10,
-        // Informações sobre crianças que não frequentam mais
+        
         notAttending: {
           total: totalChildrenNotAttending,
           fromInactiveClubs: inactiveClubsResults.reduce((sum, r) => sum + (r.children.notAttendingCount || 0), 0),
@@ -1206,7 +1192,7 @@ export class ClubControlRepository {
       },
       recommendations,
       currentWeek: await this.academicWeekService.calculateCurrentAcademicWeek(),
-      // Informações sobre clubinhos e crianças desativadas
+      
       inactiveClubs: inactiveClubs.map(club => ({
         clubId: club.id,
         clubNumber: club.number,
@@ -1217,7 +1203,7 @@ export class ClubControlRepository {
         total: totalChildrenNotAttending,
         list: childrenNotAttendingList,
       },
-      // Aplicar paginação se especificado
+      
       ...(filters?.page && filters?.limit ? {
         pagination: {
           page: filters.page,
@@ -1240,24 +1226,15 @@ export class ClubControlRepository {
   }
 
 
-  /**
-   * Obter a data de início da semana (segunda-feira) para uma data
-   */
+  
   private getWeekStartDate(date: Date): Date {
     const d = new Date(date);
     const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Ajustar para segunda-feira
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); 
     return new Date(d.setDate(diff));
   }
 
-  /**
-   * Calcula a data esperada baseada na semana ACADÊMICA (não ISO)
-   * @param year - Ano do período letivo
-   * @param week - Semana acadêmica (1-N)
-   * @param weekday - Dia da semana do clube
-   * @param period - Período letivo
-   * @returns Data no formato YYYY-MM-DD
-   */
+  
   private getExpectedDateForAcademicWeek(year: number, week: number, weekday: string, period: ClubPeriodEntity): string {
     const weekdayMap: Record<string, number> = {
       monday: 1,
@@ -1275,31 +1252,31 @@ export class ClubControlRepository {
       throw new Error(`Invalid weekday: ${weekday}`);
     }
 
-    // ✅ Calcular baseado na semana ACADÊMICA:
-    // 1. Obter o início do período letivo
-    // 2. Calcular o início da semana acadêmica N
-    // 3. Encontrar o dia da semana específico dentro dessa semana
+    
+    
+    
+    
     
     const periodStartDate = new Date(period.startDate + 'T00:00:00');
     const startWeekStart = this.getWeekStartDate(periodStartDate);
     
-    // Calcular o início da semana acadêmica N (semana 1 = startWeekStart)
-    // Semana 1: startWeekStart
-    // Semana 2: startWeekStart + 7 dias
-    // Semana N: startWeekStart + (N-1) * 7 dias
+    
+    
+    
+    
     const academicWeekStart = new Date(startWeekStart);
     academicWeekStart.setDate(startWeekStart.getDate() + (week - 1) * 7);
     
-    // Encontrar o dia da semana específico dentro dessa semana acadêmica
+    
     const date = new Date(academicWeekStart);
     const currentDay = date.getDay();
     
-    // Calcular diferença para chegar ao dia desejado
-    // Se dia atual é segunda (1) e queremos sábado (6): +5 dias
-    // Se dia atual é segunda (1) e queremos terça (2): +1 dia
+    
+    
+    
     let dayDiff = targetWeekday - currentDay;
     if (dayDiff < 0) {
-      dayDiff += 7; // Ajustar para próxima ocorrência
+      dayDiff += 7; 
     }
     
     date.setDate(academicWeekStart.getDate() + dayDiff);
@@ -1309,9 +1286,7 @@ export class ClubControlRepository {
     return resultDate;
   }
 
-  /**
-   * @deprecated Usar getExpectedDateForAcademicWeek - calcula baseado em semana ISO (incorreto)
-   */
+  
   private getExpectedDateForWeek(year: number, week: number, weekday: string): string {
     const weekdayMap: Record<string, number> = {
       monday: 1,
@@ -1331,7 +1306,7 @@ export class ClubControlRepository {
 
     const date = this.getDateOfISOWeek(year, week);
 
-    // Ajustar para o dia da semana desejado (máximo 7 iterações)
+    
     let iterations = 0;
     while (date.getDay() !== targetWeekday && iterations < 7) {
       date.setDate(date.getDate() + 1);

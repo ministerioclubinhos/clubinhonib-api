@@ -47,10 +47,11 @@ export class ChildrenRepository {
 
     const qb = this.baseQB();
 
+    
     if (q.searchString) {
       const s = `%${q.searchString.trim().toLowerCase()}%`;
       qb.andWhere(
-        '(LOWER(c.name) LIKE :s OR LOWER(c.guardianName) LIKE :s OR LOWER(c.guardianPhone) LIKE :s)',
+        '(LOWER(c.name) LIKE :s OR LOWER(c.guardianName) LIKE :s OR c.guardianPhone LIKE :s)',
         { s },
       );
     }
@@ -72,8 +73,13 @@ export class ChildrenRepository {
     if (q.joinedFrom) qb.andWhere('c.joinedAt >= :jf', { jf: q.joinedFrom });
     if (q.joinedTo) qb.andWhere('c.joinedAt <= :jt', { jt: q.joinedTo });
 
+    
+    
     if (q.isActive !== undefined) {
       qb.andWhere('c.isActive = :isActive', { isActive: q.isActive });
+    } else if (q.clubNumber !== undefined) {
+      
+      qb.andWhere('c.isActive = :isActive', { isActive: true });
     }
 
     this.applyRoleFilter(qb, ctx);

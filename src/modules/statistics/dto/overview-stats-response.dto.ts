@@ -5,8 +5,8 @@ export class OverviewStatsResponseDto {
     totalTeachers: number;
     activeChildrenThisMonth: number;
     activeTeachersThisMonth: number;
-    inactiveChildren: number; // ⭐ NOVO: Total de crianças desativadas
-    inactiveClubs: number; // ⭐ NOVO: Total de clubinhos desativados
+    inactiveChildren: number; 
+    inactiveClubs: number; 
   };
   pagelas: {
     thisWeek: {
@@ -38,6 +38,53 @@ export class OverviewStatsResponseDto {
     lastSixMonths: {
       month: string;
       total: number;
+    }[];
+  };
+  
+  engagement?: {
+    avgEngagementScore: number; 
+    topPerformingClubs: {
+      clubId: string;
+      clubNumber: number;
+      performanceScore: number;
+      city: string;
+    }[];
+    topEngagedChildren: {
+      childId: string;
+      name: string;
+      engagementScore: number;
+      clubNumber: number;
+    }[];
+    recentActivity: {
+      last7Days: number; 
+      last30Days: number; 
+    };
+  };
+  
+  indicators?: {
+    clubsWithLowAttendance: number; 
+    childrenWithLowEngagement: number; 
+    clubsMissingPagelas: number; 
+    growthRate: {
+      children: number; 
+      decisions: number; 
+    };
+  };
+  
+  quickStats?: {
+    childrenByGender: {
+      M: number;
+      F: number;
+    };
+    clubsByState: {
+      state: string;
+      count: number;
+    }[];
+    topCities: {
+      city: string;
+      state: string;
+      totalChildren: number;
+      totalClubs: number;
     }[];
   };
 }

@@ -1,7 +1,7 @@
 import { DecisionType } from 'src/modules/accepted-christs/enums/decision-type.enum';
 
 export class AcceptedChristPeriodStatsDto {
-  period: string; // Depends on groupBy: YYYY-MM-DD, YYYY-Www, YYYY-MM, or YYYY
+  period: string; 
   totalDecisions: number;
   byDecisionType: {
     [key in DecisionType]?: number;

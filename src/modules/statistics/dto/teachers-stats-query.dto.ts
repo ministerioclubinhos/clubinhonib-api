@@ -1,9 +1,15 @@
-import { IsOptional, IsInt, Min, Max, IsString, IsBoolean } from 'class-validator';
+import { IsOptional, IsInt, Min, Max, IsString, IsBoolean, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
 import { Transform } from 'class-transformer';
+import { PeriodShortcut } from './period-filter.dto';
 
 export class TeachersStatsQueryDto {
-  // Time filters (for pagelas period)
+  
+  @IsOptional()
+  @IsEnum(PeriodShortcut)
+  period?: PeriodShortcut; 
+
+  
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -13,13 +19,13 @@ export class TeachersStatsQueryDto {
 
   @IsOptional()
   @IsString()
-  startDate?: string; // YYYY-MM-DD
+  startDate?: string; 
 
   @IsOptional()
   @IsString()
-  endDate?: string; // YYYY-MM-DD
+  endDate?: string; 
 
-  // Entity filters
+  
   @IsOptional()
   @IsString()
   clubId?: string;
@@ -28,7 +34,7 @@ export class TeachersStatsQueryDto {
   @IsString()
   coordinatorId?: string;
 
-  // Geographic filters
+  
   @IsOptional()
   @IsString()
   city?: string;
@@ -37,7 +43,7 @@ export class TeachersStatsQueryDto {
   @IsString()
   state?: string;
 
-  // Activity filters
+  
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -67,18 +73,18 @@ export class TeachersStatsQueryDto {
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
-  isActive?: boolean; // Teve pagela nos últimos 30 dias
+  isActive?: boolean; 
 
-  // Sorting
+  
   @IsOptional()
   @IsString()
-  sortBy?: string; // "name" | "effectivenessScore" | "totalPagelas" | "presenceRate"
+  sortBy?: string; 
 
   @IsOptional()
   @IsString()
   sortOrder?: 'ASC' | 'DESC';
 
-  // Pagination
+  
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -91,6 +97,31 @@ export class TeachersStatsQueryDto {
   @Min(1)
   @Max(100)
   limit?: number;
+
+  
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  maxEffectivenessScore?: number; 
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  maxPresenceRate?: number; 
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  minDecisions?: number; 
+
+  @IsOptional()
+  @IsString()
+  search?: string; 
 }
 
 

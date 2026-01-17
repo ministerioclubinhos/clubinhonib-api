@@ -1,9 +1,15 @@
 import { IsOptional, IsInt, Min, Max, IsString, IsEnum, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 import { Transform } from 'class-transformer';
+import { PeriodShortcut } from './period-filter.dto';
 
 export class ChildrenStatsQueryDto {
-  // Time filters (for pagelas period)
+  
+  @IsOptional()
+  @IsEnum(PeriodShortcut)
+  period?: PeriodShortcut; 
+
+  
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -13,13 +19,13 @@ export class ChildrenStatsQueryDto {
 
   @IsOptional()
   @IsString()
-  startDate?: string; // YYYY-MM-DD
+  startDate?: string; 
 
   @IsOptional()
   @IsString()
-  endDate?: string; // YYYY-MM-DD
+  endDate?: string; 
 
-  // Entity filters
+  
   @IsOptional()
   @IsString()
   clubId?: string;
@@ -32,10 +38,10 @@ export class ChildrenStatsQueryDto {
   @IsString()
   coordinatorId?: string;
 
-  // Child demographic filters
+  
   @IsOptional()
   @IsString()
-  gender?: string; // 'M' | 'F'
+  gender?: string; 
 
   @IsOptional()
   @Type(() => Number)
@@ -53,9 +59,9 @@ export class ChildrenStatsQueryDto {
 
   @IsOptional()
   @IsString()
-  ageGroup?: string; // "0-5", "6-10", "11-15", "16+"
+  ageGroup?: string; 
 
-  // Geographic filters
+  
   @IsOptional()
   @IsString()
   city?: string;
@@ -68,60 +74,60 @@ export class ChildrenStatsQueryDto {
   @IsString()
   district?: string;
 
-  // Participation filters
+  
   @IsOptional()
   @IsString()
-  joinedAfter?: string; // YYYY-MM-DD
+  joinedAfter?: string; 
 
   @IsOptional()
   @IsString()
-  joinedBefore?: string; // YYYY-MM-DD
+  joinedBefore?: string; 
 
-  // Activity filters
+  
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
-  minPagelas?: number; // Mínimo de pagelas
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
-  @Max(100)
-  minPresenceRate?: number; // Taxa mínima de presença
+  minPagelas?: number; 
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
   @Max(100)
-  minEngagementScore?: number; // Score mínimo de engajamento
+  minPresenceRate?: number; 
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  minEngagementScore?: number; 
 
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
-  hasDecision?: boolean; // Tem decisão?
+  hasDecision?: boolean; 
 
   @IsOptional()
   @IsString()
-  decisionType?: string; // "ACCEPTED" | "RECONCILED"
+  decisionType?: string; 
 
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
-  isActive?: boolean; // Teve pagela nos últimos 30 dias
+  isActive?: boolean; 
 
-  // Sorting
+  
   @IsOptional()
   @IsString()
-  sortBy?: string; // "name" | "age" | "engagementScore" | "totalPagelas" | "presenceRate"
+  sortBy?: string; 
 
   @IsOptional()
   @IsString()
   sortOrder?: 'ASC' | 'DESC';
 
-  // Pagination
+  
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -134,6 +140,40 @@ export class ChildrenStatsQueryDto {
   @Min(1)
   @Max(100)
   limit?: number;
+
+  
+  @IsOptional()
+  @IsString()
+  search?: string; 
+
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  hasLowEngagement?: boolean; 
+
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  isNewcomer?: boolean; 
+
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  isVeteran?: boolean; 
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  maxEngagementScore?: number; 
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  maxPresenceRate?: number; 
 }
 
 

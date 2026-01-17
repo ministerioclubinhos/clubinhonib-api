@@ -4,37 +4,16 @@ import { CreateClubPeriodDto } from '../dto/create-club-period.dto';
 import { UpdateClubPeriodDto } from '../dto/update-club-period.dto';
 import { CreateClubExceptionDto } from '../dto/create-club-exception.dto';
 
-/**
- * Controlador de Controle GLOBAL dos Clubes
- * 
- * IMPORTANTE:
- * - Períodos letivos são GLOBAIS (um por ano)
- * - Exceções são GLOBAIS (uma por data, afeta todos os clubes)
- * - Verificações são em tempo real pelo painel
- */
+
 @Controller('club-control')
 export class ClubControlController {
   private readonly logger = new Logger(ClubControlController.name);
 
   constructor(private readonly clubControlService: ClubControlService) {}
 
-  // ============= PERÍODOS LETIVOS GLOBAIS =============
+  
 
-  /**
-   * POST /club-control/periods
-   * 
-   * Criar período letivo GLOBAL (um por ano para todos os clubes)
-   * 
-   * Body:
-   * {
-   *   "year": 2024,
-   *   "startDate": "2024-02-05",
-   *   "endDate": "2024-12-15",
-   *   "description": "Ano Letivo 2024"
-   * }
-   * 
-   * REGRA: A primeira semana dentro do período é a "semana 1" do ano letivo
-   */
+  
   @Post('periods')
   async createPeriod(@Body() dto: CreateClubPeriodDto) {
     const started = Date.now();
@@ -49,11 +28,7 @@ export class ClubControlController {
     }
   }
 
-  /**
-   * GET /club-control/periods/:year
-   * 
-   * Buscar período letivo de um ano específico
-   */
+  
   @Get('periods/:year')
   async getPeriodByYear(@Param('year') year: number) {
     const started = Date.now();
@@ -68,11 +43,7 @@ export class ClubControlController {
     }
   }
 
-  /**
-   * GET /club-control/periods
-   * 
-   * Listar todos os períodos letivos
-   */
+  
   @Get('periods')
   async getAllPeriods(
     @Query('page') page?: number,
@@ -93,21 +64,7 @@ export class ClubControlController {
     }
   }
 
-  /**
-   * PUT /club-control/periods/:id
-   * 
-   * Atualizar período letivo pelo ID
-   * 
-   * Body (todos os campos são opcionais):
-   * {
-   *   "startDate": "2024-02-05",
-   *   "endDate": "2024-12-15",
-   *   "description": "Ano Letivo 2024",
-   *   "isActive": true
-   * }
-   * 
-   * NOTA: O campo `year` não pode ser alterado (é único e identifica o período)
-   */
+  
   @Put('periods/:id')
   async updatePeriod(@Param('id') id: string, @Body() dto: UpdateClubPeriodDto) {
     const started = Date.now();
@@ -124,11 +81,7 @@ export class ClubControlController {
     }
   }
 
-  /**
-   * DELETE /club-control/periods/:id
-   * 
-   * Desativar (soft delete) um período letivo pelo ID
-   */
+  
   @Delete('periods/:id')
   async deletePeriod(@Param('id') id: string) {
     const started = Date.now();
@@ -149,24 +102,9 @@ export class ClubControlController {
     }
   }
 
-  // ============= EXCEÇÕES GLOBAIS =============
+  
 
-  /**
-   * POST /club-control/exceptions
-   * 
-   * Criar exceção GLOBAL (uma por data, afeta todos os clubes)
-   * 
-   * Body:
-   * {
-   *   "exceptionDate": "2024-11-15",
-   *   "reason": "Feriado - Proclamação da República",
-   *   "type": "holiday",
-   *   "isRecurrent": true
-   * }
-   * 
-   * REGRA: Se 15/11/2024 é uma quarta-feira, TODOS os clubes de quarta
-   * não funcionam nesse dia (não precisam de pagela)
-   */
+  
   @Post('exceptions')
   async createException(@Body() dto: CreateClubExceptionDto) {
     const started = Date.now();
@@ -181,13 +119,7 @@ export class ClubControlController {
     }
   }
 
-  /**
-   * GET /club-control/exceptions/:date
-   * 
-   * Buscar exceção por data específica
-   * 
-   * Exemplo: /club-control/exceptions/2024-11-15
-   */
+  
   @Get('exceptions/:date')
   async getExceptionByDate(@Param('date') date: string) {
     const started = Date.now();
@@ -202,15 +134,7 @@ export class ClubControlController {
     }
   }
 
-  /**
-   * GET /club-control/exceptions
-   * 
-   * Listar exceções (opcionalmente filtrar por período)
-   * 
-   * Query params: startDate, endDate
-   * 
-   * Exemplo: /club-control/exceptions?startDate=2024-01-01&endDate=2024-12-31
-   */
+  
   @Get('exceptions')
   async getExceptionsByPeriod(
     @Query('startDate') startDate?: string,
@@ -233,11 +157,7 @@ export class ClubControlController {
     }
   }
 
-  /**
-   * DELETE /club-control/exceptions/:id
-   * 
-   * Desativar (soft delete) uma exceção pelo ID
-   */
+  
   @Delete('exceptions/:id')
   async deleteException(@Param('id') id: string) {
     const started = Date.now();
@@ -258,26 +178,9 @@ export class ClubControlController {
     }
   }
 
-  // ============= PAINEL DE CONTROLE (TEMPO REAL) =============
+  
 
-  /**
-   * GET /club-control/check/club/:clubId
-   * 
-   * Verificar um clube específico em uma semana
-   * 
-   * Query params:
-   * - year: ano (obrigatório)
-   * - week: semana (obrigatório)
-   * 
-   * Retorna:
-   * - Total de crianças
-   * - Crianças com pagela
-   * - Crianças SEM pagela (lista de nomes)
-   * - Status: ok, partial, missing, exception
-   * - Indicadores visuais para o painel
-   * 
-   * Exemplo: /club-control/check/club/uuid?year=2024&week=45
-   */
+  
   @Get('check/club/:clubId')
   async checkClubWeek(
     @Param('clubId') clubId: string,
@@ -296,40 +199,7 @@ export class ClubControlController {
     }
   }
 
-  /**
-   * GET /club-control/check/week
-   * 
-   * Verificar TODOS os clubes em uma semana
-   * 
-   * ⚠️ IMPORTANTE: year e week são do ANO LETIVO, não semana ISO!
-   * - year: Ano do período letivo (ex: 2024)
-   * - week: Semana do ano letivo (semana 1 = primeira semana dentro do período letivo)
-   * 
-   * As pagelas são armazenadas com semana do ano letivo.
-   * 
-   * ⭐ NOVO: Se `year` e `week` não forem fornecidos, o sistema calcula automaticamente
-   * a semana atual do ano letivo baseado no período letivo cadastrado!
-   * 
-   * Query params:
-   * - year: ano do período letivo (OPCIONAL - se não informado, usa semana atual)
-   * - week: semana do ano letivo (OPCIONAL - se não informado, usa semana atual)
-   * - page: página para paginação (opcional)
-   * - limit: limite por página (opcional)
-   * 
-   * Retorna:
-   * - Lista de todos os clubes
-   * - Status de cada um
-   * - Crianças faltantes por clube
-   * - Resumo geral (quantos ok, partial, missing, exception)
-   * - Informação da semana atual (`currentWeek`)
-   * 
-   * Ideal para dashboard semanal do administrador
-   * 
-   * Exemplos:
-   * - /club-control/check/week (sem parâmetros - retorna semana atual)
-   * - /club-control/check/week?year=2025&week=47 (semana específica)
-   * - /club-control/check/week?year=2025&week=47&page=1&limit=20 (com paginação)
-   */
+  
   @Get('check/week')
   async checkAllClubsWeek(
     @Query('year') year?: number,
@@ -338,23 +208,23 @@ export class ClubControlController {
     @Query('limit') limit?: number,
   ) {
     const started = Date.now();
-    // ⭐ Valores padrão para paginação quando não fornecidos
+    
     const DEFAULT_PAGE = 1;
     const DEFAULT_LIMIT = 50;
     const p = page ? Number(page) : DEFAULT_PAGE;
     const l = limit ? Number(limit) : DEFAULT_LIMIT;
     
-    // Se year e week não foram fornecidos, calcular automaticamente a semana atual
+    
     let y: number | undefined;
     let w: number | undefined;
     
     if (year !== undefined && week !== undefined) {
-      // Parâmetros fornecidos - usar diretamente
+      
       y = Number(year);
       w = Number(week);
       this.logger.log(`GET /club-control/check/week?year=${y}&week=${w}&page=${p}&limit=${l}`);
     } else {
-      // Sem parâmetros - calcular semana atual automaticamente
+      
       this.logger.log(`GET /club-control/check/week (calculando semana atual automaticamente, page=${p}, limit=${l})`);
     }
     
@@ -369,21 +239,7 @@ export class ClubControlController {
     }
   }
 
-  /**
-   * GET /club-control/dashboard
-   * 
-   * Dashboard de controle da semana ATUAL
-   * Não requer parâmetros - sempre mostra a semana atual
-   * 
-   * Retorna:
-   * - Status de todos os clubes na semana corrente
-   * - Indicadores visuais (✅ ⚠️ 🔴 ℹ️)
-   * - Resumo geral
-   * - Informação da semana atual do ano letivo
-   * 
-   * IMPORTANTE: Não envia alertas automáticos!
-   * É apenas para consulta em tempo real pelo administrador.
-   */
+  
   @Get('dashboard')
   async getCurrentWeekDashboard() {
     const started = Date.now();
@@ -398,22 +254,7 @@ export class ClubControlController {
     }
   }
 
-  /**
-   * GET /club-control/current-week
-   * 
-   * Obter informação da semana atual do ano letivo
-   * 
-   * Retorna:
-   * - Ano letivo atual
-   * - Número da semana atual (baseado no período letivo cadastrado)
-   * - Se está dentro do período letivo
-   * - Datas de início e fim do período letivo
-   * 
-   * IMPORTANTE: O número da semana é calculado baseado no período letivo cadastrado.
-   * A primeira semana dentro do período é a "semana 1" do ano letivo.
-   * 
-   * Exemplo: /club-control/current-week
-   */
+  
   @Get('current-week')
   async getCurrentWeek() {
     const started = Date.now();
@@ -428,53 +269,7 @@ export class ClubControlController {
     }
   }
 
-  /**
-   * GET /club-control/indicators/detailed
-   * 
-   * Análise detalhada dos indicadores de uma semana
-   * 
-   * ⚠️ IMPORTANTE: year e week são do ANO LETIVO, não semana ISO!
-   * - year: Ano do período letivo (ex: 2024)
-   * - week: Semana do ano letivo (semana 1 = primeira semana dentro do período letivo)
-   * 
-   * As pagelas são armazenadas com semana do ano letivo. Use o endpoint
-   * /club-control/current-week para obter a semana atual do ano letivo.
-   * 
-   * Query params obrigatórios:
-   * - year: ano do período letivo (obrigatório)
-   * - week: semana do ano letivo (obrigatório)
-   * 
-   * Query params opcionais (filtros):
-   * - status: Filtrar por status (ok, partial, missing, exception, inactive, out_of_period)
-   * - severity: Filtrar por severidade (critical, warning, info, success)
-   * - weekday: Filtrar por dia da semana (monday, tuesday, wednesday, thursday, friday, saturday)
-   * - indicatorType: Filtrar por tipo de indicador (all_ok, some_missing, no_pagela, etc.)
-   * - hasProblems: Apenas clubes com problemas (true/false)
-   * - page: Página para paginação (default: 1)
-   * - limit: Limite por página (default: 50)
-   * 
-   * Retorna:
-   * - Resumo executivo completo
-   * - Indicadores agrupados por tipo e severidade
-   * - Clubes com problemas (críticos e avisos)
-   * - Estatísticas por dia da semana
-   * - Recomendações automáticas
-   * - Informação da semana atual do ano letivo
-   * - Paginação (se page e limit forem especificados)
-   * 
-   * Ideal para:
-   * - Dashboard administrativo detalhado
-   * - Relatórios executivos
-   * - Análise de tendências
-   * - Identificação de problemas prioritários
-   * 
-   * Exemplos:
-   * - /club-control/indicators/detailed?year=2025&week=47
-   * - /club-control/indicators/detailed?year=2025&week=47&status=missing
-   * - /club-control/indicators/detailed?year=2025&week=47&severity=critical
-   * - /club-control/indicators/detailed?year=2025&week=47&hasProblems=true&page=1&limit=20
-   * - /club-control/indicators/detailed?year=2025&week=47&weekday=saturday&indicatorType=no_pagela
-   */
+  
   @Get('indicators/detailed')
   async getDetailedIndicators(
     @Query('year') year: number,

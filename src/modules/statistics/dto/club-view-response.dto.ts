@@ -1,4 +1,4 @@
-// ============= CLUB VIEW DTOs =============
+
 
 export class ClubDetailedStatsDto {
   clubInfo: {
@@ -91,7 +91,7 @@ export class ClubDetailedStatsDto {
   }[];
 }
 
-// ============= CHILD VIEW DTOs =============
+
 
 export class ChildDetailedStatsDto {
   childInfo: {
@@ -119,8 +119,8 @@ export class ChildDetailedStatsDto {
     meditationRate: number;
     verseRecitationRate: number;
     engagementScore: number;
-    rank: number; // Position in club ranking
-    totalRank: number; // Total children in club
+    rank: number; 
+    totalRank: number; 
   };
 
   decisions: {
@@ -172,7 +172,7 @@ export class ChildDetailedStatsDto {
   }[];
 }
 
-// ============= CITY VIEW DTOs =============
+
 
 export class CityDetailedStatsDto {
   cityInfo: {
@@ -222,7 +222,7 @@ export class CityDetailedStatsDto {
       decisions: number;
     };
     comparisonToState: {
-      presenceRate: number; // % difference
+      presenceRate: number; 
       meditationRate: number;
       decisionsRate: number;
     };
@@ -243,7 +243,7 @@ export class CityDetailedStatsDto {
   }[];
 }
 
-// ============= TEACHER VIEW DTOs =============
+
 
 export class TeacherDetailedStatsDto {
   teacherInfo: {
@@ -307,7 +307,7 @@ export class TeacherDetailedStatsDto {
   };
 }
 
-// ============= COMPARATIVE VIEW DTOs =============
+
 
 export class ComparativeStatsDto {
   comparison: {
@@ -362,7 +362,7 @@ export class ComparativeStatsDto {
   };
 }
 
-// ============= TRENDS VIEW DTOs =============
+
 
 export class TrendsAnalysisDto {
   overview: {
@@ -411,7 +411,7 @@ export class TrendsAnalysisDto {
   }[];
 }
 
-// ============= CONSOLIDATED REPORTS DTOs =============
+
 
 export class ConsolidatedReportDto {
   reportInfo: {
