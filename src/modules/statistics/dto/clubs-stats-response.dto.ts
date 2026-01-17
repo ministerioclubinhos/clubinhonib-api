@@ -1,28 +1,28 @@
 export class ClubStatsItemDto {
-  
+
   clubId: string;
   clubNumber: number;
   weekday: string;
   time?: string | null;
 
-  
-  address: {
-    city: string;
-    state: string;
-    district: string;
-    street: string;
+
+  address?: {
+    city?: string;
+    state?: string;
+    district?: string;
+    street?: string;
   };
 
-  
+
   coordinator?: {
     id: string;
     name: string;
   } | null;
 
-  
+
   children: {
     total: number;
-    active: number; 
+    active: number;
     byGender: {
       M: number;
       F: number;
@@ -31,7 +31,7 @@ export class ClubStatsItemDto {
     withDecisions: number;
   };
 
-  
+
   teachers: {
     total: number;
     active: number;
@@ -41,23 +41,23 @@ export class ClubStatsItemDto {
     }[];
   };
 
-  
+
   performance: {
     totalPagelas: number;
     presenceRate: number;
     meditationRate: number;
     verseRecitationRate: number;
-    performanceScore: number; 
+    performanceScore: number;
     totalDecisions: number;
   };
 
-  
+
   lastActivity?: {
     date: string;
     type: string;
   } | null;
 
-  
+
   rank?: number;
 }
 
@@ -96,7 +96,7 @@ export class ClubsStatsResponseDto {
       percentage: number;
     }[];
     byPerformance: {
-      range: string; 
+      range: string;
       count: number;
       percentage: number;
     }[];
@@ -113,7 +113,7 @@ export class ClubsStatsResponseDto {
     hasPrevious: boolean;
   };
 
-  
+
   inactiveClubs: {
     total: number;
     list: {

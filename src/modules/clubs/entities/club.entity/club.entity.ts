@@ -1,4 +1,4 @@
-import { BaseEntity } from 'src/share/share-entity/base.entity';
+import { BaseEntity } from 'src/shared/share-entity/base.entity';
 import { Entity, Column, OneToOne, JoinColumn, OneToMany, ManyToOne } from 'typeorm';
 import { Weekday } from '../../enums/weekday.enum/weekday.enum';
 import { AddressEntity } from 'src/modules/addresses/entities/address.entity/address.entity';

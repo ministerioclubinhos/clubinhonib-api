@@ -8,8 +8,8 @@ import { TeacherProfilesController } from './teacher-profiles.controller';
 import { TeacherProfileEntity } from './entities/teacher-profile.entity/teacher-profile.entity';
 import { CoordinatorProfilesModule } from '../coordinator-profiles/coordinator-profiles.module';
 import { ClubsModule } from '../clubs/clubs.module';
-import { UserModule } from 'src/user/user.module';
-import { AuthModule } from 'src/auth/auth.module';
+import { UserModule } from 'src/core/user/user.module';
+import { AuthModule } from 'src/core/auth/auth.module';
 
 @Module({
   imports: [

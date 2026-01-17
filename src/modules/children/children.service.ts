@@ -15,7 +15,7 @@ import {
 } from './dto/child-response.dto';
 import { toChildListItemDto, toChildResponseDto } from './mappers/child.mapper';
 import { ClubEntity } from '../clubs/entities/club.entity/club.entity';
-import { AuthContextService } from 'src/auth/services/auth-context.service';
+import { AuthContextService } from 'src/core/auth/services/auth-context.service';
 
 const toDateOnlyStr = (v: string | Date | undefined | null): string | null => {
   if (v === undefined || v === null) return null;

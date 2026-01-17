@@ -20,10 +20,10 @@ import { DeleteClubsService } from './services/delete-clubs.service';
 import { UpdateClubsService } from './services/update-clubs.service';
 import { GetClubsService } from './services/get-clubs.service';
 import { CreateClubsService } from './services/create-clubs.service';
-import { Paginated } from 'src/share/dto/paginated.dto';
+import { Paginated } from 'src/shared/dto/paginated.dto';
 import { ClubResponseDto, ClubSimpleResponseDto } from './dto/club.response.dto';
 import { ClubSelectOptionDto } from './dto/club-select-option.dto';
-import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 
 @Controller('clubs')
 @UseGuards(JwtAuthGuard)

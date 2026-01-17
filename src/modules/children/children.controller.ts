@@ -19,7 +19,7 @@ import { CreateChildDto } from './dto/create-child.dto';
 import { UpdateChildDto } from './dto/update-child.dto';
 import { QueryChildrenDto, QueryChildrenSimpleDto } from './dto/query-children.dto';
 import { PaginatedResponseDto, ChildResponseDto, ChildListItemDto } from './dto/child-response.dto';
-import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 
 @Controller('children')
 @UseGuards(JwtAuthGuard)

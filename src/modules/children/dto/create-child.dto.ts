@@ -10,12 +10,12 @@ import {
 import { Type } from 'class-transformer';
 
 class AddressDto {
-  @IsString() street: string;
+  @IsOptional() @IsString() street?: string;
   @IsOptional() @IsString() number?: string;
-  @IsString() district: string;
-  @IsString() city: string;
-  @IsString() state: string;
-  @IsString() postalCode: string;
+  @IsOptional() @IsString() district?: string;
+  @IsOptional() @IsString() city?: string;
+  @IsOptional() @IsString() state?: string;
+  @IsOptional() @IsString() postalCode?: string;
   @IsOptional() @IsString() complement?: string;
 }
 

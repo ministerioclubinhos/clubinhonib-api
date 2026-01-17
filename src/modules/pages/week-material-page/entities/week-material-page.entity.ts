@@ -1,0 +1,26 @@
+import { Entity, Column, OneToOne, JoinColumn } from 'typeorm';
+import { RouteEntity } from 'src/modules/routes/route-page.entity';
+import { BaseEntity } from 'src/shared/share-entity/base.entity';
+
+@Entity('week_material_pages')
+export class WeekMaterialsPageEntity extends BaseEntity {
+  @Column()
+  title: string;
+
+  @Column({ type: 'text' })
+  subtitle: string;
+
+  @Column({ default: false })
+  currentWeek: boolean;
+
+  @Column({ type: 'text' })
+  description: string;
+
+  @OneToOne(() => RouteEntity, {
+    cascade: true,
+    eager: true,
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn()
+  route: RouteEntity;
+}
