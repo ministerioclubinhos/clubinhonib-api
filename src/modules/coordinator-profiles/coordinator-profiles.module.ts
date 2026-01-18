@@ -8,7 +8,7 @@ import { CoordinatorProfilesController } from './coordinator-profiles.controller
 
 import { TeacherProfilesModule } from '../teacher-profiles/teacher-profiles.module';
 import { ClubsModule } from '../clubs/clubs.module';
-import { UserModule } from 'src/user/user.module';
+import { UserModule } from 'src/core/user/user.module';
 
 @Module({
   imports: [

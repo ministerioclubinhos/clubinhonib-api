@@ -8,7 +8,7 @@ import { ChildEntity } from './entities/child.entity';
 import { ChildrenRepository } from './repositories/children.repository';
 import { AddressesModule } from '../addresses/addresses.module';
 import { ClubsModule } from '../clubs/clubs.module';
-import { AuthModule } from 'src/auth/auth.module';
+import { AuthModule } from 'src/core/auth/auth.module';
 
 @Module({
   imports: [

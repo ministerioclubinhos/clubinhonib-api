@@ -125,7 +125,7 @@ export class ClubsRepository {
     const qb = this.buildClubBaseQB().distinct(true);
     this.applyRoleFilter(qb, ctx);
 
-    
+
     if (searchString?.trim()) {
       const raw = searchString.trim();
       const like = `%${raw}%`;
@@ -133,7 +133,7 @@ export class ClubsRepository {
       const isNum = Number.isInteger(n) && n > 0;
 
       if (isNum) {
-        
+
         qb.andWhere(
           `(
             club.number = :clubNum OR
@@ -143,7 +143,7 @@ export class ClubsRepository {
           { clubNum: n, like },
         );
       } else {
-        
+
         qb.andWhere(
           `(
             LOWER(address.district) LIKE LOWER(:like) OR
@@ -209,8 +209,11 @@ export class ClubsRepository {
       const addressRepo = manager.withRepository(this.addressRepo);
       const coordRepo = manager.withRepository(this.coordRepo);
       const teacherRepo = manager.withRepository(this.teacherProfileRepo);
-      const address = addressRepo.create(dto.address);
-      await addressRepo.save(address);
+      let address: AddressEntity | undefined;
+      if (dto.address) {
+        address = addressRepo.create(dto.address);
+        await addressRepo.save(address);
+      }
 
       let coordinator: CoordinatorProfileEntity | null = null;
       if (dto.coordinatorProfileId) {
@@ -227,7 +230,7 @@ export class ClubsRepository {
         weekday: dto.weekday,
         time: dto.time ?? null,
         isActive: dto.isActive !== undefined ? dto.isActive : true,
-        address,
+        address: address as any,
         coordinator: coordinator ?? null,
       });
 

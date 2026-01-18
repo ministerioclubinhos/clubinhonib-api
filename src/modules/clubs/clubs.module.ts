@@ -15,7 +15,7 @@ import { AddressesModule } from '../addresses/addresses.module';
 import { CoordinatorProfilesModule } from '../coordinator-profiles/coordinator-profiles.module';
 import { AddressEntity } from '../addresses/entities/address.entity/address.entity';
 import { ChildrenModule } from '../children/children.module';
-import { AuthModule } from 'src/auth/auth.module';
+import { AuthModule } from 'src/core/auth/auth.module';
 
 @Module({
   imports: [

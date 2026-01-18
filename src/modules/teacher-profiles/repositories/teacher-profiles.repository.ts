@@ -8,7 +8,7 @@ import { DataSource, Repository, SelectQueryBuilder } from 'typeorm';
 
 import { TeacherProfileEntity } from '../entities/teacher-profile.entity/teacher-profile.entity';
 import { ClubEntity } from 'src/modules/clubs/entities/club.entity/club.entity';
-import { UserEntity } from 'src/user/user.entity';
+import { UserEntity } from 'src/core/user/entities/user.entity';
 import { TeacherSimpleListDto, toTeacherSimple } from '../dto/teacher-simple-list.dto';
 import { TeacherProfilesQueryDto } from '../dto/teacher-profiles.query.dto';
 

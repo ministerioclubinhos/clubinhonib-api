@@ -1,31 +1,31 @@
 export class ChildStatsItemDto {
-  
+
   childId: string;
   name: string;
   gender: string;
   age: number;
   birthDate: string;
 
-  
+
   joinedAt?: string | null;
   monthsParticipating: number;
-  participationTimeRange: string; 
+  participationTimeRange: string;
 
-  
+
   club?: {
     id: string;
     number: number;
     weekday: string;
   } | null;
 
-  
+
   address?: {
-    city: string;
-    state: string;
-    district: string;
+    city?: string;
+    state?: string;
+    district?: string;
   } | null;
 
-  
+
   stats: {
     totalPagelas: number;
     presenceCount: number;
@@ -34,12 +34,12 @@ export class ChildStatsItemDto {
     presenceRate: number;
     meditationRate: number;
     verseRecitationRate: number;
-    engagementScore: number; 
+    engagementScore: number;
     lastPagelaDate?: string | null;
     consecutiveWeeks: number;
   };
 
-  
+
   decisions: {
     hasDecision: boolean;
     decisionType?: string | null;
@@ -47,10 +47,10 @@ export class ChildStatsItemDto {
     totalDecisions: number;
   };
 
-  
-  isActive: boolean; 
-  
-  
+
+  isActive: boolean;
+
+
   rank?: number;
 }
 

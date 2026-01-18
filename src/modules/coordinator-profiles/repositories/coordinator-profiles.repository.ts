@@ -13,7 +13,7 @@ import {
 
 import { CoordinatorProfileEntity } from '../entities/coordinator-profile.entity/coordinator-profile.entity';
 import { ClubEntity } from 'src/modules/clubs/entities/club.entity/club.entity';
-import { UserEntity } from 'src/user/user.entity';
+import { UserEntity } from 'src/core/user/entities/user.entity';
 import {
   CoordinatorSimpleListDto,
   toCoordinatorSimple,

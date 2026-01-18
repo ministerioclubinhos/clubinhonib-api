@@ -1,6 +1,6 @@
 import { ClubEntity } from 'src/modules/clubs/entities/club.entity/club.entity';
-import { BaseEntity } from 'src/share/share-entity/base.entity';
-import { UserEntity } from 'src/user/user.entity';
+import { BaseEntity } from 'src/shared/share-entity/base.entity';
+import { UserEntity } from 'src/core/user/entities/user.entity';
 import {
   Entity,
   Column,

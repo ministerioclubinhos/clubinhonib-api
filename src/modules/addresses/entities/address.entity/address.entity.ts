@@ -1,33 +1,38 @@
-import { BaseEntity } from 'src/share/share-entity/base.entity';
+import { BaseEntity } from 'src/shared/share-entity/base.entity';
 import { Entity, Column } from 'typeorm';
 import { IsOptional, IsString } from 'class-validator';
 
 @Entity('addresses')
 export class AddressEntity extends BaseEntity {
-  @Column()
+  @Column({ nullable: true })
   @IsString()
-  street: string;
+  @IsOptional()
+  street?: string;
 
   @Column({ nullable: true })
   @IsString()
   @IsOptional()
   number?: string;
 
-  @Column()
+  @Column({ nullable: true })
   @IsString()
-  district: string;
+  @IsOptional()
+  district?: string;
 
-  @Column()
+  @Column({ nullable: true })
   @IsString()
-  city: string;
+  @IsOptional()
+  city?: string;
 
-  @Column()
+  @Column({ nullable: true })
   @IsString()
-  state: string;
+  @IsOptional()
+  state?: string;
 
-  @Column()
+  @Column({ nullable: true })
   @IsString()
-  postalCode: string;
+  @IsOptional()
+  postalCode?: string;
 
   @Column({ nullable: true })
   @IsString()
