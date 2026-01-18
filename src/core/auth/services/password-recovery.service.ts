@@ -116,6 +116,17 @@ export class PasswordRecoveryService {
     }
 
     private getBaseUrl(): string {
-        return this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+        const environment = this.configService.get<string>('ENVIRONMENT');
+
+        switch (environment) {
+            case 'local':
+                return 'http://localhost:5173';
+            case 'staging':
+                return 'https://staging.clubinhonib.com';
+            case 'production':
+                return 'https://clubinhonib.com';
+            default:
+                return 'http://localhost:5173';
+        }
     }
 }
