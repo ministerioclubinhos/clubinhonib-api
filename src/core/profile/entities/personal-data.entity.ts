@@ -5,7 +5,7 @@ import { BaseEntity } from 'src/shared/share-entity/base.entity';
 @Entity('personal_data')
 export class PersonalData extends BaseEntity {
   @Column({ type: 'date', nullable: true })
-  birthDate?: Date;
+  birthDate?: string | Date;
 
   @Column({ nullable: true })
   gender?: string;
