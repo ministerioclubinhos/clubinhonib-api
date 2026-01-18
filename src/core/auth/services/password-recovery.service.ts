@@ -1,10 +1,11 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
-import { GetUsersService } from 'src/core/user/services/get-user.service';
-import { UpdateUserService } from 'src/core/user/services/update-user.service';
-import { EmailService } from 'src/shared/providers/aws/email.service';
-import { SesIdentityService } from 'src/shared/providers/aws/ses-identity.service';
-import { EmailTemplateGenerator } from 'src/shared/email-template-generator';
+import { GetUsersService } from '../../user/services/get-user.service';
+import { UpdateUserService } from '../../user/services/update-user.service';
+import { EmailService } from '../../../shared/providers/aws/email.service';
+import { SesIdentityService } from '../../../shared/providers/aws/ses-identity.service';
+import { EmailTemplateGenerator } from '../../../shared/email-template-generator';
 import { ForgotPasswordDto } from '../dto/forgot-password.dto';
 import { ResetPasswordDto } from '../dto/reset-password.dto';
 import { PasswordResetTokenRepository } from '../repositories/password-reset-token.repository';
@@ -17,12 +18,13 @@ export class PasswordRecoveryService {
         private emailService: EmailService,
         private passwordResetTokenRepo: PasswordResetTokenRepository,
         private sesIdentityService: SesIdentityService,
+        private configService: ConfigService,
     ) { }
 
     async forgotPassword(data: ForgotPasswordDto) {
         const user = await this.getUsersService.findByEmail(data.email);
         if (!user) {
-            return { message: 'Se o email existir, as instruções foram enviadas.' };
+            throw new NotFoundException('Email não encontrado.');
         }
 
         const sesCheck = await this.sesIdentityService.checkAndResendSesVerification(user.email);
@@ -50,23 +52,23 @@ export class PasswordRecoveryService {
             `<p>Recebemos uma solicitação para redefinir sua senha.</p>
        <p>Clique no botão abaixo para criar uma nova senha:</p>
        <div style="text-align: center; margin: 30px 0;">
-         <a href="${resetLink}" class="button" style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Redefinir Senha</a>
+         <a href="${resetLink}" class="button" style="background-color: #16A34A; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Redefinir Senha</a>
        </div>
        <p style="font-size: 14px; color: #666;">Ou copie e cole o link abaixo no seu navegador:</p>
-       <p style="font-size: 12px; color: #4F46E5; word-break: break-all;">${resetLink}</p>
+       <p style="font-size: 12px; color: #16A34A; word-break: break-all;">${resetLink}</p>
        <p>Este link é válido por 30 minutos.</p>`
         );
 
         await this.emailService.sendEmailViaSES(
             user.email,
-            'Recuperação de Senha - Orfanatos NIB',
+            'Recuperação de Senha - Clubinhos NIB',
             `Olá ${user.name},\n\nRecebemos uma solicitação para redefinir sua senha.\nClique no link abaixo: \n${resetLink}`,
             emailHtml
         );
 
         return {
             status: 'RESET_LINK_SENT',
-            message: 'Se o email existir, as instruções foram enviadas.'
+            message: 'As instruções de recuperação foram enviadas para o seu email.'
         };
     }
 
@@ -99,13 +101,13 @@ export class PasswordRecoveryService {
             `<p>Sua senha foi alterada com sucesso.</p>
        <p>Agora você pode acessar sua conta com a nova senha.</p>
        <div style="text-align: center; margin: 30px 0;">
-         <a href="${baseUrl}" style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Acessar Plataforma</a>
+         <a href="${baseUrl}" style="background-color: #16A34A; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Acessar Plataforma</a>
        </div>`
         );
 
         await this.emailService.sendEmailViaSES(
             user.email,
-            'Senha Alterada com Sucesso - Orfanatos NIB',
+            'Senha Alterada com Sucesso - Clubinhos NIB',
             `Olá ${user.name},\n\nSua senha foi alterada com sucesso.`,
             emailHtml
         );
@@ -114,12 +116,6 @@ export class PasswordRecoveryService {
     }
 
     private getBaseUrl(): string {
-        const env = process.env.ENVIRONMENT || 'local';
-        if (env === 'prod' || env === 'production') {
-            return 'https://www.orfanatonib.com';
-        } else if (env === 'staging') {
-            return 'https://staging.orfanatonib.com';
-        }
-        return 'http://localhost:5173';
+        return this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
     }
 }
