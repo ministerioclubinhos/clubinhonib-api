@@ -31,23 +31,18 @@ export class AwsSESService {
     subject: string,
     textBody: string,
     htmlBody?: string,
+    from?: string,
   ): Promise<void> {
-    const from =
-      this.configService.get<string>('SES_DEFAULT_FROM') || 'no-reply@orfanatonib.com';
+    const source = from || this.configService.get<string>('SES_DEFAULT_FROM');
 
-    const toAddresses = to
-      .split(',')
-      .map((email) => email.trim())
-      .filter((email) => email.length > 0);
-
-    if (toAddresses.length === 0) {
-      this.logger.warn('No valid email addresses provided');
+    if (!to || to.trim().length === 0) {
+      this.logger.warn('No valid email address provided');
       return;
     }
 
     const command = new SendEmailCommand({
       Destination: {
-        ToAddresses: toAddresses,
+        ToAddresses: [to.trim()],
       },
       Message: {
         Subject: {
@@ -64,15 +59,15 @@ export class AwsSESService {
           }),
         },
       },
-      Source: from,
+      Source: source,
     });
 
     try {
       await this.sesClient.send(command);
-      this.logger.log(`Email sent successfully to: ${toAddresses.join(', ')}`);
+      this.logger.log(`Email sent successfully via ${source} to: ${to}`);
     } catch (error) {
-      this.logger.error(`Error sending email via SES: ${error.message}`);
-      throw new Error('Error sending email');
+      this.logger.error(`Error sending email via SES (${source}): ${error.message}`);
+      throw new Error(`Error sending email via ${source}`);
     }
   }
 }

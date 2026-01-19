@@ -5,149 +5,84 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ContactRepository } from './contact.repository';
-import { AwsSESService } from 'src/shared/providers/aws/aws-ses.service';
 import { ContactEntity } from './contact.entity';
-import { Twilio } from 'twilio';
-import { EmailTemplateGenerator } from 'src/shared/email-template-generator';
+import { NotificationService } from 'src/shared/providers/notification/notification.service';
 
 @Injectable()
 export class ContactService {
   private readonly logger = new Logger(ContactService.name);
-  private readonly twilio: Twilio;
 
   constructor(
     private readonly contactRepo: ContactRepository,
-    private readonly sesService: AwsSESService,
-  ) {
-    this.twilio = new Twilio(
-      process.env.TWILIO_ACCOUNT_SID ?? '',
-      process.env.TWILIO_AUTH_TOKEN ?? '',
-    );
-  }
+    private readonly notificationService: NotificationService,
+  ) {}
 
   async createContact(data: Partial<ContactEntity>): Promise<ContactEntity> {
-    this.logger.debug(`📩 Iniciando processo de criação de contato para: ${data.email}`);
+    this.logger.debug(`Creating contact for: ${data.email}`);
 
     let contact: ContactEntity;
     try {
       contact = await this.contactRepo.saveContact(data);
-      this.logger.log(`✅ Contato salvo no banco: ID=${contact.id}`);
+      this.logger.log(`Contact saved: ID=${contact.id}`);
     } catch (error) {
-      this.logger.error(`❌ Erro ao salvar contato no banco: ${error.message}`, error.stack);
+      this.logger.error(`Error saving contact: ${error.message}`, error.stack);
       throw new InternalServerErrorException('Erro ao salvar o contato');
     }
 
-    const receivedDate = new Date().toLocaleString('pt-BR', {
-      timeZone: 'America/Sao_Paulo',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-
-    const htmlBody = EmailTemplateGenerator.generateContactNotification({
-      name: contact.name,
-      email: contact.email,
-      phone: contact.phone,
-      message: contact.message,
-      receivedDate,
-    });
-    const subject = 'Novo contato do site';
-    const to = process.env.SES_DEFAULT_TO;
-
-    try {
-      await this.sesService.sendEmailViaSES(to || '', subject, '', htmlBody);
-      this.logger.log(`📧 E-mail enviado com sucesso para: ${to}`);
-    } catch (error) {
-      this.logger.error(`❌ Erro ao enviar e-mail: ${error.message}`, error.stack);
-      throw new InternalServerErrorException('Erro ao enviar e-mail de contato');
-    }
-
-    const whatsappFrom = process.env.TWILIO_WHATSAPP_FROM;
-    const whatsappTo = process.env.TWILIO_WHATSAPP_TO;
-
-    if (whatsappFrom && whatsappTo) {
-      const message = this.generateWhatsappMessage(contact);
-      try {
-        const result = await this.twilio.messages.create({ body: message, from: whatsappFrom, to: whatsappTo, });
-        this.logger.log(`📲 WhatsApp enviado com sucesso! SID: ${result.sid}`);
-      } catch (err) {
-        this.logger.error(`❌ Erro ao enviar WhatsApp: ${err.message}`, err.stack);
-        throw new InternalServerErrorException('Erro ao enviar WhatsApp de contato');
-      }
-    } else {
-      this.logger.warn('⚠️ TWILIO_WHATSAPP_FROM ou TO não estão definidos no .env — WhatsApp não será enviado.');
-    }
+    await this.notificationService.notifyNewContact(contact);
 
     return contact;
   }
 
-  private generateWhatsappMessage(contact: ContactEntity): string {
-    return `
-📥 *Novo contato recebido via site Clubinhos NIB!*
-
-👤 *Nome:* ${contact.name}
-📧 *E-mail:* ${contact.email}
-📱 *Telefone:* ${contact.phone}
-
-💬 *Mensagem:*
-${contact.message}
-    `.trim();
-  }
-
-
-
   async getAllContacts(): Promise<ContactEntity[]> {
     try {
-      this.logger.log('📥 Buscando todos os contatos...');
+      this.logger.log('Fetching all contacts...');
       const contacts = await this.contactRepo.getAll();
-      this.logger.log(`✅ ${contacts.length} contato(s) encontrados`);
+      this.logger.log(`${contacts.length} contact(s) found`);
       return contacts;
     } catch (error) {
-      this.logger.error('❌ Erro ao buscar contatos', error.stack);
+      this.logger.error('Error fetching contacts', error.stack);
       throw new InternalServerErrorException('Erro ao buscar contatos');
     }
   }
 
   async setReadOnContact(id: string): Promise<ContactEntity> {
+    this.logger.log(`Marking contact as read: ID=${id}`);
+
+    const contact = await this.contactRepo.findOneById(id);
+
+    if (!contact) {
+      this.logger.warn(`Contact not found: ID=${id}`);
+      throw new NotFoundException('Contato não encontrado');
+    }
+
+    contact.read = true;
+
     try {
-      this.logger.log('📥 Buscando contato...');
-      const contact = await this.contactRepo.findOneById(id);
-
-      if (!contact) {
-        this.logger.warn(`⚠️ Contato não encontrado com id: ${id}`);
-        throw new NotFoundException('Contato não encontrado');
-      }
-
-      contact.read = true;
-
-      this.logger.log(`📥 Atualizando contato...`);
       await this.contactRepo.save(contact);
-
+      this.logger.log(`Contact marked as read: ID=${id}`);
       return contact;
     } catch (error) {
-      this.logger.error('❌ Erro ao buscar ou atualizar contato', error.stack);
-      throw new InternalServerErrorException('Erro ao buscar ou atualizar contato');
+      this.logger.error('Error updating contact', error.stack);
+      throw new InternalServerErrorException('Erro ao atualizar contato');
     }
   }
 
   async deleteContact(id: string): Promise<void> {
+    this.logger.log(`Deleting contact: ID=${id}`);
+
+    const contact = await this.contactRepo.findOneById(id);
+
+    if (!contact) {
+      this.logger.warn(`Contact not found: ID=${id}`);
+      throw new NotFoundException('Contato não encontrado');
+    }
+
     try {
-      this.logger.log(`🗑️ Iniciando exclusão do contato ID=${id}`);
-
-      const contact = await this.contactRepo.findOneById(id);
-
-      if (!contact) {
-        this.logger.warn(`⚠️ Contato não encontrado: ID=${id}`);
-        throw new NotFoundException('Contato não encontrado');
-      }
-
       await this.contactRepo.remove(contact);
-
-      this.logger.log(`✅ Contato excluído com sucesso: ID=${id}`);
+      this.logger.log(`Contact deleted: ID=${id}`);
     } catch (error) {
-      this.logger.error(`❌ Erro ao excluir contato ID=${id}`, error.stack);
+      this.logger.error(`Error deleting contact: ID=${id}`, error.stack);
       throw new InternalServerErrorException('Erro ao excluir contato');
     }
   }

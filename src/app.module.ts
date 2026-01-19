@@ -6,6 +6,8 @@ import { RouteModule } from './modules/routes/route.module';
 import { UserModule } from './core/user/user.module';
 import { AuthModule } from './core/auth/auth.module';
 import { AwsModule } from './shared/providers/aws/aws.module';
+import { TwilioModule } from './shared/providers/twilio/twilio.module';
+import { NotificationModule } from './shared/providers/notification/notification.module';
 import { DatabaseModule } from '../database/database.module';
 import { MeditationModule } from './modules/meditations/meditation.module';
 import { ImageModule } from './modules/pages/image-page/image-page.module';
@@ -38,6 +40,8 @@ import { ClubControlModule } from './modules/club-control/club-control.module';
     }),
     DatabaseModule,
     AwsModule,
+    TwilioModule,
+    NotificationModule,
     ImageModule,
     RouteModule,
     UserModule,
