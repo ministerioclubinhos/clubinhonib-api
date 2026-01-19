@@ -32,7 +32,7 @@ export class PasswordRecoveryService {
         if (sesCheck.verificationEmailSent || !sesCheck.alreadyVerified) {
             return {
                 status: 'VERIFICATION_EMAIL_SENT',
-                message: 'Seu email ainda não foi verificado na AWS. Um novo email de verificação foi enviado.',
+                message: 'Seu email ainda não foi verificado. Um novo email de verificação foi enviado.',
             };
         }
 

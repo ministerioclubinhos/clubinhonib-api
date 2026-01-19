@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, SelectQueryBuilder } from 'typeorm';
 import { ChildEntity } from '../entities/child.entity';
-import { QueryChildrenDto } from '../dto/query-children.dto';
+import { QueryChildrenDto, QueryChildrenSimpleDto } from '../dto/query-children.dto';
 import { ClubEntity } from 'src/modules/clubs/entities/club.entity/club.entity';
 
 export type PaginatedRows<T> = { items: T[]; total: number };
@@ -47,7 +47,7 @@ export class ChildrenRepository {
 
     const qb = this.baseQB();
 
-    
+
     if (q.searchString) {
       const s = `%${q.searchString.trim().toLowerCase()}%`;
       qb.andWhere(
@@ -73,12 +73,12 @@ export class ChildrenRepository {
     if (q.joinedFrom) qb.andWhere('c.joinedAt >= :jf', { jf: q.joinedFrom });
     if (q.joinedTo) qb.andWhere('c.joinedAt <= :jt', { jt: q.joinedTo });
 
-    
-    
+
+
     if (q.isActive !== undefined) {
       qb.andWhere('c.isActive = :isActive', { isActive: q.isActive });
     } else if (q.clubNumber !== undefined) {
-      
+
       qb.andWhere('c.isActive = :isActive', { isActive: true });
     }
 
@@ -100,7 +100,10 @@ export class ChildrenRepository {
     return { items, total };
   }
 
-  async findAllSimple(ctx?: RoleCtx): Promise<ChildEntity[]> {
+  async findAllSimple(q: QueryChildrenSimpleDto, ctx?: RoleCtx): Promise<PaginatedRows<ChildEntity>> {
+    const page = q.page ?? 1;
+    const limit = q.limit ?? 20;
+
     const qb = this.repo
       .createQueryBuilder('c')
       .leftJoin('c.club', 'club')
@@ -119,10 +122,64 @@ export class ChildrenRepository {
         'acceptedChrists.updatedAt',
       ]);
 
+    if (q.searchString) {
+      const s = `%${q.searchString.trim().toLowerCase()}%`;
+      qb.andWhere(
+        '(LOWER(c.name) LIKE :s OR LOWER(c.guardianName) LIKE :s OR c.guardianPhone LIKE :s)',
+        { s },
+      );
+    }
+
+    if (q.isActive !== undefined) {
+      const isActiveValue = (q.isActive as any) === 'true' || q.isActive === true;
+      qb.andWhere('c.isActive = :isActive', { isActive: isActiveValue });
+    }
+    if (q.acceptedChrist !== undefined) {
+      const acceptedChristValue = (q.acceptedChrist as any) === 'true' || q.acceptedChrist === true;
+
+      if (acceptedChristValue === true) {
+        qb.andWhere((qb) => {
+          const subQuery = qb
+            .subQuery()
+            .select('1')
+            .from('accepted_christs', 'ac')
+            .where('ac.child_id = c.id')
+            .andWhere('ac.decision IN (:...decisions)', {
+              decisions: ['ACCEPTED', 'RECONCILED'],
+            })
+            .getQuery();
+          return `EXISTS ${subQuery}`;
+        });
+      } else {
+        qb.andWhere((qb) => {
+          const subQuery = qb
+            .subQuery()
+            .select('1')
+            .from('accepted_christs', 'ac')
+            .where('ac.child_id = c.id')
+            .andWhere('ac.decision IN (:...decisions)', {
+              decisions: ['ACCEPTED', 'RECONCILED'],
+            })
+            .getQuery();
+          return `NOT EXISTS ${subQuery}`;
+        });
+      }
+    }
+
     this.applyRoleFilter(qb as any as SelectQueryBuilder<ChildEntity>, ctx);
 
+    qb.orderBy('c.isActive', 'DESC')
+      .addOrderBy('c.name', 'ASC');
+
     qb.distinct(true);
-    return qb.getMany();
+
+    const totalQuery = qb.clone();
+    const total = await totalQuery.getCount();
+
+    qb.skip((page - 1) * limit).take(limit);
+
+    const items = await qb.getMany();
+    return { items, total };
   }
 
 
