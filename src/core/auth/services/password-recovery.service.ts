@@ -46,18 +46,7 @@ export class PasswordRecoveryService {
         const baseUrl = this.getBaseUrl();
         const resetLink = `${baseUrl}/recuperar-senha/${resetToken}`;
 
-        const emailHtml = EmailTemplateGenerator.generate(
-            'Recuperação de Senha',
-            user.name,
-            `<p>Recebemos uma solicitação para redefinir sua senha.</p>
-       <p>Clique no botão abaixo para criar uma nova senha:</p>
-       <div style="text-align: center; margin: 30px 0;">
-         <a href="${resetLink}" class="button" style="background-color: #16A34A; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Redefinir Senha</a>
-       </div>
-       <p style="font-size: 14px; color: #666;">Ou copie e cole o link abaixo no seu navegador:</p>
-       <p style="font-size: 12px; color: #16A34A; word-break: break-all;">${resetLink}</p>
-       <p>Este link é válido por 30 minutos.</p>`
-        );
+        const emailHtml = EmailTemplateGenerator.generatePasswordRecovery(user.name, resetLink);
 
         await this.emailService.sendEmailViaSES(
             user.email,
@@ -95,15 +84,7 @@ export class PasswordRecoveryService {
         await this.passwordResetTokenRepo.deleteToken(dto.token);
 
         const baseUrl = this.getBaseUrl();
-        const emailHtml = EmailTemplateGenerator.generate(
-            'Senha Alterada',
-            user.name,
-            `<p>Sua senha foi alterada com sucesso.</p>
-       <p>Agora você pode acessar sua conta com a nova senha.</p>
-       <div style="text-align: center; margin: 30px 0;">
-         <a href="${baseUrl}" style="background-color: #16A34A; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Acessar Plataforma</a>
-       </div>`
-        );
+        const emailHtml = EmailTemplateGenerator.generatePasswordChanged(user.name, baseUrl);
 
         await this.emailService.sendEmailViaSES(
             user.email,
