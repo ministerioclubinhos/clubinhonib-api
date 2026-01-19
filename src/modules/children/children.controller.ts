@@ -19,7 +19,7 @@ import { CreateChildDto } from './dto/create-child.dto';
 import { UpdateChildDto } from './dto/update-child.dto';
 import { QueryChildrenDto, QueryChildrenSimpleDto } from './dto/query-children.dto';
 import { PaginatedResponseDto, ChildResponseDto, ChildListItemDto } from './dto/child-response.dto';
-import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 
 @Controller('children')
 @UseGuards(JwtAuthGuard)
@@ -35,8 +35,11 @@ export class ChildrenController {
   }
 
   @Get('simple')
-  async findAllSimples(@Req() req: Request,): Promise<ChildListItemDto[]> {
-    return this.service.findAllSimples(req);
+  async findAllSimples(
+    @Query() query: QueryChildrenSimpleDto,
+    @Req() req: Request,
+  ): Promise<PaginatedResponseDto<ChildListItemDto>> {
+    return this.service.findAllSimples(query, req);
   }
 
   @Get(':id')

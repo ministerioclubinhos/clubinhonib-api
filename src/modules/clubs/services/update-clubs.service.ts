@@ -2,7 +2,7 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { Request } from 'express';
 import { ClubsRepository } from '../repositories/clubs.repository';
 import { UpdateClubDto } from '../dto/update-club.dto';
-import { AuthContextService } from 'src/auth/services/auth-context.service';
+import { AuthContextService } from 'src/core/auth/services/auth-context.service';
 
 type Ctx = { role?: string; userId?: string | null };
 

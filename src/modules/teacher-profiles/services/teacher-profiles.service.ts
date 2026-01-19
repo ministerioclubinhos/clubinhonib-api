@@ -7,7 +7,7 @@ import {
   toTeacherDto,
 } from '../dto/teacher-profile.response.dto';
 import { TeacherSimpleListDto } from '../dto/teacher-simple-list.dto';
-import { AuthContextService } from 'src/auth/services/auth-context.service';
+import { AuthContextService } from 'src/core/auth/services/auth-context.service';
 import { PageDto, TeacherProfilesQueryDto } from '../dto/teacher-profiles.query.dto';
 
 type AccessCtx = { role?: string; userId?: string | null };

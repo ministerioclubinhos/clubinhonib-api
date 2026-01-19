@@ -36,7 +36,7 @@ export class StatisticsRepository {
     private readonly exceptionsRepository: Repository<ClubExceptionEntity>,
     private readonly filtersService: StatisticsFiltersService,
     private readonly calculationsService: StatisticsCalculationsService,
-  ) {}
+  ) { }
 
 
   async getPagelasWeeklyStats(filters: PagelasStatsQueryDto) {
@@ -305,7 +305,7 @@ export class StatisticsRepository {
 
   async getPagelasTimeSeries(filters: PagelasStatsQueryDto) {
     const groupBy = filters.groupBy || 'week';
-      const dateFormat = this.filtersService.getDateGroupFormat(groupBy);
+    const dateFormat = this.filtersService.getDateGroupFormat(groupBy);
 
     const query = this.pagelasRepository
       .createQueryBuilder('pagela')
@@ -424,7 +424,7 @@ export class StatisticsRepository {
     });
 
     const orderedRanges = ['0-3 meses', '3-6 meses', '6-12 meses', '1+ ano'];
-    
+
     return orderedRanges
       .filter((range) => timeGroups.has(range))
       .map((range) => {
@@ -496,7 +496,7 @@ export class StatisticsRepository {
 
   async getAcceptedChristsByPeriod(filters: AcceptedChristsStatsQueryDto) {
     const groupBy = filters.groupBy || 'month';
-    
+
     let dateFormat: string;
     let groupByClause: string;
 
@@ -555,7 +555,7 @@ export class StatisticsRepository {
       const periodData = periodMap.get(period);
       const count = parseInt(row.totalDecisions);
       periodData.totalDecisions += count;
-      
+
       if (row.decision) {
         periodData.byDecisionType[row.decision] = (periodData.byDecisionType[row.decision] || 0) + count;
       }
@@ -771,7 +771,7 @@ export class StatisticsRepository {
     });
 
     const orderedRanges = ['0-3 meses', '3-6 meses', '6-12 meses', '1+ ano'];
-    
+
     return orderedRanges
       .filter((range) => timeGroups.has(range))
       .map((range) => {
@@ -793,7 +793,7 @@ export class StatisticsRepository {
 
   async getAcceptedChristsTimeSeries(filters: AcceptedChristsStatsQueryDto) {
     const groupBy = filters.groupBy || 'month';
-    
+
     let dateFormat: string;
     let groupByClause: string;
 
@@ -930,10 +930,10 @@ export class StatisticsRepository {
     const childIds = results.map((r) => r.childId);
     const decisions = childIds.length > 0
       ? await this.acceptedChristsRepository
-          .createQueryBuilder('ac')
-          .leftJoinAndSelect('ac.child', 'child')
-          .where('child.id IN (:...childIds)', { childIds })
-          .getMany()
+        .createQueryBuilder('ac')
+        .leftJoinAndSelect('ac.child', 'child')
+        .where('child.id IN (:...childIds)', { childIds })
+        .getMany()
       : [];
 
     const decisionsMap = new Map();
@@ -1003,15 +1003,15 @@ export class StatisticsRepository {
     const clubIds = pagelasResults.map((r) => r.clubId);
     const childrenCounts = clubIds.length > 0
       ? await this.childrenRepository
-          .createQueryBuilder('child')
-          .select('child.club.id', 'clubId')
-          .addSelect('COUNT(child.id)', 'totalChildren')
-          .leftJoin('child.club', 'club')
-          .where('child.club.id IN (:...clubIds)', { clubIds })
-          .andWhere('club.isActive = :clubActive', { clubActive: true })
-          .andWhere('child.isActive = :isActive', { isActive: true })
-          .groupBy('child.club.id')
-          .getRawMany()
+        .createQueryBuilder('child')
+        .select('child.club.id', 'clubId')
+        .addSelect('COUNT(child.id)', 'totalChildren')
+        .leftJoin('child.club', 'club')
+        .where('child.club.id IN (:...clubIds)', { clubIds })
+        .andWhere('club.isActive = :clubActive', { clubActive: true })
+        .andWhere('child.isActive = :isActive', { isActive: true })
+        .groupBy('child.club.id')
+        .getRawMany()
       : [];
 
     const childrenMap = new Map(
@@ -1064,7 +1064,7 @@ export class StatisticsRepository {
         totalDecisions,
         performanceScore: Math.round(performanceScore * 10) / 10,
       };
-      }).sort((a, b) => b.performanceScore - a.performanceScore);
+    }).sort((a, b) => b.performanceScore - a.performanceScore);
   }
 
 
@@ -1098,14 +1098,14 @@ export class StatisticsRepository {
       const today = new Date();
       if (filters.maxAge !== undefined) {
         const minBirthDate = new Date(today.getFullYear() - filters.maxAge - 1, today.getMonth(), today.getDate());
-        query.andWhere('child.birthDate >= :minBirthDate', { 
-          minBirthDate: minBirthDate.toISOString().split('T')[0] 
+        query.andWhere('child.birthDate >= :minBirthDate', {
+          minBirthDate: minBirthDate.toISOString().split('T')[0]
         });
       }
       if (filters.minAge !== undefined) {
         const maxBirthDate = new Date(today.getFullYear() - filters.minAge, today.getMonth(), today.getDate());
-        query.andWhere('child.birthDate <= :maxBirthDate', { 
-          maxBirthDate: maxBirthDate.toISOString().split('T')[0] 
+        query.andWhere('child.birthDate <= :maxBirthDate', {
+          maxBirthDate: maxBirthDate.toISOString().split('T')[0]
         });
       }
     }
@@ -1130,12 +1130,12 @@ export class StatisticsRepository {
       query.andWhere('child.joinedAt <= :joinedBefore', { joinedBefore: filters.joinedBefore });
     }
 
-    
+
     if (filters.search) {
       query.andWhere('child.name LIKE :search', { search: `%${filters.search}%` });
     }
 
-    
+
     if (filters.isNewcomer) {
       const threeMonthsAgo = new Date();
       threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
@@ -1143,7 +1143,7 @@ export class StatisticsRepository {
       query.andWhere('child.joinedAt >= :threeMonthsAgo', { threeMonthsAgo: threeMonthsAgoStr });
     }
 
-    
+
     if (filters.isVeteran) {
       const oneYearAgo = new Date();
       oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
@@ -1158,7 +1158,7 @@ export class StatisticsRepository {
 
     switch (sortBy) {
       case 'age':
-        query.orderBy('child.birthDate', sortOrder === 'ASC' ? 'DESC' : 'ASC'); 
+        query.orderBy('child.birthDate', sortOrder === 'ASC' ? 'DESC' : 'ASC');
         break;
       case 'name':
       default:
@@ -1171,7 +1171,7 @@ export class StatisticsRepository {
     const children = await query.getMany();
 
     const childIds = children.map((c) => c.id);
-    
+
     let pagelasStats = new Map();
     if (childIds.length > 0) {
       const pagelasQuery = this.pagelasRepository
@@ -1202,7 +1202,7 @@ export class StatisticsRepository {
       pagelasStats = new Map(pagelasResults.map((p) => [p.childId, p]));
     }
 
-    
+
     let decisionsMap = new Map();
     if (childIds.length > 0) {
       const decisions = await this.acceptedChristsRepository
@@ -1236,8 +1236,8 @@ export class StatisticsRepository {
       filteredChildren = filteredChildren.filter((child) => {
         const stats = pagelasStats.get(child.id);
         if (!stats) return false;
-        const presenceRate = stats.totalPagelas > 0 
-          ? (parseInt(stats.presenceCount) / parseInt(stats.totalPagelas)) * 100 
+        const presenceRate = stats.totalPagelas > 0
+          ? (parseInt(stats.presenceCount) / parseInt(stats.totalPagelas)) * 100
           : 0;
         return presenceRate >= filters.minPresenceRate!;
       });
@@ -1271,7 +1271,7 @@ export class StatisticsRepository {
       });
     }
 
-    
+
     if (filters.hasLowEngagement) {
       filteredChildren = filteredChildren.filter((child) => {
         const stats = pagelasStats.get(child.id);
@@ -1287,11 +1287,11 @@ export class StatisticsRepository {
       });
     }
 
-    
+
     if (filters.maxEngagementScore !== undefined) {
       filteredChildren = filteredChildren.filter((child) => {
         const stats = pagelasStats.get(child.id);
-        if (!stats) return true; 
+        if (!stats) return true;
         const total = parseInt(stats.totalPagelas);
         const present = parseInt(stats.presenceCount);
         const meditation = parseInt(stats.meditationCount);
@@ -1303,11 +1303,11 @@ export class StatisticsRepository {
       });
     }
 
-    
+
     if (filters.maxPresenceRate !== undefined) {
       filteredChildren = filteredChildren.filter((child) => {
         const stats = pagelasStats.get(child.id);
-        if (!stats) return true; 
+        if (!stats) return true;
         const presenceRate = stats.totalPagelas > 0
           ? (parseInt(stats.presenceCount) / parseInt(stats.totalPagelas)) * 100
           : 0;
@@ -1315,7 +1315,7 @@ export class StatisticsRepository {
       });
     }
 
-    
+
     if (filters.minEngagementScore !== undefined) {
       filteredChildren = filteredChildren.filter((child) => {
         const stats = pagelasStats.get(child.id);
@@ -1352,7 +1352,7 @@ export class StatisticsRepository {
 
     query.andWhere('child.isActive = :isActive', { isActive: true });
 
-    
+
     if (filters.clubId) {
       query.andWhere('club.id = :clubId', { clubId: filters.clubId });
     }
@@ -1393,7 +1393,7 @@ export class StatisticsRepository {
       const ageGroup = this.calculationsService.getAgeGroup(age);
       byAgeGroup.set(ageGroup, (byAgeGroup.get(ageGroup) || 0) + 1);
 
-      
+
       if (child.club) {
         const clubKey = child.club.id;
         if (!byClub.has(clubKey)) {
@@ -1402,16 +1402,16 @@ export class StatisticsRepository {
         byClub.get(clubKey)!.count++;
       }
 
-      
+
       if (child.address?.city) {
         const cityKey = child.address.city;
         if (!byCity.has(cityKey)) {
-          byCity.set(cityKey, { state: child.address.state, count: 0 });
+          byCity.set(cityKey, { state: child.address?.state ?? 'N/A', count: 0 });
         }
         byCity.get(cityKey)!.count++;
       }
 
-      
+
       const months = this.calculationsService.calculateMonthsParticipating(child.joinedAt);
       const timeRange = this.calculationsService.getParticipationTimeRange(months);
       byParticipationTime.set(timeRange, (byParticipationTime.get(timeRange) || 0) + 1);
@@ -1450,7 +1450,7 @@ export class StatisticsRepository {
     };
   }
 
-  
+
 
   async getClubsWithStats(filters: ClubsStatsQueryDto) {
     const page = filters.page || 1;
@@ -1464,7 +1464,7 @@ export class StatisticsRepository {
       .leftJoin('coordinator.user', 'coordinatorUser')
       .where('club.isActive = :isActive', { isActive: true });
 
-    
+
     if (filters.coordinatorId) {
       query.andWhere('coordinator.id = :coordinatorId', { coordinatorId: filters.coordinatorId });
     }
@@ -1485,17 +1485,17 @@ export class StatisticsRepository {
       query.andWhere('address.district = :district', { district: filters.district });
     }
 
-    
+
     const totalCount = await query.getCount();
 
     query.orderBy('club.number', 'ASC');
 
     const clubs = await query.skip(skip).take(limit).getMany();
 
-    
+
     const clubIds = clubs.map((c) => c.id);
 
-    
+
     const childrenQuery = this.childrenRepository
       .createQueryBuilder('child')
       .leftJoin('child.club', 'club')
@@ -1510,7 +1510,7 @@ export class StatisticsRepository {
 
     const childrenResults = clubIds.length > 0 ? await childrenQuery.getRawMany() : [];
 
-    
+
     const pagelasQuery = this.pagelasRepository
       .createQueryBuilder('pagela')
       .leftJoin('pagela.child', 'child')
@@ -1554,7 +1554,7 @@ export class StatisticsRepository {
 
     const decisionsResults = clubIds.length > 0 ? await decisionsQuery.getRawMany() : [];
 
-    
+
     const teachersQuery = this.teachersRepository
       .createQueryBuilder('teacher')
       .leftJoinAndSelect('teacher.user', 'user')
@@ -1564,27 +1564,27 @@ export class StatisticsRepository {
 
     const teachers = clubIds.length > 0 ? await teachersQuery.getMany() : [];
 
-    
+
     const allClubs = await this.clubsRepository.find();
     const inactiveClubs = allClubs.filter(c => c.isActive === false);
-    
-    
+
+
     const inactiveChildrenQuery = this.childrenRepository
       .createQueryBuilder('child')
       .leftJoin('child.club', 'club')
       .select('COUNT(child.id)', 'total')
       .where('child.isActive = :isActive', { isActive: false });
-    
+
     const inactiveChildrenCount = await inactiveChildrenQuery.getRawOne();
     const totalInactiveChildren = parseInt(inactiveChildrenCount?.total || '0', 10);
 
-    
+
     const childrenFromInactiveClubsQuery = this.childrenRepository
       .createQueryBuilder('child')
       .leftJoin('child.club', 'club')
       .select('COUNT(child.id)', 'total')
       .where('club.isActive = :clubActive', { clubActive: false });
-    
+
     const childrenFromInactiveClubsCount = await childrenFromInactiveClubsQuery.getRawOne();
     const totalChildrenFromInactiveClubs = parseInt(childrenFromInactiveClubsCount?.total || '0', 10);
 
@@ -1597,7 +1597,7 @@ export class StatisticsRepository {
       totalCount,
       page,
       limit,
-      
+
       inactiveClubs: {
         total: inactiveClubs.length,
         list: inactiveClubs.map(club => ({
@@ -1614,14 +1614,14 @@ export class StatisticsRepository {
     };
   }
 
-  
+
 
   async getTeachersWithStats(filters: TeachersStatsQueryDto) {
     const page = filters.page || 1;
     const limit = filters.limit || 20;
     const skip = (page - 1) * limit;
 
-    
+
     const query = this.teachersRepository
       .createQueryBuilder('teacher')
       .leftJoinAndSelect('teacher.user', 'user')
@@ -1646,22 +1646,22 @@ export class StatisticsRepository {
       query.andWhere('address.state = :state', { state: filters.state });
     }
 
-    
+
     if (filters.search) {
       query.andWhere('user.name LIKE :search', { search: `%${filters.search}%` });
     }
 
-    
+
     const totalCount = await query.getCount();
 
     query.orderBy('user.name', 'ASC');
 
     const teachers = await query.skip(skip).take(limit).getMany();
 
-    
+
     const teacherIds = teachers.map((t) => t.id);
 
-    
+
     const pagelasQuery = this.pagelasRepository
       .createQueryBuilder('pagela')
       .leftJoin('pagela.child', 'child')
@@ -1687,7 +1687,7 @@ export class StatisticsRepository {
 
     const pagelasResults = teacherIds.length > 0 ? await pagelasQuery.getRawMany() : [];
 
-    
+
     const decisionsQuery = this.acceptedChristsRepository
       .createQueryBuilder('ac')
       .leftJoin('ac.child', 'child')
@@ -1709,9 +1709,9 @@ export class StatisticsRepository {
     };
   }
 
-  
 
-  
+
+
   async analyzeClubAttendance(
     clubId: string,
     year: number,
@@ -1720,7 +1720,7 @@ export class StatisticsRepository {
     page?: number,
     limit?: number,
   ): Promise<any> {
-    
+
     const club = await this.clubsRepository.findOne({
       where: { id: clubId },
       relations: ['address'],
@@ -1730,19 +1730,19 @@ export class StatisticsRepository {
       throw new Error('Clubinho not found');
     }
 
-    
+
     const academicPeriod = await this.periodsRepository.findOne({
       where: { year, isActive: true },
     });
 
-    
+
     const hasPeriod = !!academicPeriod;
 
-    
+
     const periodStart = academicPeriod?.startDate || startDate || `${year}-01-01`;
     const periodEnd = academicPeriod?.endDate || endDate || `${year}-12-31`;
 
-    
+
     const exceptions = await this.exceptionsRepository
       .createQueryBuilder('exception')
       .where('exception.isActive = :isActive', { isActive: true })
@@ -1752,20 +1752,20 @@ export class StatisticsRepository {
 
     const exceptionDates = new Set(exceptions.map(e => e.exceptionDate));
 
-    
+
     const allChildren = await this.childrenRepository.find({
       where: { club: { id: clubId } },
     });
 
-    
+
     const activeChildren = allChildren.filter(child => child.isActive === true);
 
-    
-    
-    
-    
+
+
+
+
     const childIds = activeChildren.map(c => c.id);
-    
+
     let pagelasQuery: any = null;
     if (childIds.length > 0) {
       pagelasQuery = this.pagelasRepository
@@ -1778,15 +1778,15 @@ export class StatisticsRepository {
         .andWhere('pagela.referenceDate <= :endDate', { endDate: periodEnd })
         .andWhere('child.id IN (:...childIds)', { childIds })
         .andWhere('child.isActive = :isActive', { isActive: true });
-      
-      
+
+
       if (hasPeriod && academicPeriod) {
         pagelasQuery = pagelasQuery.andWhere('pagela.year = :academicYear', { academicYear: academicPeriod.year });
-        
-        
+
+
       }
     }
-    
+
     const pagelas = childIds.length > 0 && pagelasQuery ? await pagelasQuery
       .select('pagela.year', 'year')
       .addSelect('pagela.week', 'week')
@@ -1799,69 +1799,69 @@ export class StatisticsRepository {
       .addOrderBy('pagela.week', 'ASC')
       .getRawMany() : [];
 
-    
+
     let maxAcademicWeek = 0;
     if (hasPeriod && academicPeriod) {
       const start = new Date(academicPeriod.startDate);
       const end = new Date(academicPeriod.endDate);
-      
-      
+
+
       const getWeekStartDate = (date: Date): Date => {
         const d = new Date(date);
         const day = d.getDay();
         const diff = d.getDate() - day + (day === 0 ? -6 : 1);
         return new Date(d.setDate(diff));
       };
-      
+
       const startWeekStart = getWeekStartDate(start);
       const endWeekStart = getWeekStartDate(end);
-      
+
       const daysDiff = Math.floor((endWeekStart.getTime() - startWeekStart.getTime()) / (1000 * 60 * 60 * 24));
-      maxAcademicWeek = Math.floor(daysDiff / 7) + 1; 
+      maxAcademicWeek = Math.floor(daysDiff / 7) + 1;
     }
 
-    
-    
-    
+
+
+
     const weeksWithPagela = new Map<string, any>();
     pagelas.forEach((p) => {
       const pagelaYear = parseInt(p.year);
       const pagelaWeek = parseInt(p.week);
-      
-      
+
+
       if (hasPeriod && academicPeriod) {
-        
+
         if (pagelaYear !== academicPeriod.year) {
-          return; 
+          return;
         }
-        
-        
+
+
         if (maxAcademicWeek > 0 && pagelaWeek > maxAcademicWeek) {
-          return; 
+          return;
         }
       }
-      
+
       const key = `${pagelaYear}-W${pagelaWeek}`;
       weeksWithPagela.set(key, {
         year: pagelaYear,
-        week: pagelaWeek, 
+        week: pagelaWeek,
         totalPagelas: parseInt(p.totalPagelas),
         firstDate: p.firstDate,
         presenceCount: parseInt(p.presentCount),
       });
     });
 
-    
+
     const start = new Date(periodStart);
     const end = new Date(periodEnd);
-    
+
     const allWeeks: any[] = [];
     const missingWeeks: any[] = [];
     let currentDate = new Date(start);
 
     while (currentDate <= end) {
       const currentDateStr = currentDate.toISOString().split('T')[0];
-      
+
       let weekData: { year: number; week: number };
       try {
         if (hasPeriod && academicPeriod) {
@@ -1872,62 +1872,62 @@ export class StatisticsRepository {
             academicPeriod.year
           );
         } else {
-          
+
           weekData = this.getISOWeekYear(currentDateStr);
         }
       } catch (error) {
-        
+
         currentDate.setDate(currentDate.getDate() + 7);
         continue;
       }
-      
+
       const weekKey = `${weekData.year}-W${weekData.week}`;
-      
-      
+
+
       const isException = exceptionDates.has(currentDateStr);
-      
+
       const hasPagela = weeksWithPagela.has(weekKey);
-      
-      
-      
+
+
+
       const weekDate = new Date(currentDateStr);
       const expectedChildren = activeChildren.filter(child => {
-        
+
         if (!child.joinedAt) return true;
-        
+
         const joinedDate = new Date(child.joinedAt);
         return joinedDate <= weekDate;
       }).length;
-      
-      
+
+
       if (hasPeriod && academicPeriod) {
-        
+
         if (maxAcademicWeek > 0 && weekData.week > maxAcademicWeek) {
-          
-          
+
+
           currentDate.setDate(currentDate.getDate() + 7);
           continue;
         }
-        
+
         allWeeks.push({
-          year: weekData.year, 
-          week: weekData.week, 
+          year: weekData.year,
+          week: weekData.week,
           date: currentDateStr,
           hasPagela,
           isException,
-          expectedChildren, 
+          expectedChildren,
           ...weeksWithPagela.get(weekKey),
         });
 
-        
-        
-        
-        
-        
+
+
+
+
+
         if (!hasPagela && !isException && expectedChildren > 0 && weekData.week <= maxAcademicWeek) {
           missingWeeks.push({
-            year: weekData.year, 
-            week: weekData.week, 
+            year: weekData.year,
+            week: weekData.week,
             expectedDate: currentDateStr,
             expectedChildren,
             weekRange: {
@@ -1940,26 +1940,26 @@ export class StatisticsRepository {
         }
       }
 
-      
+
       currentDate.setDate(currentDate.getDate() + 7);
     }
 
-    
-    const weeksExpected = allWeeks.filter(w => !w.isException).length; 
+
+    const weeksExpected = allWeeks.filter(w => !w.isException).length;
     const weeksWithPagelaCount = Array.from(weeksWithPagela.keys()).length;
-    const weeksMissingCount = missingWeeks.length; 
+    const weeksMissingCount = missingWeeks.length;
     const attendanceRate = weeksExpected > 0 ? (weeksWithPagelaCount / weeksExpected) * 100 : 0;
 
-    
+
     let consecutivePresent = 0;
     let consecutiveMissing = 0;
     let currentConsecutivePresent = 0;
     let currentConsecutiveMissing = 0;
 
     allWeeks.forEach((week) => {
-      
+
       if (week.isException) {
-        return; 
+        return;
       }
 
       if (week.hasPagela) {
@@ -1973,7 +1973,7 @@ export class StatisticsRepository {
       }
     });
 
-    
+
     const alerts: any[] = [];
 
     if (weeksMissingCount > 0) {
@@ -2019,7 +2019,7 @@ export class StatisticsRepository {
         startDate: periodStart,
         endDate: periodEnd,
         totalWeeks: allWeeks.length,
-        activeWeeks: weeksExpected, 
+        activeWeeks: weeksExpected,
         exceptionsCount: allWeeks.filter(w => w.isException).length,
         hasAcademicPeriod: !!academicPeriod,
       },
@@ -2048,7 +2048,7 @@ export class StatisticsRepository {
       },
       missingWeeks: (() => {
         const pageNum = page || 1;
-        const limitNum = 20; 
+        const limitNum = 20;
         const skip = (pageNum - 1) * limitNum;
         return missingWeeks.slice(skip, skip + limitNum);
       })(),
@@ -2073,15 +2073,15 @@ export class StatisticsRepository {
     return { year, week };
   }
 
-  
+
   async analyzeWeeklyAttendance(year: number, week: number, page?: number, limit?: number): Promise<any> {
-    
-    
+
+
     const academicPeriod = await this.periodsRepository.findOne({
       where: { year, isActive: true },
     });
 
-    
+
     if (!academicPeriod) {
       return {
         year,
@@ -2090,7 +2090,7 @@ export class StatisticsRepository {
           start: null,
           end: null,
         },
-        clubs: [], 
+        clubs: [],
         summary: {
           totalClubs: 0,
           clubsActive: 0,
@@ -2112,47 +2112,47 @@ export class StatisticsRepository {
       };
     }
 
-    
+
     const periodStartDate = new Date(academicPeriod.startDate + 'T00:00:00');
-    const startWeekStart = this.getWeekStartDate(periodStartDate); 
-    
-    
-    
-    
-    
+    const startWeekStart = this.getWeekStartDate(periodStartDate);
+
+
+
+
+
     const academicWeekStart = new Date(startWeekStart);
     academicWeekStart.setDate(startWeekStart.getDate() + (week - 1) * 7);
     const weekStart = academicWeekStart;
-    const weekEnd = new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000); 
-    
-    
+    const weekEnd = new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000);
+
+
     const start = new Date(academicPeriod.startDate);
     const end = new Date(academicPeriod.endDate);
     const endWeekStart = this.getWeekStartDate(end);
     const daysDiff = Math.floor((endWeekStart.getTime() - startWeekStart.getTime()) / (1000 * 60 * 60 * 24));
     const maxAcademicWeek = Math.floor(daysDiff / 7) + 1;
-    
-    
+
+
     const periodStart = new Date(academicPeriod.startDate);
     const periodEnd = new Date(academicPeriod.endDate);
-    
-    
+
+
     let isWeekWithinPeriod = false;
     const weekStartStr = weekStart.toISOString().split('T')[0];
     const weekEndStr = weekEnd.toISOString().split('T')[0];
-    
-    
-    if ((weekStart >= periodStart && weekStart <= periodEnd) || 
-        (weekEnd >= periodStart && weekEnd <= periodEnd) ||
-        (weekStart <= periodStart && weekEnd >= periodEnd)) {
+
+
+    if ((weekStart >= periodStart && weekStart <= periodEnd) ||
+      (weekEnd >= periodStart && weekEnd <= periodEnd) ||
+      (weekStart <= periodStart && weekEnd >= periodEnd)) {
       isWeekWithinPeriod = true;
     }
-    
+
     if (week > maxAcademicWeek) {
       isWeekWithinPeriod = false;
     }
-    
-    
+
+
     if (!isWeekWithinPeriod) {
       return {
         year,
@@ -2161,7 +2161,7 @@ export class StatisticsRepository {
           start: weekStart.toISOString().split('T')[0],
           end: weekEnd.toISOString().split('T')[0],
         },
-        clubs: [], 
+        clubs: [],
         summary: {
           totalClubs: 0,
           clubsActive: 0,
@@ -2188,22 +2188,22 @@ export class StatisticsRepository {
       };
     }
 
-    
-    
+
+
     const clubs = await this.clubsRepository
       .createQueryBuilder('club')
       .leftJoinAndSelect('club.address', 'address')
       .where('club.isActive = :isActive', { isActive: true })
       .getMany();
 
-    
-    
+
+
     const pagelasInWeek = await this.pagelasRepository
       .createQueryBuilder('pagela')
       .leftJoin('pagela.child', 'child')
       .leftJoin('child.club', 'club')
-      .where('pagela.year = :year', { year }) 
-      .andWhere('pagela.week = :week', { week }) 
+      .where('pagela.year = :year', { year })
+      .andWhere('pagela.week = :week', { week })
       .andWhere('club.isActive = :clubActive', { clubActive: true })
       .select('club.id', 'clubId')
       .addSelect('COUNT(pagela.id)', 'totalPagelas')
@@ -2212,13 +2212,13 @@ export class StatisticsRepository {
 
     const clubsWithPagela = new Map(pagelasInWeek.map((p) => [p.clubId, parseInt(p.totalPagelas)]));
 
-    
+
 
     const clubsAnalysis = clubs.map((club) => {
       const hasPagela = clubsWithPagela.has(club.id);
       const totalPagelas = clubsWithPagela.get(club.id) || 0;
 
-      
+
       const expectedDate = this.getExpectedDateForWeekday(weekStart, club.weekday);
 
       return {
@@ -2236,7 +2236,7 @@ export class StatisticsRepository {
     const clubsWithPagelaCount = clubsAnalysis.filter((c) => c.hasPagela).length;
     const clubsMissingCount = clubsActive - clubsWithPagelaCount;
 
-    
+
     const pageNum = page || 1;
     const limitNum = limit || 50;
     const skip = (pageNum - 1) * limitNum;
@@ -2269,11 +2269,11 @@ export class StatisticsRepository {
     };
   }
 
-  
+
   private getWeekStartDate(date: Date): Date {
     const d = new Date(date);
     const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1); 
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
     return new Date(d.setDate(diff));
   }
 
@@ -2285,7 +2285,7 @@ export class StatisticsRepository {
       THURSDAY: 4,
       FRIDAY: 5,
       SATURDAY: 6,
-      SUNDAY: 0, 
+      SUNDAY: 0,
     };
 
     const targetDay = weekdayMap[weekday] || 1;
@@ -2296,16 +2296,16 @@ export class StatisticsRepository {
     return expectedDate.toISOString().split('T')[0];
   }
 
-  
 
-  
+
+
   async getClubsPerformanceMetrics() {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfMonthStr = startOfMonth.toISOString().split('T')[0];
     const todayStr = now.toISOString().split('T')[0];
 
-    
+
     const clubsWithLowAttendance = await this.pagelasRepository
       .createQueryBuilder('pagela')
       .leftJoin('pagela.child', 'child')
@@ -2321,7 +2321,7 @@ export class StatisticsRepository {
       .having('(SUM(CASE WHEN pagela.present = 1 THEN 1 ELSE 0 END) / COUNT(pagela.id)) * 100 < 70')
       .getRawMany();
 
-    
+
     const currentYear = now.getFullYear();
     const startOfYear = new Date(currentYear, 0, 1);
     const pastDaysOfYear = (now.getTime() - startOfYear.getTime()) / 86400000;
@@ -2351,14 +2351,14 @@ export class StatisticsRepository {
     };
   }
 
-  
+
   async getChildrenEngagementMetrics() {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfMonthStr = startOfMonth.toISOString().split('T')[0];
     const todayStr = now.toISOString().split('T')[0];
 
-    
+
     const childrenStats = await this.pagelasRepository
       .createQueryBuilder('pagela')
       .leftJoin('pagela.child', 'child')
@@ -2404,7 +2404,7 @@ export class StatisticsRepository {
     };
   }
 
-  
+
   async getChildrenGenderDistribution() {
     const result = await this.childrenRepository
       .createQueryBuilder('child')
@@ -2425,9 +2425,9 @@ export class StatisticsRepository {
     return distribution;
   }
 
-  
+
   async getGeographicDistribution() {
-    
+
     const byState = await this.clubsRepository
       .createQueryBuilder('club')
       .leftJoin('club.address', 'address')
@@ -2438,7 +2438,7 @@ export class StatisticsRepository {
       .orderBy('count', 'DESC')
       .getRawMany();
 
-    
+
     const topCities = await this.clubsRepository
       .createQueryBuilder('club')
       .leftJoinAndSelect('club.address', 'address')
@@ -2468,7 +2468,7 @@ export class StatisticsRepository {
     };
   }
 
-  
+
   async getChildrenCountAt(date: string): Promise<number> {
     const count = await this.childrenRepository
       .createQueryBuilder('child')
@@ -2481,7 +2481,7 @@ export class StatisticsRepository {
     return count;
   }
 
-  
+
   async getAcceptedChristsCountBefore(date: string): Promise<number> {
     const count = await this.acceptedChristsRepository
       .createQueryBuilder('ac')

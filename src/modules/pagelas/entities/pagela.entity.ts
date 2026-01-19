@@ -1,4 +1,4 @@
-import { BaseEntity } from 'src/share/share-entity/base.entity';
+import { BaseEntity } from 'src/shared/share-entity/base.entity';
 import { Entity, Column, ManyToOne, JoinColumn, Unique } from 'typeorm';
 import { ChildEntity } from 'src/modules/children/entities/child.entity';
 import { TeacherProfileEntity } from 'src/modules/teacher-profiles/entities/teacher-profile.entity/teacher-profile.entity';

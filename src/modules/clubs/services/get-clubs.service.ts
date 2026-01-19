@@ -8,9 +8,9 @@ import {
   toClubDto,
   toClubSimpleDto,
 } from '../dto/club.response.dto';
-import { Paginated } from 'src/share/dto/paginated.dto';
+import { Paginated } from 'src/shared/dto/paginated.dto';
 import { ClubSelectOptionDto } from '../dto/club-select-option.dto';
-import { AuthContextService } from 'src/auth/services/auth-context.service';
+import { AuthContextService } from 'src/core/auth/services/auth-context.service';
 
 type Ctx = { role?: string; userId?: string | null };
 

@@ -13,7 +13,7 @@ import { CoordinatorResponseDto } from './dto/coordinator-profile.response.dto';
 import { AssignClubDto, MoveClubDto, UnassignClubDto } from './dto/add-club.dto';
 import { CoordinatorSimpleListDto } from './dto/coordinator-simple-list.dto';
 import { CoordinatorProfilesQueryDto, PageDto } from './dto/coordinator-profiles.query.dto';
-import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 
 @Controller('coordinator-profiles')
 @UseGuards(JwtAuthGuard)
