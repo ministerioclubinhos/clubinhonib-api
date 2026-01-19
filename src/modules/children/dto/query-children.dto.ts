@@ -63,6 +63,26 @@ export class QueryChildrenSimpleDto {
   @IsOptional() @IsString()
   searchString?: string;
 
+  @Transform(({ value }) => {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return value;
+  })
+  @IsOptional() @IsBoolean()
+  isActive?: boolean;
+
+  @Transform(({ value }) => {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return value;
+  })
+  @IsOptional() @IsBoolean()
+  acceptedChrist?: boolean;
+
+  @Transform(({ value }) => Number(value))
+  @IsOptional() @IsInt() @Min(1)
+  page?: number = 1;
+
   @Transform(({ value }) => Number(value))
   @IsOptional() @IsInt() @Min(1)
   limit?: number = 20;

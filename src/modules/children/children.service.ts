@@ -69,10 +69,25 @@ export class ChildrenService {
     };
   }
 
-  async findAllSimples(request: Request,): Promise<ChildListItemDto[]> {
+  async findAllSimples(
+    query: QueryChildrenSimpleDto,
+    request: Request,
+  ): Promise<PaginatedResponseDto<ChildListItemDto>> {
     const ctx = await this.getCtx(request);
-    const rows = await this.childrenRepo.findAllSimple(ctx);
-    return rows.map(toChildListItemDto);
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+
+    const { items, total } = await this.childrenRepo.findAllSimple(query, ctx);
+
+    return {
+      data: items.map(toChildListItemDto),
+      meta: {
+        page,
+        limit,
+        totalItems: total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   async findOne(id: string, request: Request): Promise<ChildResponseDto> {
@@ -171,10 +186,10 @@ export class ChildrenService {
     const ctx = await this.getCtx(request);
     const entity = await this.childrenRepo.findOneForResponse(id, ctx);
     if (!entity) throw new NotFoundException('Criança não encontrada ou sem acesso');
-    
+
     entity.isActive = !entity.isActive;
     await this.childrenRepo.save(entity);
-    
+
     const reloaded = await this.childrenRepo.findOneForResponse(id, ctx);
     return toChildResponseDto(reloaded!);
   }
