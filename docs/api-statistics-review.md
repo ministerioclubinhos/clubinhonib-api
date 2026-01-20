@@ -1,4 +1,4 @@
-# Statistics Module - API Documentation
+ Statistics Module - API Documentation
 
 > **Version**: 2.0
 > **Last Updated**: 2026-01-20 (All filters implemented)
