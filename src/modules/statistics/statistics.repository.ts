@@ -452,8 +452,7 @@ export class StatisticsRepository {
       .leftJoin('ac.child', 'child')
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
-      .where('club.isActive = :clubActive', { clubActive: true })
-      .andWhere('child.isActive = :isActive', { isActive: true })
+      .where('1=1')
       .select('COUNT(ac.id)', 'totalDecisions')
       .addSelect('COUNT(DISTINCT ac.child.id)', 'uniqueChildren')
       .addSelect('ac.decision', 'decision');
@@ -480,7 +479,7 @@ export class StatisticsRepository {
       .leftJoin('ac.child', 'child')
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
-      .where('club.isActive = :clubActive', { clubActive: true })
+      .where('1=1')
       .select('COUNT(DISTINCT ac.child.id)', 'uniqueChildren');
 
     this.filtersService.applyAcceptedChristsFilters(uniqueQuery, filters);
@@ -525,8 +524,7 @@ export class StatisticsRepository {
       .leftJoin('ac.child', 'child')
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
-      .where('club.isActive = :clubActive', { clubActive: true })
-      .andWhere('child.isActive = :isActive', { isActive: true })
+      .where('1=1')
       .select(`${dateFormat}`, 'period')
       .addSelect('COUNT(ac.id)', 'totalDecisions')
       .addSelect('COUNT(DISTINCT ac.child.id)', 'uniqueChildren')
@@ -570,8 +568,7 @@ export class StatisticsRepository {
       .leftJoinAndSelect('ac.child', 'child')
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
-      .where('club.isActive = :clubActive', { clubActive: true })
-      .andWhere('child.isActive = :isActive', { isActive: true })
+      .where('1=1')
       .orderBy('ac.createdAt', 'DESC')
       .limit(limit);
 
@@ -597,8 +594,7 @@ export class StatisticsRepository {
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
       .leftJoin('child.address', 'address')
-      .where('club.isActive = :clubActive', { clubActive: true })
-      .andWhere('child.isActive = :isActive', { isActive: true })
+      .where('1=1')
       .select('child.gender', 'gender')
       .addSelect('COUNT(ac.id)', 'total')
       .addSelect('SUM(CASE WHEN ac.decision = "ACCEPTED" THEN 1 ELSE 0 END)', 'accepted')
@@ -624,8 +620,7 @@ export class StatisticsRepository {
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
       .leftJoin('child.address', 'address')
-      .where('club.isActive = :clubActive', { clubActive: true })
-      .andWhere('child.isActive = :isActive', { isActive: true });
+      .where('1=1');
 
     this.filtersService.applyAcceptedChristsFilters(query, filters);
 
@@ -663,8 +658,7 @@ export class StatisticsRepository {
       .leftJoin('club.coordinator', 'coordinator')
       .leftJoin('child.address', 'address')
       .where('club.id IS NOT NULL')
-      .andWhere('club.isActive = :clubActive', { clubActive: true })
-      .andWhere('child.isActive = :isActive', { isActive: true })
+
       .select('club.id', 'clubId')
       .addSelect('club.number', 'clubNumber')
       .addSelect('COUNT(ac.id)', 'total')
@@ -696,9 +690,7 @@ export class StatisticsRepository {
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
       .leftJoin('child.address', 'address')
-      .where('club.isActive = :clubActive', { clubActive: true })
-      .andWhere('address.city IS NOT NULL')
-      .andWhere('child.isActive = :isActive', { isActive: true })
+      .where('address.city IS NOT NULL')
       .select('address.city', 'city')
       .addSelect('address.state', 'state')
       .addSelect('COUNT(ac.id)', 'total')
@@ -730,8 +722,7 @@ export class StatisticsRepository {
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
       .leftJoin('child.address', 'address')
-      .where('club.isActive = :clubActive', { clubActive: true })
-      .andWhere('child.isActive = :isActive', { isActive: true });
+      .where('1=1');
 
     this.filtersService.applyAcceptedChristsFilters(query, filters);
 
@@ -822,7 +813,7 @@ export class StatisticsRepository {
       .leftJoin('ac.child', 'child')
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
-      .where('club.isActive = :clubActive', { clubActive: true })
+      .where('1=1')
       .select(`${dateFormat}`, 'period')
       .addSelect('COUNT(ac.id)', 'total')
       .addSelect('SUM(CASE WHEN ac.decision = "ACCEPTED" THEN 1 ELSE 0 END)', 'accepted')
@@ -1151,79 +1142,83 @@ export class StatisticsRepository {
       query.andWhere('child.joinedAt <= :oneYearAgo', { oneYearAgo: oneYearAgoStr });
     }
 
-    const totalCount = await query.getCount();
-
-    const sortBy = filters.sortBy || 'name';
-    const sortOrder = filters.sortOrder || 'ASC';
-
-    switch (sortBy) {
-      case 'age':
-        query.orderBy('child.birthDate', sortOrder === 'ASC' ? 'DESC' : 'ASC');
-        break;
-      case 'name':
-      default:
-        query.orderBy('child.name', sortOrder);
-        break;
+    // REMOVED: Initial pagination. Fetch ALL matching children.
+    // Ensure deterministic sort for processing
+    if (filters.sortBy === 'age') {
+      query.orderBy('child.birthDate', filters.sortOrder === 'ASC' ? 'DESC' : 'ASC');
+    } else if (filters.sortBy === 'name') {
+      query.orderBy('child.name', filters.sortOrder || 'ASC');
+    } else {
+      query.orderBy('child.name', 'ASC');
     }
-
-    query.skip(skip).take(limit);
 
     const children = await query.getMany();
-
     const childIds = children.map((c) => c.id);
 
-    let pagelasStats = new Map();
-    if (childIds.length > 0) {
-      const pagelasQuery = this.pagelasRepository
-        .createQueryBuilder('pagela')
-        .select('pagela.child.id', 'childId')
-        .addSelect('COUNT(pagela.id)', 'totalPagelas')
-        .addSelect('SUM(CASE WHEN pagela.present = 1 THEN 1 ELSE 0 END)', 'presenceCount')
-        .addSelect('SUM(CASE WHEN pagela.didMeditation = 1 THEN 1 ELSE 0 END)', 'meditationCount')
-        .addSelect('SUM(CASE WHEN pagela.recitedVerse = 1 THEN 1 ELSE 0 END)', 'verseCount')
-        .addSelect('MAX(pagela.referenceDate)', 'lastPagelaDate')
-        .where('pagela.child.id IN (:...childIds)', { childIds })
-        .groupBy('pagela.child.id');
-
-      if (filters.year) {
-        pagelasQuery.andWhere('pagela.year = :year', { year: filters.year });
-      }
-      if (filters.startDate) {
-        pagelasQuery.andWhere('pagela.referenceDate >= :startDate', { startDate: filters.startDate });
-      }
-      if (filters.endDate) {
-        pagelasQuery.andWhere('pagela.referenceDate <= :endDate', { endDate: filters.endDate });
-      }
-      if (filters.teacherId) {
-        pagelasQuery.andWhere('pagela.teacher.id = :teacherId', { teacherId: filters.teacherId });
-      }
-
-      const pagelasResults = await pagelasQuery.getRawMany();
-      pagelasStats = new Map(pagelasResults.map((p) => [p.childId, p]));
+    if (childIds.length === 0) {
+      return {
+        children: [],
+        pagelasStats: new Map(),
+        decisionsMap: new Map(),
+        totalCount: 0,
+        filteredCount: 0,
+        page,
+        limit,
+      };
     }
+
+
+    let pagelasStats = new Map();
+    const pagelasQuery = this.pagelasRepository
+      .createQueryBuilder('pagela')
+      .select('pagela.child.id', 'childId')
+      .addSelect('COUNT(pagela.id)', 'totalPagelas')
+      .addSelect('SUM(CASE WHEN pagela.present = 1 THEN 1 ELSE 0 END)', 'presenceCount')
+      .addSelect('SUM(CASE WHEN pagela.didMeditation = 1 THEN 1 ELSE 0 END)', 'meditationCount')
+      .addSelect('SUM(CASE WHEN pagela.recitedVerse = 1 THEN 1 ELSE 0 END)', 'verseCount')
+      .addSelect('MAX(pagela.referenceDate)', 'lastPagelaDate')
+      .where('pagela.child.id IN (:...childIds)', { childIds })
+      .groupBy('pagela.child.id');
+
+    if (filters.year) {
+      pagelasQuery.andWhere('pagela.year = :year', { year: filters.year });
+    }
+    if (filters.startDate) {
+      pagelasQuery.andWhere('pagela.referenceDate >= :startDate', { startDate: filters.startDate });
+    }
+    if (filters.endDate) {
+      pagelasQuery.andWhere('pagela.referenceDate <= :endDate', { endDate: filters.endDate });
+    }
+    if (filters.teacherId) {
+      pagelasQuery.andWhere('pagela.teacher.id = :teacherId', { teacherId: filters.teacherId });
+    }
+
+    const pagelasResults = await pagelasQuery.getRawMany();
+    pagelasStats = new Map(pagelasResults.map((p) => [p.childId, p]));
 
 
     let decisionsMap = new Map();
-    if (childIds.length > 0) {
-      const decisions = await this.acceptedChristsRepository
-        .createQueryBuilder('ac')
-        .leftJoinAndSelect('ac.child', 'child')
-        .select('child.id', 'childId')
-        .addSelect('COUNT(ac.id)', 'totalDecisions')
-        .addSelect('MAX(ac.decision)', 'lastDecision')
-        .addSelect('MAX(ac.createdAt)', 'lastDecisionDate')
-        .where('child.id IN (:...childIds)', { childIds })
-        .groupBy('child.id');
+    const decisions = await this.acceptedChristsRepository
+      .createQueryBuilder('ac')
+      .leftJoinAndSelect('ac.child', 'child')
+      .select('child.id', 'childId')
+      .addSelect('COUNT(ac.id)', 'totalDecisions')
+      .addSelect('MAX(ac.decision)', 'lastDecision')
+      .addSelect('MAX(ac.createdAt)', 'lastDecisionDate')
+      .where('child.id IN (:...childIds)', { childIds })
+      .groupBy('child.id');
 
-      if (filters.decisionType) {
-        decisions.andWhere('ac.decision = :decisionType', { decisionType: filters.decisionType });
-      }
-
-      const decisionsResults = await decisions.getRawMany();
-      decisionsMap = new Map(decisionsResults.map((d) => [d.childId, d]));
+    if (filters.decisionType) {
+      decisions.andWhere('ac.decision = :decisionType', { decisionType: filters.decisionType });
     }
 
+    const decisionsResults = await decisions.getRawMany();
+    decisionsMap = new Map(decisionsResults.map((d) => [d.childId, d]));
+
+
     let filteredChildren = children;
+
+    // --- APPLY ADVANCED FILTERS (In-Memory) ---
 
     if (filters.minPagelas !== undefined) {
       filteredChildren = filteredChildren.filter((child) => {
@@ -1331,12 +1326,57 @@ export class StatisticsRepository {
       });
     }
 
+    // --- SORTING (Applied *after* memory filters if needed for calculated fields) ---
+    // If sorting by simple fields (name, age), it was done in SQL.
+    // If sorting by advanced fields (calculations), we need to sort here.
+
+    // Note: The original code handled simple sorts in SQL. 
+    // We should preserve that for simple sorts to avoid re-sorting if possible, 
+    // BUT since we potentially filtered the list significantly, the original SQL sort order 
+    // is preserved within the subset.
+
+    // However, the `ChildrenStatsQueryDto` doesn't seem to expose sorting by EngagementScore explicitly 
+    // in the switch case I replaced, although `sortBy` is a string.
+    // If the user *does* sort by 'engagementScore', we must implementation it here.
+
+    if (filters.sortBy === 'engagementScore' || filters.sortBy === 'presenceRate') {
+      const order = filters.sortOrder === 'DESC' ? -1 : 1;
+      filteredChildren.sort((a, b) => {
+        const statsA = pagelasStats.get(a.id);
+        const statsB = pagelasStats.get(b.id);
+
+        const getScore = (stats: any, type: string) => {
+          if (!stats) return 0;
+          const total = parseInt(stats.totalPagelas);
+          if (total === 0) return 0;
+
+          if (type === 'presenceRate') {
+            return (parseInt(stats.presenceCount) / total) * 100;
+          } else {
+            // Engagement
+            return ((parseInt(stats.presenceCount) * 0.3 + parseInt(stats.meditationCount) * 0.35 + parseInt(stats.verseCount) * 0.35) / total) * 100;
+          }
+        };
+
+        const valA = getScore(statsA, filters.sortBy!);
+        const valB = getScore(statsB, filters.sortBy!);
+
+        if (valA < valB) return -1 * order;
+        if (valA > valB) return 1 * order;
+        return 0;
+      });
+    }
+
+
+    const totalCount = filteredChildren.length;
+    const paginatedChildren = filteredChildren.slice(skip, skip + limit);
+
     return {
-      children: filteredChildren,
+      children: paginatedChildren,
       pagelasStats,
       decisionsMap,
-      totalCount,
-      filteredCount: filteredChildren.length,
+      totalCount, // This is now the *filtered* total count
+      filteredCount: totalCount, // Same thing
       page,
       limit,
     };
@@ -1485,17 +1525,30 @@ export class StatisticsRepository {
       query.andWhere('address.district = :district', { district: filters.district });
     }
 
-
-    const totalCount = await query.getCount();
-
+    // REMOVED: Initial pagination logic from here. We fetch ALL matching clubs first.
+    // We only sorting by club number initially to have a deterministic order before processing
     query.orderBy('club.number', 'ASC');
 
-    const clubs = await query.skip(skip).take(limit).getMany();
-
-
+    const clubs = await query.getMany();
     const clubIds = clubs.map((c) => c.id);
 
+    // If no clubs found, return empty early
+    if (clubIds.length === 0) {
+      return {
+        clubs: [],
+        childrenResults: [],
+        pagelasResults: [],
+        decisionsResults: [],
+        teachers: [],
+        totalCount: 0,
+        page,
+        limit,
+        inactiveClubs: { total: 0, list: [] },
+        inactiveChildren: { total: 0, fromInactiveClubs: 0 }
+      };
+    }
 
+    // Fetch RELATED data for ALL fetched clubs
     const childrenQuery = this.childrenRepository
       .createQueryBuilder('child')
       .leftJoin('child.club', 'club')
@@ -1508,7 +1561,7 @@ export class StatisticsRepository {
       .groupBy('child.club.id')
       .addGroupBy('child.gender');
 
-    const childrenResults = clubIds.length > 0 ? await childrenQuery.getRawMany() : [];
+    const childrenResults = await childrenQuery.getRawMany();
 
 
     const pagelasQuery = this.pagelasRepository
@@ -1538,7 +1591,7 @@ export class StatisticsRepository {
       pagelasQuery.andWhere('pagela.referenceDate <= :endDate', { endDate: filters.endDate });
     }
 
-    const pagelasResults = clubIds.length > 0 ? await pagelasQuery.getRawMany() : [];
+    const pagelasResults = await pagelasQuery.getRawMany();
 
     const decisionsQuery = this.acceptedChristsRepository
       .createQueryBuilder('ac')
@@ -1552,7 +1605,7 @@ export class StatisticsRepository {
       .andWhere('child.isActive = :isActive', { isActive: true })
       .groupBy('child.club.id');
 
-    const decisionsResults = clubIds.length > 0 ? await decisionsQuery.getRawMany() : [];
+    const decisionsResults = await decisionsQuery.getRawMany();
 
 
     const teachersQuery = this.teachersRepository
@@ -1562,38 +1615,179 @@ export class StatisticsRepository {
       .where('club.id IN (:...clubIds)', { clubIds })
       .andWhere('club.isActive = :clubActive', { clubActive: true });
 
-    const teachers = clubIds.length > 0 ? await teachersQuery.getMany() : [];
+    const teachers = await teachersQuery.getMany();
 
 
+    // Calculate stats for ALL clubs to apply filters
+    const childrenMap = new Map();
+    childrenResults.forEach((r) => {
+      if (!childrenMap.has(r.clubId)) childrenMap.set(r.clubId, 0);
+      childrenMap.set(r.clubId, childrenMap.get(r.clubId) + parseInt(r.total));
+    });
+
+    const pagelasMap = new Map(pagelasResults.map((p) => [p.clubId, p]));
+    const decisionsMap = new Map(decisionsResults.map((d) => [d.clubId, d]));
+    const teachersMap = new Map();
+    teachers.forEach(t => {
+      if (t.club) {
+        if (!teachersMap.has(t.club.id)) teachersMap.set(t.club.id, 0);
+        teachersMap.set(t.club.id, teachersMap.get(t.club.id) + 1);
+      }
+    });
+
+
+    let clubsWithProcessedStats = clubs.map(club => {
+      const pagelaStats = pagelasMap.get(club.id);
+      const decisionStats = decisionsMap.get(club.id);
+
+      const totalPagelas = pagelaStats ? parseInt(pagelaStats.totalPagelas) : 0;
+      const presenceCount = pagelaStats ? parseInt(pagelaStats.presenceCount) : 0;
+      const meditationCount = pagelaStats ? parseInt(pagelaStats.meditationCount) : 0;
+      const verseCount = pagelaStats ? parseInt(pagelaStats.verseCount) : 0; // Fixed: was missing in original map logic
+
+      const totalChildren = childrenMap.get(club.id) || 0;
+      const activeChildren = pagelaStats ? parseInt(pagelaStats.activeChildren) : 0;
+
+      const totalDecisions = decisionStats ? parseInt(decisionStats.totalDecisions) : 0;
+      const totalTeachers = teachersMap.get(club.id) || 0;
+
+      const avgPresenceRate = totalPagelas > 0 ? (presenceCount / totalPagelas) * 100 : 0;
+      const avgMeditationRate = totalPagelas > 0 ? (meditationCount / totalPagelas) * 100 : 0;
+      const avgVerseRate = totalPagelas > 0 ? (verseCount / totalPagelas) * 100 : 0;
+      const activityRate = totalChildren > 0 ? (activeChildren / totalChildren) * 100 : 0;
+      const decisionRate = activeChildren > 0 ? (totalDecisions / activeChildren) * 100 : 0;
+
+      // Simplified performance score calculation
+      const performanceScore =
+        (avgPresenceRate * 0.3) +
+        (avgMeditationRate * 0.3) +
+        (activityRate * 0.2) +
+        (decisionRate * 0.2);
+
+      return {
+        ...club,
+        stats: {
+          totalChildren,
+          totalTeachers,
+          totalDecisions,
+          avgPresenceRate,
+          avgMeditationRate,
+          avgVerseRate,
+          performanceScore
+        }
+      };
+    });
+
+    // --- APPLY ADVANCED FILTERS (In-Memory) ---
+
+    if (filters.minChildren !== undefined) {
+      clubsWithProcessedStats = clubsWithProcessedStats.filter(c => c.stats.totalChildren >= filters.minChildren!);
+    }
+    if (filters.maxChildren !== undefined) {
+      clubsWithProcessedStats = clubsWithProcessedStats.filter(c => c.stats.totalChildren <= filters.maxChildren!);
+    }
+
+    if (filters.minPresenceRate !== undefined) {
+      clubsWithProcessedStats = clubsWithProcessedStats.filter(c => c.stats.avgPresenceRate >= filters.minPresenceRate!);
+    }
+    if (filters.maxPresenceRate !== undefined) {
+      clubsWithProcessedStats = clubsWithProcessedStats.filter(c => c.stats.avgPresenceRate <= filters.maxPresenceRate!);
+    }
+
+    if (filters.minPerformanceScore !== undefined) {
+      clubsWithProcessedStats = clubsWithProcessedStats.filter(c => c.stats.performanceScore >= filters.minPerformanceScore!);
+    }
+    if (filters.maxPerformanceScore !== undefined) {
+      clubsWithProcessedStats = clubsWithProcessedStats.filter(c => c.stats.performanceScore <= filters.maxPerformanceScore!);
+    }
+
+    if (filters.minDecisions !== undefined) {
+      clubsWithProcessedStats = clubsWithProcessedStats.filter(c => c.stats.totalDecisions >= filters.minDecisions!);
+    }
+
+    if (filters.minTeachers !== undefined) {
+      clubsWithProcessedStats = clubsWithProcessedStats.filter(c => c.stats.totalTeachers >= filters.minTeachers!);
+    }
+
+    // --- SORTING ---
+    const sortBy = filters.sortBy || 'clubNumber';
+    const sortOrder = filters.sortOrder || 'ASC';
+
+    clubsWithProcessedStats.sort((a, b) => {
+      let valA: any, valB: any;
+
+      switch (sortBy) {
+        case 'performanceScore': valA = a.stats.performanceScore; valB = b.stats.performanceScore; break;
+        case 'presenceRate': valA = a.stats.avgPresenceRate; valB = b.stats.avgPresenceRate; break;
+        case 'totalChildren': valA = a.stats.totalChildren; valB = b.stats.totalChildren; break;
+        case 'totalDecisions': valA = a.stats.totalDecisions; valB = b.stats.totalDecisions; break;
+        // Default to existing simple fields if not a stat
+        case 'clubNumber': valA = a.number; valB = b.number; break;
+        default: valA = (a as any)[sortBy] || 0; valB = (b as any)[sortBy] || 0;
+      }
+
+      if (valA < valB) return sortOrder === 'ASC' ? -1 : 1;
+      if (valA > valB) return sortOrder === 'ASC' ? 1 : -1;
+      return 0;
+    });
+
+
+    // --- PAGINATION ---
+    const totalCount = clubsWithProcessedStats.length;
+    const paginatedClubs = clubsWithProcessedStats.slice(skip, skip + limit);
+
+
+    // --- ANCILLARY DATA ---
+    // Fetch inactive stats just once (global, not filtered, or maybe we want them global?)
+    // The original code calculated this from DB unconditionally.
+
+    // We can fetch these counts separately as before
     const allClubs = await this.clubsRepository.find();
     const inactiveClubs = allClubs.filter(c => c.isActive === false);
-
 
     const inactiveChildrenQuery = this.childrenRepository
       .createQueryBuilder('child')
       .leftJoin('child.club', 'club')
       .select('COUNT(child.id)', 'total')
       .where('child.isActive = :isActive', { isActive: false });
-
     const inactiveChildrenCount = await inactiveChildrenQuery.getRawOne();
-    const totalInactiveChildren = parseInt(inactiveChildrenCount?.total || '0', 10);
-
 
     const childrenFromInactiveClubsQuery = this.childrenRepository
       .createQueryBuilder('child')
       .leftJoin('child.club', 'club')
       .select('COUNT(child.id)', 'total')
       .where('club.isActive = :clubActive', { clubActive: false });
-
     const childrenFromInactiveClubsCount = await childrenFromInactiveClubsQuery.getRawOne();
-    const totalChildrenFromInactiveClubs = parseInt(childrenFromInactiveClubsCount?.total || '0', 10);
+
+
+    // Construct response matching the Controller expectations
+    // Note: The controller expects specific strict DTO structure. 
+    // We are returning the original entities/results arrays but now they correspond 
+    // only to the PAGINATED subset effectively.
+
+    // HOWEVER, the raw result arrays (childrenResults, pagelasResults, etc.) need to be 
+    // compliant with the return type of this function so the Controller can map it.
+    // The previous implementation returned ALL related data for the paginated clubs.
+    // We should filter the raw result arrays to ONLY include data for the paginated clubs
+    // to keep response size optimal and consistent.
+
+    const paginatedClubIds = new Set(paginatedClubs.map(c => c.id));
 
     return {
-      clubs,
-      childrenResults,
-      pagelasResults,
-      decisionsResults,
-      teachers,
+      clubs: paginatedClubs.map(c => {
+        // We must strip the 'stats' property if it confuses the Controller mapping 
+        // OR we ensure the Controller uses it. 
+        // Looking at `ClubsStatsResponseDto` mapping in `StatisticsService`, it likely recalculates 
+        // or uses these raw arrays.
+        // To be safe and minimally invasive to Service, we return the raw arrays filtered 
+        // to match `paginatedClubs`.
+        const { stats, ...originalClub } = c;
+        return originalClub;
+      }),
+      childrenResults: childrenResults.filter(r => paginatedClubIds.has(r.clubId)),
+      pagelasResults: pagelasResults.filter(r => paginatedClubIds.has(r.clubId)),
+      decisionsResults: decisionsResults.filter(r => paginatedClubIds.has(r.clubId)),
+      teachers: teachers.filter(t => t.club && paginatedClubIds.has(t.club.id)),
       totalCount,
       page,
       limit,
@@ -1608,8 +1802,8 @@ export class StatisticsRepository {
         })),
       },
       inactiveChildren: {
-        total: totalInactiveChildren,
-        fromInactiveClubs: totalChildrenFromInactiveClubs,
+        total: parseInt(inactiveChildrenCount?.total || '0', 10),
+        fromInactiveClubs: parseInt(childrenFromInactiveClubsCount?.total || '0', 10),
       },
     };
   }
@@ -1646,22 +1840,29 @@ export class StatisticsRepository {
       query.andWhere('address.state = :state', { state: filters.state });
     }
 
-
     if (filters.search) {
       query.andWhere('user.name LIKE :search', { search: `%${filters.search}%` });
     }
 
-
-    const totalCount = await query.getCount();
-
+    // REMOVED: Initial pagination logic from here. We fetch ALL matching teachers first.
     query.orderBy('user.name', 'ASC');
 
-    const teachers = await query.skip(skip).take(limit).getMany();
-
-
+    const teachers = await query.getMany();
     const teacherIds = teachers.map((t) => t.id);
 
+    // If no teachers found, return empty early
+    if (teacherIds.length === 0) {
+      return {
+        teachers: [],
+        pagelasResults: [],
+        decisionsResults: [],
+        totalCount: 0,
+        page,
+        limit,
+      };
+    }
 
+    // Fetch RELATED data for ALL fetched teachers
     const pagelasQuery = this.pagelasRepository
       .createQueryBuilder('pagela')
       .leftJoin('pagela.child', 'child')
@@ -1685,7 +1886,7 @@ export class StatisticsRepository {
       pagelasQuery.andWhere('pagela.referenceDate <= :endDate', { endDate: filters.endDate });
     }
 
-    const pagelasResults = teacherIds.length > 0 ? await pagelasQuery.getRawMany() : [];
+    const pagelasResults = await pagelasQuery.getRawMany();
 
 
     const decisionsQuery = this.acceptedChristsRepository
@@ -1697,12 +1898,125 @@ export class StatisticsRepository {
       .where('pagela.teacher.id IN (:...teacherIds)', { teacherIds })
       .groupBy('pagela.teacher.id');
 
-    const decisionsResults = teacherIds.length > 0 ? await decisionsQuery.getRawMany() : [];
+    const decisionsResults = await decisionsQuery.getRawMany();
+
+
+    // Calculate stats for ALL teachers to apply filters
+    const pagelasMap = new Map(pagelasResults.map((p) => [p.teacherId, p]));
+    const decisionsMap = new Map(decisionsResults.map((d) => [d.teacherId, d]));
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+
+    let teachersWithProcessedStats = teachers.map(teacher => {
+      const pagelas = pagelasMap.get(teacher.id);
+      const decisions = decisionsMap.get(teacher.id);
+
+      const totalPagelas = pagelas ? parseInt(pagelas.totalPagelas) : 0;
+      const uniqueChildren = pagelas ? parseInt(pagelas.uniqueChildren) : 0;
+      const presenceCount = pagelas ? parseInt(pagelas.presenceCount) : 0;
+      const meditationCount = pagelas ? parseInt(pagelas.meditationCount) : 0;
+      // const verseCount = pagelas ? parseInt(pagelas.verseCount) : 0; // Not used in score but valid data
+
+      const avgPresenceRate = totalPagelas > 0 ? (presenceCount / totalPagelas) * 100 : 0;
+      const avgMeditationRate = totalPagelas > 0 ? (meditationCount / totalPagelas) * 100 : 0;
+
+      const childrenWithDecisions = decisions ? parseInt(decisions.childrenWithDecisions) : 0;
+      const decisionRate = uniqueChildren > 0 ? (childrenWithDecisions / uniqueChildren) * 100 : 0;
+
+      const effectivenessScore = (avgPresenceRate * 0.4) + (avgMeditationRate * 0.3) + (decisionRate * 0.3);
+
+      const lastActivity = pagelas?.lastActivity;
+      const isActive = lastActivity ? lastActivity >= thirtyDaysAgoStr : false;
+
+      return {
+        ...teacher,
+        stats: {
+          totalPagelas,
+          uniqueChildren,
+          childrenWithDecisions,
+          avgPresenceRate,
+          effectivenessScore,
+          isActive
+        }
+      };
+    });
+
+
+    // --- APPLY ADVANCED FILTERS (In-Memory) ---
+
+    if (filters.minPagelas !== undefined) {
+      teachersWithProcessedStats = teachersWithProcessedStats.filter(t => t.stats.totalPagelas >= filters.minPagelas!);
+    }
+
+    if (filters.minChildren !== undefined) {
+      teachersWithProcessedStats = teachersWithProcessedStats.filter(t => t.stats.uniqueChildren >= filters.minChildren!);
+    }
+
+    if (filters.minPresenceRate !== undefined) {
+      teachersWithProcessedStats = teachersWithProcessedStats.filter(t => t.stats.avgPresenceRate >= filters.minPresenceRate!);
+    }
+    if (filters.maxPresenceRate !== undefined) {
+      teachersWithProcessedStats = teachersWithProcessedStats.filter(t => t.stats.avgPresenceRate <= filters.maxPresenceRate!);
+    }
+
+    if (filters.minEffectivenessScore !== undefined) {
+      teachersWithProcessedStats = teachersWithProcessedStats.filter(t => t.stats.effectivenessScore >= filters.minEffectivenessScore!);
+    }
+    if (filters.maxEffectivenessScore !== undefined) {
+      teachersWithProcessedStats = teachersWithProcessedStats.filter(t => t.stats.effectivenessScore <= filters.maxEffectivenessScore!);
+    }
+
+    if (filters.isActive !== undefined) {
+      teachersWithProcessedStats = teachersWithProcessedStats.filter(t => t.stats.isActive === filters.isActive);
+    }
+
+    if (filters.minDecisions !== undefined) {
+      teachersWithProcessedStats = teachersWithProcessedStats.filter(t => t.stats.childrenWithDecisions >= filters.minDecisions!);
+    }
+
+
+    // --- SORTING ---
+    const sortBy = filters.sortBy || 'name';
+    const sortOrder = filters.sortOrder || 'ASC';
+
+    teachersWithProcessedStats.sort((a, b) => {
+      let valA: any, valB: any;
+
+      switch (sortBy) {
+        case 'effectivenessScore': valA = a.stats.effectivenessScore; valB = b.stats.effectivenessScore; break;
+        case 'presenceRate': valA = a.stats.avgPresenceRate; valB = b.stats.avgPresenceRate; break;
+        case 'totalChildren': valA = a.stats.uniqueChildren; valB = b.stats.uniqueChildren; break;
+        case 'name':
+          valA = a.user?.name || ''; valB = b.user?.name || '';
+          return sortOrder === 'ASC' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        default: valA = (a as any)[sortBy] || 0; valB = (b as any)[sortBy] || 0;
+      }
+
+      if (valA < valB) return sortOrder === 'ASC' ? -1 : 1;
+      if (valA > valB) return sortOrder === 'ASC' ? 1 : -1;
+      return 0;
+    });
+
+
+    // --- PAGINATION ---
+    const totalCount = teachersWithProcessedStats.length;
+    const paginatedTeachers = teachersWithProcessedStats.slice(skip, skip + limit);
+
+
+    // Prepare return based on Controller expectation
+    // We filter raw arrays to only include data for the paginated subset
+
+    const paginatedTeacherIds = new Set(paginatedTeachers.map(t => t.id));
 
     return {
-      teachers,
-      pagelasResults,
-      decisionsResults,
+      teachers: paginatedTeachers.map(t => {
+        const { stats, ...originalTeacher } = t;
+        return originalTeacher;
+      }),
+      pagelasResults: pagelasResults.filter(r => paginatedTeacherIds.has(r.teacherId)),
+      decisionsResults: decisionsResults.filter(r => paginatedTeacherIds.has(r.teacherId)),
       totalCount,
       page,
       limit,

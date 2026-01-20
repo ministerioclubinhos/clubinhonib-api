@@ -3,12 +3,12 @@ import { Type } from 'class-transformer';
 import { PeriodShortcut } from './period-filter.dto';
 
 export class ClubsStatsQueryDto {
-  
+
   @IsOptional()
   @IsEnum(PeriodShortcut)
-  period?: PeriodShortcut; 
+  period?: PeriodShortcut;
 
-  
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -18,22 +18,22 @@ export class ClubsStatsQueryDto {
 
   @IsOptional()
   @IsString()
-  startDate?: string; 
+  startDate?: string;
 
   @IsOptional()
   @IsString()
-  endDate?: string; 
+  endDate?: string;
 
-  
+
   @IsOptional()
   @IsString()
   coordinatorId?: string;
 
   @IsOptional()
   @IsString()
-  weekday?: string; 
+  weekday?: string;
 
-  
+
   @IsOptional()
   @IsString()
   city?: string;
@@ -46,7 +46,7 @@ export class ClubsStatsQueryDto {
   @IsString()
   district?: string;
 
-  
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -65,18 +65,32 @@ export class ClubsStatsQueryDto {
   @IsInt()
   @Min(0)
   @Max(100)
+  maxPresenceRate?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
   minPerformanceScore?: number;
 
-  
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  maxPerformanceScore?: number;
+
+
   @IsOptional()
   @IsString()
-  sortBy?: string; 
+  sortBy?: string;
 
   @IsOptional()
   @IsString()
   sortOrder?: 'ASC' | 'DESC';
 
-  
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -90,38 +104,25 @@ export class ClubsStatsQueryDto {
   @Max(100)
   limit?: number;
 
-  
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
-  maxChildren?: number; 
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
-  @Max(100)
-  maxPresenceRate?: number; 
+  maxChildren?: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
-  @Max(100)
-  maxPerformanceScore?: number; 
+  minDecisions?: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
-  minDecisions?: number; 
+  minTeachers?: number;
 
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
-  minTeachers?: number; 
 }
 
 

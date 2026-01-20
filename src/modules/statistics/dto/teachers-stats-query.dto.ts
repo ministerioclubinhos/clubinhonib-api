@@ -4,12 +4,12 @@ import { Transform } from 'class-transformer';
 import { PeriodShortcut } from './period-filter.dto';
 
 export class TeachersStatsQueryDto {
-  
+
   @IsOptional()
   @IsEnum(PeriodShortcut)
-  period?: PeriodShortcut; 
+  period?: PeriodShortcut;
 
-  
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -19,13 +19,13 @@ export class TeachersStatsQueryDto {
 
   @IsOptional()
   @IsString()
-  startDate?: string; 
+  startDate?: string;
 
   @IsOptional()
   @IsString()
-  endDate?: string; 
+  endDate?: string;
 
-  
+
   @IsOptional()
   @IsString()
   clubId?: string;
@@ -34,7 +34,7 @@ export class TeachersStatsQueryDto {
   @IsString()
   coordinatorId?: string;
 
-  
+
   @IsOptional()
   @IsString()
   city?: string;
@@ -43,7 +43,7 @@ export class TeachersStatsQueryDto {
   @IsString()
   state?: string;
 
-  
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -68,23 +68,43 @@ export class TeachersStatsQueryDto {
   @IsInt()
   @Min(0)
   @Max(100)
+  maxPresenceRate?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
   minEffectivenessScore?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  maxEffectivenessScore?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  minDecisions?: number;
 
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
-  isActive?: boolean; 
+  isActive?: boolean;
 
-  
+
   @IsOptional()
   @IsString()
-  sortBy?: string; 
+  sortBy?: string;
 
   @IsOptional()
   @IsString()
   sortOrder?: 'ASC' | 'DESC';
 
-  
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -98,30 +118,11 @@ export class TeachersStatsQueryDto {
   @Max(100)
   limit?: number;
 
-  
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
-  @Max(100)
-  maxEffectivenessScore?: number; 
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
-  @Max(100)
-  maxPresenceRate?: number; 
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
-  minDecisions?: number; 
-
   @IsOptional()
   @IsString()
-  search?: string; 
+  search?: string;
+
+
 }
 
 
