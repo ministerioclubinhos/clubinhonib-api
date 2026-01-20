@@ -1,4 +1,9 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import {
+  AppNotFoundException,
+  AppConflictException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import { ClubControlRepository } from '../repositories/club-control.repository';
 import { CreateClubPeriodDto } from '../dto/create-club-period.dto';
 import { UpdateClubPeriodDto } from '../dto/update-club-period.dto';
@@ -18,7 +23,7 @@ export class ClubControlService {
     const existing = await this.clubControlRepository.findAnyPeriodByYear(dto.year);
     if (existing) {
       if (existing.isActive) {
-        throw new ConflictException(`Academic period for year ${dto.year} already exists`);
+        throw new AppConflictException(ErrorCode.RESOURCE_CONFLICT, `Período letivo para o ano ${dto.year} já existe`);
       }
       existing.startDate = dto.startDate;
       existing.endDate = dto.endDate;
@@ -47,7 +52,7 @@ export class ClubControlService {
   async updatePeriod(id: string, dto: UpdateClubPeriodDto) {
     const existing = await this.clubControlRepository.findPeriodById(id);
     if (!existing) {
-      throw new NotFoundException(`Period with id ${id} not found`);
+      throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, `Período com id ${id} não encontrado`);
     }
 
     if (dto.startDate !== undefined) existing.startDate = dto.startDate;

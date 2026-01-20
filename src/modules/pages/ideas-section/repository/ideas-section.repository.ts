@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import { DataSource, Repository, IsNull } from 'typeorm';
 import { IdeasSectionEntity } from '../../ideas-page/entities/ideas-section.entity';
 
@@ -26,7 +27,7 @@ export class IdeasSectionRepository extends Repository<IdeasSectionEntity> {
       const existing = await this.findOne({ where: { id: sectionData.id } });
 
       if (!existing) {
-        throw new NotFoundException(`Seção de ideias com ID=${sectionData.id} não encontrada.`);
+        throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, `Seção de ideias com ID=${sectionData.id} não encontrada.`);
       }
 
       const merged = this.merge(existing, sectionData);

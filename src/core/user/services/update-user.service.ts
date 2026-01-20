@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-  Logger,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 
 import { UserRepository } from '../user.repository';
@@ -13,6 +8,11 @@ import { UserEntity } from '../entities/user.entity';
 import { TeacherProfilesService } from 'src/modules/teacher-profiles/services/teacher-profiles.service';
 import { CoordinatorProfilesService } from 'src/modules/coordinator-profiles/services/coordinator-profiles.service';
 import { UserRole } from 'src/core/auth/auth.types';
+import {
+  AppNotFoundException,
+  AppConflictException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 
 @Injectable()
 export class UpdateUserService {
@@ -26,7 +26,12 @@ export class UpdateUserService {
 
   async update(id: string, dto: Partial<UpdateUserDto>): Promise<UserEntity> {
     const current = await this.userRepo.findById(id);
-    if (!current) throw new NotFoundException('UserEntity not found');
+    if (!current) {
+      throw new AppNotFoundException(
+        ErrorCode.USER_NOT_FOUND,
+        'Usuário não encontrado',
+      );
+    }
 
     if (dto.password) {
       dto.password = await bcrypt.hash(dto.password, 10);
@@ -35,14 +40,22 @@ export class UpdateUserService {
     if (dto.email && dto.email !== current.email) {
       const existingUser = await this.userRepo.findByEmail(dto.email);
       if (existingUser && existingUser.id !== id) {
-        throw new BadRequestException({ message: 'Este email já está em uso por outro usuário', field: 'email' });
+        throw new AppConflictException(
+          ErrorCode.EMAIL_ALREADY_IN_USE,
+          'Este email já está em uso por outro usuário',
+          { field: 'email' },
+        );
       }
     }
 
     if (dto.cpf && dto.cpf !== current.cpf) {
       const existingUser = await this.userRepo.findByCpf(dto.cpf);
       if (existingUser && existingUser.id !== id) {
-        throw new BadRequestException({ message: 'Este CPF já está em uso por outro usuário', field: 'cpf' });
+        throw new AppConflictException(
+          ErrorCode.RESOURCE_CONFLICT,
+          'Este CPF já está em uso por outro usuário',
+          { field: 'cpf' },
+        );
       }
     }
 

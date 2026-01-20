@@ -1,9 +1,9 @@
+import { Injectable, Logger } from '@nestjs/common';
 import {
-  Injectable,
-  Logger,
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
+  AppNotFoundException,
+  AppValidationException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { MeditationRepository } from '../meditation.repository';
 import { WeekMeditationResponseDto } from '../dto/meditation-response-dto';
@@ -47,13 +47,13 @@ export class GetMeditationService {
 
   async findOne(id: string): Promise<WeekMeditationResponseDto> {
     if (!id || typeof id !== 'string') {
-      throw new BadRequestException('ID inválido fornecido');
+      throw new AppValidationException(ErrorCode.VALIDATION_ERROR, 'ID inválido fornecido');
     }
 
     const meditation = await this.meditationRepo.findOneWithRelations(id);
     if (!meditation) {
       this.logger.warn(`⚠️ Meditação não encontrada: ID=${id}`);
-      throw new NotFoundException('Meditação não encontrada');
+      throw new AppNotFoundException(ErrorCode.MEDITATION_NOT_FOUND, 'Meditação não encontrada');
     }
     const media = await this.mediaItemProcessor.findMediaItemByTarget(meditation.id, MediaTargetType.Meditation);
     return WeekMeditationResponseDto.success(meditation, media);

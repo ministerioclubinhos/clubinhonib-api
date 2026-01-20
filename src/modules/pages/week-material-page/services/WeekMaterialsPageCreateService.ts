@@ -1,5 +1,7 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { DataSource, QueryRunner } from 'typeorm';
+import { AppBusinessException, AppInternalException, ErrorCode } from 'src/shared/exceptions';
+
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { RouteService } from 'src/modules/routes/route.service';
 import { RouteType } from 'src/modules/routes/route-page.entity';
@@ -114,18 +116,18 @@ export class WeekMaterialsPageCreateService {
     const images = (dto.images || []).map((media) => ({
       ...media,
       mediaType: MediaType.IMAGE,
-      fileField:  media.uploadType === UploadType.UPLOAD && media.isLocalFile ? media.fieldKey : undefined,
+      fileField: media.uploadType === UploadType.UPLOAD && media.isLocalFile ? media.fieldKey : undefined,
     }));
     const audios = (dto.audios || []).map((media) => ({
       ...media,
       mediaType: MediaType.AUDIO,
-      fileField:  media.uploadType === UploadType.UPLOAD && media.isLocalFile ? media.fieldKey : undefined,
+      fileField: media.uploadType === UploadType.UPLOAD && media.isLocalFile ? media.fieldKey : undefined,
     }));
 
     const mediaItems = [...videos, ...documents, ...images, ...audios];
 
     mediaItems.forEach((item) => {
-      if ( item.uploadType === UploadType.UPLOAD && item.isLocalFile && !item.fileField) {
+      if (item.uploadType === UploadType.UPLOAD && item.isLocalFile && !item.fileField) {
         throw new BadRequestException(`fieldKey ausente para item de mídia: ${item.title}`);
       }
     });

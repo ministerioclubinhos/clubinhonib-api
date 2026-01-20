@@ -10,9 +10,9 @@ import {
   UseInterceptors,
   HttpCode,
   Logger,
-  BadRequestException,
   UseGuards,
 } from '@nestjs/common';
+import { AppValidationException, ErrorCode } from 'src/shared/exceptions';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { plainToInstance } from 'class-transformer';
 import { validateOrReject, validateSync } from 'class-validator';
@@ -62,7 +62,7 @@ export class EventController {
         Array.isArray(error)
           ? error.map(e => Object.values(e.constraints || {})).flat().join('; ')
           : error?.message || 'Erro ao criar evento.';
-      throw new BadRequestException(message);
+      throw new AppValidationException(ErrorCode.VALIDATION_ERROR, message);
     }
   }
 
@@ -100,7 +100,7 @@ export class EventController {
       dto = plainToInstance(UpdateEventDto, parsed);
     } catch (err) {
       this.logger.error(`❌ JSON inválido para evento`, err.stack);
-      throw new BadRequestException('JSON inválido no campo eventData');
+      throw new AppValidationException(ErrorCode.VALIDATION_ERROR, 'JSON inválido no campo eventData');
     }
 
     const errors = validateSync(dto, { whitelist: true, forbidNonWhitelisted: true });
@@ -109,7 +109,7 @@ export class EventController {
         .map(err => Object.values(err.constraints ?? {}).join(', '))
         .join(' | ');
       this.logger.warn(`❌ Erros de validação: ${message}`);
-      throw new BadRequestException(message);
+      throw new AppValidationException(ErrorCode.VALIDATION_ERROR, message);
     }
 
     const result = await this.updateService.update(id, { ...dto, isLocalFile: !!file }, file);

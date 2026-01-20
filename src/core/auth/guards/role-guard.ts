@@ -2,11 +2,11 @@ import {
   CanActivate,
   ExecutionContext,
   Injectable,
-  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { UserRole } from '../auth.types';
+import { AppForbiddenException, AppUnauthorizedException, ErrorCode } from 'src/shared/exceptions';
 
 @Injectable()
 export class AdminRoleGuard implements CanActivate {
@@ -19,17 +19,26 @@ export class AdminRoleGuard implements CanActivate {
     const user = request.user;
 
     if (!user) {
-      throw new ForbiddenException('User not authenticated');
+      throw new AppUnauthorizedException(
+        ErrorCode.TOKEN_MISSING,
+        'Usuário não autenticado',
+      );
     }
 
     const { role } = user;
 
     if (!role) {
-      throw new ForbiddenException('Insufficient permissions');
+      throw new AppForbiddenException(
+        ErrorCode.INSUFFICIENT_PERMISSIONS,
+        'Permissões insuficientes',
+      );
     }
 
     if (role !== UserRole.ADMIN) {
-      throw new ForbiddenException('Access restricted to administrators');
+      throw new AppForbiddenException(
+        ErrorCode.ROLE_NOT_ALLOWED,
+        'Acesso restrito a administradores',
+      );
     }
 
     return true;
@@ -47,17 +56,26 @@ export class AdminOrLeaderRoleGuard implements CanActivate {
     const user = request.user;
 
     if (!user) {
-      throw new ForbiddenException('User not authenticated');
+      throw new AppUnauthorizedException(
+        ErrorCode.TOKEN_MISSING,
+        'Usuário não autenticado',
+      );
     }
 
     const { role } = user;
 
     if (!role) {
-      throw new ForbiddenException('Insufficient permissions');
+      throw new AppForbiddenException(
+        ErrorCode.INSUFFICIENT_PERMISSIONS,
+        'Permissões insuficientes',
+      );
     }
 
     if (role !== UserRole.ADMIN && role !== UserRole.COORDINATOR) {
-      throw new ForbiddenException('Access restricted to administrators and coordinators');
+      throw new AppForbiddenException(
+        ErrorCode.ROLE_NOT_ALLOWED,
+        'Acesso restrito a administradores e coordenadores',
+      );
     }
 
     return true;

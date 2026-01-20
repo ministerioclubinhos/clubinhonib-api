@@ -1,10 +1,11 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { WeekMaterialsPageRepository } from '../week-material.repository';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { WeekMaterialsPageResponseDTO } from '../dto/week-material-response.dto';
 import { WeekMaterialsPageEntity } from '../entities/week-material-page.entity';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
 import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
+import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 
 @Injectable()
 export class WeekMaterialsPageGetService {
@@ -23,7 +24,7 @@ export class WeekMaterialsPageGetService {
   async findOnePage(id: string): Promise<WeekMaterialsPageEntity> {
     this.logger.debug(`📄 Buscando página ID=${id}`);
     const page = await this.repo.findOnePageById(id);
-    if (!page) throw new NotFoundException('Página não encontrada');
+    if (!page) throw new AppNotFoundException(ErrorCode.WEEK_MATERIAL_NOT_FOUND, 'Página não encontrada');
     return page;
   }
 
@@ -65,7 +66,7 @@ export class WeekMaterialsPageGetService {
 
       if (!weekPage) {
         this.logger.warn(`⚠️ Nenhuma página encontrada com ID: ${id}`);
-        throw new Error(`Página com ID ${id} não encontrada.`);
+        throw new AppNotFoundException(ErrorCode.WEEK_MATERIAL_NOT_FOUND, `Página com ID ${id} não encontrada.`);
       }
 
       this.logger.debug(`📄 Página alvo encontrada: ${weekPage.id} - ${weekPage.title}`);

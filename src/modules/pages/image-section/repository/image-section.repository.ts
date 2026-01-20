@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { DataSource, Repository, IsNull } from 'typeorm';
 import { ImageSectionEntity } from '../../image-page/entity/Image-section.entity';
+import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 
 @Injectable()
 export class ImageSectionRepository extends Repository<ImageSectionEntity> {
@@ -26,7 +27,7 @@ export class ImageSectionRepository extends Repository<ImageSectionEntity> {
       const existing = await this.findOne({ where: { id: sectionData.id } });
 
       if (!existing) {
-        throw new NotFoundException(`Seção com ID=${sectionData.id} não encontrada.`);
+        throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, `Seção com ID=${sectionData.id} não encontrada.`);
       }
 
       const merged = this.merge(existing, sectionData);

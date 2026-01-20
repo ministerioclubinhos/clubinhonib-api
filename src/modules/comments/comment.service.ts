@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { CommentEntity } from './entity/comment.entity';
 import { CommentRepository } from './repository/comment.repository';
@@ -37,7 +38,7 @@ export class CommentService {
     const comment = await this.commentRepo.findOneBy({ id });
     if (!comment) {
       this.logger.warn(`⚠️ Comentário não encontrado: ID=${id}`);
-      throw new NotFoundException('Comentário não encontrado');
+      throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, 'Comentário não encontrado');
     }
     this.logger.log(`✅ Comentário encontrado: ID=${comment.id}`);
     return comment;

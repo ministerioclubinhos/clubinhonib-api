@@ -6,10 +6,10 @@ import {
   Delete,
   Param,
   Body,
-  NotFoundException,
   Logger,
   UseGuards,
 } from '@nestjs/common';
+import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import { CreateInformativeDto } from './dto/create-informative.dto';
 import { UpdateInformativeDto } from './dto/update-informative.dto';
 import { InformativeResponseDto } from './dto/informative-response.dto';
@@ -49,7 +49,7 @@ export class InformativeController {
 
     if (!found) {
       this.logger.warn(`⚠️ [GET /informatives/${id}] Banner não encontrado`);
-      throw new NotFoundException('Banner informativo não encontrado');
+      throw new AppNotFoundException(ErrorCode.INFORMATIVE_NOT_FOUND, 'Banner informativo não encontrado');
     }
 
     return found;

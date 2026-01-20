@@ -1,6 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  AppInternalException,
+  ErrorCode,
+} from 'src/shared/exceptions';
+import {
   SESClient,
   SendEmailCommand,
 } from '@aws-sdk/client-ses';
@@ -67,7 +71,7 @@ export class AwsSESService {
       this.logger.log(`Email sent successfully via ${source} to: ${to}`);
     } catch (error) {
       this.logger.error(`Error sending email via SES (${source}): ${error.message}`);
-      throw new Error(`Error sending email via ${source}`);
+      throw new AppInternalException(ErrorCode.EMAIL_SEND_ERROR, `Erro ao enviar email via ${source}`);
     }
   }
 }

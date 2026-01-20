@@ -1,10 +1,6 @@
-import {
-    Injectable,
-    Logger,
-    NotFoundException,
-    BadRequestException,
-  } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
   import { DataSource, QueryRunner } from 'typeorm';
+  import { AppNotFoundException, AppInternalException, ErrorCode } from 'src/shared/exceptions';
   import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
   import { RouteService } from 'src/modules/routes/route.service';
   import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
@@ -55,7 +51,7 @@ import {
       } catch (error) {
         await queryRunner.rollbackTransaction();
         this.logger.error('❌ Erro ao remover página. Rollback executado.', error.stack);
-        throw new BadRequestException('Erro ao remover a página de materiais.');
+        throw new AppInternalException(ErrorCode.INTERNAL_ERROR, 'Erro ao remover a página de materiais.');
       } finally {
         await queryRunner.release();
       }
@@ -68,7 +64,7 @@ import {
       });
       if (!page) {
         this.logger.warn(`⚠️ Página ID=${id} não encontrada`);
-        throw new NotFoundException('Página não encontrada');
+        throw new AppNotFoundException(ErrorCode.WEEK_MATERIAL_NOT_FOUND, 'Página não encontrada');
       }
       return page;
     }

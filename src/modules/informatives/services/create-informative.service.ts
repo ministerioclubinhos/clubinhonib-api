@@ -1,8 +1,5 @@
-import {
-  Injectable,
-  Logger,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { AppException, AppInternalException, ErrorCode } from 'src/shared/exceptions';
 import { DataSource, QueryRunner } from 'typeorm';
 import { RouteService } from 'src/modules/routes/route.service';
 import { RouteType } from 'src/modules/routes/route-page.entity';
@@ -42,8 +39,12 @@ export class CreateInformativeService {
     } catch (err) {
       await runner.rollbackTransaction();
       this.logger.error('💥  Transaction rolled‑back', err.stack);
-      throw new BadRequestException(
-        `Erro ao criar o banner informativo: ${err.message}`,
+      if (err instanceof AppException) {
+        throw err;
+      }
+      throw new AppInternalException(
+        ErrorCode.INTERNAL_ERROR,
+        'Erro ao criar o banner informativo.',
       );
     } finally {
       await runner.release();

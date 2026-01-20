@@ -1,10 +1,9 @@
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  Inject,
-  InternalServerErrorException,
-} from '@nestjs/common';
+  AppNotFoundException,
+  AppInternalException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { DocumentRepository } from '../document.repository';
 import { DocumentDto } from '../dto/document-response.dto';
@@ -35,7 +34,7 @@ export class GetDocumentService {
       return documents.map((doc) => DocumentDto.fromEntity(doc, mediaMap.get(doc.id)));
     } catch (error) {
       this.logger.error('❌ Erro ao buscar documentos', error.stack);
-      throw new InternalServerErrorException('Erro ao buscar documentos');
+      throw new AppInternalException(ErrorCode.DATABASE_ERROR, 'Erro ao buscar documentos');
     }
   }
 
@@ -45,7 +44,7 @@ export class GetDocumentService {
     const doc = await this.documentRepo.findOneById(id);
     if (!doc) {
       this.logger.warn(`⚠️ Documento não encontrado: ID=${id}`);
-      throw new NotFoundException('Documento não encontrado');
+      throw new AppNotFoundException(ErrorCode.DOCUMENT_NOT_FOUND, 'Documento não encontrado');
     }
 
     const media = await this.mediaItemProcessor.findMediaItemsByTarget(id, 'document');

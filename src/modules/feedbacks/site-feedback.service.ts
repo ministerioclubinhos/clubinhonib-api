@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, Logger, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import {
+  AppNotFoundException,
+  AppInternalException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import { SiteFeedbackEntity } from './entity/site-feedback.entity';
 import { SiteFeedbackRepository } from './repository/site-feedback.repository';
 import { CreateSiteFeedbackDto } from './dto/create-site-feedback.dto';
@@ -30,7 +35,7 @@ export class SiteFeedbackService {
     const feedback = await this.siteFeedbackRepo.findOneBy({ id });
     if (!feedback) {
       this.logger.warn(`⚠️ Feedback do site não encontrado: ID=${id}`);
-      throw new NotFoundException('Feedback do site não encontrado');
+      throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, 'Feedback do site não encontrado');
     }
     this.logger.log(`✅ Feedback do site encontrado: ID=${feedback.id}`);
     return feedback;
@@ -59,7 +64,7 @@ export class SiteFeedbackService {
 
       if (!feedback) {
         this.logger.warn(`⚠️ Feedback do site não encontrado com id: ${id}`);
-        throw new NotFoundException('Feedback do site não encontrado');
+        throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, 'Feedback do site não encontrado');
       }
 
       feedback.read = true;
@@ -70,7 +75,7 @@ export class SiteFeedbackService {
       return updatedFeedback;
     } catch (error) {
       this.logger.error('❌ Erro ao buscar ou atualizar feedback do site', error.stack);
-      throw new InternalServerErrorException('Erro ao buscar ou atualizar feedback do site');
+      throw new AppInternalException(ErrorCode.DATABASE_ERROR, 'Erro ao buscar ou atualizar feedback do site');
     }
   }
 }

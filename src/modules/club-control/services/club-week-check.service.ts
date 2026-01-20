@@ -1,4 +1,5 @@
 import { Injectable, Inject, forwardRef } from '@nestjs/common';
+import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import { ClubEntity } from 'src/modules/clubs/entities/club.entity/club.entity';
 import { ChildEntity } from 'src/modules/children/entities/child.entity';
 import { ClubPeriodEntity } from '../entities/club-period.entity';
@@ -22,7 +23,7 @@ export class ClubWeekCheckService {
     const club = await this.clubControlRepository.findClubById(clubId);
 
     if (!club) {
-      throw new Error('Clubinho not found');
+      throw new AppNotFoundException(ErrorCode.CLUB_NOT_FOUND, 'Clubinho não encontrado');
     }
 
     const period = await this.clubControlRepository.findPeriodByYear(year);

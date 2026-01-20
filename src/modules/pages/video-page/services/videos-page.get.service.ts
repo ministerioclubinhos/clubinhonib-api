@@ -1,4 +1,5 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import { VideosPageRepository } from '../video-page.repository';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { VideosPageResponseDto } from '../dto/videos-page-response.dto';
@@ -30,7 +31,7 @@ export class GetVideosPageService {
   async findOne(id: string): Promise<VideosPageResponseDto> {
     this.logger.debug(`📡 Buscando página de vídeos ID=${id}...`);
     const page = await this.videosPageRepo.findById(id);
-    if (!page) throw new NotFoundException('Página de vídeos não encontrada.');
+    if (!page) throw new AppNotFoundException(ErrorCode.VIDEO_NOT_FOUND, 'Página de vídeos não encontrada.');
 
     const mediaItems = await this.mediaItemProcessor.findMediaItemsByTarget(page.id, 'VideosPage');
     return VideosPageResponseDto.fromEntity(page, mediaItems);

@@ -1,3 +1,4 @@
+import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import {
   Injectable,
   Logger,
@@ -42,13 +43,13 @@ export class ImageSectionUpdateService {
     try {
       const section = await this.sectionRepo.findOneBy({ id });
       if (!section) {
-        throw new NotFoundException('Seção não encontrada');
+        throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, 'Seção não encontrada');
       }
 
       const pageIdFromEnv = this.configService.get<string>('FEED_CLUBINHO_PAGE_ID');
       const page = await this.pageRepo.findOneBy({ id: pageIdFromEnv });
       if (!page) {
-        throw new NotFoundException('Página padrão não encontrada');
+        throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, 'Página padrão não encontrada');
       }
 
       const existingMedia = await this.mediaItemProcessor.findManyMediaItemsByTargets(
@@ -148,7 +149,7 @@ export class ImageSectionUpdateService {
 
     const existingMedia = await queryRunner.manager.findOneBy(MediaItemEntity, { id: mediaInput.id });
     if (!existingMedia) {
-      throw new NotFoundException(`Mídia com id=${mediaInput.id} não encontrada`);
+      throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, `Mídia com id=${mediaInput.id} não encontrada`);
     }
 
     const updatedMedia = this.mediaItemProcessor.buildBaseMediaItem(

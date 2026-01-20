@@ -1,8 +1,5 @@
-import {
-    Injectable,
-    Logger,
-    BadRequestException,
-  } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { AppValidationException, AppInternalException, ErrorCode } from 'src/shared/exceptions';
   import { EventRepository } from '../event.repository';
   import { EventEntity } from '../entities/event.entity';
   import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
@@ -41,7 +38,7 @@ import { CreateEventDto } from '../dto/create-event.dto';
         let size = dto.media.size;
   
         if (dto.media.isLocalFile) {
-          if (!file) throw new BadRequestException('Arquivo não enviado.');
+          if (!file) throw new AppValidationException(ErrorCode.FILE_REQUIRED, 'Arquivo não enviado.');
           mediaUrl = await this.s3Service.upload(file);
           originalName = file.originalname;
           size = file.size;
@@ -71,7 +68,8 @@ import { CreateEventDto } from '../dto/create-event.dto';
         return savedEvent;
       } catch (error) {
         this.logger.error('❌ Erro ao criar evento', error.stack);
-        throw new BadRequestException(
+        throw new AppInternalException(
+          ErrorCode.INTERNAL_ERROR,
           error?.message || 'Erro inesperado ao criar evento.',
         );
       }

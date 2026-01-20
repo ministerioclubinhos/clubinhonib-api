@@ -1,3 +1,4 @@
+import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import { Injectable, NotFoundException, ConflictException, Logger } from '@nestjs/common';
 import { FeatureFlagsRepository } from './feature-flags.repository';
 import { CreateFeatureFlagDto } from './dto/create-feature-flag.dto';
@@ -31,7 +32,7 @@ export class FeatureFlagsService {
     async findByKey(key: string): Promise<FeatureFlagEntity> {
         const flag = await this.repository.findByKey(key);
         if (!flag) {
-            throw new NotFoundException(`Feature flag with key "${key}" not found`);
+            throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, `Feature flag with key "${key}" not found`);
         }
         return flag;
     }

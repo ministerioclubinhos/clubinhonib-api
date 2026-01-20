@@ -8,11 +8,10 @@ import {
   UploadedFiles,
   Body,
   UseInterceptors,
-  BadRequestException,
   Logger,
   UseGuards,
-  NotFoundException,
 } from '@nestjs/common';
+import { AppValidationException, AppNotFoundException, AppInternalException, ErrorCode } from 'src/shared/exceptions';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 import { plainToInstance } from 'class-transformer';
@@ -57,7 +56,7 @@ export class VideosPageController {
 
       if (validationErrors.length > 0) {
         this.logger.error('❌ Erros de validação:', JSON.stringify(validationErrors, null, 2));
-        throw new BadRequestException('Dados inválidos na requisição');
+        throw new AppValidationException(ErrorCode.VALIDATION_ERROR, 'Dados inválidos na requisição');
       }
 
       const filesDict: Record<string, Express.Multer.File> = {};
@@ -68,7 +67,7 @@ export class VideosPageController {
       return result;
     } catch (error) {
       this.logger.error('❌ Erro ao criar página de vídeos', error);
-      throw new BadRequestException('Erro ao criar a página de vídeos.');
+      throw new AppInternalException(ErrorCode.INTERNAL_ERROR, 'Erro ao criar a página de vídeos.');
     }
   }
 
@@ -93,7 +92,7 @@ export class VideosPageController {
 
       if (validationErrors.length > 0) {
         this.logger.error('❌ Erros de validação:', JSON.stringify(validationErrors, null, 2));
-        throw new BadRequestException('Dados inválidos na requisição');
+        throw new AppValidationException(ErrorCode.VALIDATION_ERROR, 'Dados inválidos na requisição');
       }
 
       const filesDict: Record<string, Express.Multer.File> = {};
@@ -104,7 +103,7 @@ export class VideosPageController {
       return result;
     } catch (error) {
       this.logger.error('❌ Erro ao atualizar página de vídeos', error);
-      throw new BadRequestException('Erro ao atualizar a página de vídeos.');
+      throw new AppInternalException(ErrorCode.INTERNAL_ERROR, 'Erro ao atualizar a página de vídeos.');
     }
   }
 
@@ -120,9 +119,9 @@ export class VideosPageController {
     try {
       return await this.getService.findOne(id);
     } catch (err) {
-      if (err instanceof NotFoundException) throw err;
+      if (err instanceof AppNotFoundException) throw err;
       this.logger.error('❌ Erro ao buscar página de vídeos', err);
-      throw new BadRequestException('Erro ao buscar página de vídeos.');
+      throw new AppInternalException(ErrorCode.INTERNAL_ERROR, 'Erro ao buscar página de vídeos.');
     }
   }
 

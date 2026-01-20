@@ -1,3 +1,4 @@
+import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ImageSectionRepository } from '../repository/image-section.repository';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
@@ -37,7 +38,7 @@ export class ImageSectionGetService {
     
     const section = await this.sectionRepository.findOneBy({ id });
     if (!section) {
-      throw new NotFoundException(`Seção com id=${id} não encontrada`);
+      throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, `Seção com id=${id} não encontrada`);
     }
 
     const mediaItems = await this.mediaItemProcessor.findMediaItemsByTarget(section.id, MediaTargetType.ImagesPage);

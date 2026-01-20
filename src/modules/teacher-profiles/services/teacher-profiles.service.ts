@@ -1,4 +1,5 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { AppForbiddenException, ErrorCode } from 'src/shared/exceptions';
 import { Request } from 'express';
 
 import { TeacherProfilesRepository } from '../repositories/teacher-profiles.repository';
@@ -42,8 +43,8 @@ export class TeacherProfilesService {
     };
   }
   private assertAllowed(ctx: AccessCtx) {
-    if (!ctx.role) throw new ForbiddenException('Acesso negado');
-    if (ctx.role === 'teacher') throw new ForbiddenException('Acesso negado');
+    if (!ctx.role) throw new AppForbiddenException(ErrorCode.ACCESS_DENIED, 'Acesso negado');
+    if (ctx.role === 'teacher') throw new AppForbiddenException(ErrorCode.ACCESS_DENIED, 'Acesso negado');
   }
 
   async findAll(req: Request): Promise<TeacherResponseDto[]> {
@@ -83,7 +84,7 @@ export class TeacherProfilesService {
 
     if (ctx.role !== 'admin') {
       const allowed = await this.repo.userHasAccessToClub(clubId, ctx);
-      if (!allowed) throw new ForbiddenException('Sem acesso ao clubinho informado');
+      if (!allowed) throw new AppForbiddenException(ErrorCode.CLUB_ACCESS_DENIED, 'Sem acesso ao clubinho informado');
     }
     await this.repo.assignTeacherToClub(teacherId, clubId);
   }
@@ -95,15 +96,15 @@ export class TeacherProfilesService {
     if (ctx.role !== 'admin') {
       if (expectedClubId) {
         const allowed = await this.repo.userHasAccessToClub(expectedClubId, ctx);
-        if (!allowed) throw new ForbiddenException('Sem acesso ao clubinho informado');
+        if (!allowed) throw new AppForbiddenException(ErrorCode.CLUB_ACCESS_DENIED, 'Sem acesso ao clubinho informado');
       } else {
         const t = await this.repo.findOneWithClubAndCoordinatorOrFail(teacherId, ctx);
         const currentClubId = t.club?.id;
         if (currentClubId) {
           const allowed = await this.repo.userHasAccessToClub(currentClubId, ctx);
-          if (!allowed) throw new ForbiddenException('Sem acesso ao clubinho atual do teacher');
+          if (!allowed) throw new AppForbiddenException(ErrorCode.CLUB_ACCESS_DENIED, 'Sem acesso ao clubinho atual do teacher');
         } else {
-          throw new ForbiddenException('Teacher não possui club para desvincular');
+          throw new AppForbiddenException(ErrorCode.PROFILE_INVALID_OPERATION, 'Teacher não possui club para desvincular');
         }
       }
     }

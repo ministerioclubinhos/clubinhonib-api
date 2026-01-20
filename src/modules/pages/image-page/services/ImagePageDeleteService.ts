@@ -1,9 +1,13 @@
 import {
     Injectable,
     Logger,
-    NotFoundException,
     BadRequestException,
 } from '@nestjs/common';
+import {
+    AppNotFoundException,
+    AppInternalException,
+    ErrorCode,
+} from 'src/shared/exceptions';
 import { DataSource } from 'typeorm';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { RouteService } from 'src/modules/routes/route.service';
@@ -38,7 +42,7 @@ export class ImagePageDeleteService {
             const page = await this.imagePageRepository.findByIdWithSections(id);
             if (!page) {
                 this.logger.warn(`⚠️ Página com ID ${id} não encontrada`);
-                throw new NotFoundException(`Página com id ${id} não encontrada`);
+                throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, `Página com id ${id} não encontrada`);
             }
             this.logger.debug(`✅ Página encontrada: ID=${page.id}, name="${page.name}"`);
 

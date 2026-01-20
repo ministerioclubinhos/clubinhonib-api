@@ -1,3 +1,4 @@
+import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
@@ -28,7 +29,7 @@ export class ImageSectionDeleteService {
 
       if (!section) {
         this.logger.warn(`⚠️ Seção com id=${id} não encontrada`);
-        throw new NotFoundException(`Seção com id=${id} não encontrada`);
+        throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, `Seção com id=${id} não encontrada`);
       }
 
       this.logger.debug(`🔍 Buscando mídias associadas à seção`);

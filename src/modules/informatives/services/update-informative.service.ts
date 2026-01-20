@@ -1,8 +1,5 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import { DataSource } from 'typeorm';
 import { InformativeRepository } from '../informative.repository';
 import { UpdateInformativeDto } from '../dto/update-informative.dto';
@@ -27,7 +24,7 @@ export class UpdateInformativeService {
     const existing = await this.informativeRepo.findOneWithRelations(id);
     if (!existing) {
       this.logger.warn(`⚠️ Banner informativo não encontrado: ID=${id}`);
-      throw new NotFoundException('Informativo não encontrado.');
+      throw new AppNotFoundException(ErrorCode.INFORMATIVE_NOT_FOUND, 'Informativo não encontrado.');
     }
 
     return await this.dataSource.transaction(async (manager) => {
