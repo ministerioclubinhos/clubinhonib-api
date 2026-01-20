@@ -1,9 +1,5 @@
-import {
-    Injectable,
-    Logger,
-    BadRequestException,
-    NotFoundException,
-  } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
   import { DataSource } from 'typeorm';
   import { EventRepository } from '../event.repository';
   import { EventEntity } from '../entities/event.entity';
@@ -31,7 +27,7 @@ import { UpdateEventDto } from '../dto/update-event.dto';
       this.logger.log(`🛠️ Atualizando evento ID=${id}`);
   
       const existing = await this.eventRepo.findById(id);
-      if (!existing) throw new NotFoundException('Evento não encontrado');
+      if (!existing) throw new AppNotFoundException(ErrorCode.EVENT_NOT_FOUND, 'Evento não encontrado');
   
       return await this.dataSource.transaction(async (manager) => {
         const updatedEvent = manager.merge(EventEntity, existing, {

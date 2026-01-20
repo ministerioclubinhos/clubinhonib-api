@@ -1,8 +1,5 @@
-import {
-    BadRequestException,
-    Injectable,
-    Logger,
-  } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { AppInternalException, ErrorCode } from 'src/shared/exceptions';
   import { DataSource } from 'typeorm';
   import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
   import { RouteService } from 'src/modules/routes/route.service';
@@ -82,7 +79,7 @@ import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
       } catch (error) {
         await queryRunner.rollbackTransaction();
         this.logger.error('❌ Erro ao criar página de vídeos. Rollback executado.', error);
-        throw new BadRequestException('Erro ao criar a página de vídeos.');
+        throw new AppInternalException(ErrorCode.INTERNAL_ERROR, 'Erro ao criar a página de vídeos.');
       } finally {
         await queryRunner.release();
       }

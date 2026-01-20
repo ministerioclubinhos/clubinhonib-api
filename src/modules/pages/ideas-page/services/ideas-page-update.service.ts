@@ -1,3 +1,4 @@
+import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import {
   Injectable,
   Logger,
@@ -154,7 +155,7 @@ export class IdeasPageUpdateService {
     });
     if (!page) {
       this.logger.warn(`⚠️ Página com ID ${id} não encontrada`);
-      throw new NotFoundException('Página de ideias não encontrada');
+      throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, 'Página de ideias não encontrada');
     }
     this.logger.debug(`✅ Página encontrada e validada: ID=${page.id}, title="${page.title}"`);
     return page;
@@ -167,7 +168,7 @@ export class IdeasPageUpdateService {
     });
     if (!sections || sections.length === 0) {
       this.logger.warn(`⚠️ Nenhuma seção encontrada para página ID: ${pageId}`);
-      throw new NotFoundException('Seções da página de ideias não encontradas');
+      throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, 'Seções da página de ideias não encontradas');
     }
     this.logger.debug(`✅ ${sections.length} seções encontradas e validadas para página ID: ${pageId}`);
     return sections;
@@ -178,7 +179,7 @@ export class IdeasPageUpdateService {
     const route = await this.routeService.findRouteByEntityId(entityId);
     if (!route) {
       this.logger.warn(`⚠️ Rota para entityId ${entityId} não encontrada`);
-      throw new NotFoundException('Rota da página de ideias não encontrada');
+      throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, 'Rota da página de ideias não encontrada');
     }
     this.logger.debug(`✅ Rota encontrada e validada: ID=${route.id}, path="${route.path}"`);
     return route;
@@ -194,7 +195,7 @@ export class IdeasPageUpdateService {
     });
     if (!media || media.length === 0) {
       this.logger.warn(`⚠️ Nenhuma mídia encontrada para seções: ${sectionIds.join(', ')}`);
-      throw new NotFoundException('Mídias associadas à página de ideias não encontradas');
+      throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, 'Mídias associadas à página de ideias não encontradas');
     }
     this.logger.debug(`✅ ${media.length} mídias encontradas e validadas: ${media.map(m => `ID=${m.id}`).join(', ')}`);
     return media;

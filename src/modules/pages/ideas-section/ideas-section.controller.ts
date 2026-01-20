@@ -10,9 +10,13 @@ import {
   UseInterceptors,
   UseGuards,
   Logger,
-  BadRequestException,
-  NotFoundException,
 } from '@nestjs/common';
+import {
+  AppNotFoundException,
+  AppValidationException,
+  AppInternalException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 import { AdminRoleGuard } from 'src/core/auth/guards/role-guard';
@@ -59,7 +63,7 @@ export class IdeasSectionController {
 
     if (validationErrors.length > 0) {
       this.logger.error('❌ Erros de validação:', JSON.stringify(validationErrors, null, 2));
-      throw new BadRequestException('Dados inválidos na requisição');
+      throw new AppValidationException(ErrorCode.VALIDATION_ERROR, 'Dados inválidos na requisição');
     }
 
     const filesDict: Record<string, Express.Multer.File> = {};
@@ -90,7 +94,7 @@ export class IdeasSectionController {
 
     if (validationErrors.length > 0) {
       this.logger.error('❌ Erros de validação:', JSON.stringify(validationErrors, null, 2));
-      throw new BadRequestException('Dados inválidos na requisição');
+      throw new AppValidationException(ErrorCode.VALIDATION_ERROR, 'Dados inválidos na requisição');
     }
 
     const filesDict: Record<string, Express.Multer.File> = {};
@@ -113,7 +117,7 @@ export class IdeasSectionController {
     this.logger.debug(`🚀 [PATCH /ideas-sections/${sectionId}/attach/${pageId}] Editando e vinculando seção`);
 
     try {
-      if (!raw) throw new BadRequestException('sectionData é obrigatório.');
+      if (!raw) throw new AppValidationException(ErrorCode.INVALID_INPUT, 'sectionData é obrigatório.');
 
       const parsedData = JSON.parse(Buffer.isBuffer(raw) ? raw.toString() : raw);
       const dto = plainToInstance(UpdateIdeasSectionDto, parsedData);
@@ -124,7 +128,7 @@ export class IdeasSectionController {
 
       if (validationErrors.length > 0) {
         this.logger.error('❌ Erros de validação:', JSON.stringify(validationErrors, null, 2));
-        throw new BadRequestException('Dados inválidos na requisição');
+        throw new AppValidationException(ErrorCode.VALIDATION_ERROR, 'Dados inválidos na requisição');
       }
 
       const filesDict: Record<string, Express.Multer.File> = {};
@@ -135,7 +139,7 @@ export class IdeasSectionController {
       return result;
     } catch (error) {
       this.logger.error('❌ Erro ao editar e vincular seção', error);
-      throw new BadRequestException('Erro ao editar e vincular a seção de ideias.');
+      throw new AppInternalException(ErrorCode.INTERNAL_ERROR, 'Erro ao editar e vincular a seção de ideias.');
     }
   }
 
@@ -156,7 +160,7 @@ export class IdeasSectionController {
 
     const result = await this.getService.findOne(id);
     if (!result) {
-      throw new NotFoundException(`Seção de ideias com id=${id} não encontrada`);
+      throw new AppNotFoundException(ErrorCode.IDEA_NOT_FOUND, `Seção de ideias com id=${id} não encontrada`);
     }
 
     this.logger.log(`✅ Seção de ideias encontrada ID=${id}`);

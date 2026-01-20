@@ -7,12 +7,12 @@ import {
   Param,
   Delete,
   ParseUUIDPipe,
-  BadRequestException,
   UseInterceptors,
   UploadedFiles,
   Logger,
   UseGuards,
 } from '@nestjs/common';
+import { AppBusinessException, AppValidationException, ErrorCode } from 'src/shared/exceptions';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { plainToInstance } from 'class-transformer';
 import { validateOrReject } from 'class-validator';
@@ -50,7 +50,7 @@ export class DocumentsController {
 
     if (!documentDataRaw) {
       this.logger.warn('❗ Campo "documentData" não enviado');
-      throw new BadRequestException('Campo "documentData" não enviado.');
+      throw new AppBusinessException(ErrorCode.INVALID_INPUT, 'Campo "documentData" não enviado.');
     }
 
     let dto: CreateDocumentDto;
@@ -60,7 +60,7 @@ export class DocumentsController {
       await validateOrReject(dto);
     } catch (error) {
       this.logger.error('❌ Erro ao processar dados do documento', error);
-      throw new BadRequestException('Erro ao processar dados do documento.');
+      throw new AppBusinessException(ErrorCode.INVALID_INPUT, 'Erro ao processar dados do documento.');
     }
 
     const file = dto.media?.fileField
@@ -100,7 +100,7 @@ export class DocumentsController {
 
     if (!documentDataRaw) {
       this.logger.warn('❗ Campo "documentData" não enviado');
-      throw new BadRequestException('Campo "documentData" não enviado.');
+      throw new AppBusinessException(ErrorCode.INVALID_INPUT, 'Campo "documentData" não enviado.');
     }
 
     let dto: UpdateDocumentDto;
@@ -111,7 +111,7 @@ export class DocumentsController {
       await validateOrReject(dto);
     } catch (error) {
       this.logger.error('❌ Erro ao processar dados do documento', error);
-      throw new BadRequestException('Erro ao processar dados do documento.');
+      throw new AppBusinessException(ErrorCode.INVALID_INPUT, 'Erro ao processar dados do documento.');
     }
 
     const file = dto.media?.fileField

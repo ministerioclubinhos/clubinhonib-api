@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Body, Param, Query, Delete, Put, NotFoundException, Logger } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, Delete, Put, Logger } from '@nestjs/common';
+import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import { ClubControlService } from '../services/club-control.service';
 import { CreateClubPeriodDto } from '../dto/create-club-period.dto';
 import { UpdateClubPeriodDto } from '../dto/update-club-period.dto';
@@ -9,11 +10,11 @@ import { CreateClubExceptionDto } from '../dto/create-club-exception.dto';
 export class ClubControlController {
   private readonly logger = new Logger(ClubControlController.name);
 
-  constructor(private readonly clubControlService: ClubControlService) {}
+  constructor(private readonly clubControlService: ClubControlService) { }
 
-  
 
-  
+
+
   @Post('periods')
   async createPeriod(@Body() dto: CreateClubPeriodDto) {
     const started = Date.now();
@@ -28,7 +29,7 @@ export class ClubControlController {
     }
   }
 
-  
+
   @Get('periods/:year')
   async getPeriodByYear(@Param('year') year: number) {
     const started = Date.now();
@@ -43,7 +44,7 @@ export class ClubControlController {
     }
   }
 
-  
+
   @Get('periods')
   async getAllPeriods(
     @Query('page') page?: number,
@@ -64,7 +65,7 @@ export class ClubControlController {
     }
   }
 
-  
+
   @Put('periods/:id')
   async updatePeriod(@Param('id') id: string, @Body() dto: UpdateClubPeriodDto) {
     const started = Date.now();
@@ -74,14 +75,14 @@ export class ClubControlController {
       this.logger.log(`PUT /club-control/periods/${id} -> success in ${Date.now() - started}ms`);
       return result;
     } catch (err: any) {
-      if (!(err instanceof NotFoundException)) {
+      if (!(err instanceof AppNotFoundException)) {
         this.logger.error(`PUT /club-control/periods/${id} -> error in ${Date.now() - started}ms: ${err?.message}`);
       }
       throw err;
     }
   }
 
-  
+
   @Delete('periods/:id')
   async deletePeriod(@Param('id') id: string) {
     const started = Date.now();
@@ -90,21 +91,21 @@ export class ClubControlController {
       const result = await this.clubControlService.deletePeriod(id);
       if (!result?.success) {
         this.logger.warn(`DELETE /club-control/periods/${id} -> not found in ${Date.now() - started}ms`);
-        throw new NotFoundException('Period not found');
+        throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, 'Período não encontrado');
       }
       this.logger.log(`DELETE /club-control/periods/${id} -> success in ${Date.now() - started}ms`);
       return { success: true };
     } catch (err: any) {
-      if (!(err instanceof NotFoundException)) {
+      if (!(err instanceof AppNotFoundException)) {
         this.logger.error(`DELETE /club-control/periods/${id} -> error in ${Date.now() - started}ms: ${err?.message}`);
       }
       throw err;
     }
   }
 
-  
 
-  
+
+
   @Post('exceptions')
   async createException(@Body() dto: CreateClubExceptionDto) {
     const started = Date.now();
@@ -119,7 +120,7 @@ export class ClubControlController {
     }
   }
 
-  
+
   @Get('exceptions/:date')
   async getExceptionByDate(@Param('date') date: string) {
     const started = Date.now();
@@ -134,7 +135,7 @@ export class ClubControlController {
     }
   }
 
-  
+
   @Get('exceptions')
   async getExceptionsByPeriod(
     @Query('startDate') startDate?: string,
@@ -157,7 +158,7 @@ export class ClubControlController {
     }
   }
 
-  
+
   @Delete('exceptions/:id')
   async deleteException(@Param('id') id: string) {
     const started = Date.now();
@@ -166,21 +167,21 @@ export class ClubControlController {
       const result = await this.clubControlService.deleteException(id);
       if (!result?.success) {
         this.logger.warn(`DELETE /club-control/exceptions/${id} -> not found in ${Date.now() - started}ms`);
-        throw new NotFoundException('Exception not found');
+        throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, 'Exceção não encontrada');
       }
       this.logger.log(`DELETE /club-control/exceptions/${id} -> success in ${Date.now() - started}ms`);
       return { success: true };
     } catch (err: any) {
-      if (!(err instanceof NotFoundException)) {
+      if (!(err instanceof AppNotFoundException)) {
         this.logger.error(`DELETE /club-control/exceptions/${id} -> error in ${Date.now() - started}ms: ${err?.message}`);
       }
       throw err;
     }
   }
 
-  
 
-  
+
+
   @Get('check/club/:clubId')
   async checkClubWeek(
     @Param('clubId') clubId: string,
@@ -199,7 +200,7 @@ export class ClubControlController {
     }
   }
 
-  
+
   @Get('check/week')
   async checkAllClubsWeek(
     @Query('year') year?: number,
@@ -208,26 +209,26 @@ export class ClubControlController {
     @Query('limit') limit?: number,
   ) {
     const started = Date.now();
-    
+
     const DEFAULT_PAGE = 1;
     const DEFAULT_LIMIT = 50;
     const p = page ? Number(page) : DEFAULT_PAGE;
     const l = limit ? Number(limit) : DEFAULT_LIMIT;
-    
-    
+
+
     let y: number | undefined;
     let w: number | undefined;
-    
+
     if (year !== undefined && week !== undefined) {
-      
+
       y = Number(year);
       w = Number(week);
       this.logger.log(`GET /club-control/check/week?year=${y}&week=${w}&page=${p}&limit=${l}`);
     } else {
-      
+
       this.logger.log(`GET /club-control/check/week (calculando semana atual automaticamente, page=${p}, limit=${l})`);
     }
-    
+
     try {
       const result = await this.clubControlService.checkAllClubsWeek(y, w, p, l);
       const listed = Array.isArray((result as any)?.clubs) ? (result as any).clubs.length : 0;
@@ -239,7 +240,7 @@ export class ClubControlController {
     }
   }
 
-  
+
   @Get('dashboard')
   async getCurrentWeekDashboard() {
     const started = Date.now();
@@ -254,7 +255,7 @@ export class ClubControlController {
     }
   }
 
-  
+
   @Get('current-week')
   async getCurrentWeek() {
     const started = Date.now();
@@ -269,7 +270,7 @@ export class ClubControlController {
     }
   }
 
-  
+
   @Get('indicators/detailed')
   async getDetailedIndicators(
     @Query('year') year: number,
@@ -286,7 +287,7 @@ export class ClubControlController {
     const y = Number(year);
     const w = Number(week);
     const filters: any = {};
-    
+
     if (status) filters.status = status;
     if (severity) filters.severity = severity;
     if (weekday) filters.weekday = weekday;

@@ -1,13 +1,13 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { UserRepository } from '../user.repository';
 import { ChangePasswordDto } from '../dto/change-password.dto';
+import {
+  AppNotFoundException,
+  AppUnauthorizedException,
+  AppBusinessException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 
 @Injectable()
 export class ChangePasswordService {
@@ -18,24 +18,36 @@ export class ChangePasswordService {
   async changePassword(userId: string, dto: ChangePasswordDto): Promise<{ message: string }> {
     const user = await this.userRepo.findById(userId);
     if (!user) {
-      throw new NotFoundException('Usuário não encontrado');
+      throw new AppNotFoundException(
+        ErrorCode.USER_NOT_FOUND,
+        'Usuário não encontrado',
+      );
     }
 
     if (user.commonUser) {
       if (!dto.currentPassword) {
-        throw new BadRequestException('A senha atual é obrigatória para usuários comuns');
+        throw new AppBusinessException(
+          ErrorCode.VALIDATION_ERROR,
+          'A senha atual é obrigatória para usuários comuns',
+        );
       }
 
       const isPasswordValid = await bcrypt.compare(dto.currentPassword, user.password);
       if (!isPasswordValid) {
-        throw new UnauthorizedException('Senha atual incorreta');
+        throw new AppUnauthorizedException(
+          ErrorCode.PASSWORD_MISMATCH,
+          'Senha atual incorreta',
+        );
       }
     }
 
     if (user.password) {
       const isSamePassword = await bcrypt.compare(dto.newPassword, user.password);
       if (isSamePassword) {
-        throw new BadRequestException('A nova senha deve ser diferente da senha atual');
+        throw new AppBusinessException(
+          ErrorCode.PASSWORD_SAME_AS_CURRENT,
+          'A nova senha deve ser diferente da senha atual',
+        );
       }
     }
 
@@ -48,4 +60,3 @@ export class ChangePasswordService {
     return { message: 'Senha alterada com sucesso' };
   }
 }
-

@@ -1,10 +1,9 @@
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  Inject,
-  InternalServerErrorException,
-} from '@nestjs/common';
+  AppNotFoundException,
+  AppInternalException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import { InformativeRepository } from '../informative.repository';
 import { RouteRepository } from 'src/modules/routes/route-page.repository';
 
@@ -27,7 +26,7 @@ export class DeleteInformativeService {
 
     if (!informative) {
       this.logger.warn(`⚠️ Banner não encontrado: ID=${id}`);
-      throw new NotFoundException('Banner informativo não encontrado');
+      throw new AppNotFoundException(ErrorCode.INFORMATIVE_NOT_FOUND, 'Banner informativo não encontrado');
     }
 
     try {
@@ -40,7 +39,7 @@ export class DeleteInformativeService {
       this.logger.log(`✅ Banner removido com sucesso: ID=${id}`);
     } catch (error) {
       this.logger.error(`❌ Erro ao remover banner ID=${id}`, error.stack);
-      throw new InternalServerErrorException('Erro ao remover banner.');
+      throw new AppInternalException(ErrorCode.DATABASE_ERROR, 'Erro ao remover banner.');
     }
   }
 }

@@ -1,10 +1,9 @@
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  Inject,
-  InternalServerErrorException,
-} from '@nestjs/common';
+  AppNotFoundException,
+  AppInternalException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { DocumentRepository } from '../document.repository';
@@ -30,7 +29,7 @@ export class DeleteDocumentService {
     const document = await this.documentRepo.findOneById(id);
     if (!document) {
       this.logger.warn(`⚠️ Documento não encontrado: ID=${id}`);
-      throw new NotFoundException('Documento não encontrado');
+      throw new AppNotFoundException(ErrorCode.DOCUMENT_NOT_FOUND, 'Documento não encontrado');
     }
 
     try {
@@ -47,7 +46,7 @@ export class DeleteDocumentService {
       this.logger.log(`✅ Documento removido com sucesso: ID=${id}`);
     } catch (error) {
       this.logger.error(`❌ Erro ao remover documento ID=${id}`, error.stack);
-      throw new InternalServerErrorException('Erro ao remover documento.');
+      throw new AppInternalException(ErrorCode.DATABASE_ERROR, 'Erro ao remover documento.');
     }
   }
 }

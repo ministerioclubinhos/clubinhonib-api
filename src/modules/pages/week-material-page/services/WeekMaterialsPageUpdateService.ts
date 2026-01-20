@@ -1,10 +1,6 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { DataSource, QueryRunner } from 'typeorm';
+import { AppNotFoundException, AppBusinessException, AppInternalException, ErrorCode } from 'src/shared/exceptions';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { RouteService } from 'src/modules/routes/route.service';
 import { RouteEntity, RouteType } from 'src/modules/routes/route-page.entity';
@@ -138,7 +134,7 @@ export class WeekMaterialsPageUpdateService {
     });
     if (!page) {
       this.logger.warn(`⚠️ Página ID=${id} não encontrada`);
-      throw new NotFoundException('Página não encontrada');
+      throw new AppNotFoundException(ErrorCode.WEEK_MATERIAL_NOT_FOUND, 'Página não encontrada');
     }
     this.logger.debug(`✅ Página ID=${id} encontrada`);
     return page;
@@ -149,7 +145,7 @@ export class WeekMaterialsPageUpdateService {
     const route = await this.routeService.findRouteByEntityId(entityId);
     if (!route) {
       this.logger.warn(`⚠️ Rota para entityId=${entityId} não encontrada`);
-      throw new NotFoundException('Rota não encontrada');
+      throw new AppNotFoundException(ErrorCode.ROUTE_NOT_FOUND, 'Rota não encontrada');
     }
     this.logger.debug(`✅ Rota ID=${route.id} encontrada`);
     return route;

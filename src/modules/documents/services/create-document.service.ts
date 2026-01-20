@@ -1,9 +1,10 @@
+import { Injectable, Logger } from '@nestjs/common';
 import {
-  Injectable,
-  Logger,
-  BadRequestException,
-  InternalServerErrorException,
-} from '@nestjs/common';
+  AppBusinessException,
+  AppInternalException,
+  AppValidationException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import { DataSource, QueryRunner } from 'typeorm';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { RouteService } from 'src/modules/routes/route.service';
@@ -51,7 +52,8 @@ export class CreateDocumentService {
     } catch (err) {
       await runner.rollbackTransaction();
       this.logger.error('💥  Transaction rolled‑back', err.stack);
-      throw new BadRequestException(
+      throw new AppBusinessException(
+        ErrorCode.VALIDATION_ERROR,
         `Erro ao criar o documento: ${err.message}`,
       );
     } finally {
@@ -128,7 +130,7 @@ export class CreateDocumentService {
     if (dto.media.isLocalFile) {
       if (!file) {
         this.logger.error('🚫 Arquivo obrigatório não enviado.');
-        throw new BadRequestException('Arquivo obrigatório não enviado.');
+        throw new AppValidationException(ErrorCode.FILE_REQUIRED, 'Arquivo obrigatório não enviado.');
       }
 
       this.logger.log(`⬆️ Upload para S3: ${file.originalname}`);
@@ -141,7 +143,7 @@ export class CreateDocumentService {
           `❌ Erro no upload do arquivo: ${file.originalname}`,
           error.stack,
         );
-        throw new InternalServerErrorException('Falha no upload do arquivo.');
+        throw new AppInternalException(ErrorCode.FILE_UPLOAD_ERROR, 'Falha no upload do arquivo.');
       }
     }
 

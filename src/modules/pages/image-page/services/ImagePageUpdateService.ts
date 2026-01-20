@@ -1,9 +1,14 @@
 import {
     Injectable,
     Logger,
-    NotFoundException,
     BadRequestException,
 } from '@nestjs/common';
+import {
+    AppNotFoundException,
+    AppBusinessException,
+    AppInternalException,
+    ErrorCode,
+} from 'src/shared/exceptions';
 import { DataSource, QueryRunner } from 'typeorm';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { RouteService } from 'src/modules/routes/route.service';
@@ -132,7 +137,7 @@ export class ImagePageUpdateService {
         const imagePage = await this.imagePageRepository.findByIdWithSections(id);
         if (!imagePage) {
             this.logger.warn(`⚠️ Página com ID ${id} não encontrada`);
-            throw new NotFoundException('Página não encontrada');
+            throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, 'Página não encontrada');
         }
         this.logger.debug(`✅ Galeria validada: ID=${imagePage.id}, name="${imagePage.name}"`);
         return imagePage;
@@ -143,7 +148,7 @@ export class ImagePageUpdateService {
         const sections = await this.imageSectionRepository.findByPageId(pageId);
         if (!sections || sections.length === 0) {
             this.logger.warn(`⚠️ Nenhuma seção encontrada para página ID: ${pageId}`);
-            throw new NotFoundException('Seções da galeria não encontradas');
+            throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, 'Seções da galeria não encontradas');
         }
         this.logger.debug(`✅ Seções validadas: ${sections.length} seções encontradas`);
         return sections;
@@ -154,7 +159,7 @@ export class ImagePageUpdateService {
         const route = await this.routeService.findRouteByEntityId(entityId);
         if (!route) {
             this.logger.warn(`⚠️ Rota para entityId ${entityId} não encontrada`);
-            throw new NotFoundException('Rota da galeria não encontrada');
+            throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, 'Rota da galeria não encontrada');
         }
         this.logger.debug(`✅ Rota validada: ID=${route.id}, path="${route.path}"`);
         return route;
@@ -165,7 +170,7 @@ export class ImagePageUpdateService {
         const media = await this.mediaItemProcessor.findManyMediaItemsByTargets(sectionIds, 'ImagesPage');
         if (!media || media.length === 0) {
             this.logger.warn(`⚠️ Nenhuma mídia encontrada para seções: ${sectionIds.join(', ')}`);
-            throw new NotFoundException('Mídias associadas à galeria não encontradas');
+            throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, 'Mídias associadas à galeria não encontradas');
         }
         this.logger.debug(`✅ Mídias validadas: ${media.length} mídias encontradas`);
         return media;

@@ -1,10 +1,11 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { UserEntity } from '../entities/user.entity';
 import { GetUsersQueryDto } from '../dto/get-users-query.dto';
 import { UserRepository } from '../user.repository';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { PersonalDataRepository } from 'src/core/profile/repositories/personal-data.repository';
 import { UserPreferencesRepository } from 'src/core/profile/repositories/user-preferences.repository';
+import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 
 @Injectable()
 export class GetUsersService {
@@ -27,7 +28,12 @@ export class GetUsersService {
 
   async findOne(id: string): Promise<UserEntity> {
     const user = await this.userRepo.findById(id);
-    if (!user) throw new NotFoundException('UserEntity not found');
+    if (!user) {
+      throw new AppNotFoundException(
+        ErrorCode.USER_NOT_FOUND,
+        'Usuário não encontrado',
+      );
+    }
     return user;
   }
 
@@ -38,7 +44,10 @@ export class GetUsersService {
   async findOneForProfile(id: string) {
     const user = await this.userRepo.findByIdWithProfiles(id);
     if (!user) {
-      throw new NotFoundException('UserEntity not found');
+      throw new AppNotFoundException(
+        ErrorCode.USER_NOT_FOUND,
+        'Usuário não encontrado',
+      );
     }
 
     const imageMedia = await this.mediaItemProcessor.findMediaItemByTarget(

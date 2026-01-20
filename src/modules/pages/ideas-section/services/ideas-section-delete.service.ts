@@ -1,4 +1,11 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import {
+  AppNotFoundException,
+  AppBusinessException,
+  AppInternalException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import { DataSource } from 'typeorm';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { IdeasSectionRepository } from '../repository/ideas-section.repository';
@@ -31,7 +38,7 @@ export class IdeasSectionDeleteService {
       });
 
       if (!existingSection) {
-        throw new NotFoundException(`Seção de ideias com ID=${id} não encontrada`);
+        throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, `Seção de ideias com ID=${id} não encontrada`);
       }
 
       if (existingSection.page) {
@@ -78,7 +85,7 @@ export class IdeasSectionDeleteService {
       await queryRunner.rollbackTransaction();
       this.logger.error(`❌ Erro ao excluir seção de ideias ID=${id}`, error);
 
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+      if (error instanceof AppNotFoundException || error instanceof BadRequestException) {
         throw error;
       }
 

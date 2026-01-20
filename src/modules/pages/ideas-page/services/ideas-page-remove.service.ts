@@ -1,3 +1,4 @@
+import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import {
   Injectable,
   Logger,
@@ -42,7 +43,7 @@ export class IdeasPageRemoveService {
       const page = await this.pageRepo.findOnePageById(id);
       if (!page) {
         this.logger.warn(`⚠️ Página com ID ${id} não encontrada`);
-        throw new NotFoundException(`Página de ideias com id ${id} não encontrada`);
+        throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, `Página de ideias com id ${id} não encontrada`);
       }
       this.logger.debug(`✅ Página encontrada: ID=${page.id}, title="${page.title}"`);
 

@@ -1,4 +1,9 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import {
+  AppNotFoundException,
+  AppBusinessException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import { PagelasRepository } from './pagelas.repository';
 import { CreatePagelaDto } from './dto/create-pagela.dto';
 import { UpdatePagelaDto } from './dto/update-pagela.dto';
@@ -41,7 +46,8 @@ export class PagelasService {
       }
       
       if (!period) {
-        throw new NotFoundException(
+        throw new AppNotFoundException(
+          ErrorCode.RESOURCE_NOT_FOUND,
           `Não há período letivo cadastrado para a data ${dto.referenceDate}. ` +
           `Por favor, cadastre um período letivo antes de criar pagelas.`
         );
@@ -58,7 +64,8 @@ export class PagelasService {
         year = academicWeek.year;
         week = academicWeek.week;
       } catch (error: any) {
-        throw new BadRequestException(
+        throw new AppBusinessException(
+          ErrorCode.INVALID_DATE_RANGE,
           error.message || `Data ${dto.referenceDate} está fora do período letivo cadastrado.`
         );
       }

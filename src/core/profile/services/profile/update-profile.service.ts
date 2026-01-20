@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { UserRepository } from '../../../user/user.repository';
 import { PersonalDataRepository } from '../../repositories/personal-data.repository';
 import { UserPreferencesRepository } from '../../repositories/user-preferences.repository';
 import { UpdateCompleteProfileDto } from '../../dto/update-complete-profile.dto';
 import { CompleteProfileResponseDto } from '../../dto/complete-profile-response.dto';
+import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 
 @Injectable()
 export class UpdateProfileService {
@@ -16,7 +17,10 @@ export class UpdateProfileService {
   async execute(userId: string, dto: UpdateCompleteProfileDto): Promise<CompleteProfileResponseDto> {
     const user = await this.userRepository.findById(userId);
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new AppNotFoundException(
+        ErrorCode.USER_NOT_FOUND,
+        'Usuário não encontrado',
+      );
     }
 
     let personalData: Awaited<ReturnType<typeof this.personalDataRepository.findByUserId>> = null;

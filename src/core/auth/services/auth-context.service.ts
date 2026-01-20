@@ -1,8 +1,9 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Request } from 'express';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { JwtPayload, UserRole } from '../auth.types';
+import { AppUnauthorizedException, AppInternalException, ErrorCode } from 'src/shared/exceptions';
 
 @Injectable()
 export class AuthContextService {
@@ -34,7 +35,10 @@ export class AuthContextService {
       process.env.JWT_SECRET ??
       '';
     if (!secret) {
-      throw new UnauthorizedException('JWT secret not configured');
+      throw new AppInternalException(
+        ErrorCode.INTERNAL_ERROR,
+        'JWT secret não configurado',
+      );
     }
     const payload = await this.jwt.verifyAsync<JwtPayload>(token, { secret });
     return this.normalizePayload(payload);
@@ -47,7 +51,12 @@ export class AuthContextService {
 
   async getPayloadFromRequest(req: Request): Promise<JwtPayload> {
     const token = this.getTokenFromRequest(req);
-    if (!token) throw new UnauthorizedException('Token missing');
+    if (!token) {
+      throw new AppUnauthorizedException(
+        ErrorCode.TOKEN_MISSING,
+        'Token não fornecido',
+      );
+    }
     return this.verifyToken(token);
   }
 

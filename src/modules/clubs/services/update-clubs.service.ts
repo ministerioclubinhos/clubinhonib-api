@@ -1,8 +1,13 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Request } from 'express';
 import { ClubsRepository } from '../repositories/clubs.repository';
 import { UpdateClubDto } from '../dto/update-club.dto';
 import { AuthContextService } from 'src/core/auth/services/auth-context.service';
+import {
+  AppNotFoundException,
+  AppForbiddenException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 
 type Ctx = { role?: string; userId?: string | null };
 
@@ -20,17 +25,17 @@ export class UpdateClubsService {
 
   async update(id: string, dto: UpdateClubDto, req: Request) {
     const ctx = await this.getCtx(req);
-    if (!ctx.role || ctx.role === 'teacher') throw new ForbiddenException('Acesso negado');
+    if (!ctx.role || ctx.role === 'teacher') throw new AppForbiddenException(ErrorCode.CLUB_ACCESS_DENIED, 'Acesso negado');
 
     if (ctx.role === 'coordinator') {
       const allowed = await this.clubsRepository.userHasAccessToClub(id, ctx);
-      if (!allowed) throw new NotFoundException('Clubinho não encontrado');
+      if (!allowed) throw new AppNotFoundException(ErrorCode.CLUB_NOT_FOUND, 'Clubinho não encontrado');
 
       if (dto.coordinatorProfileId !== undefined) {
         const myCoordId = await this.clubsRepository.getCoordinatorProfileIdByUserId(ctx.userId!);
-        if (!myCoordId) throw new ForbiddenException('Acesso negado');
+        if (!myCoordId) throw new AppForbiddenException(ErrorCode.CLUB_ACCESS_DENIED, 'Acesso negado');
         if (dto.coordinatorProfileId !== null && dto.coordinatorProfileId !== myCoordId) {
-          throw new ForbiddenException('Não é permitido atribuir outro coordenador');
+          throw new AppForbiddenException(ErrorCode.CLUB_ACCESS_DENIED, 'Não é permitido atribuir outro coordenador');
         }
         if (dto.coordinatorProfileId === undefined) {
           dto.coordinatorProfileId = myCoordId;

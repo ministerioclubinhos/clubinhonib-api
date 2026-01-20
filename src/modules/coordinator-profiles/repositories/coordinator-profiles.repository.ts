@@ -1,8 +1,9 @@
+import { Injectable } from '@nestjs/common';
 import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+  AppNotFoundException,
+  AppBusinessException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   DataSource,
@@ -230,7 +231,7 @@ export class CoordinatorProfilesRepository {
       .addOrderBy('teachers.createdAt', 'ASC')
       .getOne();
 
-    if (!coord) throw new NotFoundException('CoordinatorProfile não encontrado');
+    if (!coord) throw new AppNotFoundException(ErrorCode.COORDINATOR_NOT_FOUND, 'Perfil de coordenador não encontrado');
     return coord;
   }
 
@@ -241,9 +242,9 @@ export class CoordinatorProfilesRepository {
       where: { id: clubId },
       relations: { coordinator: true },
     });
-    if (!club) throw new NotFoundException('Clubinho não encontrado');
+    if (!club) throw new AppNotFoundException(ErrorCode.CLUB_NOT_FOUND, 'Clubinho não encontrado');
     if (!club.coordinator) {
-      throw new NotFoundException('Este Club não possui coordenador vinculado');
+      throw new AppNotFoundException(ErrorCode.COORDINATOR_NOT_FOUND, 'Este Clubinho não possui coordenador vinculado');
     }
     return this.findOneWithClubsAndTeachersOrFail(club.coordinator.id);
   }
@@ -258,13 +259,13 @@ export class CoordinatorProfilesRepository {
 
       const coordinator = await coordRepo.findOne({ where: { id: coordinatorId } });
       if (!coordinator)
-        throw new NotFoundException('CoordinatorProfile não encontrado');
+        throw new AppNotFoundException(ErrorCode.COORDINATOR_NOT_FOUND, 'Perfil de coordenador não encontrado');
 
       const club = await clubRepo.findOne({
         where: { id: clubId },
         relations: { coordinator: true },
       });
-      if (!club) throw new NotFoundException('Clubinho não encontrado');
+      if (!club) throw new AppNotFoundException(ErrorCode.CLUB_NOT_FOUND, 'Clubinho não encontrado');
 
       if (club.coordinator && club.coordinator.id === coordinatorId) return;
 
@@ -284,11 +285,12 @@ export class CoordinatorProfilesRepository {
         where: { id: clubId },
         relations: { coordinator: true },
       });
-      if (!club) throw new NotFoundException('Clubinho não encontrado');
+      if (!club) throw new AppNotFoundException(ErrorCode.CLUB_NOT_FOUND, 'Clubinho não encontrado');
 
       if (!club.coordinator || club.coordinator.id !== coordinatorId) {
-        throw new BadRequestException(
-          'Este Club não está vinculado a este coordenador',
+        throw new AppBusinessException(
+          ErrorCode.PROFILE_INVALID_OPERATION,
+          'Este Clubinho não está vinculado a este coordenador',
         );
       }
 
@@ -303,7 +305,7 @@ export class CoordinatorProfilesRepository {
     toCoordinatorId: string,
   ): Promise<void> {
     if (fromCoordinatorId === toCoordinatorId) {
-      throw new BadRequestException('Coordenadores de origem e destino são iguais');
+      throw new AppBusinessException(ErrorCode.INVALID_INPUT, 'Coordenadores de origem e destino são iguais');
     }
 
     await this.dataSource.transaction(async (manager) => {
@@ -315,19 +317,20 @@ export class CoordinatorProfilesRepository {
         coordRepo.findOne({ where: { id: toCoordinatorId } }),
       ]);
       if (!from)
-        throw new NotFoundException('CoordinatorProfile de origem não encontrado');
+        throw new AppNotFoundException(ErrorCode.COORDINATOR_NOT_FOUND, 'Perfil de coordenador de origem não encontrado');
       if (!to)
-        throw new NotFoundException('CoordinatorProfile de destino não encontrado');
+        throw new AppNotFoundException(ErrorCode.COORDINATOR_NOT_FOUND, 'Perfil de coordenador de destino não encontrado');
 
       const club = await clubRepo.findOne({
         where: { id: clubId },
         relations: { coordinator: true },
       });
-      if (!club) throw new NotFoundException('Clubinho não encontrado');
+      if (!club) throw new AppNotFoundException(ErrorCode.CLUB_NOT_FOUND, 'Clubinho não encontrado');
 
       if (!club.coordinator || club.coordinator.id !== fromCoordinatorId) {
-        throw new BadRequestException(
-          'O Club não está vinculado ao coordenador de origem',
+        throw new AppBusinessException(
+          ErrorCode.PROFILE_INVALID_OPERATION,
+          'O Clubinho não está vinculado ao coordenador de origem',
         );
       }
 
@@ -342,7 +345,7 @@ export class CoordinatorProfilesRepository {
       const txUser = manager.withRepository(this.userRepo);
 
       const user = await txUser.findOne({ where: { id: userId } });
-      if (!user) throw new NotFoundException('User não encontrado');
+      if (!user) throw new AppNotFoundException(ErrorCode.USER_NOT_FOUND, 'Usuário não encontrado');
 
       const existing = await txCoord.findOne({ where: { user: { id: userId } } });
       if (existing) return existing;

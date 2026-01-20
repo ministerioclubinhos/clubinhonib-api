@@ -1,9 +1,10 @@
+import { Injectable, Logger } from '@nestjs/common';
 import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+  AppNotFoundException,
+  AppBusinessException,
+  AppInternalException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import { DataSource, QueryRunner } from 'typeorm';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { RouteService } from 'src/modules/routes/route.service';
@@ -53,7 +54,7 @@ export class UpdateVideosPageService {
       const existingPage = await this.videosPageRepo.findById(id);
       if (!existingPage) {
         this.logger.warn(`⚠️ Página não encontrada para ID: ${id}`);
-        throw new NotFoundException('Página não encontrada');
+        throw new AppNotFoundException(ErrorCode.VIDEO_NOT_FOUND, 'Página não encontrada');
       }
       this.logger.debug(`✅ Página encontrada: title="${existingPage.name}"`);
 
@@ -106,7 +107,7 @@ export class UpdateVideosPageService {
       this.logger.debug('🔙 Executando rollback da transação');
       await queryRunner.rollbackTransaction();
       this.logger.debug('✅ Rollback concluído');
-      throw new BadRequestException('Erro ao atualizar a página de vídeos.');
+      throw new AppInternalException(ErrorCode.INTERNAL_ERROR, 'Erro ao atualizar a página de vídeos.');
     } finally {
       this.logger.debug('🔚 Liberando QueryRunner');
       await queryRunner.release();
@@ -124,12 +125,12 @@ export class UpdateVideosPageService {
       title: pageData.title,
       subtitle: 'Página de vídeos',
       idToFetch: videoPageId,
-      entityType:MediaTargetType.VideosPage,
+      entityType: MediaTargetType.VideosPage,
       entityId: videoPageId,
       type: RouteType.PAGE,
       description: pageData.description,
       path: 'galeria_videos_',
-      image: 'https://clubinho-nib.s3.us-east-1.amazonaws.com/production/cards/card_videos.png',      
+      image: 'https://clubinho-nib.s3.us-east-1.amazonaws.com/production/cards/card_videos.png',
       public: pageData.public,
     };
     this.logger.debug(`📋 Dados da rota preparados: title="${routeData.title}", path="${routeData.path}"`);
@@ -168,7 +169,7 @@ export class UpdateVideosPageService {
           this.logger.debug(`✅ Arquivo removido do S3: ${media.url}`);
         } catch (error) {
           this.logger.error(`❌ Falha ao remover arquivo do S3: ${media.url}`, error.stack);
-          throw new BadRequestException(`Falha ao remover arquivo do S3: ${media.url}`);
+          throw new AppBusinessException(ErrorCode.INVALID_INPUT, `Falha ao remover arquivo do S3: ${media.url}`);
         }
       } else {
         this.logger.debug(`ℹ️ Mídia não é arquivo local ou não possui URL, pulando remoção do S3`);
@@ -251,7 +252,7 @@ export class UpdateVideosPageService {
     } else if (mediaInput.uploadType === UploadType.LINK || mediaInput.isLocalFile === false) {
       if (!mediaInput.url) {
         this.logger.error('❌ URL obrigatória para vídeos do tipo link');
-        throw new BadRequestException('URL obrigatória para vídeos do tipo link.');
+        throw new AppBusinessException(ErrorCode.INVALID_INPUT, 'URL obrigatória para vídeos do tipo link.');
       }
       this.logger.debug(`🔗 Usando URL fornecida: ${mediaInput.url}`);
       media.url = mediaInput.url;
@@ -260,7 +261,7 @@ export class UpdateVideosPageService {
       this.logger.debug(`✅ Plataforma definida: ${media.platformType}`);
     } else {
       this.logger.error(`❌ Tipo de mídia inválido: ${mediaInput.uploadType}`);
-      throw new BadRequestException(`Tipo de mídia inválido: ${mediaInput.uploadType}`);
+      throw new AppBusinessException(ErrorCode.INVALID_INPUT, `Tipo de mídia inválido: ${mediaInput.uploadType}`);
     }
 
     this.logger.debug(`💾 Iniciando salvamento da nova mídia no banco de dados`);
@@ -281,7 +282,7 @@ export class UpdateVideosPageService {
     const existingMedia = await queryRunner.manager.findOne(MediaItemEntity, { where: { id: mediaInput.id } });
     if (!existingMedia) {
       this.logger.warn(`⚠️ Mídia com ID ${mediaInput.id} não encontrada`);
-      throw new NotFoundException(`Mídia com id ${mediaInput.id} não encontrada.`);
+      throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, `Mídia com id ${mediaInput.id} não encontrada.`);
     }
     this.logger.debug(`✅ Mídia existente encontrada: URL=${existingMedia.url}`);
 
@@ -323,7 +324,7 @@ export class UpdateVideosPageService {
     } else if (mediaInput.uploadType === UploadType.LINK) {
       if (!mediaInput.url) {
         this.logger.error('❌ URL obrigatória para vídeos do tipo link');
-        throw new BadRequestException('URL obrigatória para vídeos do tipo link.');
+        throw new AppBusinessException(ErrorCode.INVALID_INPUT, 'URL obrigatória para vídeos do tipo link.');
       }
       this.logger.debug(`🔗 Atualizando com nova URL: ${mediaInput.url}`);
       media.url = mediaInput.url;
@@ -332,7 +333,7 @@ export class UpdateVideosPageService {
       this.logger.debug(`✅ Plataforma definida: ${media.platformType}`);
     } else {
       this.logger.error(`❌ Tipo de mídia inválido: ${mediaInput.uploadType}`);
-      throw new BadRequestException(`Tipo de mídia inválido: ${mediaInput.uploadType}`);
+      throw new AppBusinessException(ErrorCode.INVALID_INPUT, `Tipo de mídia inválido: ${mediaInput.uploadType}`);
     }
 
     this.logger.debug(`💾 Iniciando salvamento da mídia atualizada no banco de dados`);

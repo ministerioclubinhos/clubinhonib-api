@@ -1,6 +1,11 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Request } from 'express';
 import { ClubsRepository } from '../repositories/clubs.repository';
+import {
+  AppNotFoundException,
+  AppForbiddenException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import { QueryClubsDto } from '../dto/query-clubs.dto';
 import {
   ClubResponseDto,
@@ -28,7 +33,7 @@ export class GetClubsService {
 
   async findAllPaginated(q: QueryClubsDto, req: Request): Promise<Paginated<ClubResponseDto>> {
     const ctx = await this.getCtx(req);
-    if (!ctx.role || ctx.role === 'teacher') throw new ForbiddenException('Acesso negado');
+    if (!ctx.role || ctx.role === 'teacher') throw new AppForbiddenException(ErrorCode.CLUB_ACCESS_DENIED, 'Acesso negado');
 
     const { page = 1, limit = 10 } = q;
     const { items, total } = await this.clubsRepository.findAllPaginated(q, ctx);
@@ -45,7 +50,7 @@ export class GetClubsService {
   async findOne(id: string, req: Request): Promise<ClubResponseDto> {
     const ctx = await this.getCtx(req);
     const club = await this.clubsRepository.findOneOrFailForResponse(id, ctx);
-    if (!club) throw new NotFoundException('Clubinho não encontrado');
+    if (!club) throw new AppNotFoundException(ErrorCode.CLUB_NOT_FOUND, 'Clubinho não encontrado');
     return toClubDto(club);
   }
 
@@ -57,16 +62,16 @@ export class GetClubsService {
 
   async toggleActive(id: string, req: Request): Promise<ClubResponseDto> {
     const ctx = await this.getCtx(req);
-    if (!ctx.role || ctx.role === 'teacher') throw new ForbiddenException('Acesso negado');
+    if (!ctx.role || ctx.role === 'teacher') throw new AppForbiddenException(ErrorCode.CLUB_ACCESS_DENIED, 'Acesso negado');
 
     const club = await this.clubsRepository.findOneOrFailForResponse(id, ctx);
-    if (!club) throw new NotFoundException('Clubinho não encontrado ou sem acesso');
+    if (!club) throw new AppNotFoundException(ErrorCode.CLUB_NOT_FOUND, 'Clubinho não encontrado ou sem acesso');
 
     const updateDto = { isActive: !club.isActive };
     await this.clubsRepository.updateClub(id, updateDto);
 
     const reloaded = await this.clubsRepository.findOneOrFailForResponse(id, ctx);
-    if (!reloaded) throw new NotFoundException('Clubinho não encontrado');
+    if (!reloaded) throw new AppNotFoundException(ErrorCode.CLUB_NOT_FOUND, 'Clubinho não encontrado');
     return toClubDto(reloaded);
   }
 }

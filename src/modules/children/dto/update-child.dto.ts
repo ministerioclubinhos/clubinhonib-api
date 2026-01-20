@@ -57,7 +57,7 @@ export class UpdateChildDto {
 
   @IsOptional()
   @IsString()
-  @Length(2, 255)
+  @Length(1, 255)
   gender?: string;
 
   @IsOptional()

@@ -10,9 +10,12 @@ import {
   UseInterceptors,
   UseGuards,
   Logger,
-  BadRequestException,
-  NotFoundException,
 } from '@nestjs/common';
+import {
+  AppNotFoundException,
+  AppValidationException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 import { AdminRoleGuard } from 'src/core/auth/guards/role-guard';
@@ -90,7 +93,7 @@ export class ImageSectionController {
 
     const result = await this.getService.findOne(id);
     if (!result) {
-      throw new NotFoundException(`Section com id=${id} não encontrada`);
+      throw new AppNotFoundException(ErrorCode.IMAGE_NOT_FOUND, `Section com id=${id} não encontrada`);
     }
 
     this.logger.log(`✅ Section encontrada ID=${id}`);
@@ -112,7 +115,7 @@ export class ImageSectionController {
       return plainToInstance(dtoClass, obj);
     } catch (error) {
       this.logger.error('❌ Erro ao fazer o parse do JSON recebido.', error);
-      throw new BadRequestException('Formato inválido de JSON.');
+      throw new AppValidationException(ErrorCode.INVALID_INPUT, 'Formato inválido de JSON.');
     }
   }
 
@@ -120,7 +123,7 @@ export class ImageSectionController {
     const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
     if (errors.length > 0) {
       this.logger.error('❌ Erros de validação:', JSON.stringify(errors, null, 2));
-      throw new BadRequestException('Dados inválidos na requisição.');
+      throw new AppValidationException(ErrorCode.VALIDATION_ERROR, 'Dados inválidos na requisição.');
     }
   }
 
