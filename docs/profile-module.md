@@ -185,3 +185,6 @@ Updates the authenticated user's extended profile data.
 ### Response
 
 - **Status**: `200 OK`
+
+---
+⬅️ [Back to Documentation Hub](README.md)

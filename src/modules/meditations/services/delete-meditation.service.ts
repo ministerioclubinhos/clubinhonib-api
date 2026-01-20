@@ -1,8 +1,5 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import { RouteService } from 'src/modules/routes/route.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { MeditationRepository } from '../meditation.repository';
@@ -26,7 +23,7 @@ export class DeleteMeditationService {
     const meditation = await this.meditationRepo.findOneWithRelations(id);
     if (!meditation) {
       this.logger.warn(`⚠️ Meditação não encontrada: ID=${id}`);
-      throw new NotFoundException('Meditação não encontrada');
+      throw new AppNotFoundException(ErrorCode.MEDITATION_NOT_FOUND, 'Meditação não encontrada');
     }
 
     const media = await this.mediaItemProcessor.findMediaItemsByTarget(id,  MediaTargetType.Meditation);

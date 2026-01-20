@@ -340,3 +340,6 @@ Sets a new password using a valid token.
   "message": "Senha alterada com sucesso."
 }
 ```
+
+---
+⬅️ [Back to Documentation Hub](README.md)

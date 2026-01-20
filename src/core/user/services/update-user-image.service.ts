@@ -1,8 +1,9 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { MediaType, UploadType } from 'src/shared/media/media-item/media-item.entity';
 import { GetUsersService } from './get-user.service';
+import { AppValidationException, ErrorCode } from 'src/shared/exceptions';
 
 @Injectable()
 export class UpdateUserImageService {
@@ -24,7 +25,8 @@ export class UpdateUserImageService {
 
   private validateImageFile(file: Express.Multer.File): void {
     if (!file.mimetype || !file.mimetype.startsWith('image/')) {
-      throw new BadRequestException(
+      throw new AppValidationException(
+        ErrorCode.INVALID_FILE,
         `Tipo de arquivo inválido. Apenas imagens são permitidas. Tipo recebido: ${file.mimetype || 'desconhecido'}`,
       );
     }
@@ -47,8 +49,8 @@ export class UpdateUserImageService {
     };
 
     if (body.imageData) {
-      mediaDto = typeof body.imageData === 'string' 
-        ? JSON.parse(body.imageData) 
+      mediaDto = typeof body.imageData === 'string'
+        ? JSON.parse(body.imageData)
         : body.imageData;
     } else if (body.title || body.url) {
       mediaDto = {
@@ -60,7 +62,10 @@ export class UpdateUserImageService {
         fieldKey: body.fieldKey,
       };
     } else {
-      throw new BadRequestException('imageData é obrigatório ou envie campos diretos (title, url, etc.)');
+      throw new AppValidationException(
+        ErrorCode.VALIDATION_ERROR,
+        'imageData é obrigatório ou envie campos diretos (title, url, etc.)',
+      );
     }
 
     const filesDict = this.mapFiles(files);
@@ -96,7 +101,8 @@ export class UpdateUserImageService {
         const fieldKey = mediaDto.fieldKey || 'file';
         const file = filesDict[fieldKey];
         if (!file) {
-          throw new BadRequestException(
+          throw new AppValidationException(
+            ErrorCode.FILE_REQUIRED,
             `Arquivo não encontrado para upload. FieldKey: ${fieldKey}, Arquivos disponíveis: ${Object.keys(filesDict).join(', ')}`,
           );
         }
@@ -131,7 +137,10 @@ export class UpdateUserImageService {
         media.url = mediaDto.url;
         media.isLocalFile = false;
       } else {
-        throw new BadRequestException('URL ou arquivo é obrigatório');
+        throw new AppValidationException(
+          ErrorCode.FILE_REQUIRED,
+          'URL ou arquivo é obrigatório',
+        );
       }
 
       await this.mediaItemProcessor.upsertMediaItem(existingMedia.id, media);
@@ -152,7 +161,8 @@ export class UpdateUserImageService {
         const fieldKey = mediaDto.fieldKey || 'file';
         const file = filesDict[fieldKey];
         if (!file) {
-          throw new BadRequestException(
+          throw new AppValidationException(
+            ErrorCode.FILE_REQUIRED,
             `Arquivo não encontrado para upload. FieldKey: ${fieldKey}, Arquivos disponíveis: ${Object.keys(filesDict).join(', ')}`,
           );
         }
@@ -169,7 +179,10 @@ export class UpdateUserImageService {
         media.url = mediaDto.url;
         media.isLocalFile = false;
       } else {
-        throw new BadRequestException('URL ou arquivo é obrigatório');
+        throw new AppValidationException(
+          ErrorCode.FILE_REQUIRED,
+          'URL ou arquivo é obrigatório',
+        );
       }
 
       await this.mediaItemProcessor.saveMediaItem(media);
@@ -178,4 +191,3 @@ export class UpdateUserImageService {
     return this.getUsersService.findOne(userId);
   }
 }
-

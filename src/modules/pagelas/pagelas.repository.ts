@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { AppNotFoundException, AppConflictException, ErrorCode } from 'src/shared/exceptions';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository, SelectQueryBuilder } from 'typeorm';
 import { PagelaEntity } from './entities/pagela.entity';
@@ -121,7 +122,7 @@ export class PagelasRepository {
   async findOneOrFail(id: string): Promise<PagelaEntity> {
     const qb = this.baseQB().where('p.id = :id', { id });
     const item = await qb.getOne();
-    if (!item) throw new NotFoundException('Pagela não encontrada');
+    if (!item) throw new AppNotFoundException(ErrorCode.PAGELA_NOT_FOUND, 'Pagela não encontrada');
     return item;
   }
 
@@ -152,14 +153,14 @@ export class PagelasRepository {
         txChild.findOne({ where: { id: data.childId } }),
         data.teacherProfileId ? txTeacher.findOne({ where: { id: data.teacherProfileId } }) : Promise.resolve(null),
       ]);
-      if (!child) throw new NotFoundException('Child não encontrado');
-      if (data.teacherProfileId && !teacher) throw new NotFoundException('TeacherProfile não encontrado');
+      if (!child) throw new AppNotFoundException(ErrorCode.CHILD_NOT_FOUND, 'Criança não encontrada');
+      if (data.teacherProfileId && !teacher) throw new AppNotFoundException(ErrorCode.TEACHER_NOT_FOUND, 'Perfil de professor não encontrado');
 
       const existing = await txPagela.findOne({
         where: { child: { id: child.id }, year: data.year, week: data.week },
       });
       if (existing) {
-        throw new BadRequestException('Já existe Pagela para esta criança nesta semana/ano');
+        throw new AppConflictException(ErrorCode.RESOURCE_ALREADY_EXISTS, 'Já existe Pagela para esta criança nesta semana/ano');
       }
 
       const entity = txPagela.create({
@@ -184,7 +185,7 @@ export class PagelasRepository {
         where: { id },
         relations: { child: true, teacher: true },
       });
-      if (!entity) throw new NotFoundException('Pagela não encontrada');
+      if (!entity) throw new AppNotFoundException(ErrorCode.PAGELA_NOT_FOUND, 'Pagela não encontrada');
 
       if (data.teacher) {
       }
@@ -194,7 +195,7 @@ export class PagelasRepository {
         return await txPagela.save(entity);
       } catch (e: any) {
         if (e?.code === 'ER_DUP_ENTRY') {
-          throw new BadRequestException('Já existe Pagela para esta criança nesta semana/ano');
+          throw new AppConflictException(ErrorCode.RESOURCE_ALREADY_EXISTS, 'Já existe Pagela para esta criança nesta semana/ano');
         }
         throw e;
       }

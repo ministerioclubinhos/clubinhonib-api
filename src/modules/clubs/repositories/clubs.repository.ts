@@ -1,9 +1,10 @@
+import { Injectable } from '@nestjs/common';
 import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+  AppNotFoundException,
+  AppConflictException,
+  AppBusinessException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import {
   DataSource,
   EntityManager,
@@ -96,7 +97,7 @@ export class ClubsRepository {
       },
       order: { number: 'ASC' },
     });
-    if (!club) throw new NotFoundException('Clubinho não encontrado');
+    if (!club) throw new AppNotFoundException(ErrorCode.CLUB_NOT_FOUND, 'Clubinho não encontrado');
     return club;
   }
 
@@ -221,7 +222,7 @@ export class ClubsRepository {
           where: { id: dto.coordinatorProfileId },
         });
         if (!coordinator) {
-          throw new NotFoundException('CoordinatorProfile não encontrado');
+          throw new AppNotFoundException(ErrorCode.COORDINATOR_NOT_FOUND, 'Perfil de coordenador não encontrado');
         }
       }
 
@@ -238,7 +239,7 @@ export class ClubsRepository {
         await clubRepo.save(club);
       } catch (e: any) {
         if (e?.code === 'ER_DUP_ENTRY' || e?.code === '23505') {
-          throw new ConflictException('Já existe um Clubinho com esse número');
+          throw new AppConflictException(ErrorCode.CLUB_NUMBER_IN_USE, 'Já existe um Clubinho com esse número');
         }
         throw e;
       }
@@ -253,15 +254,17 @@ export class ClubsRepository {
         if (teachers.length !== ids.length) {
           const found = new Set(teachers.map((t) => t.id));
           const missing = ids.filter((id) => !found.has(id));
-          throw new NotFoundException(
-            `TeacherProfile(s) não encontrado(s): ${missing.join(', ')}`,
+          throw new AppNotFoundException(
+            ErrorCode.TEACHER_NOT_FOUND,
+            `Perfil(s) de professor(es) não encontrado(s): ${missing.join(', ')}`,
           );
         }
 
         const alreadyAssigned = teachers.filter((t) => !!t.club);
         if (alreadyAssigned.length) {
-          throw new BadRequestException(
-            `Alguns TeacherProfiles já estão vinculados a outro Clubinho: ${alreadyAssigned
+          throw new AppBusinessException(
+            ErrorCode.PROFILE_INVALID_OPERATION,
+            `Alguns perfis de professores já estão vinculados a outro Clubinho: ${alreadyAssigned
               .map((t) => t.id)
               .join(', ')}`,
           );
@@ -284,7 +287,7 @@ export class ClubsRepository {
         where: { id },
         relations: { address: true, coordinator: true, teachers: true },
       });
-      if (!club) throw new NotFoundException('Clubinho não encontrado');
+      if (!club) throw new AppNotFoundException(ErrorCode.CLUB_NOT_FOUND, 'Clubinho não encontrado');
 
       if (dto.number !== undefined) club.number = dto.number as any;
       if (dto.weekday !== undefined) club.weekday = dto.weekday as any;
@@ -316,7 +319,7 @@ export class ClubsRepository {
             where: { id: dto.coordinatorProfileId },
           });
           if (!coordinator) {
-            throw new NotFoundException('CoordinatorProfile não encontrado');
+            throw new AppNotFoundException(ErrorCode.COORDINATOR_NOT_FOUND, 'Perfil de coordenador não encontrado');
           }
           club.coordinator = coordinator;
         }
@@ -342,7 +345,7 @@ export class ClubsRepository {
       .addOrderBy('teachers.createdAt', 'ASC');
 
     const club = await qb.getOne();
-    if (!club) throw new NotFoundException('Clubinho não encontrado');
+    if (!club) throw new AppNotFoundException(ErrorCode.CLUB_NOT_FOUND, 'Clubinho não encontrado');
     return club;
   }
 
@@ -371,8 +374,9 @@ export class ClubsRepository {
     if (attachProfiles.length !== toAttach.length) {
       const found = new Set(attachProfiles.map((p) => p.id));
       const missing = toAttach.filter((id) => !found.has(id));
-      throw new NotFoundException(
-        `TeacherProfile(s) não encontrado(s): ${missing.join(', ')}`,
+      throw new AppNotFoundException(
+        ErrorCode.TEACHER_NOT_FOUND,
+        `Perfil(s) de professor(es) não encontrado(s): ${missing.join(', ')}`,
       );
     }
 
@@ -380,8 +384,9 @@ export class ClubsRepository {
       (p) => p.club && p.club.id !== clubId,
     );
     if (attachedElsewhere.length) {
-      throw new BadRequestException(
-        `Alguns TeacherProfiles já estão vinculados a outro Club: ${attachedElsewhere
+      throw new AppBusinessException(
+        ErrorCode.PROFILE_INVALID_OPERATION,
+        `Alguns perfis de professores já estão vinculados a outro Clubinho: ${attachedElsewhere
           .map((t) => t.id)
           .join(', ')}`,
       );
@@ -409,7 +414,7 @@ export class ClubsRepository {
         where: { id },
         relations: { teachers: true, coordinator: true, address: true },
       });
-      if (!club) throw new NotFoundException('Clubinho não encontrado');
+      if (!club) throw new AppNotFoundException(ErrorCode.CLUB_NOT_FOUND, 'Clubinho não encontrado');
 
       if (club.teachers?.length) {
         await txTeacher.update(

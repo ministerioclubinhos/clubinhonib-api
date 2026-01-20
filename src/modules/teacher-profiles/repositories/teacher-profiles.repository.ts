@@ -1,8 +1,9 @@
+import { Injectable } from '@nestjs/common';
 import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+  AppNotFoundException,
+  AppBusinessException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository, SelectQueryBuilder } from 'typeorm';
 
@@ -153,17 +154,17 @@ export class TeacherProfilesRepository {
     this.applyRoleFilter(qb, ctx);
 
     const teacher = await qb.getOne();
-    if (!teacher) throw new NotFoundException('TeacherProfile não encontrado');
+    if (!teacher) throw new AppNotFoundException(ErrorCode.TEACHER_NOT_FOUND, 'Perfil de professor não encontrado');
     return teacher;
   }
 
   async findByClubIdWithCoordinator(clubId: string, ctx?: RoleCtx): Promise<TeacherProfileEntity[]> {
     const club = await this.clubRepo.findOne({ where: { id: clubId } });
-    if (!club) throw new NotFoundException('Clubinho não encontrado');
+    if (!club) throw new AppNotFoundException(ErrorCode.CLUB_NOT_FOUND, 'Clubinho não encontrado');
 
     if (ctx?.role && ctx.role !== 'admin') {
       const allowed = await this.userHasAccessToClub(clubId, ctx);
-      if (!allowed) throw new NotFoundException('Clubinho não encontrado');
+      if (!allowed) throw new AppNotFoundException(ErrorCode.CLUB_NOT_FOUND, 'Clubinho não encontrado');
     }
 
     const qb = this.baseQB().andWhere('club.id = :clubId', { clubId });
@@ -252,13 +253,13 @@ export class TeacherProfilesRepository {
         txClubRepo.findOne({ where: { id: clubId } }),
       ]);
 
-      if (!teacher) throw new NotFoundException('TeacherProfile não encontrado');
-      if (!club) throw new NotFoundException('Clubinho não encontrado');
+      if (!teacher) throw new AppNotFoundException(ErrorCode.TEACHER_NOT_FOUND, 'Perfil de professor não encontrado');
+      if (!club) throw new AppNotFoundException(ErrorCode.CLUB_NOT_FOUND, 'Clubinho não encontrado');
 
       if (teacher.club && teacher.club.id === clubId) return;
 
       if (teacher.club && teacher.club.id !== clubId) {
-        throw new BadRequestException('Teacher já está vinculado a outro Clubinho');
+        throw new AppBusinessException(ErrorCode.PROFILE_INVALID_OPERATION, 'Professor já está vinculado a outro Clubinho');
       }
 
       teacher.club = club;
@@ -274,12 +275,12 @@ export class TeacherProfilesRepository {
         where: { id: teacherId },
         relations: { club: true },
       });
-      if (!teacher) throw new NotFoundException('TeacherProfile não encontrado');
+      if (!teacher) throw new AppNotFoundException(ErrorCode.TEACHER_NOT_FOUND, 'Perfil de professor não encontrado');
 
       if (!teacher.club) return;
 
       if (expectedClubId && teacher.club.id !== expectedClubId) {
-        throw new BadRequestException('Teacher não pertence ao clubinho informado');
+        throw new AppBusinessException(ErrorCode.PROFILE_INVALID_OPERATION, 'Professor não pertence ao clubinho informado');
       }
 
       teacher.club = null as any;
@@ -293,7 +294,7 @@ export class TeacherProfilesRepository {
       const txUser = manager.withRepository(this.userRepo);
 
       const user = await txUser.findOne({ where: { id: userId } });
-      if (!user) throw new NotFoundException('User não encontrado');
+      if (!user) throw new AppNotFoundException(ErrorCode.USER_NOT_FOUND, 'Usuário não encontrado');
 
       const existing = await txTeacher.findOne({ where: { user: { id: userId } } });
       if (existing) return existing;

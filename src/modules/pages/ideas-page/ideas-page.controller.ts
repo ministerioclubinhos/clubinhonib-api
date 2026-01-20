@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import {
   Controller,
   Post,
@@ -6,13 +7,17 @@ import {
   Body,
   UploadedFiles,
   UseInterceptors,
-  BadRequestException,
   Logger,
   ValidationPipe,
   Get,
   Patch,
   UseGuards,
 } from '@nestjs/common';
+import {
+  AppValidationException,
+  AppInternalException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -51,7 +56,7 @@ export class IdeasPageController {
 
     try {
       if (!raw) {
-        throw new BadRequestException('ideasMaterialsPageData é obrigatório.');
+        throw new AppValidationException(ErrorCode.INVALID_INPUT, 'ideasMaterialsPageData é obrigatório.');
       }
 
       const parsed = JSON.parse(raw);
@@ -72,7 +77,8 @@ export class IdeasPageController {
       return result;
     } catch (err) {
       this.logger.error('❌ Erro ao criar página de ideias', err);
-      throw new BadRequestException(
+      throw new AppInternalException(
+        ErrorCode.INTERNAL_ERROR,
         'Erro ao criar página de ideias: ' + err.message,
       );
     }
@@ -89,7 +95,7 @@ export class IdeasPageController {
     this.logger.debug(`🚀 [PATCH /ideas-pages/${id}] Atualizando página de ideias`);
 
     try {
-      if (!raw) throw new BadRequestException('ideasMaterialsPageData é obrigatório.');
+      if (!raw) throw new AppValidationException(ErrorCode.INVALID_INPUT, 'ideasMaterialsPageData é obrigatório.');
 
       const parsedData = JSON.parse(raw);
       const dto = plainToInstance(UpdateIdeasPageDto, parsedData);

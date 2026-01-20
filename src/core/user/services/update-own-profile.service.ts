@@ -1,12 +1,12 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { UserRepository } from '../user.repository';
 import { UpdateOwnProfileDto } from '../dto/update-own-profile.dto';
 import { UserEntity } from '../entities/user.entity';
+import {
+  AppNotFoundException,
+  AppConflictException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 
 @Injectable()
 export class UpdateOwnProfileService {
@@ -20,20 +20,31 @@ export class UpdateOwnProfileService {
   ): Promise<UserEntity> {
     const currentUser = await this.userRepo.findById(userId);
     if (!currentUser) {
-      throw new NotFoundException('Usuário não encontrado');
+      throw new AppNotFoundException(
+        ErrorCode.USER_NOT_FOUND,
+        'Usuário não encontrado',
+      );
     }
 
     if (dto.email && dto.email !== currentUser.email) {
       const existingUser = await this.userRepo.findByEmail(dto.email);
       if (existingUser && existingUser.id !== userId) {
-        throw new BadRequestException({ message: 'Este email já está em uso por outro usuário', field: 'email' });
+        throw new AppConflictException(
+          ErrorCode.EMAIL_ALREADY_IN_USE,
+          'Este email já está em uso por outro usuário',
+          { field: 'email' },
+        );
       }
     }
 
     if (dto.cpf && dto.cpf !== currentUser.cpf) {
       const existingUser = await this.userRepo.findByCpf(dto.cpf);
       if (existingUser && existingUser.id !== userId) {
-        throw new BadRequestException({ message: 'Este CPF já está em uso por outro usuário', field: 'cpf' });
+        throw new AppConflictException(
+          ErrorCode.RESOURCE_CONFLICT,
+          'Este CPF já está em uso por outro usuário',
+          { field: 'cpf' },
+        );
       }
     }
 
@@ -54,4 +65,3 @@ export class UpdateOwnProfileService {
     return updatedUser;
   }
 }
-

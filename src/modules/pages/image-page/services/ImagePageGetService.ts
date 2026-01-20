@@ -1,8 +1,12 @@
+
 import {
     Injectable,
     Logger,
-    NotFoundException,
 } from '@nestjs/common';
+import {
+    AppNotFoundException,
+    ErrorCode,
+} from 'src/shared/exceptions';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 import { ImagePageRepository } from '../repository/image-page.repository';
@@ -55,13 +59,13 @@ export class ImagePageGetService {
         const page = await this.imagePageRepository.findByIdWithSections(id);
         if (!page) {
             this.logger.warn(`⚠️ Página com ID ${id} não encontrada`);
-            throw new NotFoundException('Página de galeria não encontrada.');
+            throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, 'Página de galeria não encontrada.');
         }
         this.logger.debug(`✅ Página encontrada: ID=${page.id}, name="${page.name}"`);
 
         if (!page.route) {
             this.logger.warn(`⚠️ Rota não encontrada para página ID: ${id}`);
-            throw new NotFoundException(`A galeria com id ${id} não possui rota associada.`);
+            throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, `A galeria com id ${id} não possui rota associada.`);
         }
         this.logger.debug(`✅ Rota validada: ID=${page.route.id}`);
 
@@ -100,7 +104,8 @@ export class ImagePageGetService {
         const imagePage = await this.imagePageRepository.findById(pageId);
         if (!imagePage) {
             this.logger.warn(`⚠️ Página com ID ${pageId} não encontrada`);
-            throw new NotFoundException(
+            throw new AppNotFoundException(
+                ErrorCode.RESOURCE_NOT_FOUND,
                 `Página de galeria com ID ${pageId} não encontrada.`,
             );
         }

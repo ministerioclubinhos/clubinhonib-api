@@ -8,11 +8,12 @@ import {
   Body,
   UploadedFiles,
   UseInterceptors,
-  BadRequestException,
   Logger,
   ValidationPipe,
   UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
+import { AppBusinessException, AppValidationException, AppInternalException, ErrorCode } from 'src/shared/exceptions';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';

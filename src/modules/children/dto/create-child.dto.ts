@@ -24,7 +24,7 @@ export class CreateChildDto {
   @IsDateString() birthDate: string;
 
   @IsString() @Length(2, 255) guardianName: string;
-  @IsString() @Length(2, 255) gender: string;
+  @IsString() @Length(1, 255) gender: string;
   @IsString() @Length(5, 32) guardianPhone: string;
 
   @IsOptional() @IsDateString() joinedAt?: string;

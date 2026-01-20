@@ -8,13 +8,18 @@ import {
   UploadedFiles,
   Body,
   UseInterceptors,
-  BadRequestException,
   Logger,
   UseGuards,
-  NotFoundException,
   Query,
   Req,
 } from '@nestjs/common';
+import {
+  AppNotFoundException,
+  AppBusinessException,
+  AppValidationException,
+  AppInternalException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 import { ImagePageResponseDto } from './dto/image-page-response.dto';
@@ -63,7 +68,7 @@ export class ImageController {
       return result;
     } catch (error) {
       this.logger.error('❌ Erro ao criar galeria', error);
-      throw new BadRequestException('Erro ao criar a galeria.');
+      throw new AppInternalException(ErrorCode.INTERNAL_ERROR, 'Erro ao criar a galeria.');
     }
   }
 
@@ -89,7 +94,7 @@ export class ImageController {
       return await this.updateService.updateImagePage(id, dto, filesDict);
     } catch (error) {
       this.logger.error('❌ Erro ao atualizar galeria', error);
-      throw new BadRequestException('Erro ao atualizar a galeria.');
+      throw new AppInternalException(ErrorCode.INTERNAL_ERROR, 'Erro ao atualizar a galeria.');
     }
   }
 
@@ -118,8 +123,8 @@ export class ImageController {
     try {
       return await this.getService.findOne(id);
     } catch (error) {
-      if (error instanceof NotFoundException) throw error;
-      throw new BadRequestException('Erro ao buscar galeria.');
+      if (error instanceof AppNotFoundException) throw error;
+      throw new AppInternalException(ErrorCode.INTERNAL_ERROR, 'Erro ao buscar galeria.');
     }
   }
 
@@ -134,7 +139,7 @@ export class ImageController {
     const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
     if (errors.length > 0) {
       this.logger.error('❌ Erros de validação:', JSON.stringify(errors, null, 2));
-      throw new BadRequestException('Dados inválidos na requisição');
+      throw new AppValidationException(ErrorCode.VALIDATION_ERROR, 'Dados inválidos na requisição');
     }
   }
 

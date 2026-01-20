@@ -1,8 +1,5 @@
-import {
-    Injectable,
-    Logger,
-    NotFoundException,
-  } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
   import { EventRepository } from '../event.repository';
   import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
   import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
@@ -26,7 +23,7 @@ import {
       const event = await this.eventRepo.findById(id);
       if (!event) {
         this.logger.warn(`⚠️ Evento não encontrado: ID=${id}`);
-        throw new NotFoundException('Evento não encontrado');
+        throw new AppNotFoundException(ErrorCode.EVENT_NOT_FOUND, 'Evento não encontrado');
       }
   
       const media = await this.mediaItemProcessor.findMediaItemsByTarget(id, MediaTargetType.Event);

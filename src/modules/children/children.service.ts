@@ -1,9 +1,14 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Request } from 'express';
 
 import { ChildrenRepository } from './repositories/children.repository';
 import { AddressesService } from '../addresses/addresses.service';
 import { GetClubsService } from '../clubs/services/get-clubs.service';
+import {
+  AppNotFoundException,
+  AppForbiddenException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 
 import { CreateChildDto } from './dto/create-child.dto';
 import { UpdateChildDto } from './dto/update-child.dto';
@@ -93,7 +98,7 @@ export class ChildrenService {
   async findOne(id: string, request: Request): Promise<ChildResponseDto> {
     const ctx = await this.getCtx(request);
     const entity = await this.childrenRepo.findOneForResponse(id, ctx);
-    if (!entity) throw new NotFoundException('Criança não encontrada ou sem acesso');
+    if (!entity) throw new AppNotFoundException(ErrorCode.CHILD_NOT_FOUND, 'Criança não encontrada ou sem acesso');
     return toChildResponseDto(entity);
   }
 
@@ -102,7 +107,7 @@ export class ChildrenService {
 
     if (ctx.role && ctx.role !== 'admin' && dto.clubId) {
       const allowed = await this.childrenRepo.userHasAccessToClub(dto.clubId, ctx);
-      if (!allowed) throw new ForbiddenException('Sem acesso ao clubinho informado');
+      if (!allowed) throw new AppForbiddenException(ErrorCode.CHILD_ACCESS_DENIED, 'Sem acesso ao clubinho informado');
     }
 
     const child = this.childrenRepo.create({
@@ -134,7 +139,7 @@ export class ChildrenService {
     const ctx = await this.getCtx(request);
 
     const entity = await this.childrenRepo.findOneForResponse(id, ctx);
-    if (!entity) throw new NotFoundException('Criança não encontrada ou sem acesso');
+    if (!entity) throw new AppNotFoundException(ErrorCode.CHILD_NOT_FOUND, 'Criança não encontrada ou sem acesso');
 
     if (dto.name !== undefined) entity.name = dto.name;
     if (dto.guardianName !== undefined) entity.guardianName = dto.guardianName;
@@ -151,7 +156,7 @@ export class ChildrenService {
         await this.getClubsService.findOne(dto.clubId, request);
         if (ctx.role && ctx.role !== 'admin') {
           const allowed = await this.childrenRepo.userHasAccessToClub(dto.clubId, ctx);
-          if (!allowed) throw new ForbiddenException('Sem acesso ao novo clubinho');
+          if (!allowed) throw new AppForbiddenException(ErrorCode.CHILD_ACCESS_DENIED, 'Sem acesso ao novo clubinho');
         }
         (entity as any).club = { id: dto.clubId } as ClubEntity;
       }
@@ -177,7 +182,7 @@ export class ChildrenService {
   async remove(id: string, request: Request): Promise<void> {
     const ctx = await this.getCtx(request);
     const entity = await this.childrenRepo.findOneForResponse(id, ctx);
-    if (!entity) throw new NotFoundException('Criança não encontrada ou sem acesso');
+    if (!entity) throw new AppNotFoundException(ErrorCode.CHILD_NOT_FOUND, 'Criança não encontrada ou sem acesso');
     await this.childrenRepo.delete(id);
   }
 
@@ -185,7 +190,7 @@ export class ChildrenService {
   async toggleActive(id: string, request: Request): Promise<ChildResponseDto> {
     const ctx = await this.getCtx(request);
     const entity = await this.childrenRepo.findOneForResponse(id, ctx);
-    if (!entity) throw new NotFoundException('Criança não encontrada ou sem acesso');
+    if (!entity) throw new AppNotFoundException(ErrorCode.CHILD_NOT_FOUND, 'Criança não encontrada ou sem acesso');
 
     entity.isActive = !entity.isActive;
     await this.childrenRepo.save(entity);

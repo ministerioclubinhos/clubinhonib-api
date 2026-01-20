@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 
 import { UserRepository } from '../user.repository';
@@ -12,6 +8,7 @@ import { UserEntity } from '../entities/user.entity';
 import { TeacherProfilesService } from 'src/modules/teacher-profiles/services/teacher-profiles.service';
 import { CoordinatorProfilesService } from 'src/modules/coordinator-profiles/services/coordinator-profiles.service';
 import { UserRole } from 'src/core/auth/auth.types';
+import { AppConflictException, ErrorCode } from 'src/shared/exceptions';
 
 @Injectable()
 export class CreateUserService {
@@ -26,13 +23,21 @@ export class CreateUserService {
   async create(dto: CreateUserDto): Promise<UserEntity> {
     const existingEmail = await this.userRepo.findByEmail(dto.email);
     if (existingEmail) {
-      throw new BadRequestException({ message: 'Este email já está em uso por outro usuário', field: 'email' });
+      throw new AppConflictException(
+        ErrorCode.EMAIL_ALREADY_IN_USE,
+        'Este email já está em uso por outro usuário',
+        { field: 'email' },
+      );
     }
 
     if (dto.cpf) {
       const existingCpf = await this.userRepo.findByCpf(dto.cpf);
       if (existingCpf) {
-        throw new BadRequestException({ message: 'Este CPF já está em uso por outro usuário', field: 'cpf' });
+        throw new AppConflictException(
+          ErrorCode.RESOURCE_CONFLICT,
+          'Este CPF já está em uso por outro usuário',
+          { field: 'cpf' },
+        );
       }
     }
 

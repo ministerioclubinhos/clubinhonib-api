@@ -1,9 +1,10 @@
+import { Injectable, Logger } from '@nestjs/common';
 import {
-  Injectable,
-  Logger,
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
+  AppNotFoundException,
+  AppConflictException,
+  AppValidationException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import { DataSource } from 'typeorm';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
@@ -32,17 +33,17 @@ export class UpdateMeditationService {
     this.logger.log(`🛠️ Atualizando meditação ID=${id}`);
 
     const existing = await this.meditationRepo.findOneWithRelations(id);
-    if (!existing) throw new NotFoundException('Meditação não encontrada');
+    if (!existing) throw new AppNotFoundException(ErrorCode.MEDITATION_NOT_FOUND, 'Meditação não encontrada');
 
     const startDate = dto.startDate ? parseDateAsLocal(dto.startDate) : existing.startDate;
     const endDate = dto.endDate ? parseDateAsLocal(dto.endDate) : existing.endDate;
 
     if (dto.startDate && startDate.getDay() !== 1) {
-      throw new BadRequestException('startDate deve ser uma segunda-feira (Monday)');
+      throw new AppValidationException(ErrorCode.INVALID_DATE_RANGE, 'startDate deve ser uma segunda-feira (Monday)');
     }
 
     if (dto.endDate && endDate.getDay() !== 5) {
-      throw new BadRequestException('endDate deve ser uma sexta-feira (Friday)');
+      throw new AppValidationException(ErrorCode.INVALID_DATE_RANGE, 'endDate deve ser uma sexta-feira (Friday)');
     }
 
     const all = await this.meditationRepo.findAllWithRelations();
@@ -58,7 +59,7 @@ export class UpdateMeditationService {
     });
 
     if (hasConflict) {
-      throw new BadRequestException('Conflito com outra meditação existente.');
+      throw new AppConflictException(ErrorCode.RESOURCE_CONFLICT, 'Conflito com outra meditação existente.');
     }
 
     return await this.dataSource.transaction(async (manager) => {

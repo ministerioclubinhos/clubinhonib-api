@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import {
+  AppNotFoundException,
+  AppBusinessException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import { RouteRepository } from './route-page.repository';
 import { RouteEntity, RouteType } from './route-page.entity';
 import { EntityManager } from 'typeorm';
@@ -80,12 +85,12 @@ export class RouteService {
 
   async updateRoute(id: string, updateData: Partial<Pick<RouteEntity, 'title' | 'description' | 'path' | 'subtitle'>>): Promise<RouteEntity> {
     const route = await this.routeRepo.findOne({ where: { id } });
-    if (!route) throw new NotFoundException('Rota não encontrada');
+    if (!route) throw new AppNotFoundException(ErrorCode.ROUTE_NOT_FOUND, 'Rota não encontrada');
 
     if (updateData.path) {
       const existing = await this.routeRepo.findByPath(updateData.path);
       if (existing && existing.id !== id) {
-        throw new BadRequestException(`A rota "${updateData.path}" já está em uso`);
+        throw new AppBusinessException(ErrorCode.RESOURCE_CONFLICT, `A rota "${updateData.path}" já está em uso`);
       }
     }
 

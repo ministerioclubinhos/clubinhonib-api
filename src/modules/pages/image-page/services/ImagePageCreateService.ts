@@ -1,8 +1,11 @@
 import {
     Injectable,
     Logger,
-    BadRequestException,
 } from '@nestjs/common';
+import {
+    AppInternalException,
+    ErrorCode,
+} from 'src/shared/exceptions';
 import { DataSource, QueryRunner } from 'typeorm';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { RouteService } from 'src/modules/routes/route.service';
@@ -142,7 +145,7 @@ export class ImagePageCreateService {
             this.logger.debug('🔙 Executando rollback da transação');
             await queryRunner.rollbackTransaction();
             this.logger.debug('✅ Rollback concluído');
-            throw new BadRequestException('Erro ao criar a galeria. Nenhum dado foi salvo.');
+            throw new AppInternalException(ErrorCode.INTERNAL_ERROR, 'Erro ao criar a galeria. Nenhum dado foi salvo.');
         } finally {
             this.logger.debug('🔚 Liberando QueryRunner');
             await queryRunner.release();

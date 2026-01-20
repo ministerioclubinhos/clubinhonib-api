@@ -1,9 +1,9 @@
+import { Injectable, Logger } from '@nestjs/common';
 import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+  AppNotFoundException,
+  AppValidationException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import { DataSource } from 'typeorm';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
@@ -35,12 +35,12 @@ export class UpdateDocumentService {
     const existingDocument = await this.documentRepo.findOneWithRelations(id);
     if (!existingDocument) {
       this.logger.warn(`⚠️ Documento não encontrado: ID=${id}`);
-      throw new NotFoundException('Documento não encontrado.');
+      throw new AppNotFoundException(ErrorCode.DOCUMENT_NOT_FOUND, 'Documento não encontrado.');
     }
 
     if (!dto.media) {
       this.logger.error('❌ Dados da mídia são obrigatórios.');
-      throw new BadRequestException('Dados da mídia são obrigatórios.');
+      throw new AppValidationException(ErrorCode.VALIDATION_ERROR, 'Dados da mídia são obrigatórios.');
     }
 
     return await this.dataSource.transaction(async (manager) => {
@@ -113,7 +113,7 @@ export class UpdateDocumentService {
 
         if (wasLink && isNowUpload) {
           if (!file) {
-            throw new BadRequestException('Arquivo de upload obrigatório ao mudar para upload.');
+            throw new AppValidationException(ErrorCode.FILE_REQUIRED, 'Arquivo de upload obrigatório ao mudar para upload.');
           }
           const newUrl = await this.s3Service.upload(file);
           dto.media.url = newUrl;

@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, Logger, NotFoundException, Inject, forwardRef, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
@@ -17,6 +17,12 @@ import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { PersonalDataRepository } from 'src/core/profile/repositories/personal-data.repository';
 import { UserPreferencesRepository } from 'src/core/profile/repositories/user-preferences.repository';
 import { SesIdentityService } from 'src/shared/providers/aws/ses-identity.service';
+import {
+  AppUnauthorizedException,
+  AppNotFoundException,
+  AppConflictException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 
 @Injectable()
 export class AuthService {
@@ -58,7 +64,10 @@ export class AuthService {
   async login({ email, password }: LoginDto) {
     const user = await this.authRepo.validateUser(email, password);
     if (!user || !(await bcrypt.compare(password, user.password))) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new AppUnauthorizedException(
+        ErrorCode.INVALID_CREDENTIALS,
+        'Credenciais inválidas',
+      );
     }
 
     const sesVerification = await this.sesIdentityService.checkAndResendSesVerification(email);
@@ -105,7 +114,10 @@ export class AuthService {
 
       const payload = ticket.getPayload();
       if (!payload?.email || !payload?.name) {
-        throw new UnauthorizedException('Invalid Google token payload');
+        throw new AppUnauthorizedException(
+          ErrorCode.TOKEN_INVALID,
+          'Token do Google inválido',
+        );
       }
 
       const { email, name } = payload;
@@ -197,20 +209,32 @@ export class AuthService {
       this.logger.error(`Error during Google login: ${error.message}`, error.stack);
 
       if (error.message?.includes('Token used too late') || error.message?.includes('expired')) {
-        throw new UnauthorizedException('Google authentication token has expired. Please try signing in again.');
+        throw new AppUnauthorizedException(
+          ErrorCode.TOKEN_EXPIRED,
+          'Token do Google expirado. Por favor, tente novamente.',
+        );
       }
 
       if (error.message?.includes('Invalid token')) {
-        throw new UnauthorizedException('Invalid Google authentication token. Please try signing in again.');
+        throw new AppUnauthorizedException(
+          ErrorCode.TOKEN_INVALID,
+          'Token do Google inválido. Por favor, tente novamente.',
+        );
       }
 
-      throw new UnauthorizedException('Google authentication failed. Please try signing in with Google again.');
+      throw new AppUnauthorizedException(
+        ErrorCode.TOKEN_INVALID,
+        'Falha na autenticação com Google. Por favor, tente novamente.',
+      );
     }
   }
 
   async refreshToken(token: string) {
     if (!token) {
-      throw new UnauthorizedException('Refresh token is required');
+      throw new AppUnauthorizedException(
+        ErrorCode.TOKEN_MISSING,
+        'Refresh token é obrigatório',
+      );
     }
 
     try {
@@ -220,15 +244,21 @@ export class AuthService {
 
       const user = await this.getUsersService.findOne(payload.sub);
       if (!user || user.refreshToken !== token) {
-        throw new UnauthorizedException('Invalid refresh token');
+        throw new AppUnauthorizedException(
+          ErrorCode.REFRESH_TOKEN_INVALID,
+          'Refresh token inválido',
+        );
       }
 
       const tokens = this.generateTokens(user);
       await this.updateRefreshToken(user.id, tokens.refreshToken);
 
       return tokens;
-    } catch (error) {
-      throw new UnauthorizedException('Invalid refresh token');
+    } catch {
+      throw new AppUnauthorizedException(
+        ErrorCode.REFRESH_TOKEN_INVALID,
+        'Refresh token inválido',
+      );
     }
   }
 
@@ -299,7 +329,10 @@ export class AuthService {
   async getMe(userId: string) {
     const user = await this.userRepo.findByIdWithProfiles(userId);
     if (!user) {
-      throw new UnauthorizedException('User not found');
+      throw new AppUnauthorizedException(
+        ErrorCode.USER_NOT_FOUND,
+        'Usuário não encontrado',
+      );
     }
 
     const imageMedia = await this.mediaItemProcessor.findMediaItemByTarget(
@@ -387,11 +420,17 @@ export class AuthService {
   async completeRegister(data: CompleteUserDto) {
     const user = await this.getUsersService.findByEmail(data.email);
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new AppNotFoundException(
+        ErrorCode.USER_NOT_FOUND,
+        'Usuário não encontrado',
+      );
     }
 
     if (user.completed) {
-      throw new NotFoundException('User already completed registration');
+      throw new AppConflictException(
+        ErrorCode.USER_ALREADY_EXISTS,
+        'Usuário já completou o cadastro',
+      );
     }
 
     await this.updateUserService.update(user.id, {
@@ -418,7 +457,10 @@ export class AuthService {
   async register(data: RegisterUserDto) {
     const existingUser = await this.getUsersService.findByEmail(data.email);
     if (existingUser) {
-      throw new UnauthorizedException('User already exists');
+      throw new AppConflictException(
+        ErrorCode.EMAIL_ALREADY_IN_USE,
+        'Este email já está em uso',
+      );
     }
 
     const user = await this.createUserService.create({

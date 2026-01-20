@@ -240,3 +240,6 @@ Uploads or updates the user's avatar.
 
 - **Status**: `200 OK`
 - Returns updated User object with new `imageUrl` or `image` relation.
+
+---
+⬅️ [Back to Documentation Hub](README.md)
