@@ -1,7 +1,8 @@
 import { IsBooleanString, IsInt, IsOptional, IsUUID, Max, Min, IsString, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
+import { PaginationQueryDto } from './paginated.dto';
 
-export class PagelaFiltersDto {
+export class PagelaFiltersDto extends PaginationQueryDto {
   @IsOptional()
   @IsUUID()
   childId?: string;
