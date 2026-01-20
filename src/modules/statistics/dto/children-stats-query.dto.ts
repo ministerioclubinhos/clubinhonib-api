@@ -4,12 +4,12 @@ import { Transform } from 'class-transformer';
 import { PeriodShortcut } from './period-filter.dto';
 
 export class ChildrenStatsQueryDto {
-  
+
   @IsOptional()
   @IsEnum(PeriodShortcut)
-  period?: PeriodShortcut; 
+  period?: PeriodShortcut;
 
-  
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -19,13 +19,13 @@ export class ChildrenStatsQueryDto {
 
   @IsOptional()
   @IsString()
-  startDate?: string; 
+  startDate?: string;
 
   @IsOptional()
   @IsString()
-  endDate?: string; 
+  endDate?: string;
 
-  
+
   @IsOptional()
   @IsString()
   clubId?: string;
@@ -38,10 +38,10 @@ export class ChildrenStatsQueryDto {
   @IsString()
   coordinatorId?: string;
 
-  
+
   @IsOptional()
   @IsString()
-  gender?: string; 
+  gender?: string;
 
   @IsOptional()
   @Type(() => Number)
@@ -59,9 +59,9 @@ export class ChildrenStatsQueryDto {
 
   @IsOptional()
   @IsString()
-  ageGroup?: string; 
+  ageGroup?: string;
 
-  
+
   @IsOptional()
   @IsString()
   city?: string;
@@ -74,60 +74,74 @@ export class ChildrenStatsQueryDto {
   @IsString()
   district?: string;
 
-  
-  @IsOptional()
-  @IsString()
-  joinedAfter?: string; 
 
   @IsOptional()
   @IsString()
-  joinedBefore?: string; 
+  joinedAfter?: string;
 
-  
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
-  minPagelas?: number; 
+  @IsString()
+  joinedBefore?: string;
+
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
-  @Max(100)
-  minPresenceRate?: number; 
+  minPagelas?: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
   @Max(100)
-  minEngagementScore?: number; 
+  minPresenceRate?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  maxPresenceRate?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  minEngagementScore?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  maxEngagementScore?: number;
 
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
-  hasDecision?: boolean; 
+  hasDecision?: boolean;
 
   @IsOptional()
   @IsString()
-  decisionType?: string; 
+  decisionType?: string;
 
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
-  isActive?: boolean; 
+  isActive?: boolean;
 
-  
+
   @IsOptional()
   @IsString()
-  sortBy?: string; 
+  sortBy?: string;
 
   @IsOptional()
   @IsString()
   sortOrder?: 'ASC' | 'DESC';
 
-  
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -141,39 +155,26 @@ export class ChildrenStatsQueryDto {
   @Max(100)
   limit?: number;
 
-  
+
   @IsOptional()
   @IsString()
-  search?: string; 
+  search?: string;
 
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
-  hasLowEngagement?: boolean; 
+  hasLowEngagement?: boolean;
 
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
-  isNewcomer?: boolean; 
+  isNewcomer?: boolean;
 
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
-  isVeteran?: boolean; 
+  isVeteran?: boolean;
 
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
-  @Max(100)
-  maxEngagementScore?: number; 
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
-  @Max(100)
-  maxPresenceRate?: number; 
 }
 
 
