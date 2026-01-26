@@ -1,6 +1,13 @@
-import { IsNotEmpty, IsInt, Min, Max, IsString, IsBoolean, IsOptional } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsInt,
+  Min,
+  Max,
+  IsString,
+  IsBoolean,
+  IsOptional,
+} from 'class-validator';
 import { Type } from 'class-transformer';
-
 
 export class CreateClubPeriodDto {
   @IsNotEmpty()
@@ -8,19 +15,19 @@ export class CreateClubPeriodDto {
   @IsInt()
   @Min(2020)
   @Max(2100)
-  year: number; 
+  year: number;
 
   @IsNotEmpty()
   @IsString()
-  startDate: string; 
+  startDate: string;
 
   @IsNotEmpty()
   @IsString()
-  endDate: string; 
+  endDate: string;
 
   @IsOptional()
   @IsString()
-  description?: string; 
+  description?: string;
 
   @IsOptional()
   @IsBoolean()

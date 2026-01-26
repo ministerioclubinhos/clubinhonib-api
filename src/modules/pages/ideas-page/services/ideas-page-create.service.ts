@@ -1,8 +1,5 @@
-import {
-  Injectable,
-  Logger,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { AppInternalException, ErrorCode } from 'src/shared/exceptions';
 import { DataSource, QueryRunner } from 'typeorm';
 import { plainToInstance } from 'class-transformer';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
@@ -25,7 +22,7 @@ export class IdeasPageCreateService {
     private readonly s3: AwsS3Service,
     private readonly routeService: RouteService,
     private readonly mediaProcessor: MediaItemProcessor,
-  ) { }
+  ) {}
 
   async createIdeasPage(
     dto: CreateIdeasPageDto,
@@ -49,9 +46,12 @@ export class IdeasPageCreateService {
       return plainToInstance(IdeasPageResponseDto, page);
     } catch (err) {
       await runner.rollbackTransaction();
-      this.logger.error('💥  Transaction rolled‑back', err.stack);
-      throw new BadRequestException(
+      this.logger.error('Transaction rolled-back', err.stack);
+      if (err.code) throw err;
+      throw new AppInternalException(
+        ErrorCode.PAGE_CREATE_ERROR,
         `Erro ao criar a página de ideias: ${err.message}`,
+        err,
       );
     } finally {
       await runner.release();
@@ -116,7 +116,8 @@ export class IdeasPageCreateService {
         entityId: page.id,
         idToFetch: page.id,
         entityType: MediaTargetType.IdeasPage,
-        image: 'https://clubinho-nib.s3.us-east-1.amazonaws.com/production/cards/card_ideias.png',
+        image:
+          'https://clubinho-nib.s3.us-east-1.amazonaws.com/production/cards/card_ideias.png',
         public: false,
       },
     );
@@ -150,7 +151,11 @@ export class IdeasPageCreateService {
       const normalized = secDto.medias.map((item) => ({
         ...item,
         mediaType:
-          item.mediaType === MediaType.VIDEO ? MediaType.VIDEO : item.mediaType === MediaType.DOCUMENT ? MediaType.DOCUMENT : MediaType.IMAGE,
+          item.mediaType === MediaType.VIDEO
+            ? MediaType.VIDEO
+            : item.mediaType === MediaType.DOCUMENT
+              ? MediaType.DOCUMENT
+              : MediaType.IMAGE,
         type: item.uploadType,
         fileField:
           item.uploadType === 'upload' && item.isLocalFile

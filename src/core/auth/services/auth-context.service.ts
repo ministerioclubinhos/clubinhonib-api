@@ -3,14 +3,18 @@ import { Request } from 'express';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { JwtPayload, UserRole } from '../auth.types';
-import { AppUnauthorizedException, AppInternalException, ErrorCode } from 'src/shared/exceptions';
+import {
+  AppUnauthorizedException,
+  AppInternalException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 
 @Injectable()
 export class AuthContextService {
   constructor(
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
-  ) { }
+  ) {}
 
   getTokenFromRequest(req: Request): string | null {
     const auth = req.headers['authorization'] || req.headers['Authorization'];
@@ -31,9 +35,7 @@ export class AuthContextService {
 
   async verifyToken(token: string): Promise<JwtPayload> {
     const secret =
-      this.config.get<string>('JWT_SECRET') ??
-      process.env.JWT_SECRET ??
-      '';
+      this.config.get<string>('JWT_SECRET') ?? process.env.JWT_SECRET ?? '';
     if (!secret) {
       throw new AppInternalException(
         ErrorCode.INTERNAL_ERROR,
@@ -45,7 +47,7 @@ export class AuthContextService {
   }
 
   decodeToken(token: string): JwtPayload | null {
-    const payload = this.jwt.decode(token) as JwtPayload | null;
+    const payload = this.jwt.decode(token);
     return payload ? this.normalizePayload(payload) : null;
   }
 

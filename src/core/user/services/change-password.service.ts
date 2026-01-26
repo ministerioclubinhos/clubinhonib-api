@@ -15,7 +15,10 @@ export class ChangePasswordService {
 
   constructor(private readonly userRepo: UserRepository) {}
 
-  async changePassword(userId: string, dto: ChangePasswordDto): Promise<{ message: string }> {
+  async changePassword(
+    userId: string,
+    dto: ChangePasswordDto,
+  ): Promise<{ message: string }> {
     const user = await this.userRepo.findById(userId);
     if (!user) {
       throw new AppNotFoundException(
@@ -32,7 +35,10 @@ export class ChangePasswordService {
         );
       }
 
-      const isPasswordValid = await bcrypt.compare(dto.currentPassword, user.password);
+      const isPasswordValid = await bcrypt.compare(
+        dto.currentPassword,
+        user.password,
+      );
       if (!isPasswordValid) {
         throw new AppUnauthorizedException(
           ErrorCode.PASSWORD_MISMATCH,
@@ -42,7 +48,10 @@ export class ChangePasswordService {
     }
 
     if (user.password) {
-      const isSamePassword = await bcrypt.compare(dto.newPassword, user.password);
+      const isSamePassword = await bcrypt.compare(
+        dto.newPassword,
+        user.password,
+      );
       if (isSamePassword) {
         throw new AppBusinessException(
           ErrorCode.PASSWORD_SAME_AS_CURRENT,
@@ -55,7 +64,9 @@ export class ChangePasswordService {
 
     await this.userRepo.update(userId, { password: hashedNewPassword });
 
-    this.logger.log(`Senha alterada para o usuário: ${userId} (commonUser: ${user.commonUser})`);
+    this.logger.log(
+      `Senha alterada para o usuário: ${userId} (commonUser: ${user.commonUser})`,
+    );
 
     return { message: 'Senha alterada com sucesso' };
   }

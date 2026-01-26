@@ -19,6 +19,10 @@ import { UserModule } from 'src/core/user/user.module';
   ],
   controllers: [CoordinatorProfilesController],
   providers: [CoordinatorProfilesRepository, CoordinatorProfilesService],
-  exports: [CoordinatorProfilesRepository, CoordinatorProfilesService, TypeOrmModule],
+  exports: [
+    CoordinatorProfilesRepository,
+    CoordinatorProfilesService,
+    TypeOrmModule,
+  ],
 })
 export class CoordinatorProfilesModule {}

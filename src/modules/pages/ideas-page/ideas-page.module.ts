@@ -28,7 +28,7 @@ import { IdeasSectionRepository } from './repositories/ideas-section.repository'
     IdeasPageRemoveService,
     IdeasPageGetService,
     IdeasPageUpdateService,
-    IdeasSectionRepository
+    IdeasSectionRepository,
   ],
 })
-export class IdeasPageModule { }
+export class IdeasPageModule {}

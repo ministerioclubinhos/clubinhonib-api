@@ -16,25 +16,39 @@ import { AuthModule } from 'src/core/auth/auth.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([ImagePageEntity, ImageSectionEntity, ImagePageEntity]),
+    TypeOrmModule.forFeature([
+      ImagePageEntity,
+      ImageSectionEntity,
+      ImagePageEntity,
+    ]),
     RouteModule,
     MediaModule,
-    AuthModule
+    AuthModule,
   ],
   controllers: [ImageController],
   providers: [
-    ImagePageCreateService, ImagePageGetService, ImagePageDeleteService, ImagePageUpdateService,
+    ImagePageCreateService,
+    ImagePageGetService,
+    ImagePageDeleteService,
+    ImagePageUpdateService,
     {
       provide: ImagePageRepository,
-      useFactory: (dataSource: DataSource) => new ImagePageRepository(dataSource),
+      useFactory: (dataSource: DataSource) =>
+        new ImagePageRepository(dataSource),
       inject: [DataSource],
     },
     {
       provide: ImageSectionRepository,
-      useFactory: (dataSource: DataSource) => new ImageSectionRepository(dataSource),
+      useFactory: (dataSource: DataSource) =>
+        new ImageSectionRepository(dataSource),
       inject: [DataSource],
     },
   ],
-  exports: [ImagePageCreateService, ImagePageGetService, ImagePageDeleteService, ImagePageUpdateService],
+  exports: [
+    ImagePageCreateService,
+    ImagePageGetService,
+    ImagePageDeleteService,
+    ImagePageUpdateService,
+  ],
 })
-export class ImageModule { }
+export class ImageModule {}

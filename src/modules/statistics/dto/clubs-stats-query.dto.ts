@@ -3,11 +3,9 @@ import { Type } from 'class-transformer';
 import { PeriodShortcut } from './period-filter.dto';
 
 export class ClubsStatsQueryDto {
-
   @IsOptional()
   @IsEnum(PeriodShortcut)
   period?: PeriodShortcut;
-
 
   @IsOptional()
   @Type(() => Number)
@@ -24,7 +22,6 @@ export class ClubsStatsQueryDto {
   @IsString()
   endDate?: string;
 
-
   @IsOptional()
   @IsString()
   coordinatorId?: string;
@@ -32,7 +29,6 @@ export class ClubsStatsQueryDto {
   @IsOptional()
   @IsString()
   weekday?: string;
-
 
   @IsOptional()
   @IsString()
@@ -45,7 +41,6 @@ export class ClubsStatsQueryDto {
   @IsOptional()
   @IsString()
   district?: string;
-
 
   @IsOptional()
   @Type(() => Number)
@@ -81,7 +76,6 @@ export class ClubsStatsQueryDto {
   @Max(100)
   maxPerformanceScore?: number;
 
-
   @IsOptional()
   @IsString()
   sortBy?: string;
@@ -89,7 +83,6 @@ export class ClubsStatsQueryDto {
   @IsOptional()
   @IsString()
   sortOrder?: 'ASC' | 'DESC';
-
 
   @IsOptional()
   @Type(() => Number)
@@ -103,7 +96,6 @@ export class ClubsStatsQueryDto {
   @Min(1)
   @Max(100)
   limit?: number;
-
 
   @IsOptional()
   @Type(() => Number)
@@ -122,7 +114,4 @@ export class ClubsStatsQueryDto {
   @IsInt()
   @Min(0)
   minTeachers?: number;
-
 }
-
-

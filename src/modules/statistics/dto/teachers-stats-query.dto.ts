@@ -1,14 +1,20 @@
-import { IsOptional, IsInt, Min, Max, IsString, IsBoolean, IsEnum } from 'class-validator';
+import {
+  IsOptional,
+  IsInt,
+  Min,
+  Max,
+  IsString,
+  IsBoolean,
+  IsEnum,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { Transform } from 'class-transformer';
 import { PeriodShortcut } from './period-filter.dto';
 
 export class TeachersStatsQueryDto {
-
   @IsOptional()
   @IsEnum(PeriodShortcut)
   period?: PeriodShortcut;
-
 
   @IsOptional()
   @Type(() => Number)
@@ -25,7 +31,6 @@ export class TeachersStatsQueryDto {
   @IsString()
   endDate?: string;
 
-
   @IsOptional()
   @IsString()
   clubId?: string;
@@ -34,7 +39,6 @@ export class TeachersStatsQueryDto {
   @IsString()
   coordinatorId?: string;
 
-
   @IsOptional()
   @IsString()
   city?: string;
@@ -42,7 +46,6 @@ export class TeachersStatsQueryDto {
   @IsOptional()
   @IsString()
   state?: string;
-
 
   @IsOptional()
   @Type(() => Number)
@@ -95,7 +98,6 @@ export class TeachersStatsQueryDto {
   @IsBoolean()
   isActive?: boolean;
 
-
   @IsOptional()
   @IsString()
   sortBy?: string;
@@ -103,7 +105,6 @@ export class TeachersStatsQueryDto {
   @IsOptional()
   @IsString()
   sortOrder?: 'ASC' | 'DESC';
-
 
   @IsOptional()
   @Type(() => Number)
@@ -121,8 +122,4 @@ export class TeachersStatsQueryDto {
   @IsOptional()
   @IsString()
   search?: string;
-
-
 }
-
-

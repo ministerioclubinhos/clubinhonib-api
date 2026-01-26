@@ -21,13 +21,15 @@ export class EventRepository extends Repository<EventEntity> {
     return this.save(newEvent);
   }
 
-  async updateAndSave(id: string, data: Partial<EventEntity>): Promise<EventEntity> {
+  async updateAndSave(
+    id: string,
+    data: Partial<EventEntity>,
+  ): Promise<EventEntity> {
     await this.update(id, data);
     const updated = await this.findOneBy({ id });
     if (!updated) throw new Error('Evento não encontrado ao atualizar');
     return updated;
   }
-  
 
   async deleteById(id: string): Promise<void> {
     await this.delete(id);

@@ -39,9 +39,15 @@ export class CreateMeditationService {
       const endDate = parseDateAsLocal(dto.endDate);
 
       if (startDate.getDay() !== 1)
-        throw new AppValidationException(ErrorCode.INVALID_DATE_RANGE, 'startDate deve ser uma segunda-feira');
+        throw new AppValidationException(
+          ErrorCode.INVALID_DATE_RANGE,
+          'startDate deve ser uma segunda-feira',
+        );
       if (endDate.getDay() !== 5)
-        throw new AppValidationException(ErrorCode.INVALID_DATE_RANGE, 'endDate deve ser uma sexta-feira');
+        throw new AppValidationException(
+          ErrorCode.INVALID_DATE_RANGE,
+          'endDate deve ser uma sexta-feira',
+        );
 
       const existing = await this.meditationRepo.findAllWithRelations();
       const hasConflict = existing.some((m) => {
@@ -55,7 +61,10 @@ export class CreateMeditationService {
       });
 
       if (hasConflict) {
-        throw new AppConflictException(ErrorCode.RESOURCE_CONFLICT, 'Conflito com datas de uma meditação existente.');
+        throw new AppConflictException(
+          ErrorCode.RESOURCE_CONFLICT,
+          'Conflito com datas de uma meditação existente.',
+        );
       }
 
       const meditation = this.meditationRepo.create({
@@ -73,7 +82,11 @@ export class CreateMeditationService {
       let size = dto.media.size;
 
       if (dto.media.isLocalFile) {
-        if (!file) throw new AppValidationException(ErrorCode.FILE_REQUIRED, 'Arquivo não enviado.');
+        if (!file)
+          throw new AppValidationException(
+            ErrorCode.FILE_REQUIRED,
+            'Arquivo não enviado.',
+          );
         mediaUrl = await this.s3Service.upload(file);
         originalName = file.originalname;
         size = file.size;
@@ -97,19 +110,21 @@ export class CreateMeditationService {
         MediaTargetType.Meditation,
       );
 
-      const savedMedia = await this.mediaItemProcessor.saveMediaItem(mediaEntity);
+      const savedMedia =
+        await this.mediaItemProcessor.saveMediaItem(mediaEntity);
       this.logger.log(`🎞️ Mídia salva: ID=${savedMedia.id}`);
 
       const route = await this.routeService.createRoute({
         title: savedMeditation.topic,
         subtitle: '',
         idToFetch: savedMeditation.id,
-        entityType:  MediaTargetType.Meditation,
+        entityType: MediaTargetType.Meditation,
         description: `Meditação semanal de ${dto.startDate} a ${dto.endDate}`,
         entityId: savedMeditation.id,
         type: RouteType.DOC,
         prefix: 'meditacao_',
-        image: 'https://bucket-clubinho-galeria.s3.amazonaws.com/uploads/img_card.jpg',
+        image:
+          'https://bucket-clubinho-galeria.s3.amazonaws.com/uploads/img_card.jpg',
         public: false,
       });
 

@@ -31,12 +31,22 @@ export class GetClubsService {
     return { role: p?.role?.toLowerCase(), userId: p?.sub ?? null };
   }
 
-  async findAllPaginated(q: QueryClubsDto, req: Request): Promise<Paginated<ClubResponseDto>> {
+  async findAllPaginated(
+    q: QueryClubsDto,
+    req: Request,
+  ): Promise<Paginated<ClubResponseDto>> {
     const ctx = await this.getCtx(req);
-    if (!ctx.role || ctx.role === 'teacher') throw new AppForbiddenException(ErrorCode.CLUB_ACCESS_DENIED, 'Acesso negado');
+    if (!ctx.role || ctx.role === 'teacher')
+      throw new AppForbiddenException(
+        ErrorCode.CLUB_ACCESS_DENIED,
+        'Acesso negado',
+      );
 
     const { page = 1, limit = 10 } = q;
-    const { items, total } = await this.clubsRepository.findAllPaginated(q, ctx);
+    const { items, total } = await this.clubsRepository.findAllPaginated(
+      q,
+      ctx,
+    );
 
     return new Paginated(items.map(toClubDto), total, page, limit);
   }
@@ -50,7 +60,11 @@ export class GetClubsService {
   async findOne(id: string, req: Request): Promise<ClubResponseDto> {
     const ctx = await this.getCtx(req);
     const club = await this.clubsRepository.findOneOrFailForResponse(id, ctx);
-    if (!club) throw new AppNotFoundException(ErrorCode.CLUB_NOT_FOUND, 'Clubinho não encontrado');
+    if (!club)
+      throw new AppNotFoundException(
+        ErrorCode.CLUB_NOT_FOUND,
+        'Clubinho não encontrado',
+      );
     return toClubDto(club);
   }
 
@@ -59,19 +73,33 @@ export class GetClubsService {
     return await this.clubsRepository.list(ctx);
   }
 
-
   async toggleActive(id: string, req: Request): Promise<ClubResponseDto> {
     const ctx = await this.getCtx(req);
-    if (!ctx.role || ctx.role === 'teacher') throw new AppForbiddenException(ErrorCode.CLUB_ACCESS_DENIED, 'Acesso negado');
+    if (!ctx.role || ctx.role === 'teacher')
+      throw new AppForbiddenException(
+        ErrorCode.CLUB_ACCESS_DENIED,
+        'Acesso negado',
+      );
 
     const club = await this.clubsRepository.findOneOrFailForResponse(id, ctx);
-    if (!club) throw new AppNotFoundException(ErrorCode.CLUB_NOT_FOUND, 'Clubinho não encontrado ou sem acesso');
+    if (!club)
+      throw new AppNotFoundException(
+        ErrorCode.CLUB_NOT_FOUND,
+        'Clubinho não encontrado ou sem acesso',
+      );
 
     const updateDto = { isActive: !club.isActive };
     await this.clubsRepository.updateClub(id, updateDto);
 
-    const reloaded = await this.clubsRepository.findOneOrFailForResponse(id, ctx);
-    if (!reloaded) throw new AppNotFoundException(ErrorCode.CLUB_NOT_FOUND, 'Clubinho não encontrado');
+    const reloaded = await this.clubsRepository.findOneOrFailForResponse(
+      id,
+      ctx,
+    );
+    if (!reloaded)
+      throw new AppNotFoundException(
+        ErrorCode.CLUB_NOT_FOUND,
+        'Clubinho não encontrado',
+      );
     return toClubDto(reloaded);
   }
 }

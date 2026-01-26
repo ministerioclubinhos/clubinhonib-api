@@ -6,13 +6,17 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { UserRole } from '../auth.types';
-import { AppForbiddenException, AppUnauthorizedException, ErrorCode } from 'src/shared/exceptions';
+import {
+  AppForbiddenException,
+  AppUnauthorizedException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 
 @Injectable()
 export class AdminRoleGuard implements CanActivate {
   private readonly logger = new Logger(AdminRoleGuard.name);
 
-  constructor(private readonly reflector: Reflector) { }
+  constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
@@ -49,7 +53,7 @@ export class AdminRoleGuard implements CanActivate {
 export class AdminOrLeaderRoleGuard implements CanActivate {
   private readonly logger = new Logger(AdminOrLeaderRoleGuard.name);
 
-  constructor(private readonly reflector: Reflector) { }
+  constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();

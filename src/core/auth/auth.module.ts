@@ -35,14 +35,21 @@ import { PasswordRecoveryService } from './services/password-recovery.service';
     AwsModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, AuthContextService, AuthRepository, JwtStrategy, PasswordResetTokenRepository, PasswordRecoveryService],
+  providers: [
+    AuthService,
+    AuthContextService,
+    AuthRepository,
+    JwtStrategy,
+    PasswordResetTokenRepository,
+    PasswordRecoveryService,
+  ],
   exports: [
     AuthService,
     AuthContextService,
     JwtModule,
     PassportModule,
     JwtStrategy,
-    PasswordRecoveryService
+    PasswordRecoveryService,
   ],
 })
-export class AuthModule { }
+export class AuthModule {}

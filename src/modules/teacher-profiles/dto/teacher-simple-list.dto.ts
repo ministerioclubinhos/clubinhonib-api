@@ -16,5 +16,9 @@ export class TeacherSimpleListDto {
   vinculado!: boolean;
 }
 
-export const toTeacherSimple = (entity: TeacherProfileEntity): TeacherSimpleListDto =>
-  plainToInstance(TeacherSimpleListDto, entity, { excludeExtraneousValues: true });
+export const toTeacherSimple = (
+  entity: TeacherProfileEntity,
+): TeacherSimpleListDto =>
+  plainToInstance(TeacherSimpleListDto, entity, {
+    excludeExtraneousValues: true,
+  });

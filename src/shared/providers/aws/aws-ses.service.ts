@@ -1,13 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  AppInternalException,
-  ErrorCode,
-} from 'src/shared/exceptions';
-import {
-  SESClient,
-  SendEmailCommand,
-} from '@aws-sdk/client-ses';
+import { AppInternalException, ErrorCode } from 'src/shared/exceptions';
+import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 
 @Injectable()
 export class AwsSESService {
@@ -18,8 +12,10 @@ export class AwsSESService {
   constructor(private readonly configService: ConfigService) {
     this.region = this.configService.get<string>('AWS_REGION') || 'us-east-1';
 
-    const accessKeyId = this.configService.get<string>('AWS_ACCESS_KEY_ID') ?? '';
-    const secretAccessKey = this.configService.get<string>('AWS_SECRET_ACCESS_KEY') ?? '';
+    const accessKeyId =
+      this.configService.get<string>('AWS_ACCESS_KEY_ID') ?? '';
+    const secretAccessKey =
+      this.configService.get<string>('AWS_SECRET_ACCESS_KEY') ?? '';
 
     this.sesClient = new SESClient({
       region: this.region,
@@ -70,8 +66,13 @@ export class AwsSESService {
       await this.sesClient.send(command);
       this.logger.log(`Email sent successfully via ${source} to: ${to}`);
     } catch (error) {
-      this.logger.error(`Error sending email via SES (${source}): ${error.message}`);
-      throw new AppInternalException(ErrorCode.EMAIL_SEND_ERROR, `Erro ao enviar email via ${source}`);
+      this.logger.error(
+        `Error sending email via SES (${source}): ${error.message}`,
+      );
+      throw new AppInternalException(
+        ErrorCode.EMAIL_SEND_ERROR,
+        `Erro ao enviar email via ${source}`,
+      );
     }
   }
 }

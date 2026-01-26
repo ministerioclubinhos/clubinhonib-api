@@ -22,4 +22,3 @@ export class UpdateOwnProfileDto {
   @IsString({ message: 'O CPF deve ser uma string' })
   cpf?: string;
 }
-

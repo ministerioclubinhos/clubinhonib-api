@@ -14,7 +14,7 @@ export class GetAllProfilesService {
     private readonly userRepository: UserRepository,
     private readonly personalDataRepository: PersonalDataRepository,
     private readonly userPreferencesRepository: UserPreferencesRepository,
-  ) { }
+  ) {}
 
   async execute(
     requestingUserId: string,
@@ -39,8 +39,12 @@ export class GetAllProfilesService {
 
     const profiles = await Promise.all(
       users.map(async (user) => {
-        const personalData = await this.personalDataRepository.findByUserId(user.id);
-        const preferences = await this.userPreferencesRepository.findByUserId(user.id);
+        const personalData = await this.personalDataRepository.findByUserId(
+          user.id,
+        );
+        const preferences = await this.userPreferencesRepository.findByUserId(
+          user.id,
+        );
 
         return {
           id: user.id,
@@ -48,25 +52,29 @@ export class GetAllProfilesService {
           phone: user.phone,
           name: user.name,
           role: user.role,
-          personalData: personalData ? {
-            birthDate: personalData.birthDate
-              ? (personalData.birthDate instanceof Date
-                ? personalData.birthDate.toISOString().split('T')[0]
-                : String(personalData.birthDate).split('T')[0])
-              : undefined,
-            gender: personalData.gender,
-            gaLeaderName: personalData.gaLeaderName,
-            gaLeaderContact: personalData.gaLeaderContact,
-          } : undefined,
-          preferences: preferences ? {
-            loveLanguages: preferences.loveLanguages,
-            temperaments: preferences.temperaments,
-            favoriteColor: preferences.favoriteColor,
-            favoriteFood: preferences.favoriteFood,
-            favoriteMusic: preferences.favoriteMusic,
-            whatMakesYouSmile: preferences.whatMakesYouSmile,
-            skillsAndTalents: preferences.skillsAndTalents,
-          } : undefined,
+          personalData: personalData
+            ? {
+                birthDate: personalData.birthDate
+                  ? personalData.birthDate instanceof Date
+                    ? personalData.birthDate.toISOString().split('T')[0]
+                    : String(personalData.birthDate).split('T')[0]
+                  : undefined,
+                gender: personalData.gender,
+                gaLeaderName: personalData.gaLeaderName,
+                gaLeaderContact: personalData.gaLeaderContact,
+              }
+            : undefined,
+          preferences: preferences
+            ? {
+                loveLanguages: preferences.loveLanguages,
+                temperaments: preferences.temperaments,
+                favoriteColor: preferences.favoriteColor,
+                favoriteFood: preferences.favoriteFood,
+                favoriteMusic: preferences.favoriteMusic,
+                whatMakesYouSmile: preferences.whatMakesYouSmile,
+                skillsAndTalents: preferences.skillsAndTalents,
+              }
+            : undefined,
         };
       }),
     );

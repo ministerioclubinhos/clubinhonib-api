@@ -35,7 +35,6 @@ import { AdminRoleGuard } from 'src/core/auth/guards/role-guard';
 import { PaginatedImageSectionResponseDto } from './dto/paginated-image-section.dto';
 import { Request } from 'express';
 
-
 @Controller('image-pages')
 export class ImageController {
   private readonly logger = new Logger(ImageController.name);
@@ -45,7 +44,7 @@ export class ImageController {
     private readonly deleteService: ImagePageDeleteService,
     private readonly getService: ImagePageGetService,
     private readonly updateService: ImagePageUpdateService,
-  ) { }
+  ) {}
 
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Post()
@@ -68,7 +67,10 @@ export class ImageController {
       return result;
     } catch (error) {
       this.logger.error('❌ Erro ao criar galeria', error);
-      throw new AppInternalException(ErrorCode.INTERNAL_ERROR, 'Erro ao criar a galeria.');
+      throw new AppInternalException(
+        ErrorCode.INTERNAL_ERROR,
+        'Erro ao criar a galeria.',
+      );
     }
   }
 
@@ -94,7 +96,10 @@ export class ImageController {
       return await this.updateService.updateImagePage(id, dto, filesDict);
     } catch (error) {
       this.logger.error('❌ Erro ao atualizar galeria', error);
-      throw new AppInternalException(ErrorCode.INTERNAL_ERROR, 'Erro ao atualizar a galeria.');
+      throw new AppInternalException(
+        ErrorCode.INTERNAL_ERROR,
+        'Erro ao atualizar a galeria.',
+      );
     }
   }
 
@@ -108,14 +113,21 @@ export class ImageController {
     @Param('id') pageId: string,
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '2',
-    @Req() req: Request
+    @Req() req: Request,
   ): Promise<PaginatedImageSectionResponseDto> {
     const pageNumber = Number(page);
     const limitNumber = Number(limit);
 
-    this.logger.debug(`📥 Requisição recebida para seções paginadas — pageId=${pageId}, page=${pageNumber}, limit=${limitNumber}`);
+    this.logger.debug(
+      `📥 Requisição recebida para seções paginadas — pageId=${pageId}, page=${pageNumber}, limit=${limitNumber}`,
+    );
 
-    return this.getService.findSectionsPaginated(pageId, pageNumber, limitNumber, req);
+    return this.getService.findSectionsPaginated(
+      pageId,
+      pageNumber,
+      limitNumber,
+      req,
+    );
   }
 
   @Get(':id')
@@ -124,7 +136,10 @@ export class ImageController {
       return await this.getService.findOne(id);
     } catch (error) {
       if (error instanceof AppNotFoundException) throw error;
-      throw new AppInternalException(ErrorCode.INTERNAL_ERROR, 'Erro ao buscar galeria.');
+      throw new AppInternalException(
+        ErrorCode.INTERNAL_ERROR,
+        'Erro ao buscar galeria.',
+      );
     }
   }
 
@@ -136,25 +151,39 @@ export class ImageController {
   }
 
   private async validateDto(dto: object) {
-    const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
+    const errors = await validate(dto, {
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    });
     if (errors.length > 0) {
-      this.logger.error('❌ Erros de validação:', JSON.stringify(errors, null, 2));
-      throw new AppValidationException(ErrorCode.VALIDATION_ERROR, 'Dados inválidos na requisição');
+      this.logger.error(
+        '❌ Erros de validação:',
+        JSON.stringify(errors, null, 2),
+      );
+      throw new AppValidationException(
+        ErrorCode.VALIDATION_ERROR,
+        'Dados inválidos na requisição',
+      );
     }
   }
 
-  private mapFiles(files: Express.Multer.File[]): Record<string, Express.Multer.File> {
-    return files.reduce((acc, file) => {
-      acc[file.fieldname] = file;
-      return acc;
-    }, {} as Record<string, Express.Multer.File>);
+  private mapFiles(
+    files: Express.Multer.File[],
+  ): Record<string, Express.Multer.File> {
+    return files.reduce(
+      (acc, file) => {
+        acc[file.fieldname] = file;
+        return acc;
+      },
+      {} as Record<string, Express.Multer.File>,
+    );
   }
 
   private cleanMediaFiles(rawObject: any) {
-    rawObject.sections?.forEach(section =>
-      section.mediaItems?.forEach(media => {
+    rawObject.sections?.forEach((section) =>
+      section.mediaItems?.forEach((media) => {
         delete media.file;
-      })
+      }),
     );
   }
 }

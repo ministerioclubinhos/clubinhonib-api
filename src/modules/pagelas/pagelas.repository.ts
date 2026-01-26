@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { AppNotFoundException, AppConflictException, ErrorCode } from 'src/shared/exceptions';
+import {
+  AppNotFoundException,
+  AppConflictException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository, SelectQueryBuilder } from 'typeorm';
 import { PagelaEntity } from './entities/pagela.entity';
@@ -17,7 +21,7 @@ export class PagelasRepository {
     private readonly childRepo: Repository<ChildEntity>,
     @InjectRepository(TeacherProfileEntity)
     private readonly teacherRepo: Repository<TeacherProfileEntity>,
-  ) { }
+  ) {}
 
   private baseQB(): SelectQueryBuilder<PagelaEntity> {
     return this.repo
@@ -46,14 +50,11 @@ export class PagelasRepository {
       qb.andWhere('p.week = :week', { week: f.week });
     }
 
-    
-    
     if (f.searchString?.trim()) {
       const raw = f.searchString.trim();
       const parts = raw.split('-');
-      
+
       if (parts.length === 2) {
-        
         const year = Number(parts[0]);
         const week = Number(parts[1]);
         if (Number.isInteger(year) && year >= 2000 && year <= 9999) {
@@ -63,14 +64,11 @@ export class PagelasRepository {
           qb.andWhere('p.week = :searchWeek', { searchWeek: week });
         }
       } else {
-        
         const num = Number(raw);
         if (Number.isInteger(num)) {
           if (num >= 2000 && num <= 9999) {
-            
             qb.andWhere('p.year = :searchYear', { searchYear: num });
           } else if (num >= 1 && num <= 53) {
-            
             qb.andWhere('p.week = :searchWeek', { searchWeek: num });
           }
         }
@@ -113,20 +111,33 @@ export class PagelasRepository {
     limit: number,
   ): Promise<{ items: PagelaEntity[]; total: number }> {
     const qb = this.applyFilters(this.baseQB(), filters);
-    qb.orderBy('p.year', 'DESC').addOrderBy('p.week', 'DESC').addOrderBy('child.name', 'ASC');
+    qb.orderBy('p.year', 'DESC')
+      .addOrderBy('p.week', 'DESC')
+      .addOrderBy('child.name', 'ASC');
 
-    const [items, total] = await qb.skip((page - 1) * limit).take(limit).getManyAndCount();
+    const [items, total] = await qb
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
     return { items, total };
   }
 
   async findOneOrFail(id: string): Promise<PagelaEntity> {
     const qb = this.baseQB().where('p.id = :id', { id });
     const item = await qb.getOne();
-    if (!item) throw new AppNotFoundException(ErrorCode.PAGELA_NOT_FOUND, 'Pagela não encontrada');
+    if (!item)
+      throw new AppNotFoundException(
+        ErrorCode.PAGELA_NOT_FOUND,
+        'Pagela não encontrada',
+      );
     return item;
   }
 
-  async findOneByChildYearWeekOrNull(childId: string, year: number, week: number): Promise<PagelaEntity | null> {
+  async findOneByChildYearWeekOrNull(
+    childId: string,
+    year: number,
+    week: number,
+  ): Promise<PagelaEntity | null> {
     return this.repo.findOne({
       where: { child: { id: childId }, year, week },
       relations: { child: true, teacher: true },
@@ -151,16 +162,29 @@ export class PagelasRepository {
 
       const [child, teacher] = await Promise.all([
         txChild.findOne({ where: { id: data.childId } }),
-        data.teacherProfileId ? txTeacher.findOne({ where: { id: data.teacherProfileId } }) : Promise.resolve(null),
+        data.teacherProfileId
+          ? txTeacher.findOne({ where: { id: data.teacherProfileId } })
+          : Promise.resolve(null),
       ]);
-      if (!child) throw new AppNotFoundException(ErrorCode.CHILD_NOT_FOUND, 'Criança não encontrada');
-      if (data.teacherProfileId && !teacher) throw new AppNotFoundException(ErrorCode.TEACHER_NOT_FOUND, 'Perfil de professor não encontrado');
+      if (!child)
+        throw new AppNotFoundException(
+          ErrorCode.CHILD_NOT_FOUND,
+          'Criança não encontrada',
+        );
+      if (data.teacherProfileId && !teacher)
+        throw new AppNotFoundException(
+          ErrorCode.TEACHER_NOT_FOUND,
+          'Perfil de professor não encontrado',
+        );
 
       const existing = await txPagela.findOne({
         where: { child: { id: child.id }, year: data.year, week: data.week },
       });
       if (existing) {
-        throw new AppConflictException(ErrorCode.RESOURCE_ALREADY_EXISTS, 'Já existe Pagela para esta criança nesta semana/ano');
+        throw new AppConflictException(
+          ErrorCode.RESOURCE_ALREADY_EXISTS,
+          'Já existe Pagela para esta criança nesta semana/ano',
+        );
       }
 
       const entity = txPagela.create({
@@ -178,14 +202,21 @@ export class PagelasRepository {
     });
   }
 
-  async updateOne(id: string, data: Partial<PagelaEntity>): Promise<PagelaEntity> {
+  async updateOne(
+    id: string,
+    data: Partial<PagelaEntity>,
+  ): Promise<PagelaEntity> {
     return this.dataSource.transaction(async (manager) => {
       const txPagela = manager.withRepository(this.repo);
       const entity = await txPagela.findOne({
         where: { id },
         relations: { child: true, teacher: true },
       });
-      if (!entity) throw new AppNotFoundException(ErrorCode.PAGELA_NOT_FOUND, 'Pagela não encontrada');
+      if (!entity)
+        throw new AppNotFoundException(
+          ErrorCode.PAGELA_NOT_FOUND,
+          'Pagela não encontrada',
+        );
 
       if (data.teacher) {
       }
@@ -195,7 +226,10 @@ export class PagelasRepository {
         return await txPagela.save(entity);
       } catch (e: any) {
         if (e?.code === 'ER_DUP_ENTRY') {
-          throw new AppConflictException(ErrorCode.RESOURCE_ALREADY_EXISTS, 'Já existe Pagela para esta criança nesta semana/ano');
+          throw new AppConflictException(
+            ErrorCode.RESOURCE_ALREADY_EXISTS,
+            'Já existe Pagela para esta criança nesta semana/ano',
+          );
         }
         throw e;
       }

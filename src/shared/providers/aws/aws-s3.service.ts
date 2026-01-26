@@ -17,11 +17,14 @@ export class AwsS3Service {
   constructor(private readonly configService: ConfigService) {
     this.region = this.configService.get<string>('AWS_REGION') || 'us-east-2';
 
-    const accessKeyId = this.configService.get<string>('AWS_ACCESS_KEY_ID') ?? '';
-    const secretAccessKey = this.configService.get<string>('AWS_SECRET_ACCESS_KEY') ?? '';
+    const accessKeyId =
+      this.configService.get<string>('AWS_ACCESS_KEY_ID') ?? '';
+    const secretAccessKey =
+      this.configService.get<string>('AWS_SECRET_ACCESS_KEY') ?? '';
     this.environment = this.configService.get<string>('ENVIRONMENT') ?? '';
 
-    this.bucketName = this.configService.get<string>('AWS_S3_BUCKET_NAME') || '';
+    this.bucketName =
+      this.configService.get<string>('AWS_S3_BUCKET_NAME') || '';
     if (!this.bucketName) {
       this.logger.error('AWS_S3_BUCKET_NAME not defined');
     }
@@ -36,7 +39,10 @@ export class AwsS3Service {
   }
 
   async upload(file: Express.Multer.File): Promise<string> {
-    const sanitizedFilename = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+    const sanitizedFilename = file.originalname.replace(
+      /[^a-zA-Z0-9.\-_]/g,
+      '_',
+    );
 
     const key = `${this.environment}/uploads/${Date.now()}_${sanitizedFilename}`;
     const command = new PutObjectCommand({

@@ -37,7 +37,6 @@ class AddressUpdateDto {
   @IsOptional()
   @IsString()
   complement?: string;
-
 }
 
 export class UpdateChildDto {

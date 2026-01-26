@@ -4,7 +4,6 @@ import { Entity, Column } from 'typeorm';
 
 @Entity('contacts')
 export class ContactEntity extends BaseEntity {
-
   @Column()
   name: string;
 

@@ -1,9 +1,16 @@
-import { IsOptional, IsInt, Min, Max, IsString, IsEnum, IsBoolean } from 'class-validator';
+import {
+  IsOptional,
+  IsInt,
+  Min,
+  Max,
+  IsString,
+  IsEnum,
+  IsBoolean,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { Transform } from 'class-transformer';
 
 export class PagelasStatsQueryDto {
-
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -26,7 +33,6 @@ export class PagelasStatsQueryDto {
   @IsString()
   endDate?: string;
 
-
   @IsOptional()
   @IsString()
   clubId?: string;
@@ -38,7 +44,6 @@ export class PagelasStatsQueryDto {
   @IsOptional()
   @IsString()
   coordinatorId?: string;
-
 
   @IsOptional()
   @IsString()
@@ -58,7 +63,6 @@ export class PagelasStatsQueryDto {
   @Max(100)
   maxAge?: number;
 
-
   @IsOptional()
   @IsString()
   city?: string;
@@ -71,7 +75,6 @@ export class PagelasStatsQueryDto {
   @IsString()
   district?: string;
 
-
   @IsOptional()
   @IsString()
   joinedAfter?: string;
@@ -79,7 +82,6 @@ export class PagelasStatsQueryDto {
   @IsOptional()
   @IsString()
   joinedBefore?: string;
-
 
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
@@ -96,7 +98,6 @@ export class PagelasStatsQueryDto {
   @IsBoolean()
   onlyRecitedVerse?: boolean;
 
-
   @IsOptional()
   @IsEnum(['day', 'week', 'month', 'year'])
   groupBy?: 'day' | 'week' | 'month' | 'year';
@@ -105,4 +106,3 @@ export class PagelasStatsQueryDto {
   @IsString()
   period?: string;
 }
-

@@ -4,7 +4,6 @@ import { TeacherProfileEntity } from 'src/modules/teacher-profiles/entities/teac
 import { BaseEntity } from 'src/shared/share-entity/base.entity';
 import { Entity, Column, OneToOne } from 'typeorm';
 
-
 @Entity('users')
 export class UserEntity extends BaseEntity {
   @Column({ unique: true })

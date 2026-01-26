@@ -1,6 +1,6 @@
-import { BaseEntity } from "src/shared/share-entity/base.entity";
-import { Column, Entity, ManyToOne } from "typeorm";
-import { IdeasPageEntity } from "./ideas-page.entity";
+import { BaseEntity } from 'src/shared/share-entity/base.entity';
+import { Column, Entity, ManyToOne } from 'typeorm';
+import { IdeasPageEntity } from './ideas-page.entity';
 
 @Entity({ name: 'ideas_sections' })
 export class IdeasSectionEntity extends BaseEntity {

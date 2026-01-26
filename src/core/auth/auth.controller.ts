@@ -1,4 +1,13 @@
-import { Controller, Post, Body, Request, UseGuards, Get, Logger, Query } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Request,
+  UseGuards,
+  Get,
+  Logger,
+  Query,
+} from '@nestjs/common';
 
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -7,7 +16,6 @@ import { CompleteUserDto } from './dto/complete-register.dto';
 import { AuthService } from './services/auth.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
-
 
 import { PasswordRecoveryService } from './services/password-recovery.service';
 
@@ -18,7 +26,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly passwordRecoveryService: PasswordRecoveryService,
-  ) { }
+  ) {}
 
   @Post('login')
   async login(@Body() dto: LoginDto) {

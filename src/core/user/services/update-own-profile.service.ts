@@ -12,7 +12,7 @@ import {
 export class UpdateOwnProfileService {
   private readonly logger = new Logger(UpdateOwnProfileService.name);
 
-  constructor(private readonly userRepo: UserRepository) { }
+  constructor(private readonly userRepo: UserRepository) {}
 
   async updateOwnProfile(
     userId: string,

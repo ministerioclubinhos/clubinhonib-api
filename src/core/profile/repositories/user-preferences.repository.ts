@@ -12,7 +12,10 @@ export class UserPreferencesRepository extends Repository<UserPreferences> {
     return this.findOne({ where: { userId } });
   }
 
-  async createForUser(userId: string, data: Partial<UserPreferences>): Promise<UserPreferences> {
+  async createForUser(
+    userId: string,
+    data: Partial<UserPreferences>,
+  ): Promise<UserPreferences> {
     const { userId: _, ...cleanData } = data;
     const preferences = this.create({
       ...cleanData,
@@ -21,7 +24,10 @@ export class UserPreferencesRepository extends Repository<UserPreferences> {
     return this.save(preferences);
   }
 
-  async updateByUserId(userId: string, data: Partial<UserPreferences>): Promise<UserPreferences | null> {
+  async updateByUserId(
+    userId: string,
+    data: Partial<UserPreferences>,
+  ): Promise<UserPreferences | null> {
     if (!data || Object.keys(data).length === 0) {
       return this.findByUserId(userId);
     }

@@ -1,4 +1,10 @@
-import { Exclude, Expose, Type, Transform, plainToInstance } from 'class-transformer';
+import {
+  Exclude,
+  Expose,
+  Type,
+  Transform,
+  plainToInstance,
+} from 'class-transformer';
 import { Weekday } from 'src/modules/clubs/enums/weekday.enum/weekday.enum';
 import { TeacherProfileEntity } from '../entities/teacher-profile.entity/teacher-profile.entity';
 
@@ -64,5 +70,7 @@ export class TeacherResponseDto {
 }
 
 export function toTeacherDto(entity: TeacherProfileEntity): TeacherResponseDto {
-  return plainToInstance(TeacherResponseDto, entity, { excludeExtraneousValues: true });
+  return plainToInstance(TeacherResponseDto, entity, {
+    excludeExtraneousValues: true,
+  });
 }

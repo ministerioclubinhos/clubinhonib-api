@@ -1,5 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { AppException, AppInternalException, ErrorCode } from 'src/shared/exceptions';
+import {
+  AppException,
+  AppInternalException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import { DataSource, QueryRunner } from 'typeorm';
 import { RouteService } from 'src/modules/routes/route.service';
 import { RouteType } from 'src/modules/routes/route-page.entity';
@@ -16,7 +20,7 @@ export class CreateInformativeService {
     private readonly dataSource: DataSource,
     private readonly informativeRepo: InformativeRepository,
     private readonly routeService: RouteService,
-  ) { }
+  ) {}
 
   async createInformative(
     dto: CreateInformativeDto,

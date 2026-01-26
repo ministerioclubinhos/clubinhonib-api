@@ -1,4 +1,10 @@
-import { Exclude, Expose, Type, Transform, plainToInstance } from 'class-transformer';
+import {
+  Exclude,
+  Expose,
+  Type,
+  Transform,
+  plainToInstance,
+} from 'class-transformer';
 import { Weekday } from 'src/modules/clubs/enums/weekday.enum/weekday.enum';
 import { CoordinatorProfileEntity } from '../entities/coordinator-profile.entity/coordinator-profile.entity';
 
@@ -76,9 +82,17 @@ export class CoordinatorResponseDto {
   updatedAt!: Date;
 }
 
-export function toCoordinatorDto(entity: CoordinatorProfileEntity): CoordinatorResponseDto {
-  return plainToInstance(CoordinatorResponseDto, entity, { excludeExtraneousValues: true });
+export function toCoordinatorDto(
+  entity: CoordinatorProfileEntity,
+): CoordinatorResponseDto {
+  return plainToInstance(CoordinatorResponseDto, entity, {
+    excludeExtraneousValues: true,
+  });
 }
-export function toCoordinatorMini(entity: CoordinatorProfileEntity): CoordinatorMiniDto {
-  return plainToInstance(CoordinatorMiniDto, entity, { excludeExtraneousValues: true });
+export function toCoordinatorMini(
+  entity: CoordinatorProfileEntity,
+): CoordinatorMiniDto {
+  return plainToInstance(CoordinatorMiniDto, entity, {
+    excludeExtraneousValues: true,
+  });
 }

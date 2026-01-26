@@ -27,7 +27,7 @@ export class CreateDocumentService {
     private readonly s3Service: AwsS3Service,
     private readonly routeService: RouteService,
     private readonly mediaProcessor: MediaItemProcessor,
-  ) { }
+  ) {}
 
   async createDocument(
     dto: CreateDocumentDto,
@@ -130,7 +130,10 @@ export class CreateDocumentService {
     if (dto.media.isLocalFile) {
       if (!file) {
         this.logger.error('🚫 Arquivo obrigatório não enviado.');
-        throw new AppValidationException(ErrorCode.FILE_REQUIRED, 'Arquivo obrigatório não enviado.');
+        throw new AppValidationException(
+          ErrorCode.FILE_REQUIRED,
+          'Arquivo obrigatório não enviado.',
+        );
       }
 
       this.logger.log(`⬆️ Upload para S3: ${file.originalname}`);
@@ -143,7 +146,10 @@ export class CreateDocumentService {
           `❌ Erro no upload do arquivo: ${file.originalname}`,
           error.stack,
         );
-        throw new AppInternalException(ErrorCode.FILE_UPLOAD_ERROR, 'Falha no upload do arquivo.');
+        throw new AppInternalException(
+          ErrorCode.FILE_UPLOAD_ERROR,
+          'Falha no upload do arquivo.',
+        );
       }
     }
 

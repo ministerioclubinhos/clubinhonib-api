@@ -31,7 +31,7 @@ export class ProfileController {
     private readonly updateOwnProfileService: UpdateOwnProfileService,
     private readonly changePasswordService: ChangePasswordService,
     private readonly updateUserImageService: UpdateUserImageService,
-  ) { }
+  ) {}
 
   @Get()
   async getOwnProfile(@Req() req: Request) {
@@ -81,10 +81,15 @@ export class ProfileController {
     const userId = payload.sub;
 
     this.logger.log(`Updating own profile image: ${userId}`);
-    const bodyToProcess = imageDataRaw ? { imageData: imageDataRaw } : (body || {});
-    await this.updateUserImageService.updateUserImage(userId, bodyToProcess, files);
+    const bodyToProcess = imageDataRaw
+      ? { imageData: imageDataRaw }
+      : body || {};
+    await this.updateUserImageService.updateUserImage(
+      userId,
+      bodyToProcess,
+      files,
+    );
     this.logger.log(`Own profile image updated successfully: ${userId}`);
     return this.getUsersService.findOneForProfile(userId);
   }
 }
-

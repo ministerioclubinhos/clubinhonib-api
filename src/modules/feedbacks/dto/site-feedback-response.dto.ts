@@ -1,4 +1,4 @@
-import { FeedbackCategory } from "../entity/feedback-category.enum";
+import { FeedbackCategory } from '../entity/feedback-category.enum';
 
 export class SiteFeedbackResponseDto {
   id: string;

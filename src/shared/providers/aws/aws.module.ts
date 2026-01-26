@@ -7,8 +7,8 @@ import { EmailService } from './email.service';
 
 @Global()
 @Module({
-    imports: [ConfigModule],
-    providers: [AwsS3Service, AwsSESService, SesIdentityService, EmailService],
-    exports: [AwsS3Service, AwsSESService, SesIdentityService, EmailService],
+  imports: [ConfigModule],
+  providers: [AwsS3Service, AwsSESService, SesIdentityService, EmailService],
+  exports: [AwsS3Service, AwsSESService, SesIdentityService, EmailService],
 })
-export class AwsModule { }
+export class AwsModule {}

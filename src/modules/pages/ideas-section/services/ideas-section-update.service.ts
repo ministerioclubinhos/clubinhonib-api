@@ -1,9 +1,9 @@
-
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   AppNotFoundException,
   AppBusinessException,
   AppInternalException,
+  AppValidationException,
   ErrorCode,
 } from 'src/shared/exceptions';
 import { DataSource, QueryRunner } from 'typeorm';
@@ -29,7 +29,7 @@ export class IdeasSectionUpdateService {
     private readonly awsS3Service: AwsS3Service,
     private readonly mediaItemProcessor: MediaItemProcessor,
     private readonly ideasSectionRepository: IdeasSectionRepository,
-  ) { }
+  ) {}
 
   async updateSection(
     id: string,
@@ -46,13 +46,19 @@ export class IdeasSectionUpdateService {
       const existingSection = await this.validateSection(id, queryRunner);
 
       const existingMedia = await this.validateMedia([id], queryRunner);
-      const savedSection = await this.upsertSection(dto, existingSection.page, queryRunner);
+      const savedSection = await this.upsertSection(
+        dto,
+        existingSection.page,
+        queryRunner,
+      );
       const normalized = (dto.medias || []).map((item) => ({
         ...item,
         mediaType:
-          item.mediaType === IdeasSectionMediaType.VIDEO ? 'video' :
-            item.mediaType === IdeasSectionMediaType.DOCUMENT ? 'document' :
-              'image',
+          item.mediaType === IdeasSectionMediaType.VIDEO
+            ? 'video'
+            : item.mediaType === IdeasSectionMediaType.DOCUMENT
+              ? 'document'
+              : 'image',
         uploadType: item.uploadType,
         fileField:
           item.uploadType === 'upload' && item.isLocalFile
@@ -74,13 +80,13 @@ export class IdeasSectionUpdateService {
       return IdeasSectionResponseDto.fromEntity(savedSection, processedMedia);
     } catch (error) {
       await queryRunner.rollbackTransaction();
-      this.logger.error('❌ Erro ao atualizar seção', error);
-
-      if (error instanceof AppNotFoundException || error instanceof BadRequestException) {
-        throw error;
-      }
-
-      throw new BadRequestException('Erro ao atualizar a seção de ideias');
+      this.logger.error('Erro ao atualizar seção', error.stack);
+      if (error.code) throw error;
+      throw new AppInternalException(
+        ErrorCode.SECTION_UPDATE_ERROR,
+        'Erro ao atualizar a seção de ideias',
+        error,
+      );
     } finally {
       await queryRunner.release();
     }
@@ -92,23 +98,32 @@ export class IdeasSectionUpdateService {
     dto: UpdateIdeasSectionDto,
     filesDict: Record<string, Express.Multer.File>,
   ): Promise<IdeasSectionResponseDto> {
-    this.logger.log(`🚀 Editando e vinculando seção órfã ID=${sectionId} à página ID=${pageId}`);
+    this.logger.log(
+      `🚀 Editando e vinculando seção órfã ID=${sectionId} à página ID=${pageId}`,
+    );
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      const existingSection = await queryRunner.manager.findOne(IdeasSectionEntity, {
-        where: { id: sectionId },
-      });
+      const existingSection = await queryRunner.manager.findOne(
+        IdeasSectionEntity,
+        {
+          where: { id: sectionId },
+        },
+      );
 
       if (!existingSection) {
-        throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, `Seção de ideias com ID=${sectionId} não encontrada`);
+        throw new AppNotFoundException(
+          ErrorCode.RESOURCE_NOT_FOUND,
+          `Seção de ideias com ID=${sectionId} não encontrada`,
+        );
       }
       if (existingSection.page) {
-        throw new BadRequestException(
-          `Seção ID=${sectionId} já está vinculada à página ID=${existingSection.page.id}`
+        throw new AppBusinessException(
+          ErrorCode.SECTION_UPDATE_ERROR,
+          `Seção ID=${sectionId} já está vinculada à página ID=${existingSection.page.id}`,
         );
       }
 
@@ -117,7 +132,10 @@ export class IdeasSectionUpdateService {
       });
 
       if (!ideasPage) {
-        throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, `Página de ideias com ID=${pageId} não encontrada`);
+        throw new AppNotFoundException(
+          ErrorCode.RESOURCE_NOT_FOUND,
+          `Página de ideias com ID=${pageId} não encontrada`,
+        );
       }
 
       const existingMedia = await queryRunner.manager.find(MediaItemEntity, {
@@ -129,21 +147,27 @@ export class IdeasSectionUpdateService {
 
       this.validateFiles(dto, filesDict);
 
-      const updatedSection = queryRunner.manager.merge(IdeasSectionEntity, existingSection, {
-        title: dto.title,
-        description: dto.description,
-        public: dto.public,
-        page: ideasPage,
-      });
+      const updatedSection = queryRunner.manager.merge(
+        IdeasSectionEntity,
+        existingSection,
+        {
+          title: dto.title,
+          description: dto.description,
+          public: dto.public,
+          page: ideasPage,
+        },
+      );
 
       const savedSection = await queryRunner.manager.save(updatedSection);
 
       const normalized = dto.medias.map((item) => ({
         ...item,
         mediaType:
-          item.mediaType === IdeasSectionMediaType.VIDEO ? 'video' :
-            item.mediaType === IdeasSectionMediaType.DOCUMENT ? 'document' :
-              'image',
+          item.mediaType === IdeasSectionMediaType.VIDEO
+            ? 'video'
+            : item.mediaType === IdeasSectionMediaType.DOCUMENT
+              ? 'document'
+              : 'image',
         uploadType: item.uploadType,
         fileField:
           item.uploadType === 'upload' && item.isLocalFile
@@ -167,34 +191,42 @@ export class IdeasSectionUpdateService {
       await queryRunner.commitTransaction();
 
       return IdeasSectionResponseDto.fromEntity(savedSection, processedMedia);
-
     } catch (error) {
       await queryRunner.rollbackTransaction();
-      this.logger.error('❌ Erro ao editar e vincular seção', error);
-
-      if (error instanceof AppNotFoundException || error instanceof BadRequestException) {
-        throw error;
-      }
-
-      throw new BadRequestException('Erro ao editar e vincular a seção de ideias');
+      this.logger.error('Erro ao editar e vincular seção', error.stack);
+      if (error.code) throw error;
+      throw new AppInternalException(
+        ErrorCode.SECTION_UPDATE_ERROR,
+        'Erro ao editar e vincular a seção de ideias',
+        error,
+      );
     } finally {
       await queryRunner.release();
     }
   }
 
-  private async validateSection(id: string, queryRunner: any): Promise<IdeasSectionEntity> {
+  private async validateSection(
+    id: string,
+    queryRunner: any,
+  ): Promise<IdeasSectionEntity> {
     const section = await queryRunner.manager.findOne(IdeasSectionEntity, {
       where: { id },
       relations: ['page'],
     });
     if (!section) {
       this.logger.warn(`⚠️ Seção com ID ${id} não encontrada`);
-      throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, 'Seção de ideias não encontrada');
+      throw new AppNotFoundException(
+        ErrorCode.RESOURCE_NOT_FOUND,
+        'Seção de ideias não encontrada',
+      );
     }
     return section;
   }
 
-  private async validateMedia(sectionIds: string[], queryRunner: any): Promise<MediaItemEntity[]> {
+  private async validateMedia(
+    sectionIds: string[],
+    queryRunner: any,
+  ): Promise<MediaItemEntity[]> {
     const media = await queryRunner.manager.find(MediaItemEntity, {
       where: {
         targetId: sectionIds[0],
@@ -215,20 +247,34 @@ export class IdeasSectionUpdateService {
       public: sectionInput.public ?? true,
       page: page || undefined,
     };
-    const savedSection = await queryRunner.manager.save(IdeasSectionEntity, sectionToUpsert);
+    const savedSection = await queryRunner.manager.save(
+      IdeasSectionEntity,
+      sectionToUpsert,
+    );
     return savedSection;
   }
 
-
-
-  private validateFiles(dto: UpdateIdeasSectionDto, filesDict: Record<string, Express.Multer.File>) {
+  private validateFiles(
+    dto: UpdateIdeasSectionDto,
+    filesDict: Record<string, Express.Multer.File>,
+  ) {
     for (const media of dto.medias) {
-      if (media.uploadType === UploadType.UPLOAD && media.isLocalFile && (!media.id || media.fieldKey)) {
+      if (
+        media.uploadType === UploadType.UPLOAD &&
+        media.isLocalFile &&
+        (!media.id || media.fieldKey)
+      ) {
         if (!media.originalName) {
-          throw new BadRequestException('Campo originalName ausente');
+          throw new AppValidationException(
+            ErrorCode.MEDIA_FIELD_MISSING,
+            'Campo originalName ausente',
+          );
         }
         if (media.fieldKey && !filesDict[media.fieldKey]) {
-          throw new BadRequestException(`Arquivo não encontrado para fieldKey: ${media.fieldKey}`);
+          throw new AppValidationException(
+            ErrorCode.MEDIA_FILE_NOT_FOUND,
+            `Arquivo não encontrado para fieldKey: ${media.fieldKey}`,
+          );
         }
       }
     }
@@ -240,11 +286,11 @@ export class IdeasSectionUpdateService {
     queryRunner: QueryRunner,
   ): Promise<void> {
     const requestedMediaIds = requestedMedias
-      .map(media => media.id)
+      .map((media) => media.id)
       .filter((id): id is string => typeof id === 'string' && id.length > 0);
 
     const mediaToRemove = existingMedia.filter(
-      existing => existing.id && !requestedMediaIds.includes(existing.id),
+      (existing) => existing.id && !requestedMediaIds.includes(existing.id),
     );
 
     for (const media of mediaToRemove) {
@@ -256,8 +302,15 @@ export class IdeasSectionUpdateService {
         try {
           await this.awsS3Service.delete(media.url);
         } catch (error) {
-          this.logger.error(`❌ Falha ao remover arquivo do S3: ${media.url}`, error.stack);
-          throw new BadRequestException(`Falha ao remover arquivo do S3: ${media.url}`);
+          this.logger.error(
+            `Falha ao remover arquivo do S3: ${media.url}`,
+            error.stack,
+          );
+          throw new AppInternalException(
+            ErrorCode.S3_DELETE_ERROR,
+            `Falha ao remover arquivo do S3: ${media.url}`,
+            error,
+          );
         }
       }
 
@@ -276,10 +329,20 @@ export class IdeasSectionUpdateService {
 
     for (const mediaInput of mediaItems) {
       if (mediaInput.id) {
-        const savedMedia = await this.upsertMedia(mediaInput, sectionId, filesDict, queryRunner);
+        const savedMedia = await this.upsertMedia(
+          mediaInput,
+          sectionId,
+          filesDict,
+          queryRunner,
+        );
         processedMedia.push(savedMedia);
       } else {
-        const savedMedia = await this.addMedia(mediaInput, sectionId, filesDict, queryRunner);
+        const savedMedia = await this.addMedia(
+          mediaInput,
+          sectionId,
+          filesDict,
+          queryRunner,
+        );
         processedMedia.push(savedMedia);
       }
     }
@@ -293,21 +356,35 @@ export class IdeasSectionUpdateService {
     queryRunner: QueryRunner,
   ): Promise<MediaItemEntity> {
     const media = this.mediaItemProcessor.buildBaseMediaItem(
-      { ...mediaInput, mediaType: mediaInput.mediaType as any || IdeasSectionMediaType.IMAGE },
+      {
+        ...mediaInput,
+        mediaType: (mediaInput.mediaType as any) || IdeasSectionMediaType.IMAGE,
+      },
       targetId,
       MediaTargetType.IdeasSection,
     );
 
-    if (mediaInput.uploadType === UploadType.UPLOAD || mediaInput.isLocalFile === true) {
+    if (
+      mediaInput.uploadType === UploadType.UPLOAD ||
+      mediaInput.isLocalFile === true
+    ) {
       media.platformType = undefined;
       if (!mediaInput.fieldKey) {
-        this.logger.error(`❌ FieldKey ausente para mídia "${mediaInput.title}"`);
-        throw new BadRequestException(`FieldKey ausente para mídia "${mediaInput.title}"`);
+        this.logger.error(`FieldKey ausente para mídia "${mediaInput.title}"`);
+        throw new AppValidationException(
+          ErrorCode.MEDIA_FIELD_MISSING,
+          `FieldKey ausente para mídia "${mediaInput.title}"`,
+        );
       }
       const file = filesDict[mediaInput.fieldKey];
       if (!file) {
-        this.logger.error(`❌ Arquivo ausente para mídia "${mediaInput.title}" (fieldKey: ${mediaInput.fieldKey})`);
-        throw new BadRequestException(`Arquivo ausente para mídia "${mediaInput.title}"`);
+        this.logger.error(
+          `Arquivo ausente para mídia "${mediaInput.title}" (fieldKey: ${mediaInput.fieldKey})`,
+        );
+        throw new AppValidationException(
+          ErrorCode.MEDIA_FILE_NOT_FOUND,
+          `Arquivo ausente para mídia "${mediaInput.title}"`,
+        );
       }
       media.url = await this.awsS3Service.upload(file);
       media.isLocalFile = mediaInput.isLocalFile;
@@ -341,16 +418,28 @@ export class IdeasSectionUpdateService {
       MediaTargetType.IdeasSection,
     );
 
-    if (mediaInput.isLocalFile && !mediaInput.id && mediaInput.uploadType === UploadType.UPLOAD) {
+    if (
+      mediaInput.isLocalFile &&
+      !mediaInput.id &&
+      mediaInput.uploadType === UploadType.UPLOAD
+    ) {
       const key = mediaInput.fieldKey ?? mediaInput.url;
       if (!key) {
-        this.logger.error(`❌ Arquivo ausente para upload: nenhum fieldKey ou url fornecido`);
-        throw new BadRequestException(`Arquivo ausente para upload: nenhum fieldKey ou url fornecido`);
+        this.logger.error(
+          `Arquivo ausente para upload: nenhum fieldKey ou url fornecido`,
+        );
+        throw new AppValidationException(
+          ErrorCode.MEDIA_FIELD_MISSING,
+          `Arquivo ausente para upload: nenhum fieldKey ou url fornecido`,
+        );
       }
       const file = filesDict[key];
       if (!file) {
-        this.logger.error(`❌ Arquivo não encontrado para chave: ${key}`);
-        throw new BadRequestException(`Arquivo não encontrado para upload: ${key}`);
+        this.logger.error(`Arquivo não encontrado para chave: ${key}`);
+        throw new AppValidationException(
+          ErrorCode.MEDIA_FILE_NOT_FOUND,
+          `Arquivo não encontrado para upload: ${key}`,
+        );
       }
       media.url = await this.awsS3Service.upload(file);
       media.originalName = file.originalname;

@@ -4,16 +4,16 @@ import { UserEntity } from 'src/core/user/entities/user.entity';
 
 @Entity('password_reset_tokens')
 export class PasswordResetTokenEntity extends BaseEntity {
-    @Column()
-    token: string;
+  @Column()
+  token: string;
 
-    @Column()
-    expiresAt: Date;
+  @Column()
+  expiresAt: Date;
 
-    @Column()
-    userId: string;
+  @Column()
+  userId: string;
 
-    @ManyToOne(() => UserEntity, { onDelete: 'CASCADE' })
-    @JoinColumn({ name: 'userId' })
-    user: UserEntity;
+  @ManyToOne(() => UserEntity, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'userId' })
+  user: UserEntity;
 }

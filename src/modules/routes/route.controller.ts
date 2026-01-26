@@ -29,7 +29,10 @@ export class RouteController {
     const route = await this.routeService.findById(id);
     if (!route) {
       this.logger.warn(`⚠️ Rota ID=${id} não encontrada`);
-      throw new AppNotFoundException(ErrorCode.ROUTE_NOT_FOUND, 'Rota não encontrada');
+      throw new AppNotFoundException(
+        ErrorCode.ROUTE_NOT_FOUND,
+        'Rota não encontrada',
+      );
     }
     return route;
   }

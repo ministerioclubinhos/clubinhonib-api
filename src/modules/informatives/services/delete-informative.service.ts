@@ -26,20 +26,28 @@ export class DeleteInformativeService {
 
     if (!informative) {
       this.logger.warn(`⚠️ Banner não encontrado: ID=${id}`);
-      throw new AppNotFoundException(ErrorCode.INFORMATIVE_NOT_FOUND, 'Banner informativo não encontrado');
+      throw new AppNotFoundException(
+        ErrorCode.INFORMATIVE_NOT_FOUND,
+        'Banner informativo não encontrado',
+      );
     }
 
     try {
       if (informative.route) {
         await this.routeRepo.delete(informative.route.id);
-        this.logger.log(`🧹 Rota associada removida: routeId=${informative.route.id}`);
+        this.logger.log(
+          `🧹 Rota associada removida: routeId=${informative.route.id}`,
+        );
       }
 
       await this.informativeRepo.remove(informative);
       this.logger.log(`✅ Banner removido com sucesso: ID=${id}`);
     } catch (error) {
       this.logger.error(`❌ Erro ao remover banner ID=${id}`, error.stack);
-      throw new AppInternalException(ErrorCode.DATABASE_ERROR, 'Erro ao remover banner.');
+      throw new AppInternalException(
+        ErrorCode.DATABASE_ERROR,
+        'Erro ao remover banner.',
+      );
     }
   }
 }

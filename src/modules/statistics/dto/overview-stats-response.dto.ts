@@ -5,8 +5,8 @@ export class OverviewStatsResponseDto {
     totalTeachers: number;
     activeChildrenThisMonth: number;
     activeTeachersThisMonth: number;
-    inactiveChildren: number; 
-    inactiveClubs: number; 
+    inactiveChildren: number;
+    inactiveClubs: number;
   };
   pagelas: {
     thisWeek: {
@@ -40,9 +40,9 @@ export class OverviewStatsResponseDto {
       total: number;
     }[];
   };
-  
+
   engagement?: {
-    avgEngagementScore: number; 
+    avgEngagementScore: number;
     topPerformingClubs: {
       clubId: string;
       clubNumber: number;
@@ -56,21 +56,21 @@ export class OverviewStatsResponseDto {
       clubNumber: number;
     }[];
     recentActivity: {
-      last7Days: number; 
-      last30Days: number; 
+      last7Days: number;
+      last30Days: number;
     };
   };
-  
+
   indicators?: {
-    clubsWithLowAttendance: number; 
-    childrenWithLowEngagement: number; 
-    clubsMissingPagelas: number; 
+    clubsWithLowAttendance: number;
+    childrenWithLowEngagement: number;
+    clubsMissingPagelas: number;
     growthRate: {
-      children: number; 
-      decisions: number; 
+      children: number;
+      decisions: number;
     };
   };
-  
+
   quickStats?: {
     childrenByGender: {
       M: number;
@@ -88,4 +88,3 @@ export class OverviewStatsResponseDto {
     }[];
   };
 }
-

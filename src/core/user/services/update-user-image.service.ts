@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
-import { MediaType, UploadType } from 'src/shared/media/media-item/media-item.entity';
+import {
+  MediaType,
+  UploadType,
+} from 'src/shared/media/media-item/media-item.entity';
 import { GetUsersService } from './get-user.service';
 import { AppValidationException, ErrorCode } from 'src/shared/exceptions';
 
@@ -49,9 +52,10 @@ export class UpdateUserImageService {
     };
 
     if (body.imageData) {
-      mediaDto = typeof body.imageData === 'string'
-        ? JSON.parse(body.imageData)
-        : body.imageData;
+      mediaDto =
+        typeof body.imageData === 'string'
+          ? JSON.parse(body.imageData)
+          : body.imageData;
     } else if (body.title || body.url) {
       mediaDto = {
         title: body.title,
@@ -74,7 +78,8 @@ export class UpdateUserImageService {
     let uploadTypeValue: UploadType;
     if (mediaDto.uploadType) {
       const normalized = String(mediaDto.uploadType).toLowerCase();
-      uploadTypeValue = normalized === 'upload' ? UploadType.UPLOAD : UploadType.LINK;
+      uploadTypeValue =
+        normalized === 'upload' ? UploadType.UPLOAD : UploadType.LINK;
     } else {
       uploadTypeValue = hasFile ? UploadType.UPLOAD : UploadType.LINK;
     }
@@ -112,9 +117,14 @@ export class UpdateUserImageService {
         if (hasOldLocalFile) {
           try {
             await this.s3Service.delete(existingMedia.url);
-            this.logger.log(`Arquivo antigo deletado do S3: ${existingMedia.url}`);
+            this.logger.log(
+              `Arquivo antigo deletado do S3: ${existingMedia.url}`,
+            );
           } catch (error) {
-            this.logger.warn(`Não foi possível deletar o arquivo antigo do S3: ${existingMedia.url}`, error);
+            this.logger.warn(
+              `Não foi possível deletar o arquivo antigo do S3: ${existingMedia.url}`,
+              error,
+            );
           }
         }
 
@@ -127,9 +137,14 @@ export class UpdateUserImageService {
         if (hasOldLocalFile) {
           try {
             await this.s3Service.delete(existingMedia.url);
-            this.logger.log(`Arquivo antigo deletado do S3 ao mudar para link: ${existingMedia.url}`);
+            this.logger.log(
+              `Arquivo antigo deletado do S3 ao mudar para link: ${existingMedia.url}`,
+            );
           } catch (error) {
-            this.logger.warn(`Não foi possível deletar o arquivo antigo do S3: ${existingMedia.url}`, error);
+            this.logger.warn(
+              `Não foi possível deletar o arquivo antigo do S3: ${existingMedia.url}`,
+              error,
+            );
           }
         }
 

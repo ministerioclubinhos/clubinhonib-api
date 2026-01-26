@@ -1,5 +1,9 @@
-import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  AppNotFoundException,
+  AppInternalException,
+  ErrorCode,
+} from 'src/shared/exceptions';
+import { Injectable, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
@@ -29,17 +33,23 @@ export class ImageSectionDeleteService {
 
       if (!section) {
         this.logger.warn(`⚠️ Seção com id=${id} não encontrada`);
-        throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, `Seção com id=${id} não encontrada`);
+        throw new AppNotFoundException(
+          ErrorCode.RESOURCE_NOT_FOUND,
+          `Seção com id=${id} não encontrada`,
+        );
       }
 
       this.logger.debug(`🔍 Buscando mídias associadas à seção`);
-      const mediaItems: MediaItemEntity[] = await this.mediaItemProcessor.findMediaItemsByTarget(
-        section.id,
-        MediaTargetType.ImagesPage,
-      );
+      const mediaItems: MediaItemEntity[] =
+        await this.mediaItemProcessor.findMediaItemsByTarget(
+          section.id,
+          MediaTargetType.ImagesPage,
+        );
 
       if (mediaItems.length > 0) {
-        this.logger.debug(`🗑️ Iniciando remoção de ${mediaItems.length} mídias`);
+        this.logger.debug(
+          `🗑️ Iniciando remoção de ${mediaItems.length} mídias`,
+        );
         await this.mediaItemProcessor.deleteMediaItems(
           mediaItems,
           this.awsS3Service.delete.bind(this.awsS3Service),
@@ -55,8 +65,16 @@ export class ImageSectionDeleteService {
       this.logger.debug(`✅ Seção removida com sucesso: ID=${id}`);
     } catch (error) {
       await queryRunner.rollbackTransaction();
-      this.logger.error('❌ Erro ao remover a seção. Rollback executado.', error);
-      throw new BadRequestException('Erro ao remover a seção.');
+      this.logger.error(
+        'Erro ao remover a seção. Rollback executado.',
+        error.stack,
+      );
+      if (error.code) throw error;
+      throw new AppInternalException(
+        ErrorCode.SECTION_DELETE_ERROR,
+        'Erro ao remover a seção',
+        error,
+      );
     } finally {
       await queryRunner.release();
     }

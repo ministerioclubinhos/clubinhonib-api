@@ -1,5 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { AppNotFoundException, AppValidationException, ErrorCode } from 'src/shared/exceptions';
+import {
+  AppNotFoundException,
+  AppValidationException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import { EventRepository } from '../event.repository';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
@@ -37,14 +41,20 @@ export class GetEventService {
 
   async findOne(id: string): Promise<EventResponseDto> {
     if (!id || typeof id !== 'string') {
-      throw new AppValidationException(ErrorCode.INVALID_INPUT, 'ID inválido fornecido');
+      throw new AppValidationException(
+        ErrorCode.INVALID_INPUT,
+        'ID inválido fornecido',
+      );
     }
 
     const event = await this.eventRepo.findById(id);
 
     if (!event) {
       this.logger.warn(`⚠️ Evento não encontrado: ID=${id}`);
-      throw new AppNotFoundException(ErrorCode.EVENT_NOT_FOUND, 'Evento não encontrado');
+      throw new AppNotFoundException(
+        ErrorCode.EVENT_NOT_FOUND,
+        'Evento não encontrado',
+      );
     }
 
     const media = await this.mediaItemProcessor.findMediaItemByTarget(
@@ -85,11 +95,14 @@ export class GetEventService {
     });
   }
 
-  private async buildMediaMap(ids: string[]): Promise<Map<string, MediaItemEntity[]>> {
-    const mediaItems = await this.mediaItemProcessor.findManyMediaItemsByTargets(
-      ids,
-      MediaTargetType.Event,
-    );
+  private async buildMediaMap(
+    ids: string[],
+  ): Promise<Map<string, MediaItemEntity[]>> {
+    const mediaItems =
+      await this.mediaItemProcessor.findManyMediaItemsByTargets(
+        ids,
+        MediaTargetType.Event,
+      );
 
     const map = new Map<string, MediaItemEntity[]>();
 

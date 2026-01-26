@@ -1,10 +1,10 @@
-import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+  AppNotFoundException,
+  AppInternalException,
+  AppBusinessException,
+  ErrorCode,
+} from 'src/shared/exceptions';
+import { Injectable, Logger } from '@nestjs/common';
 import { DataSource, In, QueryRunner } from 'typeorm';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { RouteService } from 'src/modules/routes/route.service';
@@ -25,8 +25,7 @@ export class IdeasPageRemoveService {
     private readonly routeService: RouteService,
     private readonly awsS3Service: AwsS3Service,
     private readonly mediaItemProcessor: MediaItemProcessor,
-  ) {
-  }
+  ) {}
 
   async removeIdeasPage(id: string): Promise<void> {
     this.logger.log(`🚀 Iniciando remoção da página de ideias com ID: ${id}`);
@@ -43,27 +42,42 @@ export class IdeasPageRemoveService {
       const page = await this.pageRepo.findOnePageById(id);
       if (!page) {
         this.logger.warn(`⚠️ Página com ID ${id} não encontrada`);
-        throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, `Página de ideias com id ${id} não encontrada`);
+        throw new AppNotFoundException(
+          ErrorCode.RESOURCE_NOT_FOUND,
+          `Página de ideias com id ${id} não encontrada`,
+        );
       }
-      this.logger.debug(`✅ Página encontrada: ID=${page.id}, title="${page.title}"`);
+      this.logger.debug(
+        `✅ Página encontrada: ID=${page.id}, title="${page.title}"`,
+      );
 
-      const sectionIds = page.sections?.map(s => s.id) || [];
+      const sectionIds = page.sections?.map((s) => s.id) || [];
       this.logger.debug(`📂 Encontradas ${sectionIds.length} seções`);
 
       if (sectionIds.length > 0) {
         this.logger.debug(`🔍 Buscando mídias associadas às seções`);
         const mediaItems = await this.validateMedia(sectionIds);
 
-        this.logger.debug(`🗑️ Iniciando exclusão de ${mediaItems.length} mídias`);
-        await this.mediaItemProcessor.deleteMediaItems(mediaItems, this.awsS3Service.delete.bind(this.awsS3Service));
+        this.logger.debug(
+          `🗑️ Iniciando exclusão de ${mediaItems.length} mídias`,
+        );
+        await this.mediaItemProcessor.deleteMediaItems(
+          mediaItems,
+          this.awsS3Service.delete.bind(this.awsS3Service),
+        );
         this.logger.debug(`✅ ${mediaItems.length} mídias excluídas`);
       } else {
-        this.logger.debug('ℹ️ Nenhuma seção encontrada, pulando exclusão de mídias');
+        this.logger.debug(
+          'ℹ️ Nenhuma seção encontrada, pulando exclusão de mídias',
+        );
       }
 
       if (page.route?.id) {
         this.logger.debug(`🔄 Desvinculando rota ID: ${page.route.id}`);
-        await queryRunner.manager.save(IdeasPageEntity, { id: page.id, route: null });
+        await queryRunner.manager.save(IdeasPageEntity, {
+          id: page.id,
+          route: null,
+        });
         this.logger.debug(`🛑 route_id setado para NULL`);
 
         this.logger.debug(`🗑️ Removendo rota ID: ${page.route.id}`);
@@ -79,23 +93,36 @@ export class IdeasPageRemoveService {
       await queryRunner.manager.remove(page);
       this.logger.debug(`✅ Página removida`);
 
-      const remainingSections = await queryRunner.manager.find(IdeasSectionEntity, {
-        where: sectionIds.length ? { id: In(sectionIds) } : undefined,
-      });
+      const remainingSections = await queryRunner.manager.find(
+        IdeasSectionEntity,
+        {
+          where: sectionIds.length ? { id: In(sectionIds) } : undefined,
+        },
+      );
 
       if (remainingSections.length > 0) {
-        this.logger.warn(`⚠️ Seções ainda presentes após exclusão`);
-        throw new BadRequestException('Falha ao remover todas as seções associadas');
+        this.logger.warn(`Seções ainda presentes após exclusão`);
+        throw new AppBusinessException(
+          ErrorCode.PAGE_DELETE_ERROR,
+          'Falha ao remover todas as seções associadas',
+        );
       }
 
       this.logger.debug('✅ Iniciando commit da transação');
       await queryRunner.commitTransaction();
       this.logger.log(`✅ Página de ideias removida com sucesso: ID=${id}`);
     } catch (error) {
-      this.logger.error('❌ Erro ao remover página de ideias. Iniciando rollback.', error);
+      this.logger.error(
+        'Erro ao remover página de ideias. Iniciando rollback.',
+        error.stack,
+      );
       await queryRunner.rollbackTransaction();
-      this.logger.debug('✅ Rollback concluído');
-      throw new BadRequestException('Erro ao remover a página de ideias.');
+      if (error.code) throw error;
+      throw new AppInternalException(
+        ErrorCode.PAGE_DELETE_ERROR,
+        'Erro ao remover a página de ideias',
+        error,
+      );
     } finally {
       this.logger.debug('🔚 Liberando QueryRunner');
       await queryRunner.release();
@@ -103,8 +130,14 @@ export class IdeasPageRemoveService {
     }
   }
 
-  private async validateMedia(sectionIds: string[]): Promise<MediaItemEntity[]> {
-    const mediaItems = await this.mediaItemProcessor.findManyMediaItemsByTargets(sectionIds, 'IdeasSection');
+  private async validateMedia(
+    sectionIds: string[],
+  ): Promise<MediaItemEntity[]> {
+    const mediaItems =
+      await this.mediaItemProcessor.findManyMediaItemsByTargets(
+        sectionIds,
+        'IdeasSection',
+      );
 
     return mediaItems;
   }

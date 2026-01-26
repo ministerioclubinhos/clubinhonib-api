@@ -29,22 +29,34 @@ export class RouteRepository extends Repository<RouteEntity> {
     return this.findOne({ where: { path } });
   }
 
-  async findByEntity(entityType: string, entityId: string): Promise<RouteEntity | null> {
+  async findByEntity(
+    entityType: string,
+    entityId: string,
+  ): Promise<RouteEntity | null> {
     return this.findOne({ where: { entityType, entityId } });
   }
 
-  async createRoute(path: string, entityType: string, entityId: string, description: string, type: RouteType): Promise<RouteEntity> {
+  async createRoute(
+    path: string,
+    entityType: string,
+    entityId: string,
+    description: string,
+    type: RouteType,
+  ): Promise<RouteEntity> {
     const route = this.create({
       path,
       entityType,
       entityId,
       description,
-      type
+      type,
     });
     return this.save(route);
   }
 
-  async upsertRoute(routeId: string, updateData: Partial<RouteEntity>): Promise<RouteEntity> {
+  async upsertRoute(
+    routeId: string,
+    updateData: Partial<RouteEntity>,
+  ): Promise<RouteEntity> {
     const route = await this.save({
       ...updateData,
       id: routeId,

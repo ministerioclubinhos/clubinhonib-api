@@ -13,7 +13,7 @@ export class IdeasSectionGetService {
   constructor(
     private readonly ideasSectionRepository: IdeasSectionRepository,
     private readonly mediaItemProcessor: MediaItemProcessor,
-  ) { }
+  ) {}
 
   async findOne(id: string): Promise<IdeasSectionResponseDto | null> {
     this.logger.debug(`🔍 Buscando seção de ideias ID=${id}`);
@@ -32,7 +32,9 @@ export class IdeasSectionGetService {
       MediaTargetType.IdeasSection,
     );
 
-    this.logger.debug(`✅ Seção de ideias encontrada: ID=${id}, title="${section.title}"`);
+    this.logger.debug(
+      `✅ Seção de ideias encontrada: ID=${id}, title="${section.title}"`,
+    );
     return IdeasSectionResponseDto.fromEntity(section, medias);
   }
 
@@ -46,7 +48,7 @@ export class IdeasSectionGetService {
       return [];
     }
 
-    const sectionIds = sections.map(section => section.id);
+    const sectionIds = sections.map((section) => section.id);
     const allMedias = await this.mediaItemProcessor.findManyMediaItemsByTargets(
       sectionIds,
       MediaTargetType.IdeasSection,
@@ -54,7 +56,7 @@ export class IdeasSectionGetService {
 
     const mediaMap = this.groupMediaBySectionId(allMedias);
 
-    const result = sections.map(section => {
+    const result = sections.map((section) => {
       const sectionMedias = mediaMap.get(section.id) || [];
       return IdeasSectionResponseDto.fromEntity(section, sectionMedias);
     });
@@ -63,7 +65,9 @@ export class IdeasSectionGetService {
     return result;
   }
 
-  private groupMediaBySectionId(mediaItems: MediaItemEntity[]): Map<string, MediaItemEntity[]> {
+  private groupMediaBySectionId(
+    mediaItems: MediaItemEntity[],
+  ): Map<string, MediaItemEntity[]> {
     const mediaMap = new Map<string, MediaItemEntity[]>();
 
     for (const media of mediaItems) {

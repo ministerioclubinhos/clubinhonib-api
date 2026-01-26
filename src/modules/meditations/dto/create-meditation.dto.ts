@@ -13,9 +13,9 @@ import { WeekDay } from '../entities/day.entity';
 import { MediaItemDto } from 'src/shared/share-dto/media-item-dto';
 
 class DayDto {
-
   @IsEnum(WeekDay, {
-    message: 'day deve ser um dos valores: Monday, Tuesday, Wednesday, Thursday, Friday',
+    message:
+      'day deve ser um dos valores: Monday, Tuesday, Wednesday, Thursday, Friday',
   })
   day: WeekDay;
 
@@ -26,16 +26,20 @@ class DayDto {
   topic: string;
 }
 
-
 export class CreateMeditationDto {
-
   @IsString({ message: 'topic deve ser uma string' })
   topic: string;
 
-  @IsDateString({}, { message: 'startDate deve estar em formato ISO válido (YYYY-MM-DD)' })
+  @IsDateString(
+    {},
+    { message: 'startDate deve estar em formato ISO válido (YYYY-MM-DD)' },
+  )
   startDate: string;
 
-  @IsDateString({}, { message: 'endDate deve estar em formato ISO válido (YYYY-MM-DD)' })
+  @IsDateString(
+    {},
+    { message: 'endDate deve estar em formato ISO válido (YYYY-MM-DD)' },
+  )
   endDate: string;
 
   @ValidateNested()

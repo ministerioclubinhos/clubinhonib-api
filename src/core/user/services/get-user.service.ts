@@ -16,7 +16,7 @@ export class GetUsersService {
     private readonly mediaItemProcessor: MediaItemProcessor,
     private readonly personalDataRepository: PersonalDataRepository,
     private readonly userPreferencesRepository: UserPreferencesRepository,
-  ) { }
+  ) {}
 
   async findAllPaginated(q: GetUsersQueryDto) {
     return this.userRepo.findAllPaginated(q);
@@ -58,10 +58,20 @@ export class GetUsersService {
     const personalData = await this.personalDataRepository.findByUserId(id);
     const preferences = await this.userPreferencesRepository.findByUserId(id);
 
-    return this.buildProfileResponse(user, imageMedia || undefined, personalData, preferences);
+    return this.buildProfileResponse(
+      user,
+      imageMedia || undefined,
+      personalData,
+      preferences,
+    );
   }
 
-  private buildProfileResponse(user: UserEntity, imageMedia?: any, personalData?: any, preferences?: any) {
+  private buildProfileResponse(
+    user: UserEntity,
+    imageMedia?: any,
+    personalData?: any,
+    preferences?: any,
+  ) {
     return {
       id: user.id,
       email: user.email,
@@ -76,68 +86,72 @@ export class GetUsersService {
       cpf: user.cpf,
       image: imageMedia
         ? {
-          id: imageMedia.id,
-          title: imageMedia.title,
-          description: imageMedia.description,
-          url: imageMedia.url,
-          uploadType: imageMedia.uploadType,
-          mediaType: imageMedia.mediaType,
-          isLocalFile: imageMedia.isLocalFile,
-          platformType: imageMedia.platformType,
-          originalName: imageMedia.originalName,
-          size: imageMedia.size,
-          createdAt: imageMedia.createdAt,
-          updatedAt: imageMedia.updatedAt,
-        }
+            id: imageMedia.id,
+            title: imageMedia.title,
+            description: imageMedia.description,
+            url: imageMedia.url,
+            uploadType: imageMedia.uploadType,
+            mediaType: imageMedia.mediaType,
+            isLocalFile: imageMedia.isLocalFile,
+            platformType: imageMedia.platformType,
+            originalName: imageMedia.originalName,
+            size: imageMedia.size,
+            createdAt: imageMedia.createdAt,
+            updatedAt: imageMedia.updatedAt,
+          }
         : null,
-      personalData: personalData ? {
-        birthDate: personalData.birthDate
-          ? (personalData.birthDate instanceof Date
-            ? personalData.birthDate.toISOString().split('T')[0]
-            : String(personalData.birthDate).split('T')[0])
-          : undefined,
-        gender: personalData.gender,
-        gaLeaderName: personalData.gaLeaderName,
-        gaLeaderContact: personalData.gaLeaderContact,
-      } : undefined,
-      preferences: preferences ? {
-        loveLanguages: preferences.loveLanguages,
-        temperaments: preferences.temperaments,
-        favoriteColor: preferences.favoriteColor,
-        favoriteFood: preferences.favoriteFood,
-        favoriteMusic: preferences.favoriteMusic,
-        whatMakesYouSmile: preferences.whatMakesYouSmile,
-        skillsAndTalents: preferences.skillsAndTalents,
-      } : undefined,
+      personalData: personalData
+        ? {
+            birthDate: personalData.birthDate
+              ? personalData.birthDate instanceof Date
+                ? personalData.birthDate.toISOString().split('T')[0]
+                : String(personalData.birthDate).split('T')[0]
+              : undefined,
+            gender: personalData.gender,
+            gaLeaderName: personalData.gaLeaderName,
+            gaLeaderContact: personalData.gaLeaderContact,
+          }
+        : undefined,
+      preferences: preferences
+        ? {
+            loveLanguages: preferences.loveLanguages,
+            temperaments: preferences.temperaments,
+            favoriteColor: preferences.favoriteColor,
+            favoriteFood: preferences.favoriteFood,
+            favoriteMusic: preferences.favoriteMusic,
+            whatMakesYouSmile: preferences.whatMakesYouSmile,
+            skillsAndTalents: preferences.skillsAndTalents,
+          }
+        : undefined,
       teacherProfile: user.teacherProfile
         ? {
-          id: user.teacherProfile.id,
-          active: user.teacherProfile.active,
-          club: user.teacherProfile.club
-            ? {
-              id: user.teacherProfile.club.id,
-              number: user.teacherProfile.club.number,
-              weekday: user.teacherProfile.club.weekday,
-              time: user.teacherProfile.club.time,
-              isActive: user.teacherProfile.club.isActive,
-            }
-            : null,
-        }
+            id: user.teacherProfile.id,
+            active: user.teacherProfile.active,
+            club: user.teacherProfile.club
+              ? {
+                  id: user.teacherProfile.club.id,
+                  number: user.teacherProfile.club.number,
+                  weekday: user.teacherProfile.club.weekday,
+                  time: user.teacherProfile.club.time,
+                  isActive: user.teacherProfile.club.isActive,
+                }
+              : null,
+          }
         : null,
       coordinatorProfile: user.coordinatorProfile
         ? {
-          id: user.coordinatorProfile.id,
-          active: user.coordinatorProfile.active,
-          clubs: user.coordinatorProfile.clubs
-            ? user.coordinatorProfile.clubs.map((club) => ({
-              id: club.id,
-              number: club.number,
-              weekday: club.weekday,
-              time: club.time,
-              isActive: club.isActive,
-            }))
-            : [],
-        }
+            id: user.coordinatorProfile.id,
+            active: user.coordinatorProfile.active,
+            clubs: user.coordinatorProfile.clubs
+              ? user.coordinatorProfile.clubs.map((club) => ({
+                  id: club.id,
+                  number: club.number,
+                  weekday: club.weekday,
+                  time: club.time,
+                  isActive: club.isActive,
+                }))
+              : [],
+          }
         : null,
     };
   }

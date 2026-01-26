@@ -1,4 +1,3 @@
-import { BadRequestException } from '@nestjs/common';
 import {
   Controller,
   Post,
@@ -56,7 +55,10 @@ export class IdeasPageController {
 
     try {
       if (!raw) {
-        throw new AppValidationException(ErrorCode.INVALID_INPUT, 'ideasMaterialsPageData é obrigatório.');
+        throw new AppValidationException(
+          ErrorCode.INVALID_INPUT,
+          'ideasMaterialsPageData é obrigatório.',
+        );
       }
 
       const parsed = JSON.parse(raw);
@@ -72,14 +74,19 @@ export class IdeasPageController {
         filesDict[f.fieldname] = f;
       });
 
-      const result = await this.ideasPageCreateService.createIdeasPage(dto, filesDict);
+      const result = await this.ideasPageCreateService.createIdeasPage(
+        dto,
+        filesDict,
+      );
       this.logger.log(`✅ Página criada com sucesso: ID=${result.id}`);
       return result;
     } catch (err) {
-      this.logger.error('❌ Erro ao criar página de ideias', err);
+      this.logger.error('Erro ao criar página de ideias', err.stack);
+      if (err.code) throw err;
       throw new AppInternalException(
-        ErrorCode.INTERNAL_ERROR,
-        'Erro ao criar página de ideias: ' + err.message,
+        ErrorCode.PAGE_CREATE_ERROR,
+        `Erro ao criar página de ideias: ${err.message}`,
+        err,
       );
     }
   }
@@ -92,10 +99,16 @@ export class IdeasPageController {
     @UploadedFiles() files: Express.Multer.File[],
     @Body('ideasMaterialsPageData') raw: string,
   ): Promise<IdeasPageResponseDto> {
-    this.logger.debug(`🚀 [PATCH /ideas-pages/${id}] Atualizando página de ideias`);
+    this.logger.debug(
+      `🚀 [PATCH /ideas-pages/${id}] Atualizando página de ideias`,
+    );
 
     try {
-      if (!raw) throw new AppValidationException(ErrorCode.INVALID_INPUT, 'ideasMaterialsPageData é obrigatório.');
+      if (!raw)
+        throw new AppValidationException(
+          ErrorCode.INVALID_INPUT,
+          'ideasMaterialsPageData é obrigatório.',
+        );
 
       const parsedData = JSON.parse(raw);
       const dto = plainToInstance(UpdateIdeasPageDto, parsedData);
@@ -105,41 +118,63 @@ export class IdeasPageController {
       });
 
       if (validationErrors.length > 0) {
-        this.logger.error('❌ Erros de validação:', JSON.stringify(validationErrors, null, 2));
-        throw new BadRequestException('Dados inválidos na requisição');
+        this.logger.error(
+          'Erros de validação:',
+          JSON.stringify(validationErrors, null, 2),
+        );
+        throw new AppValidationException(
+          ErrorCode.VALIDATION_ERROR,
+          'Dados inválidos na requisição',
+        );
       }
 
       const filesDict: Record<string, Express.Multer.File> = {};
       files.forEach((file) => (filesDict[file.fieldname] = file));
 
-      const result = await this.updateIdeasPageService.updateIdeasPage(id, dto, filesDict);
-      this.logger.log(`✅ Página de ideias atualizada com sucesso: ID=${result.id}`);
+      const result = await this.updateIdeasPageService.updateIdeasPage(
+        id,
+        dto,
+        filesDict,
+      );
+      this.logger.log(
+        `✅ Página de ideias atualizada com sucesso: ID=${result.id}`,
+      );
       return IdeasPageResponseDto.fromEntity(result, new Map());
     } catch (error) {
-      this.logger.error('❌ Erro ao atualizar página de ideias', error);
-      throw new BadRequestException('Erro ao atualizar a página de ideias.');
+      this.logger.error('Erro ao atualizar página de ideias', error.stack);
+      if (error.code) throw error;
+      throw new AppInternalException(
+        ErrorCode.PAGE_UPDATE_ERROR,
+        'Erro ao atualizar a página de ideias',
+        error,
+      );
     }
   }
 
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Delete(':id')
   async remove(@Param('id') id: string): Promise<void> {
-    this.logger.debug(`🚀 [DELETE /ideas-pages/${id}] Removendo página de ideias`);
+    this.logger.debug(`[DELETE /ideas-pages/${id}] Removendo página de ideias`);
 
     try {
       await this.ideasPageRemoveService.removeIdeasPage(id);
-      this.logger.log(`✅ Página de ideias removida com sucesso: ID=${id}`);
+      this.logger.log(`Página de ideias removida com sucesso: ID=${id}`);
     } catch (error) {
-      this.logger.error('❌ Erro ao remover página de ideias', error);
-      throw new BadRequestException(
-        'Erro ao remover a página de ideias: ' + error.message,
+      this.logger.error('Erro ao remover página de ideias', error.stack);
+      if (error.code) throw error;
+      throw new AppInternalException(
+        ErrorCode.PAGE_DELETE_ERROR,
+        `Erro ao remover a página de ideias: ${error.message}`,
+        error,
       );
     }
   }
 
   @Get()
   async findAll(): Promise<IdeasPageResponseDto[]> {
-    this.logger.debug('📥 [GET /ideas-pages] Listando todas as páginas de ideias');
+    this.logger.debug(
+      '📥 [GET /ideas-pages] Listando todas as páginas de ideias',
+    );
     return this.ideasPageGetService.findAllPagesWithMedia();
   }
 

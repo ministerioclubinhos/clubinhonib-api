@@ -17,7 +17,7 @@ export class GetMeditationService {
   constructor(
     private readonly meditationRepo: MeditationRepository,
     private readonly mediaItemProcessor: MediaItemProcessor,
-  ) { }
+  ) {}
 
   async findAll(): Promise<WeekMeditationResponseDto[]> {
     const meditations = await this.meditationRepo.findAllWithRelations();
@@ -27,9 +27,13 @@ export class GetMeditationService {
     }
 
     const ids = meditations.map((m) => m.id);
-    const mediaItems = await this.mediaItemProcessor.findManyMediaItemsByTargets(ids, MediaTargetType.Meditation);
+    const mediaItems =
+      await this.mediaItemProcessor.findManyMediaItemsByTargets(
+        ids,
+        MediaTargetType.Meditation,
+      );
 
-    const mediaMap = new Map<string, typeof mediaItems[number][]>();
+    const mediaMap = new Map<string, (typeof mediaItems)[number][]>();
     mediaItems.forEach((item) => {
       const list = mediaMap.get(item.targetId) || [];
       list.push(item);
@@ -47,22 +51,31 @@ export class GetMeditationService {
 
   async findOne(id: string): Promise<WeekMeditationResponseDto> {
     if (!id || typeof id !== 'string') {
-      throw new AppValidationException(ErrorCode.VALIDATION_ERROR, 'ID inválido fornecido');
+      throw new AppValidationException(
+        ErrorCode.VALIDATION_ERROR,
+        'ID inválido fornecido',
+      );
     }
 
     const meditation = await this.meditationRepo.findOneWithRelations(id);
     if (!meditation) {
       this.logger.warn(`⚠️ Meditação não encontrada: ID=${id}`);
-      throw new AppNotFoundException(ErrorCode.MEDITATION_NOT_FOUND, 'Meditação não encontrada');
+      throw new AppNotFoundException(
+        ErrorCode.MEDITATION_NOT_FOUND,
+        'Meditação não encontrada',
+      );
     }
-    const media = await this.mediaItemProcessor.findMediaItemByTarget(meditation.id, MediaTargetType.Meditation);
+    const media = await this.mediaItemProcessor.findMediaItemByTarget(
+      meditation.id,
+      MediaTargetType.Meditation,
+    );
     return WeekMeditationResponseDto.success(meditation, media);
   }
 
   async getThisWeekMeditation(): Promise<WeekMeditationResponseDto> {
     const today = new Date();
     const todayLocal = parseDateAsLocal(
-      `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+      `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`,
     );
 
     const all = await this.meditationRepo.findAllWithRelations();
@@ -72,8 +85,13 @@ export class GetMeditationService {
       const end = parseDateAsLocal(m.endDate.toString());
 
       if (todayLocal >= start && todayLocal <= end) {
-        this.logger.log(`✅ Meditação da semana encontrada: ${m.topic} (${m.id})`);
-        const mediaList = await this.mediaItemProcessor.findMediaItemsByTarget(m.id, MediaTargetType.Meditation);
+        this.logger.log(
+          `✅ Meditação da semana encontrada: ${m.topic} (${m.id})`,
+        );
+        const mediaList = await this.mediaItemProcessor.findMediaItemsByTarget(
+          m.id,
+          MediaTargetType.Meditation,
+        );
         const media = mediaList?.[0];
 
         if (!media) {

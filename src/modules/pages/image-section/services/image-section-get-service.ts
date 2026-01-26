@@ -16,11 +16,15 @@ export class ImageSectionGetService {
 
   async findAll(): Promise<ImageSectionResponseDto[]> {
     this.logger.debug('📡 Listando todas as seções de imagens...');
-    
+
     const sections = await this.sectionRepository.findAllOrfaSections();
     const sectionIds = sections.map((section) => section.id);
 
-    const mediaItems = await this.mediaItemProcessor.findManyMediaItemsByTargets(sectionIds, MediaTargetType.ImagesPage);
+    const mediaItems =
+      await this.mediaItemProcessor.findManyMediaItemsByTargets(
+        sectionIds,
+        MediaTargetType.ImagesPage,
+      );
 
     const mediaMap = new Map<string, typeof mediaItems>();
     for (const item of mediaItems) {
@@ -28,21 +32,30 @@ export class ImageSectionGetService {
       mediaMap.get(item.targetId)!.push(item);
     }
 
-    return sections.map((section) => 
-      ImageSectionResponseDto.fromEntity(section, mediaMap.get(section.id) || [])
+    return sections.map((section) =>
+      ImageSectionResponseDto.fromEntity(
+        section,
+        mediaMap.get(section.id) || [],
+      ),
     );
   }
 
   async findOne(id: string): Promise<ImageSectionResponseDto> {
     this.logger.debug(`📡 Buscando seção de imagens ID=${id}...`);
-    
+
     const section = await this.sectionRepository.findOneBy({ id });
     if (!section) {
-      throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, `Seção com id=${id} não encontrada`);
+      throw new AppNotFoundException(
+        ErrorCode.RESOURCE_NOT_FOUND,
+        `Seção com id=${id} não encontrada`,
+      );
     }
 
-    const mediaItems = await this.mediaItemProcessor.findMediaItemsByTarget(section.id, MediaTargetType.ImagesPage);
-    
+    const mediaItems = await this.mediaItemProcessor.findMediaItemsByTarget(
+      section.id,
+      MediaTargetType.ImagesPage,
+    );
+
     return ImageSectionResponseDto.fromEntity(section, mediaItems);
   }
 }
