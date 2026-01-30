@@ -7,6 +7,6 @@ import { MediaItemRepository } from './media-item-repository';
 @Module({
   imports: [TypeOrmModule.forFeature([MediaItemEntity])],
   providers: [MediaItemProcessor, MediaItemRepository],
-  exports: [MediaItemProcessor],
+  exports: [MediaItemProcessor, MediaItemRepository],
 })
 export class MediaModule {}

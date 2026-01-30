@@ -6,6 +6,8 @@ import { UserPreferencesRepository } from '../../repositories/user-preferences.r
 import { UserRole } from '../../../auth/auth.types';
 import { QueryProfilesDto } from '../../dto/query-profiles.dto';
 import { PaginatedProfilesResponseDto } from '../../dto/paginated-profiles-response.dto';
+import { MediaItemRepository } from 'src/shared/media/media-item-repository';
+import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
 
 interface UserQueryResult {
   id: string;
@@ -26,6 +28,7 @@ export class GetAllProfilesService {
     private readonly userRepository: UserRepository,
     private readonly personalDataRepository: PersonalDataRepository,
     private readonly userPreferencesRepository: UserPreferencesRepository,
+    private readonly mediaItemRepository: MediaItemRepository,
   ) {}
 
   async execute(
@@ -49,6 +52,12 @@ export class GetAllProfilesService {
       offset,
     );
 
+    const mediaItems = await this.mediaItemRepository.findManyByTargets(
+      users.map((u) => u.id),
+      MediaTargetType.User,
+    );
+    const mediaMap = new Map(mediaItems.map((m) => [m.targetId, m]));
+
     const profiles = await Promise.all(
       users.map(async (user) => {
         const personalData = await this.personalDataRepository.findByUserId(
@@ -64,6 +73,7 @@ export class GetAllProfilesService {
           phone: user.phone,
           name: user.name,
           role: user.role,
+          image: mediaMap.get(user.id),
           personalData: personalData
             ? {
                 birthDate: personalData.birthDate

@@ -13,11 +13,13 @@ import { UserEntity } from '../user/entities/user.entity';
 import { PersonalData } from './entities/personal-data.entity';
 import { UserPreferences } from './entities/user-preferences.entity';
 import { AuthModule } from '../auth/auth.module';
+import { MediaModule } from 'src/shared/media/media.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([UserEntity, PersonalData, UserPreferences]),
     forwardRef(() => AuthModule),
+    MediaModule,
   ],
   controllers: [ProfileController],
   providers: [

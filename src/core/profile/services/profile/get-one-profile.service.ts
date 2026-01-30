@@ -4,6 +4,8 @@ import { PersonalDataRepository } from '../../repositories/personal-data.reposit
 import { UserPreferencesRepository } from '../../repositories/user-preferences.repository';
 import { CompleteProfileResponseDto } from '../../dto/complete-profile-response.dto';
 import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
+import { MediaItemRepository } from 'src/shared/media/media-item-repository';
+import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
 
 @Injectable()
 export class GetOneProfileService {
@@ -11,6 +13,7 @@ export class GetOneProfileService {
     private readonly userRepository: UserRepository,
     private readonly personalDataRepository: PersonalDataRepository,
     private readonly userPreferencesRepository: UserPreferencesRepository,
+    private readonly mediaItemRepository: MediaItemRepository,
   ) {}
 
   async execute(userId: string): Promise<CompleteProfileResponseDto> {
@@ -26,12 +29,18 @@ export class GetOneProfileService {
     const preferences =
       await this.userPreferencesRepository.findByUserId(userId);
 
+    const [profilePicture] = await this.mediaItemRepository.findByTarget(
+      userId,
+      MediaTargetType.User,
+    );
+
     return {
       id: user.id,
       email: user.email,
       phone: user.phone,
       name: user.name,
       role: user.role,
+      image: profilePicture,
       personalData: personalData
         ? {
             birthDate: personalData.birthDate
