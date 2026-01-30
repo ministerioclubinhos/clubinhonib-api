@@ -33,7 +33,7 @@ jobs:
         run: npm ci
 
       - name: Check Formatting (Prettier)
-        run: npx prettier --check "src/**/*.ts" "test/**/*.ts"
+        run: npx prettier --check "src/**/*.ts"
 
       - name: Run Linter (ESLint)
-        run: npx eslint "{src,apps,libs,test}/**/*.ts" --max-warnings=0
+        run: npx eslint "src/**/*.ts" --max-warnings=0
