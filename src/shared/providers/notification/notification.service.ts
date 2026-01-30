@@ -62,9 +62,10 @@ export class NotificationService {
           this.logger.log(`Email sent successfully to ${to} (via ${from})`);
           sent = true;
           break;
-        } catch (error) {
+        } catch (error: any) {
+          const err = error as Error;
           this.logger.warn(
-            `Failed to send email to ${to} via ${from}: ${error.message}`,
+            `Failed to send email to ${to} via ${from}: ${err.message}`,
           );
         }
       }

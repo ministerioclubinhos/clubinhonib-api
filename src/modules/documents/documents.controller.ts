@@ -12,11 +12,7 @@ import {
   Logger,
   UseGuards,
 } from '@nestjs/common';
-import {
-  AppBusinessException,
-  AppValidationException,
-  ErrorCode,
-} from 'src/shared/exceptions';
+import { AppBusinessException, ErrorCode } from 'src/shared/exceptions';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { plainToInstance } from 'class-transformer';
 import { validateOrReject } from 'class-validator';
@@ -62,11 +58,14 @@ export class DocumentsController {
 
     let dto: CreateDocumentDto;
     try {
-      const parsed = JSON.parse(documentDataRaw);
+      const parsed = JSON.parse(documentDataRaw) as Record<string, unknown>;
       dto = plainToInstance(CreateDocumentDto, parsed);
       await validateOrReject(dto);
-    } catch (error) {
-      this.logger.error('❌ Erro ao processar dados do documento', error);
+    } catch (error: unknown) {
+      this.logger.error(
+        '❌ Erro ao processar dados do documento',
+        error instanceof Error ? error.stack : error,
+      );
       throw new AppBusinessException(
         ErrorCode.INVALID_INPUT,
         'Erro ao processar dados do documento.',
@@ -120,12 +119,15 @@ export class DocumentsController {
 
     let dto: UpdateDocumentDto;
     try {
-      const parsed = JSON.parse(documentDataRaw);
+      const parsed = JSON.parse(documentDataRaw) as Record<string, unknown>;
       dto = plainToInstance(UpdateDocumentDto, parsed);
       dto.id = id;
       await validateOrReject(dto);
-    } catch (error) {
-      this.logger.error('❌ Erro ao processar dados do documento', error);
+    } catch (error: unknown) {
+      this.logger.error(
+        '❌ Erro ao processar dados do documento',
+        error instanceof Error ? error.stack : error,
+      );
       throw new AppBusinessException(
         ErrorCode.INVALID_INPUT,
         'Erro ao processar dados do documento.',

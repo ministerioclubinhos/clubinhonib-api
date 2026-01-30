@@ -7,7 +7,6 @@ import {
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { MeditationRepository } from '../meditation.repository';
 import { WeekMeditationResponseDto } from '../dto/meditation-response-dto';
-import { MeditationEntity } from '../entities/meditation.entity';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
 
 @Injectable()

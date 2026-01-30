@@ -125,10 +125,11 @@ export class UpdateVideosPageService {
         `📤 Preparando resposta DTO para página ID: ${finalPage.id}`,
       );
       return VideosPageResponseDto.fromEntity(finalPage, mediaItems);
-    } catch (error) {
+    } catch (error: unknown) {
+      const errStack = error instanceof Error ? error.stack : undefined;
       this.logger.error(
         '❌ Erro ao atualizar página de vídeos. Iniciando rollback.',
-        error.stack,
+        errStack,
       );
       this.logger.debug('🔙 Executando rollback da transação');
       await queryRunner.rollbackTransaction();
@@ -176,7 +177,7 @@ export class UpdateVideosPageService {
 
   private async deleteMedia(
     existingMedia: MediaItemEntity[],
-    requestedMedia: any[],
+    requestedMedia: Array<{ id?: string }>,
     queryRunner: QueryRunner,
   ): Promise<void> {
     this.logger.debug(`🗑️ Iniciando identificação de mídias a remover`);
@@ -209,10 +210,11 @@ export class UpdateVideosPageService {
         try {
           await this.awsS3Service.delete(media.url);
           this.logger.debug(`✅ Arquivo removido do S3: ${media.url}`);
-        } catch (error) {
+        } catch (error: unknown) {
+          const errStack = error instanceof Error ? error.stack : undefined;
           this.logger.error(
             `❌ Falha ao remover arquivo do S3: ${media.url}`,
-            error.stack,
+            errStack,
           );
           throw new AppBusinessException(
             ErrorCode.INVALID_INPUT,
@@ -447,10 +449,12 @@ export class UpdateVideosPageService {
       media.platformType = mediaInput.platformType || PlatformType.YOUTUBE;
       this.logger.debug(`✅ Plataforma definida: ${media.platformType}`);
     } else {
-      this.logger.error(`❌ Tipo de mídia inválido: ${mediaInput.uploadType}`);
+      this.logger.error(
+        `❌ Tipo de mídia inválido: ${String((mediaInput as { uploadType?: unknown }).uploadType)}`,
+      );
       throw new AppBusinessException(
         ErrorCode.INVALID_INPUT,
-        `Tipo de mídia inválido: ${mediaInput.uploadType}`,
+        `Tipo de mídia inválido: ${String((mediaInput as { uploadType?: unknown }).uploadType)}`,
       );
     }
 

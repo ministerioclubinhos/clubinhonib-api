@@ -1,5 +1,5 @@
 import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ImageSectionRepository } from '../repository/image-section.repository';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';

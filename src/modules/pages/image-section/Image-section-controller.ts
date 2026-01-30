@@ -8,7 +8,6 @@ import {
   Body,
   UploadedFiles,
   UseInterceptors,
-  UseGuards,
   Logger,
 } from '@nestjs/common';
 import {
@@ -17,8 +16,6 @@ import {
   ErrorCode,
 } from 'src/shared/exceptions';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
-import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
-import { AdminRoleGuard } from 'src/core/auth/guards/role-guard';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { ImageSectionUpdateService } from './services/image-section-update-service';
@@ -120,10 +117,13 @@ export class ImageSectionController {
 
   private parseDto<T>(raw: string, dtoClass: new () => T): T {
     try {
-      const obj = JSON.parse(raw);
+      const obj: unknown = JSON.parse(raw);
       return plainToInstance(dtoClass, obj);
-    } catch (error) {
-      this.logger.error('❌ Erro ao fazer o parse do JSON recebido.', error);
+    } catch (error: unknown) {
+      this.logger.error(
+        '❌ Erro ao fazer o parse do JSON recebido.',
+        error instanceof Error ? error.stack : error,
+      );
       throw new AppValidationException(
         ErrorCode.INVALID_INPUT,
         'Formato inválido de JSON.',

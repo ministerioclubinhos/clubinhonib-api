@@ -90,7 +90,9 @@ export class IdeasSectionResponseDto {
       public: section.public,
       createdAt: section.createdAt,
       updatedAt: section.updatedAt,
-      medias: mediaItems.map(IdeasMediaItemResponseDto.fromEntity),
+      medias: mediaItems.map((item) =>
+        IdeasMediaItemResponseDto.fromEntity(item),
+      ),
     };
   }
 }

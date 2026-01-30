@@ -69,11 +69,7 @@ export class ImageSectionUpdateService {
           MediaTargetType.ImagesPage,
         );
 
-      await this.deleteObsoleteMedia(
-        existingMedia,
-        dto.mediaItems,
-        queryRunner,
-      );
+      await this.deleteObsoleteMedia(existingMedia, dto.mediaItems);
       const processedMedia = await this.processMedia(
         dto.mediaItems,
         section.id,
@@ -88,14 +84,16 @@ export class ImageSectionUpdateService {
 
       await queryRunner.commitTransaction();
       return ImageSectionResponseDto.fromEntity(savedSection, processedMedia);
-    } catch (error) {
+    } catch (error: unknown) {
       await queryRunner.rollbackTransaction();
-      this.logger.error('Erro ao atualizar a seção', error.stack);
-      if (error.code) throw error;
+      const errStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error('Erro ao atualizar a seção', errStack);
+      const hasCode = error && typeof error === 'object' && 'code' in error;
+      if (hasCode) throw error as unknown as Error;
       throw new AppInternalException(
         ErrorCode.SECTION_UPDATE_ERROR,
         'Erro ao atualizar a seção',
-        error,
+        error as Error,
       );
     } finally {
       await queryRunner.release();
@@ -105,7 +103,7 @@ export class ImageSectionUpdateService {
   private async deleteObsoleteMedia(
     existingMedia: MediaItemEntity[],
     incomingMedia: MediaItemDto[],
-    queryRunner: QueryRunner,
+    // _queryRunner: QueryRunner,
   ): Promise<void> {
     const incomingIds = incomingMedia
       .map((m) => m.id)
@@ -137,12 +135,7 @@ export class ImageSectionUpdateService {
         );
         processed.push(updated);
       } else {
-        const created = await this.addMedia(
-          mediaInput,
-          sectionId,
-          filesDict,
-          queryRunner,
-        );
+        const created = await this.addMedia(mediaInput, sectionId, filesDict);
         processed.push(created);
       }
     }
@@ -153,7 +146,7 @@ export class ImageSectionUpdateService {
     mediaInput: MediaItemDto,
     sectionId: string,
     filesDict: Record<string, Express.Multer.File>,
-    queryRunner: QueryRunner,
+    // _queryRunner: QueryRunner,
   ): Promise<MediaItemEntity> {
     const media = this.mediaItemProcessor.buildBaseMediaItem(
       mediaInput,

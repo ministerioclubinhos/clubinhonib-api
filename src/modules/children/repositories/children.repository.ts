@@ -146,12 +146,12 @@ export class ChildrenRepository {
 
     if (q.isActive !== undefined) {
       const isActiveValue =
-        (q.isActive as any) === 'true' || q.isActive === true;
+        String(q.isActive) === 'true' || q.isActive === true;
       qb.andWhere('c.isActive = :isActive', { isActive: isActiveValue });
     }
     if (q.acceptedChrist !== undefined) {
       const acceptedChristValue =
-        (q.acceptedChrist as any) === 'true' || q.acceptedChrist === true;
+        String(q.acceptedChrist) === 'true' || q.acceptedChrist === true;
 
       if (acceptedChristValue === true) {
         qb.andWhere((qb) => {
@@ -182,7 +182,7 @@ export class ChildrenRepository {
       }
     }
 
-    this.applyRoleFilter(qb as any as SelectQueryBuilder<ChildEntity>, ctx);
+    this.applyRoleFilter(qb as unknown as SelectQueryBuilder<ChildEntity>, ctx);
 
     qb.orderBy('c.isActive', 'DESC').addOrderBy('c.name', 'ASC');
 
@@ -228,9 +228,12 @@ export class ChildrenRepository {
       return false;
     }
 
-    const hasGetExists = typeof (qb as any).getExists === 'function';
+    const qbWithExists = qb as SelectQueryBuilder<ClubEntity> & {
+      getExists?: () => Promise<boolean>;
+    };
+    const hasGetExists = typeof qbWithExists.getExists === 'function';
     return hasGetExists
-      ? !!(await (qb as any).getExists())
+      ? !!(await qbWithExists.getExists())
       : (await qb.getCount()) > 0;
   }
 

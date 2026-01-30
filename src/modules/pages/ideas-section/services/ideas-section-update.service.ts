@@ -15,7 +15,10 @@ import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
 import { IdeasSectionRepository } from '../repository/ideas-section.repository';
 import { UpdateIdeasSectionDto } from '../dto/update-ideas-section.dto';
 import { IdeasSectionMediaItemDto } from '../dto/ideas-section-media-item.dto';
-import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
+import {
+  MediaItemEntity,
+  MediaType,
+} from 'src/shared/media/media-item/media-item.entity';
 import { IdeasSectionResponseDto } from '../dto/ideas-section-response.dto';
 import { IdeasSectionEntity } from 'src/modules/pages/ideas-page/entities/ideas-section.entity';
 import { IdeasPageEntity } from 'src/modules/pages/ideas-page/entities/ideas-page.entity';
@@ -51,7 +54,7 @@ export class IdeasSectionUpdateService {
         existingSection.page,
         queryRunner,
       );
-      const normalized = (dto.medias || []).map((item) => ({
+      (dto.medias || []).map((item) => ({
         ...item,
         mediaType:
           item.mediaType === IdeasSectionMediaType.VIDEO
@@ -61,12 +64,12 @@ export class IdeasSectionUpdateService {
               : 'image',
         uploadType: item.uploadType,
         fileField:
-          item.uploadType === 'upload' && item.isLocalFile
+          item.uploadType === UploadType.UPLOAD && item.isLocalFile
             ? item.fieldKey
             : undefined,
       }));
 
-      this.logger.debug(`🖼️ Processando ${dto.medias.length} mídias`);
+      this.logger.debug(`🖼️ Processando ${dto.medias?.length ?? 0} mídias`);
       const processedMedia = await this.processSectionMedia(
         dto.medias || [],
         savedSection.id,
@@ -78,14 +81,16 @@ export class IdeasSectionUpdateService {
       await queryRunner.commitTransaction();
 
       return IdeasSectionResponseDto.fromEntity(savedSection, processedMedia);
-    } catch (error) {
+    } catch (error: unknown) {
       await queryRunner.rollbackTransaction();
-      this.logger.error('Erro ao atualizar seção', error.stack);
-      if (error.code) throw error;
+      const errStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error('Erro ao atualizar seção', errStack);
+      const hasCode = error && typeof error === 'object' && 'code' in error;
+      if (hasCode) throw error as unknown as Error;
       throw new AppInternalException(
         ErrorCode.SECTION_UPDATE_ERROR,
         'Erro ao atualizar a seção de ideias',
-        error,
+        error instanceof Error ? error : new Error(String(error)),
       );
     } finally {
       await queryRunner.release();
@@ -160,21 +165,6 @@ export class IdeasSectionUpdateService {
 
       const savedSection = await queryRunner.manager.save(updatedSection);
 
-      const normalized = dto.medias.map((item) => ({
-        ...item,
-        mediaType:
-          item.mediaType === IdeasSectionMediaType.VIDEO
-            ? 'video'
-            : item.mediaType === IdeasSectionMediaType.DOCUMENT
-              ? 'document'
-              : 'image',
-        uploadType: item.uploadType,
-        fileField:
-          item.uploadType === 'upload' && item.isLocalFile
-            ? item.fieldKey
-            : undefined,
-      }));
-
       await this.deleteMedia(existingMedia, dto.medias, queryRunner);
 
       const processedMedia = await this.processSectionMedia(
@@ -191,14 +181,16 @@ export class IdeasSectionUpdateService {
       await queryRunner.commitTransaction();
 
       return IdeasSectionResponseDto.fromEntity(savedSection, processedMedia);
-    } catch (error) {
+    } catch (error: unknown) {
       await queryRunner.rollbackTransaction();
-      this.logger.error('Erro ao editar e vincular seção', error.stack);
-      if (error.code) throw error;
+      const errStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error('Erro ao editar e vincular seção', errStack);
+      const hasCode = error && typeof error === 'object' && 'code' in error;
+      if (hasCode) throw error as unknown as Error;
       throw new AppInternalException(
         ErrorCode.SECTION_UPDATE_ERROR,
         'Erro ao editar e vincular a seção de ideias',
-        error,
+        error instanceof Error ? error : new Error(String(error)),
       );
     } finally {
       await queryRunner.release();
@@ -207,7 +199,7 @@ export class IdeasSectionUpdateService {
 
   private async validateSection(
     id: string,
-    queryRunner: any,
+    queryRunner: QueryRunner,
   ): Promise<IdeasSectionEntity> {
     const section = await queryRunner.manager.findOne(IdeasSectionEntity, {
       where: { id },
@@ -225,7 +217,7 @@ export class IdeasSectionUpdateService {
 
   private async validateMedia(
     sectionIds: string[],
-    queryRunner: any,
+    queryRunner: QueryRunner,
   ): Promise<MediaItemEntity[]> {
     const media = await queryRunner.manager.find(MediaItemEntity, {
       where: {
@@ -239,7 +231,7 @@ export class IdeasSectionUpdateService {
   private async upsertSection(
     sectionInput: UpdateIdeasSectionDto,
     page: IdeasPageEntity | null,
-    queryRunner: any,
+    queryRunner: QueryRunner,
   ): Promise<IdeasSectionEntity> {
     const sectionToUpsert: Partial<IdeasSectionEntity> = {
       title: sectionInput.title,
@@ -301,15 +293,16 @@ export class IdeasSectionUpdateService {
       if (media.isLocalFile && media.url) {
         try {
           await this.awsS3Service.delete(media.url);
-        } catch (error) {
+        } catch (error: unknown) {
+          const errStack = error instanceof Error ? error.stack : undefined;
           this.logger.error(
             `Falha ao remover arquivo do S3: ${media.url}`,
-            error.stack,
+            errStack,
           );
           throw new AppInternalException(
             ErrorCode.S3_DELETE_ERROR,
             `Falha ao remover arquivo do S3: ${media.url}`,
-            error,
+            error as Error,
           );
         }
       }
@@ -341,7 +334,6 @@ export class IdeasSectionUpdateService {
           mediaInput,
           sectionId,
           filesDict,
-          queryRunner,
         );
         processedMedia.push(savedMedia);
       }
@@ -353,12 +345,14 @@ export class IdeasSectionUpdateService {
     mediaInput: IdeasSectionMediaItemDto,
     targetId: string,
     filesDict: Record<string, Express.Multer.File>,
-    queryRunner: QueryRunner,
+    // _queryRunner: QueryRunner,
   ): Promise<MediaItemEntity> {
     const media = this.mediaItemProcessor.buildBaseMediaItem(
       {
         ...mediaInput,
-        mediaType: (mediaInput.mediaType as any) || IdeasSectionMediaType.IMAGE,
+        mediaType:
+          (mediaInput.mediaType as unknown as MediaType) ||
+          IdeasSectionMediaType.IMAGE,
       },
       targetId,
       MediaTargetType.IdeasSection,
@@ -395,7 +389,8 @@ export class IdeasSectionUpdateService {
       media.description = mediaInput.description || media.description;
       media.uploadType = mediaInput.uploadType || media.uploadType;
       media.platformType = mediaInput.platformType || media.platformType;
-      media.mediaType = (mediaInput.mediaType as any) || media.mediaType;
+      media.mediaType =
+        (mediaInput.mediaType as unknown as MediaType) || media.mediaType;
       media.url = mediaInput.url?.trim() || media.url;
       media.originalName = mediaInput.originalName || media.originalName;
       media.isLocalFile = mediaInput.isLocalFile || media.isLocalFile;
@@ -413,7 +408,10 @@ export class IdeasSectionUpdateService {
     queryRunner: QueryRunner,
   ): Promise<MediaItemEntity> {
     const media = this.mediaItemProcessor.buildBaseMediaItem(
-      { ...mediaInput, mediaType: mediaInput.mediaType as any },
+      {
+        ...mediaInput,
+        mediaType: mediaInput.mediaType as unknown as MediaType,
+      },
       targetId,
       MediaTargetType.IdeasSection,
     );
@@ -450,7 +448,8 @@ export class IdeasSectionUpdateService {
       media.description = mediaInput.description || media.description;
       media.uploadType = mediaInput.uploadType || media.uploadType;
       media.platformType = mediaInput.platformType || media.platformType;
-      media.mediaType = (mediaInput.mediaType as any) || media.mediaType;
+      media.mediaType =
+        (mediaInput.mediaType as unknown as MediaType) || media.mediaType;
       media.url = mediaInput.url?.trim() || media.url;
       media.originalName = mediaInput.originalName || media.originalName;
       media.isLocalFile = mediaInput.isLocalFile || media.isLocalFile;

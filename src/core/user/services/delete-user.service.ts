@@ -24,10 +24,9 @@ export class DeleteUserService {
     );
 
     if (userImage) {
-      await this.mediaItemProcessor.removeMediaItem(
-        userImage,
-        this.s3Service.delete.bind(this.s3Service),
-      );
+      const deleteFn = (url: string): Promise<void> =>
+        this.s3Service.delete(url);
+      await this.mediaItemProcessor.removeMediaItem(userImage, deleteFn);
       this.logger.log(`Imagem do usuário deletada: ${userImage.id}`);
     }
 

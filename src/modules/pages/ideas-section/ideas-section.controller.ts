@@ -58,7 +58,9 @@ export class IdeasSectionController {
       `📄 Raw data: ${Buffer.isBuffer(raw) ? raw.toString() : raw}`,
     );
 
-    const parsedData = JSON.parse(Buffer.isBuffer(raw) ? raw.toString() : raw);
+    const parsedData = JSON.parse(
+      Buffer.isBuffer(raw) ? raw.toString() : raw,
+    ) as Record<string, unknown>;
     const dto = plainToInstance(CreateIdeasSectionDto, parsedData);
     const validationErrors = await validate(dto, {
       whitelist: true,
@@ -97,7 +99,9 @@ export class IdeasSectionController {
   ): Promise<IdeasSectionResponseDto> {
     this.logger.debug(`🚀 Atualizando seção de ideias ID=${id}`);
 
-    const parsedData = JSON.parse(Buffer.isBuffer(raw) ? raw.toString() : raw);
+    const parsedData = JSON.parse(
+      Buffer.isBuffer(raw) ? raw.toString() : raw,
+    ) as Record<string, unknown>;
     const dto = plainToInstance(UpdateIdeasSectionDto, parsedData);
     const validationErrors = await validate(dto, {
       whitelist: true,
@@ -145,7 +149,7 @@ export class IdeasSectionController {
 
       const parsedData = JSON.parse(
         Buffer.isBuffer(raw) ? raw.toString() : raw,
-      );
+      ) as Record<string, unknown>;
       const dto = plainToInstance(UpdateIdeasSectionDto, parsedData);
       const validationErrors = await validate(dto, {
         whitelist: true,
@@ -176,8 +180,11 @@ export class IdeasSectionController {
         `✅ Seção editada e vinculada com sucesso: ID=${result.id}`,
       );
       return result;
-    } catch (error) {
-      this.logger.error('❌ Erro ao editar e vincular seção', error);
+    } catch (error: unknown) {
+      this.logger.error(
+        '❌ Erro ao editar e vincular seção',
+        error instanceof Error ? error.stack : error,
+      );
       throw new AppInternalException(
         ErrorCode.INTERNAL_ERROR,
         'Erro ao editar e vincular a seção de ideias.',

@@ -87,6 +87,8 @@ export class CoordinatorProfilesRepository {
 
   private coerceClubNumber(input: unknown): number | undefined {
     if (input === undefined || input === null || input === '') return undefined;
+    if (typeof input !== 'string' && typeof input !== 'number')
+      return undefined;
     const n = Number(String(input).trim());
     return Number.isInteger(n) ? n : undefined;
   }
@@ -97,7 +99,9 @@ export class CoordinatorProfilesRepository {
   ) {
     const text = (params.searchString ?? params.q)?.trim();
     const { active, hasClubs } = params;
-    const clubNumber = this.coerceClubNumber((params as any).clubNumber);
+    const clubNumber = this.coerceClubNumber(
+      (params as { clubNumber?: unknown }).clubNumber,
+    );
 
     if (text) {
       const like = `%${text.toLowerCase()}%`;
@@ -311,7 +315,7 @@ export class CoordinatorProfilesRepository {
         );
       }
 
-      club.coordinator = null as any;
+      club.coordinator = null as unknown as CoordinatorProfileEntity;
       await clubRepo.save(club);
     });
   }
@@ -386,7 +390,7 @@ export class CoordinatorProfilesRepository {
       });
       if (existing) return existing;
 
-      const entity = txCoord.create({ user: user as any, active: true });
+      const entity = txCoord.create({ user: user, active: true });
       return txCoord.save(entity);
     });
   }
@@ -406,7 +410,7 @@ export class CoordinatorProfilesRepository {
         await txClub
           .createQueryBuilder()
           .update(ClubEntity)
-          .set({ coordinator: null as any })
+          .set({ coordinator: null as unknown as CoordinatorProfileEntity })
           .where('coordinator_profile_id = :id', { id: coord.id })
           .execute();
       }

@@ -49,7 +49,7 @@ export class EventController {
     this.logger.log('📥 [POST /events] Criando novo evento');
 
     try {
-      const parsed = JSON.parse(eventDataRaw);
+      const parsed = JSON.parse(eventDataRaw) as Record<string, unknown>;
       const dto = plainToInstance(CreateEventDto, parsed);
       await validateOrReject(dto, {
         whitelist: true,
@@ -59,14 +59,19 @@ export class EventController {
       const result = await this.createService.create(dto, file);
       this.logger.log(`✅ Evento criado: ID=${result.id}`);
       return result;
-    } catch (error) {
-      this.logger.error('❌ Erro ao criar evento', error.stack);
+    } catch (error: unknown) {
+      const errStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error('❌ Erro ao criar evento', errStack);
       const message = Array.isArray(error)
         ? error
-            .map((e) => Object.values(e.constraints || {}))
+            .map((e: { constraints?: Record<string, string> }) =>
+              Object.values(e.constraints || {}),
+            )
             .flat()
             .join('; ')
-        : error?.message || 'Erro ao criar evento.';
+        : error instanceof Error
+          ? error.message
+          : 'Erro ao criar evento.';
       throw new AppValidationException(ErrorCode.VALIDATION_ERROR, message);
     }
   }
@@ -103,10 +108,11 @@ export class EventController {
 
     let dto: UpdateEventDto;
     try {
-      const parsed = JSON.parse(rawEventData);
+      const parsed = JSON.parse(rawEventData) as Record<string, unknown>;
       dto = plainToInstance(UpdateEventDto, parsed);
-    } catch (err) {
-      this.logger.error(`❌ JSON inválido para evento`, err.stack);
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      this.logger.error(`❌ JSON inválido para evento`, error.stack);
       throw new AppValidationException(
         ErrorCode.VALIDATION_ERROR,
         'JSON inválido no campo eventData',

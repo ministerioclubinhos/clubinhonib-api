@@ -37,7 +37,7 @@ export class UpdateUserImageService {
 
   async updateUserImage(
     userId: string,
-    body: any,
+    body: Record<string, unknown>,
     files: Express.Multer.File[],
   ) {
     await this.getUsersService.findOne(userId);
@@ -52,18 +52,19 @@ export class UpdateUserImageService {
     };
 
     if (body.imageData) {
+      const imageData = body.imageData;
       mediaDto =
-        typeof body.imageData === 'string'
-          ? JSON.parse(body.imageData)
-          : body.imageData;
+        typeof imageData === 'string'
+          ? (JSON.parse(imageData) as typeof mediaDto)
+          : (imageData as typeof mediaDto);
     } else if (body.title || body.url) {
       mediaDto = {
-        title: body.title,
-        description: body.description,
-        uploadType: body.uploadType,
-        url: body.url,
-        isLocalFile: body.isLocalFile,
-        fieldKey: body.fieldKey,
+        title: body.title as string | undefined,
+        description: body.description as string | undefined,
+        uploadType: body.uploadType as UploadType | undefined,
+        url: body.url as string | undefined,
+        isLocalFile: body.isLocalFile as boolean | undefined,
+        fieldKey: body.fieldKey as string | undefined,
       };
     } else {
       throw new AppValidationException(
@@ -120,10 +121,10 @@ export class UpdateUserImageService {
             this.logger.log(
               `Arquivo antigo deletado do S3: ${existingMedia.url}`,
             );
-          } catch (error) {
+          } catch (error: unknown) {
             this.logger.warn(
               `Não foi possível deletar o arquivo antigo do S3: ${existingMedia.url}`,
-              error,
+              error instanceof Error ? error.stack : error,
             );
           }
         }
@@ -140,10 +141,10 @@ export class UpdateUserImageService {
             this.logger.log(
               `Arquivo antigo deletado do S3 ao mudar para link: ${existingMedia.url}`,
             );
-          } catch (error) {
+          } catch (error: unknown) {
             this.logger.warn(
               `Não foi possível deletar o arquivo antigo do S3: ${existingMedia.url}`,
-              error,
+              error instanceof Error ? error.stack : error,
             );
           }
         }

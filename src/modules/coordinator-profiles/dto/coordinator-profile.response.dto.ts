@@ -45,7 +45,9 @@ export class ClubWithTeachersDto {
 
   @Expose()
   @Type(() => TeacherMiniDto)
-  @Transform(({ value }) => (Array.isArray(value) ? value : []))
+  @Transform(({ value }: { value: TeacherMiniDto[] | null | undefined }) =>
+    Array.isArray(value) ? value : [],
+  )
   teachers!: TeacherMiniDto[];
 }
 
@@ -73,7 +75,10 @@ export class CoordinatorResponseDto {
 
   @Expose()
   @Type(() => ClubWithTeachersDto)
-  @Transform(({ value }) => (Array.isArray(value) ? value : []))
+  @Transform(
+    ({ value }: { value: ClubWithTeachersDto[] | null | undefined }) =>
+      Array.isArray(value) ? value : [],
+  )
   clubs!: ClubWithTeachersDto[];
 
   @Expose()

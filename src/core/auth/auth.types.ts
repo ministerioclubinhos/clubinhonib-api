@@ -14,10 +14,10 @@ export type JwtPayload = {
   exp?: number;
 };
 
-export type AuthRequest = Request & {
-  user?: {
-    id?: string;
-    role?: UserRole | string;
-    email?: string;
+export type AuthRequest = Omit<Request, 'user'> & {
+  user: {
+    userId: string;
+    role: UserRole | string;
+    email: string;
   };
 };

@@ -76,7 +76,7 @@ export class ChildrenService {
         totalItems: total,
         totalPages: Math.ceil(total / limit),
         orderBy: query.orderBy ?? 'name',
-        order: (query.order ?? 'ASC').toUpperCase() as any,
+        order: (query.order ?? 'ASC').toUpperCase() as 'ASC' | 'DESC',
       },
     };
   }
@@ -136,19 +136,19 @@ export class ChildrenService {
       guardianName: dto.guardianName,
       gender: dto.gender,
       guardianPhone: dto.guardianPhone,
-      birthDate: toDateOnlyStr(dto.birthDate) as any,
-      joinedAt: toDateOnlyStr(dto.joinedAt) as any,
+      birthDate: toDateOnlyStr(dto.birthDate) ?? '',
+      joinedAt: toDateOnlyStr(dto.joinedAt),
       isActive: dto.isActive !== undefined ? dto.isActive : true,
     });
 
     if (dto.clubId) {
       await this.getClubsService.findOne(dto.clubId, request);
-      (child as any).club = { id: dto.clubId } as ClubEntity;
+      child.club = { id: dto.clubId } as ClubEntity;
     }
 
     if (dto.address) {
       const address = this.addressesService.create(dto.address);
-      (child as any).address = address;
+      child.address = address;
     }
 
     const saved = await this.childrenRepo.save(child);
@@ -176,14 +176,14 @@ export class ChildrenService {
     if (dto.guardianPhone !== undefined)
       entity.guardianPhone = dto.guardianPhone;
     if (dto.birthDate !== undefined)
-      entity.birthDate = toDateOnlyStr(dto.birthDate) as any;
+      entity.birthDate = toDateOnlyStr(dto.birthDate) ?? '';
     if (dto.joinedAt !== undefined)
-      entity.joinedAt = toDateOnlyStr(dto.joinedAt) as any;
+      entity.joinedAt = toDateOnlyStr(dto.joinedAt);
     if (dto.isActive !== undefined) entity.isActive = dto.isActive;
 
     if (dto.clubId !== undefined) {
       if (dto.clubId === null) {
-        (entity as any).club = null;
+        entity.club = null;
       } else {
         await this.getClubsService.findOne(dto.clubId, request);
         if (ctx.role && ctx.role !== 'admin') {
@@ -197,18 +197,18 @@ export class ChildrenService {
               'Sem acesso ao novo clubinho',
             );
         }
-        (entity as any).club = { id: dto.clubId } as ClubEntity;
+        entity.club = { id: dto.clubId } as ClubEntity;
       }
     }
 
     if (dto.address !== undefined) {
       if (dto.address === null) {
-        (entity as any).address = null;
+        entity.address = null;
       } else {
         if (entity.address) {
           this.addressesService.merge(entity.address, dto.address);
         } else {
-          (entity as any).address = this.addressesService.create(dto.address);
+          entity.address = this.addressesService.create(dto.address);
         }
       }
     }

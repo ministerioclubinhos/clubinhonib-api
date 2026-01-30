@@ -99,7 +99,12 @@ export class TeacherProfilesRepository {
 
   private coerceInt(input: unknown): number | undefined {
     if (input === undefined || input === null || input === '') return undefined;
-    const n = Number(String(input).trim());
+    const str =
+      typeof input === 'string' || typeof input === 'number'
+        ? String(input).trim()
+        : '';
+    if (!str) return undefined;
+    const n = Number(str);
     return Number.isInteger(n) ? n : undefined;
   }
 
@@ -109,7 +114,9 @@ export class TeacherProfilesRepository {
   ) {
     const text = (params.searchString ?? params.q)?.trim();
     const { active, hasClub } = params;
-    const clubNumber = this.coerceInt((params as any).clubNumber);
+    const clubNumber = this.coerceInt(
+      (params as { clubNumber?: unknown }).clubNumber,
+    );
 
     if (text) {
       const like = `%${text.toLowerCase()}%`;
@@ -328,7 +335,7 @@ export class TeacherProfilesRepository {
         );
       }
 
-      teacher.club = null as any;
+      teacher.club = null as unknown as ClubEntity;
       await txTeacherRepo.save(teacher);
     });
   }
@@ -351,9 +358,9 @@ export class TeacherProfilesRepository {
       if (existing) return existing;
 
       const entity = txTeacher.create({
-        user: user as any,
+        user: user,
         active: true,
-        club: null as any,
+        club: null as unknown as ClubEntity,
       });
       return txTeacher.save(entity);
     });
@@ -388,9 +395,12 @@ export class TeacherProfilesRepository {
       return false;
     }
 
-    const hasGetExists = typeof (qb as any).getExists === 'function';
+    const qbWithExists = qb as SelectQueryBuilder<ClubEntity> & {
+      getExists?: () => Promise<boolean>;
+    };
+    const hasGetExists = typeof qbWithExists.getExists === 'function';
     return hasGetExists
-      ? !!(await (qb as any).getExists())
+      ? !!(await qbWithExists.getExists())
       : (await qb.getCount()) > 0;
   }
 }

@@ -7,6 +7,18 @@ import { UserRole } from '../../../auth/auth.types';
 import { QueryProfilesDto } from '../../dto/query-profiles.dto';
 import { PaginatedProfilesResponseDto } from '../../dto/paginated-profiles-response.dto';
 
+interface UserQueryResult {
+  id: string;
+  email: string;
+  phone: string;
+  name: string;
+  role: string;
+}
+
+interface CountQueryResult {
+  total: string;
+}
+
 @Injectable()
 export class GetAllProfilesService {
   constructor(
@@ -21,7 +33,7 @@ export class GetAllProfilesService {
     requestingUserRole: UserRole,
     queryDto: QueryProfilesDto,
   ): Promise<PaginatedProfilesResponseDto> {
-    const { page = 1, limit = 10, sortBy = 'name', order = 'ASC' } = queryDto;
+    const { page = 1, limit = 10 } = queryDto;
 
     // Ensure page and limit are numbers
     const pageNum = Number(page) || 1;
@@ -100,7 +112,7 @@ export class GetAllProfilesService {
     queryDto: QueryProfilesDto,
     limit: number,
     offset: number,
-  ): Promise<{ users: any[]; total: number }> {
+  ): Promise<{ users: UserQueryResult[]; total: number }> {
     const {
       q,
       name,
@@ -115,8 +127,8 @@ export class GetAllProfilesService {
 
     let baseQuery = '';
     let countQuery = '';
-    const params: any[] = [];
-    const countParams: any[] = [];
+    const params: (string | number)[] = [];
+    const countParams: (string | number)[] = [];
 
     if (requestingUserRole === UserRole.ADMIN) {
       baseQuery = `
@@ -218,8 +230,14 @@ export class GetAllProfilesService {
     baseQuery += ` LIMIT ? OFFSET ?`;
     params.push(limit, offset);
 
-    const users = await this.dataSource.query(baseQuery, params);
-    const countResult = await this.dataSource.query(countQuery, countParams);
+    const users = await this.dataSource.query<UserQueryResult[]>(
+      baseQuery,
+      params,
+    );
+    const countResult = await this.dataSource.query<CountQueryResult[]>(
+      countQuery,
+      countParams,
+    );
     const total = parseInt(countResult[0]?.total || '0', 10);
 
     return { users, total };

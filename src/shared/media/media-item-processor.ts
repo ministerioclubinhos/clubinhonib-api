@@ -1,6 +1,22 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { MediaItemEntity, UploadType } from './media-item/media-item.entity';
 import { MediaItemRepository } from './media-item-repository';
+import { MediaType, PlatformType } from './media-item/media-item.entity';
+
+export interface MediaItemInput {
+  title?: string;
+  description?: string;
+  mediaType?: MediaType | string;
+  uploadType?: UploadType;
+  platformType?: PlatformType | null;
+  url?: string;
+  originalName?: string;
+  size?: number | string;
+  isLocalFile?: boolean;
+  fileField?: string;
+  id?: string;
+  [key: string]: any;
+}
 
 @Injectable()
 export class MediaItemProcessor {
@@ -31,20 +47,20 @@ export class MediaItemProcessor {
   }
 
   buildBaseMediaItem(
-    item: any,
+    item: MediaItemInput,
     targetId: string,
     targetType: string,
   ): MediaItemEntity {
     const media = new MediaItemEntity();
-    media.title = item.title;
-    media.description = item.description;
-    media.mediaType = item.mediaType;
-    media.uploadType = item.uploadType;
-    media.platformType = item.platformType;
-    media.url = item.url;
-    media.originalName = item.originalName;
-    media.size = item.size;
-    media.isLocalFile = item.isLocalFile;
+    media.title = item.title || '';
+    media.description = item.description || '';
+    media.mediaType = (item.mediaType as MediaType) || ('image' as MediaType);
+    media.uploadType = item.uploadType || UploadType.LINK;
+    media.platformType = item.platformType || ('web' as PlatformType);
+    media.url = item.url || '';
+    media.originalName = item.originalName || '';
+    media.size = item.size ? Number(item.size) : 0;
+    media.isLocalFile = item.isLocalFile || false;
     media.targetId = targetId;
     media.targetType = targetType;
     return media;
@@ -99,7 +115,7 @@ export class MediaItemProcessor {
   }
 
   async processMediaItemsPolymorphic(
-    items: any[],
+    items: MediaItemInput[],
     targetId: string,
     targetType: string,
     filesDict: Record<string, Express.Multer.File>,
@@ -111,6 +127,10 @@ export class MediaItemProcessor {
       const media = this.buildBaseMediaItem(item, targetId, targetType);
 
       if (item.uploadType === UploadType.UPLOAD) {
+        if (!item.fileField)
+          throw new Error(
+            `Campo de arquivo não especificado para "${item.title}"`,
+          );
         const file = filesDict[item.fileField];
         if (!file) throw new Error(`Arquivo ausente para "${item.title}"`);
 
@@ -132,7 +152,7 @@ export class MediaItemProcessor {
   }
 
   async cleanAndReplaceMediaItems(
-    items: any[],
+    items: MediaItemInput[],
     targetId: string,
     targetType: string,
     filesDict: Record<string, Express.Multer.File>,
@@ -148,7 +168,7 @@ export class MediaItemProcessor {
 
       const fileRef = item.url || item.fileField;
       const exists = oldItems.some((old) => old.url === fileRef);
-      const hasFile = !!filesDict[item.fileField];
+      const hasFile = item.fileField ? !!filesDict[item.fileField] : false;
 
       if (!exists && !hasFile) {
         logger.warn(`⚠️ Upload ignorado: campo ausente para "${item.title}"`);
@@ -194,6 +214,10 @@ export class MediaItemProcessor {
             `🔁 Reutilizando mídia existente: ${previous.originalName}`,
           );
         } else {
+          if (!item.fileField)
+            throw new Error(
+              `Campo de arquivo não especificado para "${item.title}"`,
+            );
           const file = filesDict[item.fileField];
           if (!file) throw new Error(`Arquivo ausente para "${item.title}"`);
 

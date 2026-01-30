@@ -57,9 +57,8 @@ export class ImagePageDeleteService {
           'ImagesPage',
         );
         this.logger.debug(`🗑️ Iniciando exclusão de ${media.length} mídias`);
-        await this.mediaItemProcessor.deleteMediaItems(
-          media,
-          this.awsS3Service.delete.bind(this.awsS3Service),
+        await this.mediaItemProcessor.deleteMediaItems(media, (url: string) =>
+          this.awsS3Service.delete(url),
         );
         this.logger.debug(`✅ ${media.length} mídias excluídas`);
       } else {
@@ -83,17 +82,19 @@ export class ImagePageDeleteService {
       this.logger.debug('✅ Iniciando commit da transação');
       await queryRunner.commitTransaction();
       this.logger.log(`✅ Página de imagens removida com sucesso: ID=${id}`);
-    } catch (error) {
+    } catch (error: unknown) {
+      const errStack = error instanceof Error ? error.stack : undefined;
       this.logger.error(
         'Erro ao remover galeria. Iniciando rollback.',
-        error.stack,
+        errStack,
       );
       await queryRunner.rollbackTransaction();
-      if (error.code) throw error;
+      const hasCode = error && typeof error === 'object' && 'code' in error;
+      if (hasCode) throw error as unknown as Error;
       throw new AppInternalException(
         ErrorCode.PAGE_DELETE_ERROR,
         'Erro ao remover a galeria',
-        error,
+        error as Error,
       );
     } finally {
       this.logger.debug('🔚 Liberando QueryRunner');

@@ -12,11 +12,7 @@ import {
   Logger,
   UseGuards,
 } from '@nestjs/common';
-import {
-  AppBusinessException,
-  AppValidationException,
-  ErrorCode,
-} from 'src/shared/exceptions';
+import { AppValidationException, ErrorCode } from 'src/shared/exceptions';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { plainToInstance } from 'class-transformer';
 import { validateOrReject, validateSync } from 'class-validator';
@@ -55,7 +51,7 @@ export class MeditationController {
     this.logger.log('📥 [POST /meditations] Criando nova meditação');
 
     try {
-      const parsed = JSON.parse(meditationDataRaw);
+      const parsed = JSON.parse(meditationDataRaw) as Record<string, unknown>;
       const dto = plainToInstance(CreateMeditationDto, parsed);
       await validateOrReject(dto, {
         whitelist: true,
@@ -65,14 +61,19 @@ export class MeditationController {
       const result = await this.createService.create(dto, file);
       this.logger.log(`✅ Meditação criada: ID=${result.id}`);
       return result;
-    } catch (error) {
-      this.logger.error('❌ Erro ao criar meditação', error.stack);
+    } catch (error: unknown) {
+      const errStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error('❌ Erro ao criar meditação', errStack);
       const message = Array.isArray(error)
         ? error
-            .map((e) => Object.values(e.constraints || {}))
+            .map((e: { constraints?: Record<string, string> }) =>
+              Object.values(e.constraints || {}),
+            )
             .flat()
             .join('; ')
-        : error?.message || 'Erro ao criar meditação.';
+        : error instanceof Error
+          ? error.message
+          : 'Erro ao criar meditação.';
       throw new AppValidationException(ErrorCode.VALIDATION_ERROR, message);
     }
   }
@@ -112,10 +113,11 @@ export class MeditationController {
 
     let dto: UpdateMeditationDto;
     try {
-      const parsed = JSON.parse(rawMeditationData);
+      const parsed = JSON.parse(rawMeditationData) as Record<string, unknown>;
       dto = plainToInstance(UpdateMeditationDto, parsed);
-    } catch (err) {
-      this.logger.error(`❌ JSON inválido para meditação`, err.stack);
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      this.logger.error(`❌ JSON inválido para meditação`, error.stack);
       throw new AppValidationException(
         ErrorCode.VALIDATION_ERROR,
         'JSON inválido no campo meditationData',

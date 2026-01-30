@@ -195,7 +195,8 @@ export class IdeasPageUpdateService {
             id: In(processedMediaIds),
           },
         });
-        (section as any).medias = medias;
+        (section as IdeasSectionEntity & { medias: MediaItemEntity[] }).medias =
+          medias;
         this.logger.debug(
           `✅ Carregadas ${medias.length} mídias para seção ID=${section.id}: ${medias
             .map((m) => `ID=${m.id}, URL=${m.url}`)
@@ -209,17 +210,19 @@ export class IdeasPageUpdateService {
         `✅ Página de ideias atualizada com sucesso: ID=${finalIdeasPage.id}`,
       );
       return finalIdeasPage;
-    } catch (error) {
+    } catch (error: unknown) {
+      const errStack = error instanceof Error ? error.stack : undefined;
       this.logger.error(
         `Erro ao atualizar página de ideias com ID: ${id}. Iniciando rollback`,
-        error.stack,
+        errStack,
       );
       await queryRunner.rollbackTransaction();
-      if (error.code) throw error;
+      const hasCode = error && typeof error === 'object' && 'code' in error;
+      if (hasCode) throw error as unknown as Error;
       throw new AppInternalException(
         ErrorCode.PAGE_UPDATE_ERROR,
         'Erro ao atualizar a página de ideias',
-        error,
+        error as Error,
       );
     } finally {
       this.logger.debug('🔚 Iniciando liberação do QueryRunner');
@@ -427,15 +430,16 @@ export class IdeasPageUpdateService {
           this.logger.debug(
             `✅ Arquivo removido do S3 com sucesso: ${media.url}`,
           );
-        } catch (error) {
+        } catch (error: unknown) {
+          const errStack = error instanceof Error ? error.stack : undefined;
           this.logger.error(
             `Falha ao remover arquivo do S3: ${media.url}`,
-            error.stack,
+            errStack,
           );
           throw new AppInternalException(
             ErrorCode.S3_DELETE_ERROR,
             `Falha ao remover arquivo do S3: ${media.url}`,
-            error,
+            error as Error,
           );
         }
       }
@@ -452,7 +456,7 @@ export class IdeasPageUpdateService {
     mediaInput: MediaItemDto,
     targetId: string,
     filesDict: Record<string, Express.Multer.File>,
-    queryRunner: QueryRunner,
+    // _queryRunner: QueryRunner,
   ): Promise<MediaItemEntity> {
     this.logger.debug(
       `🆕 Construindo nova mídia: "${mediaInput.title || 'não fornecido'}"`,
@@ -684,7 +688,6 @@ export class IdeasPageUpdateService {
           mediaInput,
           sectionId,
           filesDict,
-          queryRunner,
         );
         processedMedia.push(savedMedia);
         this.logger.debug(

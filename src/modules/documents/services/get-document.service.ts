@@ -38,8 +38,9 @@ export class GetDocumentService {
       return documents.map((doc) =>
         DocumentDto.fromEntity(doc, mediaMap.get(doc.id)),
       );
-    } catch (error) {
-      this.logger.error('❌ Erro ao buscar documentos', error.stack);
+    } catch (error: unknown) {
+      const errStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error('❌ Erro ao buscar documentos', errStack);
       throw new AppInternalException(
         ErrorCode.DATABASE_ERROR,
         'Erro ao buscar documentos',

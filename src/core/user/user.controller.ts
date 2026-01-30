@@ -103,7 +103,7 @@ export class UserController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @UploadedFiles() files: Express.Multer.File[] = [],
     @Body('imageData') imageDataRaw?: string,
-    @Body() body?: any,
+    @Body() body?: Record<string, unknown>,
   ): Promise<UserEntity> {
     this.logger.log(`Updating user image: ${id}`);
     const bodyToProcess = imageDataRaw

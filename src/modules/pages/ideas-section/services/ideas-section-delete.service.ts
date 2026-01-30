@@ -66,10 +66,10 @@ export class IdeasSectionDeleteService {
           try {
             await this.awsS3Service.delete(media.url);
             this.logger.debug(`✅ Arquivo removido do S3: ${media.url}`);
-          } catch (error) {
+          } catch (error: unknown) {
             this.logger.warn(
               `⚠️ Erro ao remover arquivo do S3: ${media.url}`,
-              error,
+              error instanceof Error ? error.stack : error,
             );
           }
         }
@@ -88,17 +88,16 @@ export class IdeasSectionDeleteService {
 
       await queryRunner.commitTransaction();
       this.logger.log(`✅ Seção de ideias ID=${id} excluída com sucesso`);
-    } catch (error) {
+    } catch (error: unknown) {
       await queryRunner.rollbackTransaction();
-      this.logger.error(
-        `Erro ao excluir seção de ideias ID=${id}`,
-        error.stack,
-      );
-      if (error.code) throw error;
+      const errStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`Erro ao excluir seção de ideias ID=${id}`, errStack);
+      const hasCode = error && typeof error === 'object' && 'code' in error;
+      if (hasCode) throw error as unknown as Error;
       throw new AppInternalException(
         ErrorCode.SECTION_DELETE_ERROR,
         'Erro ao excluir a seção de ideias',
-        error,
+        error instanceof Error ? error : new Error(String(error)),
       );
     } finally {
       await queryRunner.release();

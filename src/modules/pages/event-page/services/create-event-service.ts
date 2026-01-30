@@ -74,11 +74,13 @@ export class CreateEventService {
       this.logger.log(`🎞️ Mídia salva para evento`);
 
       return savedEvent;
-    } catch (error) {
-      this.logger.error('❌ Erro ao criar evento', error.stack);
+    } catch (error: unknown) {
+      const errStack = error instanceof Error ? error.stack : undefined;
+      const errMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error('❌ Erro ao criar evento', errStack);
       throw new AppInternalException(
         ErrorCode.INTERNAL_ERROR,
-        error?.message || 'Erro inesperado ao criar evento.',
+        errMsg || 'Erro inesperado ao criar evento.',
       );
     }
   }

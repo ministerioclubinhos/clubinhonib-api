@@ -65,9 +65,10 @@ export class AwsSESService {
     try {
       await this.sesClient.send(command);
       this.logger.log(`Email sent successfully via ${source} to: ${to}`);
-    } catch (error) {
+    } catch (error: any) {
+      const err = error as Error;
       this.logger.error(
-        `Error sending email via SES (${source}): ${error.message}`,
+        `Error sending email via SES (${source}): ${err.message}`,
       );
       throw new AppInternalException(
         ErrorCode.EMAIL_SEND_ERROR,

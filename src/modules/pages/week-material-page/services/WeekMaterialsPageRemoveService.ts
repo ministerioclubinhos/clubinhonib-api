@@ -31,11 +31,11 @@ export class WeekMaterialsPageRemoveService {
     try {
       const page = await this.validatePage(id, queryRunner);
 
-      const mediaItems = await this.validateMedia(page.id, queryRunner);
+      const mediaItems = await this.validateMedia(page.id);
       if (mediaItems.length > 0) {
         await this.mediaItemProcessor.deleteMediaItems(
           mediaItems,
-          this.awsS3Service.delete.bind(this.awsS3Service),
+          (url: string) => this.awsS3Service.delete(url),
         );
         this.logger.debug(
           `🗑️ Removidas ${mediaItems.length} mídias associadas à página ID=${id}`,
@@ -59,11 +59,12 @@ export class WeekMaterialsPageRemoveService {
 
       await queryRunner.commitTransaction();
       this.logger.debug(`✅ Página removida com sucesso. ID=${id}`);
-    } catch (error) {
+    } catch (error: unknown) {
       await queryRunner.rollbackTransaction();
+      const errStack = error instanceof Error ? error.stack : undefined;
       this.logger.error(
         '❌ Erro ao remover página. Rollback executado.',
-        error.stack,
+        errStack,
       );
       throw new AppInternalException(
         ErrorCode.INTERNAL_ERROR,
@@ -94,7 +95,7 @@ export class WeekMaterialsPageRemoveService {
 
   private async validateMedia(
     pageId: string,
-    queryRunner: QueryRunner,
+    // _queryRunner: QueryRunner,
   ): Promise<MediaItemEntity[]> {
     const mediaItems = await this.mediaItemProcessor.findMediaItemsByTarget(
       pageId,

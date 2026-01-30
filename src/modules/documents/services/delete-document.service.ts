@@ -41,9 +41,8 @@ export class DeleteDocumentService {
         'document',
       );
       if (media.length > 0) {
-        await this.mediaItemProcessor.deleteMediaItems(
-          media,
-          this.s3Service.delete.bind(this.s3Service),
+        await this.mediaItemProcessor.deleteMediaItems(media, (url: string) =>
+          this.s3Service.delete(url),
         );
         this.logger.log(`🧹 ${media.length} mídias associadas removidas`);
       }
@@ -53,8 +52,9 @@ export class DeleteDocumentService {
       this.logger.log(`🛤️ Rota removida`);
 
       this.logger.log(`✅ Documento removido com sucesso: ID=${id}`);
-    } catch (error) {
-      this.logger.error(`❌ Erro ao remover documento ID=${id}`, error.stack);
+    } catch (error: unknown) {
+      const errStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`❌ Erro ao remover documento ID=${id}`, errStack);
       throw new AppInternalException(
         ErrorCode.DATABASE_ERROR,
         'Erro ao remover documento.',

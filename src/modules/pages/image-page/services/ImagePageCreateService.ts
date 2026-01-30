@@ -1,16 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AppInternalException, ErrorCode } from 'src/shared/exceptions';
-import { DataSource, QueryRunner } from 'typeorm';
+import { DataSource } from 'typeorm';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { RouteService } from 'src/modules/routes/route.service';
-import { RouteEntity, RouteType } from 'src/modules/routes/route-page.entity';
+import { RouteType } from 'src/modules/routes/route-page.entity';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import {
   MediaItemEntity,
   UploadType,
 } from 'src/shared/media/media-item/media-item.entity';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
-import { ImagePageRepository } from '../repository/image-page.repository';
 import { CreateImagePageDto } from '../dto/create-image.dto';
 import { ImagePageResponseDto } from '../dto/image-page-response.dto';
 import { ImagePageEntity } from '../entity/Image-page.entity';
@@ -145,7 +144,7 @@ export class ImagePageCreateService {
             savedSection.id,
             MediaTargetType.ImagesPage,
             filesDict,
-            this.awsS3Service.upload.bind(this.awsS3Service),
+            (file: Express.Multer.File) => this.awsS3Service.upload(file),
           );
         mediaMap.set(savedSection.id, mediaItems);
         this.logger.debug(
@@ -166,8 +165,11 @@ export class ImagePageCreateService {
       );
       this.logger.debug('📤 Preparando resposta DTO');
       return ImagePageResponseDto.fromEntity(finalGallery, mediaMap);
-    } catch (error) {
-      this.logger.error('❌ Erro ao criar galeria. Iniciando rollback.', error);
+    } catch (error: unknown) {
+      this.logger.error(
+        '❌ Erro ao criar galeria. Iniciando rollback.',
+        error instanceof Error ? error.stack : error,
+      );
       this.logger.debug('🔙 Executando rollback da transação');
       await queryRunner.rollbackTransaction();
       this.logger.debug('✅ Rollback concluído');

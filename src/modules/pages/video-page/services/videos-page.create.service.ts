@@ -7,7 +7,6 @@ import { RouteType } from 'src/modules/routes/route-page.entity';
 import {
   PlatformType,
   MediaType,
-  UploadType,
 } from 'src/shared/media/media-item/media-item.entity';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { VideosPageRepository } from '../video-page.repository';
@@ -82,17 +81,17 @@ export class CreateVideosPageService {
           savedPage.id,
           MediaTargetType.VideosPage,
           filesDict,
-          this.awsS3Service.upload.bind(this.awsS3Service),
+          (file: Express.Multer.File) => this.awsS3Service.upload(file),
         );
 
       const finalPage = await queryRunner.manager.save(savedPage);
       await queryRunner.commitTransaction();
       return VideosPageResponseDto.fromEntity(finalPage, mediaItems);
-    } catch (error) {
+    } catch (error: unknown) {
       await queryRunner.rollbackTransaction();
       this.logger.error(
         '❌ Erro ao criar página de vídeos. Rollback executado.',
-        error,
+        error instanceof Error ? error.stack : error,
       );
       throw new AppInternalException(
         ErrorCode.INTERNAL_ERROR,

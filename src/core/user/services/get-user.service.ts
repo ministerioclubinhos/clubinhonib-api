@@ -3,8 +3,11 @@ import { UserEntity } from '../entities/user.entity';
 import { GetUsersQueryDto } from '../dto/get-users-query.dto';
 import { UserRepository } from '../user.repository';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
+import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 import { PersonalDataRepository } from 'src/core/profile/repositories/personal-data.repository';
+import { PersonalData } from 'src/core/profile/entities/personal-data.entity';
 import { UserPreferencesRepository } from 'src/core/profile/repositories/user-preferences.repository';
+import { UserPreferences } from 'src/core/profile/entities/user-preferences.entity';
 import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 
 @Injectable()
@@ -68,9 +71,9 @@ export class GetUsersService {
 
   private buildProfileResponse(
     user: UserEntity,
-    imageMedia?: any,
-    personalData?: any,
-    preferences?: any,
+    imageMedia?: MediaItemEntity,
+    personalData?: PersonalData | null,
+    preferences?: UserPreferences | null,
   ) {
     return {
       id: user.id,

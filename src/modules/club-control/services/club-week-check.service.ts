@@ -3,11 +3,14 @@ import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import { ClubEntity } from 'src/modules/clubs/entities/club.entity/club.entity';
 import { ChildEntity } from 'src/modules/children/entities/child.entity';
 import { ClubPeriodEntity } from '../entities/club-period.entity';
-import { ClubExceptionEntity } from '../entities/club-exception.entity';
 import { ClubControlRepository } from '../repositories/club-control.repository';
 import { AcademicWeekService } from './academic-week.service';
 import { ClubStatusService } from './club-status.service';
 import { ClubIndicatorsService } from './club-indicators.service';
+import {
+  ClubCheckResultDto,
+  ClubIndicatorDto,
+} from '../dto/club-check-result.dto';
 
 @Injectable()
 export class ClubWeekCheckService {
@@ -23,7 +26,7 @@ export class ClubWeekCheckService {
     clubId: string,
     year: number,
     week: number,
-  ): Promise<any> {
+  ): Promise<ClubCheckResultDto> {
     const club = await this.clubControlRepository.findClubById(clubId);
 
     if (!club) {
@@ -348,7 +351,7 @@ export class ClubWeekCheckService {
     totalChildren: number,
     childrenWithPagelaCount: number,
     childrenMissing: number,
-    childrenMissingList: any[],
+    childrenMissingList: { childId: string; childName: string }[],
   ) {
     return {
       clubId: club.id,
@@ -372,7 +375,7 @@ export class ClubWeekCheckService {
           type: 'no_weekday',
           severity: 'info',
           message: `ℹ️ Clubinho sem dia da semana definido (provavelmente inativo)`,
-        },
+        } as ClubIndicatorDto,
       ],
       exception: null,
     };
@@ -388,7 +391,7 @@ export class ClubWeekCheckService {
     allChildren: ChildEntity[],
     childrenWithPagela: number,
     childrenMissing: number,
-    childrenMissingList: any[],
+    childrenMissingList: { childId: string; childName: string }[],
   ) {
     return {
       clubId: club.id,
@@ -433,7 +436,7 @@ export class ClubWeekCheckService {
     allChildren: ChildEntity[],
     childrenWithPagela: number,
     childrenMissing: number,
-    childrenMissingList: any[],
+    childrenMissingList: { childId: string; childName: string }[],
   ) {
     return {
       clubId: club.id,

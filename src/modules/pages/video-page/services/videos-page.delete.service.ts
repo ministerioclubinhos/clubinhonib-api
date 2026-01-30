@@ -44,7 +44,7 @@ export class DeleteVideosPageService {
 
       await this.mediaItemProcessor.deleteMediaItems(
         mediaItems,
-        this.awsS3Service.delete.bind(this.awsS3Service),
+        (url: string) => this.awsS3Service.delete(url),
       );
 
       if (page.route?.id) {
@@ -54,11 +54,11 @@ export class DeleteVideosPageService {
       await queryRunner.manager.remove(page);
       await queryRunner.commitTransaction();
       this.logger.debug(`✅ Página de vídeos removida com sucesso: ID=${id}`);
-    } catch (error) {
+    } catch (error: unknown) {
       await queryRunner.rollbackTransaction();
       this.logger.error(
         '❌ Erro ao remover página de vídeos. Rollback executado.',
-        error,
+        error instanceof Error ? error.stack : error,
       );
       throw new AppInternalException(
         ErrorCode.INTERNAL_ERROR,

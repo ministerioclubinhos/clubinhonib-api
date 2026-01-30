@@ -1,6 +1,5 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { IdeasSectionRepository } from '../repository/ideas-section.repository';
-import { IdeasSectionEntity } from 'src/modules/pages/ideas-page/entities/ideas-section.entity';
 import { IdeasSectionResponseDto } from '../dto/ideas-section-response.dto';
 import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';

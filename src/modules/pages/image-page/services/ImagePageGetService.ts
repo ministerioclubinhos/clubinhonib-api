@@ -8,6 +8,8 @@ import { PaginatedImageSectionResponseDto } from '../dto/paginated-image-section
 import { ImageSectionRepository } from 'src/modules/pages/image-section/repository/image-section.repository';
 import { Request } from 'express';
 import { AuthContextService } from 'src/core/auth/services/auth-context.service';
+import { FindOptionsWhere } from 'typeorm';
+import { ImageSectionEntity } from '../entity/Image-section.entity';
 
 @Injectable()
 export class ImagePageGetService {
@@ -118,7 +120,9 @@ export class ImagePageGetService {
       );
     }
 
-    const where: any = { page: { id: pageId } };
+    const where: FindOptionsWhere<ImageSectionEntity> = {
+      page: { id: pageId },
+    };
 
     if (!loggedIn) {
       where.public = true;

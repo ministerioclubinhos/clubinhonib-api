@@ -13,7 +13,6 @@ import { PagelasService } from './pagelas.service';
 import { CreatePagelaDto } from './dto/create-pagela.dto';
 import { UpdatePagelaDto } from './dto/update-pagela.dto';
 import { PagelaFiltersDto } from './dto/pagela-filters.dto';
-import { PaginationQueryDto } from './dto/paginated.dto';
 import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 
 @Controller('pagelas')

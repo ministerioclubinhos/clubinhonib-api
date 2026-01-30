@@ -51,7 +51,7 @@ export class VideosPageController {
     this.logger.debug('📥 [POST /video-pages] Criando nova página de vídeos');
 
     try {
-      const parsedData = JSON.parse(raw);
+      const parsedData: unknown = JSON.parse(raw);
       const dto = plainToInstance(CreateVideosPageDto, parsedData);
 
       const validationErrors = await validate(dto, {
@@ -78,8 +78,11 @@ export class VideosPageController {
         `✅ Página de vídeos criada com sucesso: ID=${result.id}`,
       );
       return result;
-    } catch (error) {
-      this.logger.error('❌ Erro ao criar página de vídeos', error);
+    } catch (error: unknown) {
+      this.logger.error(
+        '❌ Erro ao criar página de vídeos',
+        error instanceof Error ? error.stack : error,
+      );
       throw new AppInternalException(
         ErrorCode.INTERNAL_ERROR,
         'Erro ao criar a página de vídeos.',
@@ -100,7 +103,7 @@ export class VideosPageController {
     );
 
     try {
-      const parsedData = JSON.parse(raw);
+      const parsedData: unknown = JSON.parse(raw);
       const dto = plainToInstance(UpdateVideosPageDto, parsedData);
 
       const validationErrors = await validate(dto, {
@@ -127,8 +130,11 @@ export class VideosPageController {
         `✅ Página de vídeos atualizada com sucesso: ID=${result.id}`,
       );
       return result;
-    } catch (error) {
-      this.logger.error('❌ Erro ao atualizar página de vídeos', error);
+    } catch (error: unknown) {
+      this.logger.error(
+        '❌ Erro ao atualizar página de vídeos',
+        error instanceof Error ? error.stack : error,
+      );
       throw new AppInternalException(
         ErrorCode.INTERNAL_ERROR,
         'Erro ao atualizar a página de vídeos.',

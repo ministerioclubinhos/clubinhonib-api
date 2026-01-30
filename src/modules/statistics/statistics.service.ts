@@ -13,12 +13,23 @@ import {
   AcceptedChristsChartDataDto,
   CombinedInsightsDto,
 } from './dto/chart-data-response.dto';
+
+import {
+  PagelaStatsRaw,
+  TeacherDecisionStatsRaw,
+  TeacherStatsRaw,
+  AcceptedChristsByClubRaw,
+  PagelasByClubRaw,
+} from './dto/statistics-raw-results.dto';
 import { ChildrenStatsQueryDto } from './dto/children-stats-query.dto';
 import { ChildrenStatsResponseDto } from './dto/children-stats-response.dto';
 import { ClubsStatsQueryDto } from './dto/clubs-stats-query.dto';
 import { ClubsStatsResponseDto } from './dto/clubs-stats-response.dto';
 import { TeachersStatsQueryDto } from './dto/teachers-stats-query.dto';
 import { TeachersStatsResponseDto } from './dto/teachers-stats-response.dto';
+import { ChildEntity } from '../children/entities/child.entity';
+import { ClubEntity } from '../clubs/entities/club.entity/club.entity';
+import { TeacherProfileEntity } from '../teacher-profiles/entities/teacher-profile.entity/teacher-profile.entity';
 
 @Injectable()
 export class StatisticsService {
@@ -52,19 +63,19 @@ export class StatisticsService {
 
     const timeSeriesData = {
       presence: timeSeries.map((t) => ({
-        date: t.date,
+        date: String(t.date),
         value: t.present,
       })),
       meditation: timeSeries.map((t) => ({
-        date: t.date,
+        date: String(t.date),
         value: t.meditation,
       })),
       verseRecitation: timeSeries.map((t) => ({
-        date: t.date,
+        date: String(t.date),
         value: t.verse,
       })),
       total: timeSeries.map((t) => ({
-        date: t.date,
+        date: String(t.date),
         value: t.total,
       })),
     };
@@ -100,7 +111,7 @@ export class StatisticsService {
     ]);
 
     const timeSeries = timeSeriesRaw.map((t) => ({
-      date: t.date,
+      date: String(t.date),
       series: {
         ACCEPTED: t.accepted,
         RECONCILED: t.reconciled,
@@ -120,7 +131,6 @@ export class StatisticsService {
 
   async getCombinedInsights(
     pagelasFilters: PagelasStatsQueryDto,
-    acceptedChristsFilters: AcceptedChristsStatsQueryDto,
   ): Promise<CombinedInsightsDto> {
     const [topEngagedChildren, clubRankings] = await Promise.all([
       this.statisticsRepository.getTopEngagedChildren(pagelasFilters, 20),
@@ -387,7 +397,7 @@ export class StatisticsService {
     };
   }
 
-  async getClubDetailedStats(clubId: string, filters: PagelasStatsQueryDto) {
+  getClubDetailedStats(clubId: string, filters: PagelasStatsQueryDto) {
     return {
       message: 'Visão detalhada do clube - Em implementação',
       clubId,
@@ -395,14 +405,14 @@ export class StatisticsService {
     };
   }
 
-  async getChildDetailedStats(childId: string) {
+  getChildDetailedStats(childId: string) {
     return {
       message: 'Visão detalhada da criança - Em implementação',
       childId,
     };
   }
 
-  async getCityDetailedStats(city: string, filters: any) {
+  getCityDetailedStats(city: string, filters: PagelasStatsQueryDto) {
     return {
       message: 'Visão detalhada da cidade - Em implementação',
       city,
@@ -410,10 +420,7 @@ export class StatisticsService {
     };
   }
 
-  async getTeacherDetailedStats(
-    teacherId: string,
-    filters: PagelasStatsQueryDto,
-  ) {
+  getTeacherDetailedStats(teacherId: string, filters: PagelasStatsQueryDto) {
     return {
       message: 'Visão detalhada do professor - Em implementação',
       teacherId,
@@ -421,28 +428,28 @@ export class StatisticsService {
     };
   }
 
-  async getComparativeStats(params: any) {
+  getComparativeStats(params: Record<string, any>) {
     return {
       message: 'Comparação entre entidades - Em implementação',
       params,
     };
   }
 
-  async getTrendsAnalysis(filters: any) {
+  getTrendsAnalysis(filters: Record<string, any>) {
     return {
       message: 'Análise de tendências e previsões - Em implementação',
       filters,
     };
   }
 
-  async getConsolidatedReport(params: any) {
+  getConsolidatedReport(params: Record<string, any>) {
     return {
       message: 'Relatório consolidado - Em implementação',
       params,
     };
   }
 
-  async getRankings(type: string, params: any) {
+  getRankings(type: string, params: Record<string, any>) {
     return {
       message: 'Rankings - Em implementação',
       type,
@@ -450,7 +457,7 @@ export class StatisticsService {
     };
   }
 
-  async getPersonalizedDashboard(role: string, userId: string) {
+  getPersonalizedDashboard(role: string, userId: string) {
     return {
       message: 'Dashboard personalizado - Em implementação',
       role,
@@ -468,15 +475,16 @@ export class StatisticsService {
       this.statisticsRepository.getChildrenStatsDistribution(processedFilters),
     ]);
 
-    const {
-      children,
-      pagelasStats,
-      decisionsMap,
-      totalCount,
-      filteredCount,
-      page,
-      limit,
-    } = childrenData;
+    const children = childrenData.children as ChildEntity[];
+    const pagelasStats = childrenData.pagelasStats as Map<
+      string,
+      PagelaStatsRaw
+    >;
+    const decisionsMap = childrenData.decisionsMap;
+    const totalCount = childrenData.totalCount;
+    const filteredCount = childrenData.filteredCount;
+    const page = childrenData.page;
+    const limit = childrenData.limit;
 
     let sumAge = 0;
     let sumEngagement = 0;
@@ -521,9 +529,9 @@ export class StatisticsService {
       const hasDecision = !!decision;
       const totalDecisions = decision ? parseInt(decision.totalDecisions) : 0;
 
-      const lastPagelaDate = stats?.lastPagelaDate || null;
-      const isActive = lastPagelaDate
-        ? lastPagelaDate >= thirtyDaysAgoStr
+      const lastActivity = stats?.lastActivity || null;
+      const isActive = lastActivity
+        ? new Date(lastActivity) >= new Date(thirtyDaysAgoStr)
         : false;
 
       const consecutiveWeeks = 0;
@@ -566,7 +574,7 @@ export class StatisticsService {
           meditationRate: Math.round(meditationRate * 10) / 10,
           verseRecitationRate: Math.round(verseRecitationRate * 10) / 10,
           engagementScore: Math.round(engagementScore * 10) / 10,
-          lastPagelaDate,
+          lastPagelaDate: lastActivity ? String(lastActivity) : null,
           consecutiveWeeks,
         },
         decisions: {
@@ -637,41 +645,46 @@ export class StatisticsService {
 
     const clubsData =
       await this.statisticsRepository.getClubsWithStats(processedFilters);
-    const {
-      clubs,
-      childrenResults,
-      pagelasResults,
-      decisionsResults,
-      teachers,
-      totalCount,
-      page,
-      limit,
-      inactiveClubs,
-      inactiveChildren,
-    } = clubsData;
+    const clubs = clubsData.clubs as ClubEntity[];
+    const childrenResults = clubsData.childrenResults;
+    const pagelasResults = clubsData.pagelasResults;
+    const decisionsResults = clubsData.decisionsResults;
+    const teachers = clubsData.teachers as TeacherProfileEntity[];
+    const totalCount = clubsData.totalCount;
+    const page = clubsData.page;
+    const limit = clubsData.limit;
+    const inactiveClubs = clubsData.inactiveClubs;
+    const inactiveChildren = clubsData.inactiveChildren;
 
-    const childrenByClub = new Map();
+    const childrenByClub: Map<string, { total: number; M: number; F: number }> =
+      new Map();
     childrenResults.forEach((r) => {
       if (!childrenByClub.has(r.clubId)) {
         childrenByClub.set(r.clubId, { total: 0, M: 0, F: 0 });
       }
       const data = childrenByClub.get(r.clubId);
-      const count = parseInt(r.total);
-      data.total += count;
-      if (r.gender === 'M') data.M = count;
-      if (r.gender === 'F') data.F = count;
+      if (data) {
+        const count = parseInt(r.total);
+        data.total += count;
+        if (r.gender === 'M') data.M = count;
+        if (r.gender === 'F') data.F = count;
+      }
     });
 
-    const pagelasByClub = new Map(pagelasResults.map((p) => [p.clubId, p]));
-    const decisionsByClub = new Map(decisionsResults.map((d) => [d.clubId, d]));
-    const teachersByClub = new Map();
+    const pagelasByClub = new Map<string, PagelasByClubRaw>(
+      pagelasResults.map((p) => [p.clubId, p]),
+    );
+    const decisionsByClub = new Map<string, AcceptedChristsByClubRaw>(
+      decisionsResults.map((d) => [d.clubId, d]),
+    );
+    const teachersByClub = new Map<string, TeacherProfileEntity[]>();
 
     teachers.forEach((t) => {
       if (t.club) {
         if (!teachersByClub.has(t.club.id)) {
           teachersByClub.set(t.club.id, []);
         }
-        teachersByClub.get(t.club.id).push(t);
+        teachersByClub.get(t.club.id)?.push(t);
       }
     });
 
@@ -681,10 +694,14 @@ export class StatisticsService {
       const decisions = decisionsByClub.get(club.id);
       const clubTeachers = teachersByClub.get(club.id) || [];
 
-      const totalPagelas = pagelas ? parseInt(pagelas.totalPagelas) : 0;
-      const presenceCount = pagelas ? parseInt(pagelas.presenceCount) : 0;
-      const meditationCount = pagelas ? parseInt(pagelas.meditationCount) : 0;
-      const verseCount = pagelas ? parseInt(pagelas.verseCount) : 0;
+      const totalPagelas = pagelas ? parseInt(pagelas.totalPagelas || '0') : 0;
+      const presenceCount = pagelas
+        ? parseInt(pagelas.presenceCount || '0')
+        : 0;
+      const meditationCount = pagelas
+        ? parseInt(pagelas.meditationCount || '0')
+        : 0;
+      const verseCount = pagelas ? parseInt(pagelas.verseCount || '0') : 0;
 
       const presenceRate =
         totalPagelas > 0 ? (presenceCount / totalPagelas) * 100 : 0;
@@ -693,12 +710,16 @@ export class StatisticsService {
       const verseRate =
         totalPagelas > 0 ? (verseCount / totalPagelas) * 100 : 0;
 
-      const activeChildren = pagelas ? parseInt(pagelas.activeChildren) : 0;
+      const activeChildren = pagelas
+        ? parseInt(pagelas.activeChildren || '0')
+        : 0;
       const activityRate =
         children.total > 0 ? (activeChildren / children.total) * 100 : 0;
       const decisionRate =
         activeChildren > 0
-          ? ((decisions ? parseInt(decisions.childrenWithDecisions) : 0) /
+          ? ((decisions
+              ? parseInt(decisions.childrenWithDecisions || '0')
+              : 0) /
               activeChildren) *
             100
           : 0;
@@ -735,12 +756,12 @@ export class StatisticsService {
           },
           avgAge: 0,
           withDecisions: decisions
-            ? parseInt(decisions.childrenWithDecisions)
+            ? parseInt(decisions.childrenWithDecisions || '0')
             : 0,
         },
         teachers: {
           total: clubTeachers.length,
-          active: pagelas ? parseInt(pagelas.activeTeachers) : 0,
+          active: pagelas ? parseInt(pagelas.activeTeachers || '0') : 0,
           list: clubTeachers.map((t) => ({
             id: t.id,
             name: t.user?.name || 'N/A',
@@ -752,11 +773,13 @@ export class StatisticsService {
           meditationRate: Math.round(meditationRate * 10) / 10,
           verseRecitationRate: Math.round(verseRate * 10) / 10,
           performanceScore: Math.round(performanceScore * 10) / 10,
-          totalDecisions: decisions ? parseInt(decisions.totalDecisions) : 0,
+          totalDecisions: decisions
+            ? parseInt(decisions.totalDecisions || '0')
+            : 0,
         },
         lastActivity: pagelas?.lastActivity
           ? {
-              date: pagelas.lastActivity,
+              date: new Date(pagelas.lastActivity).toISOString(),
               type: 'pagela',
             }
           : null,
@@ -764,10 +787,10 @@ export class StatisticsService {
       };
     });
 
-    const byCity = new Map();
-    const byWeekday = new Map();
-    const byCoordinator = new Map();
-    const byPerformance = new Map([
+    const byCity = new Map<string, { state: string; count: number }>();
+    const byWeekday = new Map<string, number>();
+    const byCoordinator = new Map<string, { name: string; count: number }>();
+    const byPerformance = new Map<string, number>([
       ['0-50', 0],
       ['50-70', 0],
       ['70-85', 0],
@@ -775,13 +798,15 @@ export class StatisticsService {
     ]);
 
     clubsWithStats.forEach((club) => {
-      const cityKey = club.address.city;
+      const cityKey = club.address.city || 'N/A';
       if (!byCity.has(cityKey)) {
-        byCity.set(cityKey, { state: club.address.state, count: 0 });
+        byCity.set(cityKey, { state: club.address.state || 'N/A', count: 0 });
       }
-      byCity.get(cityKey).count++;
+      const cityEntry = byCity.get(cityKey);
+      if (cityEntry) cityEntry.count++;
 
-      byWeekday.set(club.weekday, (byWeekday.get(club.weekday) || 0) + 1);
+      const weekdayKey = String(club.weekday);
+      byWeekday.set(weekdayKey, (byWeekday.get(weekdayKey) || 0) + 1);
 
       if (club.coordinator) {
         const coordKey = club.coordinator.id;
@@ -791,7 +816,8 @@ export class StatisticsService {
             count: 0,
           });
         }
-        byCoordinator.get(coordKey).count++;
+        const coordEntry = byCoordinator.get(coordKey);
+        if (coordEntry) coordEntry.count++;
       }
 
       const score = club.performance.performanceScore;
@@ -903,19 +929,15 @@ export class StatisticsService {
 
     const teachersData =
       await this.statisticsRepository.getTeachersWithStats(processedFilters);
-    const {
-      teachers,
-      pagelasResults,
-      decisionsResults,
-      totalCount,
-      page,
-      limit,
-    } = teachersData;
+    const { totalCount, page, limit } = teachersData;
+    const teachers = teachersData.teachers as TeacherProfileEntity[];
+    const pagelasResults = teachersData.pagelasResults;
+    const decisionsResults = teachersData.decisionsResults;
 
-    const pagelasByTeacher = new Map(
+    const pagelasByTeacher = new Map<string, TeacherStatsRaw>(
       pagelasResults.map((p) => [p.teacherId, p]),
     );
-    const decisionsByTeacher = new Map(
+    const decisionsByTeacher = new Map<string, TeacherDecisionStatsRaw>(
       decisionsResults.map((d) => [d.teacherId, d]),
     );
 
@@ -950,7 +972,9 @@ export class StatisticsService {
         avgPresenceRate * 0.4 + avgMeditationRate * 0.3 + decisionRate * 0.3;
 
       const lastActivity = pagelas?.lastActivity;
-      const isActive = lastActivity ? lastActivity >= thirtyDaysAgoStr : false;
+      const isActive = lastActivity
+        ? new Date(lastActivity) >= new Date(thirtyDaysAgoStr)
+        : false;
 
       return {
         teacherId: teacher.id,
@@ -986,7 +1010,7 @@ export class StatisticsService {
         },
         lastActivity: lastActivity
           ? {
-              date: lastActivity,
+              date: new Date(lastActivity).toISOString(),
               totalPagelas,
             }
           : null,
@@ -995,9 +1019,9 @@ export class StatisticsService {
       };
     });
 
-    const byClub = new Map();
-    const byCity = new Map();
-    const byEffectiveness = new Map([
+    const byClub = new Map<string, { number: number; count: number }>();
+    const byCity = new Map<string, { state: string; count: number }>();
+    const byEffectiveness = new Map<string, number>([
       ['0-50', 0],
       ['50-70', 0],
       ['70-85', 0],
@@ -1010,13 +1034,15 @@ export class StatisticsService {
         if (!byClub.has(clubKey)) {
           byClub.set(clubKey, { number: teacher.club.number, count: 0 });
         }
-        byClub.get(clubKey).count++;
+        const clubEntry = byClub.get(clubKey);
+        if (clubEntry) clubEntry.count++;
 
         const cityKey = teacher.club.city;
         if (!byCity.has(cityKey)) {
           byCity.set(cityKey, { state: teacher.club.state, count: 0 });
         }
-        byCity.get(cityKey).count++;
+        const cityEntry = byCity.get(cityKey);
+        if (cityEntry) cityEntry.count++;
       }
 
       const score = teacher.performance.effectivenessScore;
@@ -1131,7 +1157,7 @@ export class StatisticsService {
     endDate?: string,
     page?: number,
     limit?: number,
-  ) {
+  ): Promise<unknown> {
     return this.statisticsRepository.analyzeClubAttendance(
       clubId,
       year,
@@ -1147,7 +1173,7 @@ export class StatisticsService {
     week: number,
     page?: number,
     limit?: number,
-  ) {
+  ): Promise<unknown> {
     return this.statisticsRepository.analyzeWeeklyAttendance(
       year,
       week,

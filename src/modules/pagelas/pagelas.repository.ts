@@ -218,14 +218,12 @@ export class PagelasRepository {
           'Pagela não encontrada',
         );
 
-      if (data.teacher) {
-      }
-
       Object.assign(entity, data);
       try {
         return await txPagela.save(entity);
-      } catch (e: any) {
-        if (e?.code === 'ER_DUP_ENTRY') {
+      } catch (e: unknown) {
+        const err = e as { code?: string };
+        if (err?.code === 'ER_DUP_ENTRY') {
           throw new AppConflictException(
             ErrorCode.RESOURCE_ALREADY_EXISTS,
             'Já existe Pagela para esta criança nesta semana/ano',

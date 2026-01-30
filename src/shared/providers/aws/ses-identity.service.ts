@@ -79,10 +79,11 @@ export class SesIdentityService {
           verificationStatus: verificationStatus || 'NotStarted',
         };
       }
-    } catch (err) {
+    } catch (err: any) {
+      const error = err as Error;
       this.logger.error(
-        `Erro ao checar/reenviar verificação SES para ${email}: ${err?.message}`,
-        err?.stack,
+        `Erro ao checar/reenviar verificação SES para ${email}: ${error?.message}`,
+        error?.stack,
       );
       return { verificationEmailSent: false, alreadyVerified: false };
     }
@@ -115,10 +116,11 @@ export class SesIdentityService {
         alreadyVerified: false,
         verificationStatus: 'Pending',
       };
-    } catch (err) {
+    } catch (err: any) {
+      const error = err as Error;
       this.logger.error(
-        `Erro ao cadastrar/verificar email no SES (${email}): ${err?.message}`,
-        err?.stack,
+        `Erro ao cadastrar/verificar email no SES (${email}): ${error?.message}`,
+        error?.stack,
       );
       return { verificationEmailSent: false, alreadyVerified: false };
     }

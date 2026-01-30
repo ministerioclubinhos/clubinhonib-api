@@ -64,7 +64,7 @@ export class WeekMaterialsPageGetService {
     );
   }
 
-  async setCurrentWeek(id: string): Promise<any> {
+  async setCurrentWeek(id: string): Promise<void> {
     this.logger.debug(
       '📥 Iniciando processo para definir "material da semana atual"...',
     );
@@ -117,10 +117,12 @@ export class WeekMaterialsPageGetService {
       this.logger.debug(
         `✅ Página ${weekPage.id} marcada como material da semana atual.`,
       );
-    } catch (error) {
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      const errStack = error instanceof Error ? error.stack : undefined;
       this.logger.error(
-        `❌ Erro ao definir página como atual: ${error.message}`,
-        error.stack,
+        `❌ Erro ao definir página como atual: ${errMsg}`,
+        errStack,
       );
       throw error;
     }

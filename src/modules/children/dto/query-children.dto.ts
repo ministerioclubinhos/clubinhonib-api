@@ -19,7 +19,7 @@ export class QueryChildrenDto {
   @IsUUID()
   clubId?: string;
 
-  @Transform(({ value }) => Number(value))
+  @Transform(({ value }: { value: unknown }) => Number(value))
   @IsOptional()
   @IsNumber()
   clubNumber?: number;
@@ -56,10 +56,10 @@ export class QueryChildrenDto {
   @IsString()
   joinedTo?: string;
 
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: unknown }) => {
     if (value === 'true') return true;
     if (value === 'false') return false;
-    return value;
+    return value as boolean;
   })
   @IsOptional()
   @IsBoolean()
@@ -73,13 +73,13 @@ export class QueryChildrenDto {
   @IsIn(['ASC', 'DESC'])
   order?: 'ASC' | 'DESC' = 'ASC';
 
-  @Transform(({ value }) => Number(value))
+  @Transform(({ value }: { value: unknown }) => Number(value))
   @IsOptional()
   @IsInt()
   @Min(1)
   page?: number = 1;
 
-  @Transform(({ value }) => Number(value))
+  @Transform(({ value }: { value: unknown }) => Number(value))
   @IsOptional()
   @IsInt()
   @Min(1)
@@ -91,31 +91,31 @@ export class QueryChildrenSimpleDto {
   @IsString()
   searchString?: string;
 
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: unknown }) => {
     if (value === 'true') return true;
     if (value === 'false') return false;
-    return value;
+    return value as boolean;
   })
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
 
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: unknown }) => {
     if (value === 'true') return true;
     if (value === 'false') return false;
-    return value;
+    return value as boolean;
   })
   @IsOptional()
   @IsBoolean()
   acceptedChrist?: boolean;
 
-  @Transform(({ value }) => Number(value))
+  @Transform(({ value }: { value: unknown }) => Number(value))
   @IsOptional()
   @IsInt()
   @Min(1)
   page?: number = 1;
 
-  @Transform(({ value }) => Number(value))
+  @Transform(({ value }: { value: unknown }) => Number(value))
   @IsOptional()
   @IsInt()
   @Min(1)

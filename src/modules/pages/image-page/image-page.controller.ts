@@ -15,7 +15,6 @@ import {
 } from '@nestjs/common';
 import {
   AppNotFoundException,
-  AppBusinessException,
   AppValidationException,
   AppInternalException,
   ErrorCode,
@@ -65,8 +64,11 @@ export class ImageController {
       this.logger.log(`✅ Galeria criada: ID=${result.id}`);
 
       return result;
-    } catch (error) {
-      this.logger.error('❌ Erro ao criar galeria', error);
+    } catch (error: unknown) {
+      this.logger.error(
+        '❌ Erro ao criar galeria',
+        error instanceof Error ? error.stack : error,
+      );
       throw new AppInternalException(
         ErrorCode.INTERNAL_ERROR,
         'Erro ao criar a galeria.',
@@ -85,7 +87,7 @@ export class ImageController {
     this.logger.debug(`🚀 Atualizando galeria ID=${id}`);
 
     try {
-      const rawObject = JSON.parse(raw);
+      const rawObject = JSON.parse(raw) as Record<string, unknown>;
       this.cleanMediaFiles(rawObject);
 
       const dto = plainToInstance(UpdateImagePageDto, rawObject);
@@ -94,8 +96,11 @@ export class ImageController {
       const filesDict = this.mapFiles(files);
 
       return await this.updateService.updateImagePage(id, dto, filesDict);
-    } catch (error) {
-      this.logger.error('❌ Erro ao atualizar galeria', error);
+    } catch (error: unknown) {
+      this.logger.error(
+        '❌ Erro ao atualizar galeria',
+        error instanceof Error ? error.stack : error,
+      );
       throw new AppInternalException(
         ErrorCode.INTERNAL_ERROR,
         'Erro ao atualizar a galeria.',
@@ -134,7 +139,7 @@ export class ImageController {
   async findOne(@Param('id') id: string): Promise<ImagePageResponseDto> {
     try {
       return await this.getService.findOne(id);
-    } catch (error) {
+    } catch (error: unknown) {
       if (error instanceof AppNotFoundException) throw error;
       throw new AppInternalException(
         ErrorCode.INTERNAL_ERROR,
@@ -179,7 +184,11 @@ export class ImageController {
     );
   }
 
-  private cleanMediaFiles(rawObject: any) {
+  private cleanMediaFiles(
+    rawObject: Partial<{
+      sections: { mediaItems?: { file?: unknown }[] }[];
+    }>,
+  ) {
     rawObject.sections?.forEach((section) =>
       section.mediaItems?.forEach((media) => {
         delete media.file;

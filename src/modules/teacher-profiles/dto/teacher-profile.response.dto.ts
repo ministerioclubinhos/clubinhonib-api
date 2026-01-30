@@ -47,7 +47,10 @@ export class ClubMiniWithCoordinatorDto {
 
   @Expose()
   @Type(() => CoordinatorMiniDto)
-  @Transform(({ value }) => value ?? null)
+  @Transform(
+    ({ value }: { value: CoordinatorMiniDto | null | undefined }) =>
+      value ?? null,
+  )
   coordinator!: CoordinatorMiniDto | null;
 }
 
@@ -62,7 +65,10 @@ export class TeacherResponseDto {
 
   @Expose()
   @Type(() => ClubMiniWithCoordinatorDto)
-  @Transform(({ value }) => value ?? null)
+  @Transform(
+    ({ value }: { value: ClubMiniWithCoordinatorDto | null | undefined }) =>
+      value ?? null,
+  )
   club!: ClubMiniWithCoordinatorDto | null;
 
   @Expose() createdAt!: Date;

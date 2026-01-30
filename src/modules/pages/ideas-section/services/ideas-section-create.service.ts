@@ -53,14 +53,17 @@ export class IdeasSectionCreateService {
       });
 
       return IdeasSectionResponseDto.fromEntity(section, mediaItems);
-    } catch (error) {
+    } catch (error: unknown) {
       await queryRunner.rollbackTransaction();
-      this.logger.error('Transaction rolled-back', error.stack);
-      if (error.code) throw error;
+      const errStack = error instanceof Error ? error.stack : undefined;
+      const errMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error('Transaction rolled-back', errStack);
+      const hasCode = error && typeof error === 'object' && 'code' in error;
+      if (hasCode) throw error as unknown as Error;
       throw new AppInternalException(
         ErrorCode.SECTION_CREATE_ERROR,
-        `Erro ao criar a seção de ideias: ${error.message}`,
-        error,
+        `Erro ao criar a seção de ideias: ${errMsg}`,
+        error instanceof Error ? error : new Error(String(error)),
       );
     } finally {
       await queryRunner.release();
@@ -119,7 +122,7 @@ export class IdeasSectionCreateService {
             : 'image',
       type: item.uploadType,
       fileField:
-        item.uploadType === 'upload' && item.isLocalFile
+        item.uploadType === UploadType.UPLOAD && item.isLocalFile
           ? item.fieldKey
           : undefined,
     }));
@@ -133,7 +136,7 @@ export class IdeasSectionCreateService {
       section.id,
       MediaTargetType.IdeasSection,
       filesDict,
-      this.awsS3Service.upload.bind(this.awsS3Service),
+      (file: Express.Multer.File) => this.awsS3Service.upload(file),
     );
 
     this.logger.debug(`       • ${saved.length} mídias processadas`);

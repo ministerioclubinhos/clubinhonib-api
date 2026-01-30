@@ -18,10 +18,18 @@ export class PagelaResponseDto {
   notes: string | null;
 
   static fromEntity(e: PagelaEntity): PagelaResponseDto {
+    const createdAt =
+      e.createdAt instanceof Date
+        ? e.createdAt.toISOString()
+        : String(e.createdAt);
+    const updatedAt =
+      e.updatedAt instanceof Date
+        ? e.updatedAt.toISOString()
+        : String(e.updatedAt);
     return {
       id: e.id,
-      createdAt: (e as any).createdAt?.toISOString?.() ?? (e as any).createdAt,
-      updatedAt: (e as any).updatedAt?.toISOString?.() ?? (e as any).updatedAt,
+      createdAt,
+      updatedAt,
       childId: e.child?.id,
       teacherProfileId: e.teacher?.id ?? null,
       referenceDate: e.referenceDate,

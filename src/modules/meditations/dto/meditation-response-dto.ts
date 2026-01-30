@@ -1,10 +1,8 @@
-export enum WeekDay {
-  Monday = 'Monday',
-  Tuesday = 'Tuesday',
-  Wednesday = 'Wednesday',
-  Thursday = 'Thursday',
-  Friday = 'Friday',
-}
+import { MeditationEntity } from '../entities/meditation.entity';
+import { DayEntity, WeekDay } from '../entities/day.entity';
+import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
+
+export { WeekDay };
 
 export class MediaItemDto {
   id: string;
@@ -20,18 +18,19 @@ export class MediaItemDto {
   createdAt?: Date;
   updatedAt?: Date;
 
-  static fromEntity(entity: any): MediaItemDto {
+  static fromEntity(entity: MediaItemEntity): MediaItemDto {
     return {
       id: entity.id,
       title: entity.title,
       description: entity.description,
-      mediaType: entity.mediaType,
-      typeUpload: entity.type,
+      mediaType: entity.mediaType as 'video' | 'document' | 'image' | 'audio',
+      typeUpload: entity.uploadType as 'link' | 'upload',
       url: entity.url,
       isLocalFile: entity.isLocalFile,
-      platformType: entity.platformType ?? undefined,
-      originalName: entity.originalName,
-      size: entity.size,
+      platformType:
+        (entity.platformType as MediaItemDto['platformType']) ?? undefined,
+      originalName: entity.originalName ?? undefined,
+      size: entity.size ?? undefined,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
     };
@@ -46,7 +45,7 @@ export class MeditationDayDto {
   createdAt: Date;
   updatedAt: Date;
 
-  static fromEntity(entity: any): MeditationDayDto {
+  static fromEntity(entity: DayEntity): MeditationDayDto {
     return {
       id: entity.id,
       day: entity.day,
@@ -68,7 +67,10 @@ export class MeditationDto {
   createdAt: Date;
   updatedAt: Date;
 
-  static fromEntity(meditation: any, media: any): MeditationDto {
+  static fromEntity(
+    meditation: MeditationEntity,
+    media: MediaItemEntity | null,
+  ): MeditationDto {
     return {
       id: meditation.id,
       topic: meditation.topic,
@@ -76,7 +78,7 @@ export class MeditationDto {
       endDate: meditation.endDate,
       createdAt: meditation.createdAt,
       updatedAt: meditation.updatedAt,
-      days: meditation.days.map((day: any) => MeditationDayDto.fromEntity(day)),
+      days: meditation.days.map((day) => MeditationDayDto.fromEntity(day)),
       media: media ? MediaItemDto.fromEntity(media) : null,
     };
   }
@@ -86,7 +88,10 @@ export class WeekMeditationResponseDto {
   status: string;
   meditation: MeditationDto | null;
 
-  static success(meditation: any, media: any): WeekMeditationResponseDto {
+  static success(
+    meditation: MeditationEntity,
+    media: MediaItemEntity | null,
+  ): WeekMeditationResponseDto {
     return {
       status: 'Meditação da Semana',
       meditation: MeditationDto.fromEntity(meditation, media),

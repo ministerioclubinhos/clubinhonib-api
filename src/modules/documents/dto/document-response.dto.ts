@@ -47,7 +47,7 @@ export class DocumentDto {
   media: MediaItemDto | null;
 
   static fromEntity(
-    document: DocumentEntity | any,
+    document: DocumentEntity,
     media?: MediaItemEntity | null,
   ): DocumentDto {
     return {

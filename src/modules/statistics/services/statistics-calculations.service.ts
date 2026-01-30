@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class StatisticsCalculationsService {
-  calculateAge(birthDate: string): number {
+  calculateAge(birthDate: string | Date): number {
     const today = new Date();
     const birth = new Date(birthDate);
     let age = today.getFullYear() - birth.getFullYear();
@@ -23,7 +23,9 @@ export class StatisticsCalculationsService {
     return '16+';
   }
 
-  calculateMonthsParticipating(joinedAt: string | null | undefined): number {
+  calculateMonthsParticipating(
+    joinedAt: string | Date | null | undefined,
+  ): number {
     if (!joinedAt) return 0;
     const joined = new Date(joinedAt);
     const today = new Date();

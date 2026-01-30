@@ -42,8 +42,9 @@ export class DeleteInformativeService {
 
       await this.informativeRepo.remove(informative);
       this.logger.log(`✅ Banner removido com sucesso: ID=${id}`);
-    } catch (error) {
-      this.logger.error(`❌ Erro ao remover banner ID=${id}`, error.stack);
+    } catch (error: unknown) {
+      const errStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`❌ Erro ao remover banner ID=${id}`, errStack);
       throw new AppInternalException(
         ErrorCode.DATABASE_ERROR,
         'Erro ao remover banner.',

@@ -47,7 +47,7 @@ export class ClubMiniDto {
   @Expose() weekday!: Weekday;
 
   @Expose()
-  @Transform(({ value }) =>
+  @Transform(({ value }: { value: string | null }) =>
     typeof value === 'string' ? value.slice(0, 5) : null,
   )
   time!: string | null;
@@ -62,7 +62,7 @@ export class ClubSimpleResponseDto {
   @Expose() weekday!: Weekday;
 
   @Expose()
-  @Transform(({ value }) =>
+  @Transform(({ value }: { value: string | null }) =>
     typeof value === 'string' ? value.slice(0, 5) : null,
   )
   time!: string | null;
@@ -83,7 +83,7 @@ export class ClubResponseDto {
   @Expose() number!: number;
 
   @Expose()
-  @Transform(({ value }) =>
+  @Transform(({ value }: { value: string | null }) =>
     typeof value === 'string' ? value.slice(0, 5) : null,
   )
   time!: string | null;
@@ -96,12 +96,17 @@ export class ClubResponseDto {
 
   @Expose()
   @Type(() => CoordinatorWithUserDto)
-  @Transform(({ value }) => value ?? null)
+  @Transform(
+    ({ value }: { value: CoordinatorWithUserDto | null | undefined }) =>
+      value ?? null,
+  )
   coordinator!: CoordinatorWithUserDto | null;
 
   @Expose()
   @Type(() => TeacherWithUserDto)
-  @Transform(({ value }) => (Array.isArray(value) ? value : []))
+  @Transform(({ value }: { value: TeacherWithUserDto[] | null | undefined }) =>
+    Array.isArray(value) ? value : [],
+  )
   teachers!: TeacherWithUserDto[];
 
   @Expose() weekday!: Weekday;

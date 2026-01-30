@@ -19,6 +19,21 @@ import {
 import { WeekMaterialsPageEntity } from '../entities/week-material-page.entity';
 import { MediaItemDto } from 'src/shared/share-dto/media-item-dto';
 
+interface UpdateWeekMaterialsPageDto {
+  pageTitle: string;
+  pageSubtitle: string;
+  pageDescription: string;
+  videos?: MediaItemDto[];
+  documents?: MediaItemDto[];
+  images?: MediaItemDto[];
+  audios?: MediaItemDto[];
+  currentWeek?: boolean;
+}
+
+interface IncomingMediaItem {
+  id?: string;
+}
+
 @Injectable()
 export class WeekMaterialsPageUpdateService {
   private readonly logger = new Logger(WeekMaterialsPageUpdateService.name);
@@ -32,7 +47,7 @@ export class WeekMaterialsPageUpdateService {
 
   async updateWeekMaterialsPage(
     id: string,
-    dto: any,
+    dto: UpdateWeekMaterialsPageDto,
     filesDict: Record<string, Express.Multer.File>,
   ): Promise<WeekMaterialsPageEntity> {
     this.logger.debug(`🚀 Iniciando atualização da página ID=${id}`);
@@ -80,12 +95,7 @@ export class WeekMaterialsPageUpdateService {
             queryRunner,
           );
         } else {
-          await this.addVideoMedia(
-            video,
-            existingPage.id,
-            filesDict,
-            queryRunner,
-          );
+          await this.addVideoMedia(video, existingPage.id, filesDict);
         }
       }
       for (const document of documents || []) {
@@ -97,12 +107,7 @@ export class WeekMaterialsPageUpdateService {
             queryRunner,
           );
         } else {
-          await this.addDocumentMedia(
-            document,
-            existingPage.id,
-            filesDict,
-            queryRunner,
-          );
+          await this.addDocumentMedia(document, existingPage.id, filesDict);
         }
       }
       for (const image of images || []) {
@@ -114,12 +119,7 @@ export class WeekMaterialsPageUpdateService {
             queryRunner,
           );
         } else {
-          await this.addImageMedia(
-            image,
-            existingPage.id,
-            filesDict,
-            queryRunner,
-          );
+          await this.addImageMedia(image, existingPage.id, filesDict);
         }
       }
       for (const audio of audios || []) {
@@ -131,18 +131,20 @@ export class WeekMaterialsPageUpdateService {
             queryRunner,
           );
         } else {
-          await this.addAudioMedia(
-            audio,
-            existingPage.id,
-            filesDict,
-            queryRunner,
-          );
+          await this.addAudioMedia(audio, existingPage.id, filesDict);
         }
       }
 
+      const resolvedCurrentWeek =
+        currentWeek ?? existingPage.currentWeek ?? false;
       const routeUpsert = await this.upsertRoute(
         existingRoute.id,
-        { pageTitle, pageSubtitle, pageDescription, currentWeek },
+        {
+          pageTitle,
+          pageSubtitle,
+          pageDescription,
+          currentWeek: resolvedCurrentWeek,
+        },
         existingPage.id,
         existingRoute.public,
         existingRoute.current,
@@ -151,7 +153,7 @@ export class WeekMaterialsPageUpdateService {
       existingPage.title = pageTitle;
       existingPage.subtitle = pageSubtitle;
       existingPage.description = pageDescription;
-      existingPage.currentWeek = currentWeek;
+      existingPage.currentWeek = resolvedCurrentWeek;
       existingPage.route = routeUpsert;
       const updatedPage = await queryRunner.manager.save(
         WeekMaterialsPageEntity,
@@ -163,14 +165,16 @@ export class WeekMaterialsPageUpdateService {
         `✅ Página atualizada com sucesso. ID=${updatedPage.id}`,
       );
       return updatedPage;
-    } catch (error) {
-      this.logger.error('Erro ao atualizar página', error.stack);
+    } catch (error: unknown) {
+      const errStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error('Erro ao atualizar página', errStack);
       await queryRunner.rollbackTransaction();
-      if (error.code) throw error;
+      const hasCode = error && typeof error === 'object' && 'code' in error;
+      if (hasCode) throw error as unknown as Error;
       throw new AppInternalException(
         ErrorCode.PAGE_UPDATE_ERROR,
         'Erro ao atualizar a página de materiais',
-        error,
+        error as Error,
       );
     } finally {
       await queryRunner.release();
@@ -295,7 +299,7 @@ export class WeekMaterialsPageUpdateService {
 
   private async deleteVideoMedia(
     existingVideos: MediaItemEntity[],
-    incomingVideos: any[],
+    incomingVideos: IncomingMediaItem[] | undefined,
   ): Promise<void> {
     this.logger.debug(
       `🗑️ Verificando vídeos para exclusão. Existentes: ${existingVideos.length}, Recebidos: ${incomingVideos?.length || 0}`,
@@ -310,7 +314,7 @@ export class WeekMaterialsPageUpdateService {
       this.logger.debug(`🗑️ Removendo ${videosToRemove.length} vídeos`);
       await this.mediaItemProcessor.deleteMediaItems(
         videosToRemove,
-        this.s3.delete.bind(this.s3),
+        (url: string) => this.s3.delete(url),
       );
       this.logger.debug(`✅ ${videosToRemove.length} vídeos removidos`);
     } else {
@@ -320,7 +324,7 @@ export class WeekMaterialsPageUpdateService {
 
   private async deleteDocumentMedia(
     existingDocuments: MediaItemEntity[],
-    incomingDocuments: any[],
+    incomingDocuments: IncomingMediaItem[] | undefined,
   ): Promise<void> {
     this.logger.debug(
       `🗑️ Verificando documentos para exclusão. Existentes: ${existingDocuments.length}, Recebidos: ${incomingDocuments?.length || 0}`,
@@ -335,7 +339,7 @@ export class WeekMaterialsPageUpdateService {
       this.logger.debug(`🗑️ Removendo ${documentsToRemove.length} documentos`);
       await this.mediaItemProcessor.deleteMediaItems(
         documentsToRemove,
-        this.s3.delete.bind(this.s3),
+        (url: string) => this.s3.delete(url),
       );
       this.logger.debug(`✅ ${documentsToRemove.length} documentos removidos`);
     } else {
@@ -345,7 +349,7 @@ export class WeekMaterialsPageUpdateService {
 
   private async deleteImageMedia(
     existingImages: MediaItemEntity[],
-    incomingImages: any[],
+    incomingImages: IncomingMediaItem[] | undefined,
   ): Promise<void> {
     this.logger.debug(
       `🗑️ Verificando imagens para exclusão. Existentes: ${existingImages.length}, Recebidas: ${incomingImages?.length || 0}`,
@@ -360,7 +364,7 @@ export class WeekMaterialsPageUpdateService {
       this.logger.debug(`🗑️ Removendo ${imagesToRemove.length} imagens`);
       await this.mediaItemProcessor.deleteMediaItems(
         imagesToRemove,
-        this.s3.delete.bind(this.s3),
+        (url: string) => this.s3.delete(url),
       );
       this.logger.debug(`✅ ${imagesToRemove.length} imagens removidas`);
     } else {
@@ -370,7 +374,7 @@ export class WeekMaterialsPageUpdateService {
 
   private async deleteAudioMedia(
     existingAudios: MediaItemEntity[],
-    incomingAudios: any[],
+    incomingAudios: IncomingMediaItem[] | undefined,
   ): Promise<void> {
     this.logger.debug(
       `🗑️ Verificando áudios para exclusão. Existentes: ${existingAudios.length}, Recebidos: ${incomingAudios?.length || 0}`,
@@ -385,7 +389,7 @@ export class WeekMaterialsPageUpdateService {
       this.logger.debug(`🗑️ Removendo ${audiosToRemove.length} áudios`);
       await this.mediaItemProcessor.deleteMediaItems(
         audiosToRemove,
-        this.s3.delete.bind(this.s3),
+        (url: string) => this.s3.delete(url),
       );
       this.logger.debug(`✅ ${audiosToRemove.length} áudios removidos`);
     } else {
@@ -396,7 +400,7 @@ export class WeekMaterialsPageUpdateService {
     videoInput: MediaItemDto,
     pageId: string,
     filesDict: Record<string, Express.Multer.File>,
-    queryRunner: QueryRunner,
+    // _queryRunner: QueryRunner,
   ): Promise<MediaItemEntity> {
     this.logger.debug(`🆕 Construindo novo vídeo: "${videoInput.title}"`);
 
@@ -461,10 +465,10 @@ export class WeekMaterialsPageUpdateService {
   }
 
   private async addDocumentMedia(
-    documentInput: any,
+    documentInput: MediaItemDto,
     pageId: string,
     filesDict: Record<string, Express.Multer.File>,
-    queryRunner: QueryRunner,
+    // _queryRunner: QueryRunner,
   ): Promise<MediaItemEntity> {
     this.logger.debug(
       `🆕 Construindo novo documento: "${documentInput.title}"`,
@@ -480,10 +484,20 @@ export class WeekMaterialsPageUpdateService {
       documentInput.isLocalFile === true
     ) {
       media.platformType = undefined;
-      const file = filesDict[documentInput.fieldKey];
+      const fieldKey = documentInput.fieldKey;
+      if (!fieldKey) {
+        this.logger.error(
+          `❌ fieldKey ausente para documento "${documentInput.title}"`,
+        );
+        throw new AppValidationException(
+          ErrorCode.MEDIA_FIELD_MISSING,
+          `fieldKey ausente para documento "${documentInput.title}"`,
+        );
+      }
+      const file = filesDict[fieldKey];
       if (!file) {
         this.logger.error(
-          `❌ Arquivo ausente para documento "${documentInput.title}" (fieldKey: ${documentInput.fieldKey})`,
+          `❌ Arquivo ausente para documento "${documentInput.title}" (fieldKey: ${fieldKey})`,
         );
         throw new AppValidationException(
           ErrorCode.MEDIA_FILE_NOT_FOUND,
@@ -518,10 +532,10 @@ export class WeekMaterialsPageUpdateService {
   }
 
   private async addImageMedia(
-    imageInput: any,
+    imageInput: MediaItemDto,
     pageId: string,
     filesDict: Record<string, Express.Multer.File>,
-    queryRunner: QueryRunner,
+    // _queryRunner: QueryRunner,
   ): Promise<MediaItemEntity> {
     this.logger.debug(`🆕 Construindo nova imagem: "${imageInput.title}"`);
     const media = this.mediaItemProcessor.buildBaseMediaItem(
@@ -535,10 +549,20 @@ export class WeekMaterialsPageUpdateService {
       imageInput.isLocalFile === true
     ) {
       media.platformType = undefined;
-      const file = filesDict[imageInput.fieldKey];
+      const fieldKey = imageInput.fieldKey;
+      if (!fieldKey) {
+        this.logger.error(
+          `❌ fieldKey ausente para imagem "${imageInput.title}"`,
+        );
+        throw new AppValidationException(
+          ErrorCode.MEDIA_FIELD_MISSING,
+          `fieldKey ausente para imagem "${imageInput.title}"`,
+        );
+      }
+      const file = filesDict[fieldKey];
       if (!file) {
         this.logger.error(
-          `❌ Arquivo ausente para imagem "${imageInput.title}" (fieldKey: ${imageInput.fieldKey})`,
+          `❌ Arquivo ausente para imagem "${imageInput.title}" (fieldKey: ${fieldKey})`,
         );
         throw new AppValidationException(
           ErrorCode.MEDIA_FILE_NOT_FOUND,
@@ -573,10 +597,10 @@ export class WeekMaterialsPageUpdateService {
   }
 
   private async addAudioMedia(
-    audioInput: any,
+    audioInput: MediaItemDto,
     pageId: string,
     filesDict: Record<string, Express.Multer.File>,
-    queryRunner: QueryRunner,
+    // _queryRunner: QueryRunner,
   ): Promise<MediaItemEntity> {
     this.logger.debug(`🆕 Construindo novo áudio: "${audioInput.title}"`);
     const media = this.mediaItemProcessor.buildBaseMediaItem(
@@ -590,10 +614,20 @@ export class WeekMaterialsPageUpdateService {
       audioInput.isLocalFile === true
     ) {
       media.platformType = undefined;
-      const file = filesDict[audioInput.fieldKey];
+      const fieldKey = audioInput.fieldKey;
+      if (!fieldKey) {
+        this.logger.error(
+          `❌ fieldKey ausente para áudio "${audioInput.title}"`,
+        );
+        throw new AppValidationException(
+          ErrorCode.MEDIA_FIELD_MISSING,
+          `fieldKey ausente para áudio "${audioInput.title}"`,
+        );
+      }
+      const file = filesDict[fieldKey];
       if (!file) {
         this.logger.error(
-          `❌ Arquivo ausente para áudio "${audioInput.title}" (fieldKey: ${audioInput.fieldKey})`,
+          `❌ Arquivo ausente para áudio "${audioInput.title}" (fieldKey: ${fieldKey})`,
         );
         throw new AppValidationException(
           ErrorCode.MEDIA_FILE_NOT_FOUND,

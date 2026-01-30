@@ -34,9 +34,8 @@ export class DeleteMeditationService {
       MediaTargetType.Meditation,
     );
     if (media.length > 0) {
-      await this.mediaItemProcessor.deleteMediaItems(
-        media,
-        this.s3Service.delete.bind(this.s3Service),
+      await this.mediaItemProcessor.deleteMediaItems(media, (url: string) =>
+        this.s3Service.delete(url),
       );
       this.logger.log(`🎞️ Mídias associadas removidas: ${media.length}`);
     }

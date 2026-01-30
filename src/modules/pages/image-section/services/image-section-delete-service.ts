@@ -52,7 +52,7 @@ export class ImageSectionDeleteService {
         );
         await this.mediaItemProcessor.deleteMediaItems(
           mediaItems,
-          this.awsS3Service.delete.bind(this.awsS3Service),
+          (url: string) => this.awsS3Service.delete(url),
         );
       } else {
         this.logger.debug(`ℹ️ Nenhuma mídia associada à seção encontrada`);
@@ -63,17 +63,19 @@ export class ImageSectionDeleteService {
 
       await queryRunner.commitTransaction();
       this.logger.debug(`✅ Seção removida com sucesso: ID=${id}`);
-    } catch (error) {
+    } catch (error: unknown) {
       await queryRunner.rollbackTransaction();
+      const errStack = error instanceof Error ? error.stack : undefined;
       this.logger.error(
         'Erro ao remover a seção. Rollback executado.',
-        error.stack,
+        errStack,
       );
-      if (error.code) throw error;
+      const hasCode = error && typeof error === 'object' && 'code' in error;
+      if (hasCode) throw error as unknown as Error;
       throw new AppInternalException(
         ErrorCode.SECTION_DELETE_ERROR,
         'Erro ao remover a seção',
-        error,
+        error as Error,
       );
     } finally {
       await queryRunner.release();

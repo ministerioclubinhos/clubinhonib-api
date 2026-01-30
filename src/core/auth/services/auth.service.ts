@@ -12,8 +12,9 @@ import { AuthRepository } from '../auth.repository';
 import { CompleteUserDto } from '../dto/complete-register.dto';
 import { RegisterUserDto } from '../dto/register.dto';
 import { LoginDto } from '../dto/login.dto';
-import { UserRole } from '../auth.types';
+import { UserRole, JwtPayload } from '../auth.types';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
+import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 import { PersonalDataRepository } from 'src/core/profile/repositories/personal-data.repository';
 import { UserPreferencesRepository } from 'src/core/profile/repositories/user-preferences.repository';
 import { SesIdentityService } from 'src/shared/providers/aws/ses-identity.service';
@@ -57,14 +58,14 @@ export class AuthService {
       secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
       expiresIn: this.configService.getOrThrow<string>(
         'JWT_REFRESH_EXPIRES_IN',
-      ) as any,
+      ),
     });
 
     return { accessToken, refreshToken };
   }
 
   async login({ email, password }: LoginDto) {
-    const user = await this.authRepo.validateUser(email, password);
+    const user = await this.authRepo.validateUser(email);
     if (!user || !(await bcrypt.compare(password, user.password))) {
       throw new AppUnauthorizedException(
         ErrorCode.INVALID_CREDENTIALS,
@@ -175,7 +176,7 @@ export class AuthService {
         };
       }
 
-      if (!(user as any).active) {
+      if (!user.active) {
         const sesVerification =
           await this.sesIdentityService.checkAndResendSesVerification(email);
         return {
@@ -213,15 +214,13 @@ export class AuthService {
               : undefined,
         },
       };
-    } catch (error) {
-      this.logger.error(
-        `Error during Google login: ${error.message}`,
-        error.stack,
-      );
+    } catch (error: any) {
+      const err = error as Error;
+      this.logger.error(`Error during Google login: ${err.message}`, err.stack);
 
       if (
-        error.message?.includes('Token used too late') ||
-        error.message?.includes('expired')
+        err.message?.includes('Token used too late') ||
+        err.message?.includes('expired')
       ) {
         throw new AppUnauthorizedException(
           ErrorCode.TOKEN_EXPIRED,
@@ -229,7 +228,7 @@ export class AuthService {
         );
       }
 
-      if (error.message?.includes('Invalid token')) {
+      if (err.message?.includes('Invalid token')) {
         throw new AppUnauthorizedException(
           ErrorCode.TOKEN_INVALID,
           'Token do Google inválido. Por favor, tente novamente.',
@@ -252,7 +251,7 @@ export class AuthService {
     }
 
     try {
-      const payload = this.jwtService.verify(token, {
+      const payload = this.jwtService.verify<JwtPayload>(token, {
         secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
       });
 
@@ -281,7 +280,10 @@ export class AuthService {
     return { message: 'User logged out' };
   }
 
-  private buildMeResponse(user: UserEntity, imageMedia?: any) {
+  private buildMeResponse(
+    user: UserEntity,
+    imageMedia?: MediaItemEntity | null,
+  ) {
     return {
       id: user.id,
       email: user.email,

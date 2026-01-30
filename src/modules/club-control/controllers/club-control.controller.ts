@@ -15,6 +15,30 @@ import { CreateClubPeriodDto } from '../dto/create-club-period.dto';
 import { UpdateClubPeriodDto } from '../dto/update-club-period.dto';
 import { CreateClubExceptionDto } from '../dto/create-club-exception.dto';
 
+interface PaginatedResult {
+  items?: unknown[];
+}
+
+interface WeekCheckResult {
+  clubs?: unknown[];
+  summary?: { totalClubs?: number };
+  year?: number;
+  week?: number;
+}
+
+interface DetailedFilters {
+  status?: string;
+  severity?: string;
+  weekday?: string;
+  indicatorType?: string;
+  hasProblems?: boolean;
+  page?: number;
+  limit?: number;
+}
+
+const getErrorMessage = (err: unknown): string =>
+  err instanceof Error ? err.message : String(err);
+
 @Controller('club-control')
 export class ClubControlController {
   private readonly logger = new Logger(ClubControlController.name);
@@ -31,9 +55,9 @@ export class ClubControlController {
         `POST /club-control/periods -> success in ${Date.now() - started}ms id=${result?.id ?? 'n/a'}`,
       );
       return result;
-    } catch (err: any) {
+    } catch (err: unknown) {
       this.logger.error(
-        `POST /club-control/periods -> error in ${Date.now() - started}ms: ${err?.message}`,
+        `POST /club-control/periods -> error in ${Date.now() - started}ms: ${getErrorMessage(err)}`,
       );
       throw err;
     }
@@ -51,9 +75,9 @@ export class ClubControlController {
         `GET /club-control/periods/${year} -> success in ${Date.now() - started}ms found=${!!result}`,
       );
       return result;
-    } catch (err: any) {
+    } catch (err: unknown) {
       this.logger.error(
-        `GET /club-control/periods/${year} -> error in ${Date.now() - started}ms: ${err?.message}`,
+        `GET /club-control/periods/${year} -> error in ${Date.now() - started}ms: ${getErrorMessage(err)}`,
       );
       throw err;
     }
@@ -72,16 +96,17 @@ export class ClubControlController {
     );
     try {
       const result = await this.clubControlService.getAllPeriods(p, l);
-      const count = Array.isArray((result as any)?.items)
-        ? (result as any).items.length
+      const paginated = result as PaginatedResult;
+      const count = Array.isArray(paginated?.items)
+        ? paginated.items.length
         : 0;
       this.logger.log(
         `GET /club-control/periods -> success in ${Date.now() - started}ms count=${count}`,
       );
       return result;
-    } catch (err: any) {
+    } catch (err: unknown) {
       this.logger.error(
-        `GET /club-control/periods -> error in ${Date.now() - started}ms: ${err?.message}`,
+        `GET /club-control/periods -> error in ${Date.now() - started}ms: ${getErrorMessage(err)}`,
       );
       throw err;
     }
@@ -102,10 +127,10 @@ export class ClubControlController {
         `PUT /club-control/periods/${id} -> success in ${Date.now() - started}ms`,
       );
       return result;
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (!(err instanceof AppNotFoundException)) {
         this.logger.error(
-          `PUT /club-control/periods/${id} -> error in ${Date.now() - started}ms: ${err?.message}`,
+          `PUT /club-control/periods/${id} -> error in ${Date.now() - started}ms: ${getErrorMessage(err)}`,
         );
       }
       throw err;
@@ -131,10 +156,10 @@ export class ClubControlController {
         `DELETE /club-control/periods/${id} -> success in ${Date.now() - started}ms`,
       );
       return { success: true };
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (!(err instanceof AppNotFoundException)) {
         this.logger.error(
-          `DELETE /club-control/periods/${id} -> error in ${Date.now() - started}ms: ${err?.message}`,
+          `DELETE /club-control/periods/${id} -> error in ${Date.now() - started}ms: ${getErrorMessage(err)}`,
         );
       }
       throw err;
@@ -151,9 +176,9 @@ export class ClubControlController {
         `POST /club-control/exceptions -> success in ${Date.now() - started}ms id=${result?.id ?? 'n/a'}`,
       );
       return result;
-    } catch (err: any) {
+    } catch (err: unknown) {
       this.logger.error(
-        `POST /club-control/exceptions -> error in ${Date.now() - started}ms: ${err?.message}`,
+        `POST /club-control/exceptions -> error in ${Date.now() - started}ms: ${getErrorMessage(err)}`,
       );
       throw err;
     }
@@ -169,9 +194,9 @@ export class ClubControlController {
         `GET /club-control/exceptions/${date} -> success in ${Date.now() - started}ms found=${!!result}`,
       );
       return result;
-    } catch (err: any) {
+    } catch (err: unknown) {
       this.logger.error(
-        `GET /club-control/exceptions/${date} -> error in ${Date.now() - started}ms: ${err?.message}`,
+        `GET /club-control/exceptions/${date} -> error in ${Date.now() - started}ms: ${getErrorMessage(err)}`,
       );
       throw err;
     }
@@ -197,16 +222,17 @@ export class ClubControlController {
         p,
         l,
       );
-      const count = Array.isArray((result as any)?.items)
-        ? (result as any).items.length
+      const paginated = result as PaginatedResult;
+      const count = Array.isArray(paginated?.items)
+        ? paginated.items.length
         : 0;
       this.logger.log(
         `GET /club-control/exceptions -> success in ${Date.now() - started}ms count=${count}`,
       );
       return result;
-    } catch (err: any) {
+    } catch (err: unknown) {
       this.logger.error(
-        `GET /club-control/exceptions -> error in ${Date.now() - started}ms: ${err?.message}`,
+        `GET /club-control/exceptions -> error in ${Date.now() - started}ms: ${getErrorMessage(err)}`,
       );
       throw err;
     }
@@ -231,10 +257,10 @@ export class ClubControlController {
         `DELETE /club-control/exceptions/${id} -> success in ${Date.now() - started}ms`,
       );
       return { success: true };
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (!(err instanceof AppNotFoundException)) {
         this.logger.error(
-          `DELETE /club-control/exceptions/${id} -> error in ${Date.now() - started}ms: ${err?.message}`,
+          `DELETE /club-control/exceptions/${id} -> error in ${Date.now() - started}ms: ${getErrorMessage(err)}`,
         );
       }
       throw err;
@@ -261,9 +287,9 @@ export class ClubControlController {
         `GET /club-control/check/club/${clubId} -> success in ${Date.now() - started}ms status=${result?.status}`,
       );
       return result;
-    } catch (err: any) {
+    } catch (err: unknown) {
       this.logger.error(
-        `GET /club-control/check/club/${clubId} -> error in ${Date.now() - started}ms: ${err?.message}`,
+        `GET /club-control/check/club/${clubId} -> error in ${Date.now() - started}ms: ${getErrorMessage(err)}`,
       );
       throw err;
     }
@@ -305,16 +331,17 @@ export class ClubControlController {
         p,
         l,
       );
-      const listed = Array.isArray((result as any)?.clubs)
-        ? (result as any).clubs.length
+      const weekCheck = result as WeekCheckResult;
+      const listed = Array.isArray(weekCheck?.clubs)
+        ? weekCheck.clubs.length
         : 0;
       this.logger.log(
-        `GET /club-control/check/week -> success in ${Date.now() - started}ms clubsListed=${listed} total=${(result as any)?.summary?.totalClubs ?? 0} year=${(result as any)?.year} week=${(result as any)?.week}`,
+        `GET /club-control/check/week -> success in ${Date.now() - started}ms clubsListed=${listed} total=${weekCheck?.summary?.totalClubs ?? 0} year=${weekCheck?.year} week=${weekCheck?.week}`,
       );
       return result;
-    } catch (err: any) {
+    } catch (err: unknown) {
       this.logger.error(
-        `GET /club-control/check/week -> error in ${Date.now() - started}ms: ${err?.message}`,
+        `GET /club-control/check/week -> error in ${Date.now() - started}ms: ${getErrorMessage(err)}`,
       );
       throw err;
     }
@@ -330,9 +357,9 @@ export class ClubControlController {
         `GET /club-control/dashboard -> success in ${Date.now() - started}ms clubs=${result?.summary?.totalClubs ?? 0}`,
       );
       return result;
-    } catch (err: any) {
+    } catch (err: unknown) {
       this.logger.error(
-        `GET /club-control/dashboard -> error in ${Date.now() - started}ms: ${err?.message}`,
+        `GET /club-control/dashboard -> error in ${Date.now() - started}ms: ${getErrorMessage(err)}`,
       );
       throw err;
     }
@@ -348,9 +375,9 @@ export class ClubControlController {
         `GET /club-control/current-week -> success in ${Date.now() - started}ms`,
       );
       return result;
-    } catch (err: any) {
+    } catch (err: unknown) {
       this.logger.error(
-        `GET /club-control/current-week -> error in ${Date.now() - started}ms: ${err?.message}`,
+        `GET /club-control/current-week -> error in ${Date.now() - started}ms: ${getErrorMessage(err)}`,
       );
       throw err;
     }
@@ -371,7 +398,7 @@ export class ClubControlController {
     const started = Date.now();
     const y = Number(year);
     const w = Number(week);
-    const filters: any = {};
+    const filters: DetailedFilters = {};
 
     if (status) filters.status = status;
     if (severity) filters.severity = severity;
@@ -396,9 +423,9 @@ export class ClubControlController {
         `GET /club-control/indicators/detailed -> success in ${Date.now() - started}ms critical=${critical} warning=${warning}`,
       );
       return result;
-    } catch (err: any) {
+    } catch (err: unknown) {
       this.logger.error(
-        `GET /club-control/indicators/detailed -> error in ${Date.now() - started}ms: ${err?.message}`,
+        `GET /club-control/indicators/detailed -> error in ${Date.now() - started}ms: ${getErrorMessage(err)}`,
       );
       throw err;
     }

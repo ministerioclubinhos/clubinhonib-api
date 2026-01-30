@@ -21,8 +21,9 @@ export class GetInformativeService {
     try {
       const list = await this.informativeRepo.findAllSorted();
       return list.map((entity) => InformativeResponseDto.fromEntity(entity));
-    } catch (error) {
-      this.logger.error('❌ Erro ao buscar banners', error.stack);
+    } catch (error: unknown) {
+      const errStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error('❌ Erro ao buscar banners', errStack);
       throw new AppInternalException(
         ErrorCode.DATABASE_ERROR,
         'Erro ao buscar banners informativos',

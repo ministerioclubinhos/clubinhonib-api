@@ -40,9 +40,10 @@ export class CreateInformativeService {
       this.logger.debug('✅  Transaction committed');
 
       return informative;
-    } catch (err) {
+    } catch (err: unknown) {
       await runner.rollbackTransaction();
-      this.logger.error('💥  Transaction rolled‑back', err.stack);
+      const error = err instanceof Error ? err : new Error(String(err));
+      this.logger.error('💥  Transaction rolled‑back', error.stack);
       if (err instanceof AppException) {
         throw err;
       }

@@ -61,12 +61,12 @@ export class IdeasPageController {
         );
       }
 
-      const parsed = JSON.parse(raw);
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
       const validationPipe = new ValidationPipe({ transform: true });
-      const dto: CreateIdeasPageDto = await validationPipe.transform(parsed, {
+      const dto = (await validationPipe.transform(parsed, {
         type: 'body',
         metatype: CreateIdeasPageDto,
-      });
+      })) as CreateIdeasPageDto;
 
       const filesDict: Record<string, Express.Multer.File> = {};
       files.forEach((f) => {
@@ -80,13 +80,15 @@ export class IdeasPageController {
       );
       this.logger.log(`✅ Página criada com sucesso: ID=${result.id}`);
       return result;
-    } catch (err) {
-      this.logger.error('Erro ao criar página de ideias', err.stack);
-      if (err.code) throw err;
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      this.logger.error('Erro ao criar página de ideias', error.stack);
+      const hasCode = err && typeof err === 'object' && 'code' in err;
+      if (hasCode) throw err as unknown as Error;
       throw new AppInternalException(
         ErrorCode.PAGE_CREATE_ERROR,
-        `Erro ao criar página de ideias: ${err.message}`,
-        err,
+        `Erro ao criar página de ideias: ${error.message}`,
+        error,
       );
     }
   }
@@ -110,7 +112,7 @@ export class IdeasPageController {
           'ideasMaterialsPageData é obrigatório.',
         );
 
-      const parsedData = JSON.parse(raw);
+      const parsedData = JSON.parse(raw) as Record<string, unknown>;
       const dto = plainToInstance(UpdateIdeasPageDto, parsedData);
       const validationErrors = await validate(dto, {
         whitelist: true,
@@ -140,13 +142,15 @@ export class IdeasPageController {
         `✅ Página de ideias atualizada com sucesso: ID=${result.id}`,
       );
       return IdeasPageResponseDto.fromEntity(result, new Map());
-    } catch (error) {
-      this.logger.error('Erro ao atualizar página de ideias', error.stack);
-      if (error.code) throw error;
+    } catch (error: unknown) {
+      const errStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error('Erro ao atualizar página de ideias', errStack);
+      const hasCode = error && typeof error === 'object' && 'code' in error;
+      if (hasCode) throw error as unknown as Error;
       throw new AppInternalException(
         ErrorCode.PAGE_UPDATE_ERROR,
         'Erro ao atualizar a página de ideias',
-        error,
+        error instanceof Error ? error : new Error(String(error)),
       );
     }
   }
@@ -159,13 +163,16 @@ export class IdeasPageController {
     try {
       await this.ideasPageRemoveService.removeIdeasPage(id);
       this.logger.log(`Página de ideias removida com sucesso: ID=${id}`);
-    } catch (error) {
-      this.logger.error('Erro ao remover página de ideias', error.stack);
-      if (error.code) throw error;
+    } catch (error: unknown) {
+      const errStack = error instanceof Error ? error.stack : undefined;
+      const errMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error('Erro ao remover página de ideias', errStack);
+      const hasCode = error && typeof error === 'object' && 'code' in error;
+      if (hasCode) throw error as unknown as Error;
       throw new AppInternalException(
         ErrorCode.PAGE_DELETE_ERROR,
-        `Erro ao remover a página de ideias: ${error.message}`,
-        error,
+        `Erro ao remover a página de ideias: ${errMsg}`,
+        error instanceof Error ? error : new Error(String(error)),
       );
     }
   }

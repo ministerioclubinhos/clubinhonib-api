@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   AppNotFoundException,
   AppInternalException,
-  AppValidationException,
   ErrorCode,
 } from 'src/shared/exceptions';
 import { DataSource, QueryRunner } from 'typeorm';
@@ -162,17 +161,19 @@ export class ImagePageUpdateService {
       );
       this.logger.debug('📤 Preparando resposta DTO');
       return ImagePageResponseDto.fromEntity(finalImagePage, mediaMap);
-    } catch (error) {
+    } catch (error: unknown) {
+      const errStack = error instanceof Error ? error.stack : undefined;
       this.logger.error(
         'Erro ao atualizar galeria. Iniciando rollback.',
-        error.stack,
+        errStack,
       );
       await queryRunner.rollbackTransaction();
-      if (error.code) throw error;
+      const hasCode = error && typeof error === 'object' && 'code' in error;
+      if (hasCode) throw error as unknown as Error;
       throw new AppInternalException(
         ErrorCode.PAGE_UPDATE_ERROR,
         'Erro ao atualizar a galeria',
-        error,
+        error as Error,
       );
     } finally {
       this.logger.debug('🔚 Liberando QueryRunner');
@@ -350,15 +351,16 @@ export class ImagePageUpdateService {
         try {
           await this.awsS3Service.delete(media.url);
           this.logger.debug(`Arquivo removido do S3: ${media.url}`);
-        } catch (error) {
+        } catch (error: unknown) {
+          const errStack = error instanceof Error ? error.stack : undefined;
           this.logger.error(
             `Falha ao remover arquivo do S3: ${media.url}`,
-            error.stack,
+            errStack,
           );
           throw new AppInternalException(
             ErrorCode.S3_DELETE_ERROR,
             `Falha ao remover arquivo do S3: ${media.url}`,
-            error,
+            error as Error,
           );
         }
       }

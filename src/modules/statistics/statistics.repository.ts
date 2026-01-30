@@ -16,6 +16,70 @@ import { TeachersStatsQueryDto } from './dto/teachers-stats-query.dto';
 import { StatisticsFiltersService } from './services/statistics-filters.service';
 import { StatisticsCalculationsService } from './services/statistics-calculations.service';
 import { getAcademicWeekYear } from '../pagelas/week.util';
+import {
+  PagelasWeeklyStatsRaw,
+  PagelasOverallStatsRaw,
+  PagelasTopPerformerRaw,
+  PagelasDemographicsRaw,
+  PagelasByClubRaw,
+  PagelasByTeacherRaw,
+  PagelasTimeSeriesRaw,
+  PagelasByCityRaw,
+  AcceptedChristsOverallStatsRaw,
+  AcceptedChristsByPeriodRaw,
+  AcceptedChristsByGenderRaw,
+  AcceptedChristsByClubRaw,
+  AcceptedChristsByCityRaw,
+  AcceptedChristsTimeSeriesRaw,
+  AgeGroupStats,
+  ParticipationTimeStats,
+  AcceptedAgeGroupStats,
+  AcceptedParticipationTimeStats,
+  ChildPagelaStatsRaw,
+  TopEngagedChildStatsRaw,
+  ClubRankingStatsRaw,
+  ChildrenWithStatsResult,
+  ClubsWithStatsResult,
+  TeachersWithStatsResult,
+  ChildStatsRaw,
+  TeacherStatsRaw,
+  TeacherDecisionStatsRaw,
+  ChildDecisionStatsRaw,
+} from './dto/statistics-raw-results.dto';
+import { DecisionType } from '../accepted-christs/enums/decision-type.enum';
+import { SelectQueryBuilder } from 'typeorm';
+
+interface PagelaAttendanceRaw {
+  year: string;
+  week: string;
+  totalPagelas: string;
+  firstDate: string;
+  presentCount: string;
+}
+
+interface PagelaAttendanceData {
+  year: number;
+  week: number;
+  totalPagelas: number;
+  firstDate: any;
+  presenceCount: number;
+}
+
+interface WeekAnalysisData {
+  year: number;
+  week: number;
+  date?: string;
+  expectedDate?: string;
+  hasPagela?: boolean;
+  isException?: boolean;
+  expectedChildren?: number;
+  totalPagelas?: number;
+  firstDate?: any;
+  presenceCount?: number;
+  weekRange?: { start: string; end: string };
+  reason?: string;
+  severity?: string;
+}
 
 @Injectable()
 export class StatisticsRepository {
@@ -71,28 +135,31 @@ export class StatisticsRepository {
 
     this.filtersService.applyPagelasFilters(query, filters);
 
-    const results = await query.getRawMany();
+    const results = await query.getRawMany<PagelasWeeklyStatsRaw>();
 
-    return results.map((row) => ({
-      year: parseInt(row.year),
-      week: parseInt(row.week),
-      totalPagelas: parseInt(row.totalPagelas),
-      presentCount: parseInt(row.presentCount),
-      didMeditationCount: parseInt(row.didMeditationCount),
-      recitedVerseCount: parseInt(row.recitedVerseCount),
-      uniqueChildren: parseInt(row.uniqueChildren),
-      uniqueTeachers: parseInt(row.uniqueTeachers),
-      presenceRate:
-        row.totalPagelas > 0 ? (row.presentCount / row.totalPagelas) * 100 : 0,
-      meditationRate:
-        row.totalPagelas > 0
-          ? (row.didMeditationCount / row.totalPagelas) * 100
-          : 0,
-      verseRecitationRate:
-        row.totalPagelas > 0
-          ? (row.recitedVerseCount / row.totalPagelas) * 100
-          : 0,
-    }));
+    return results.map((row) => {
+      const totalPagelas = parseInt(row.totalPagelas);
+      const presentCount = parseInt(row.presentCount);
+      const didMeditationCount = parseInt(row.didMeditationCount);
+      const recitedVerseCount = parseInt(row.recitedVerseCount);
+
+      return {
+        year: parseInt(row.year),
+        week: parseInt(row.week),
+        totalPagelas,
+        presentCount,
+        didMeditationCount,
+        recitedVerseCount,
+        uniqueChildren: parseInt(row.uniqueChildren),
+        uniqueTeachers: parseInt(row.uniqueTeachers),
+        presenceRate:
+          totalPagelas > 0 ? (presentCount / totalPagelas) * 100 : 0,
+        meditationRate:
+          totalPagelas > 0 ? (didMeditationCount / totalPagelas) * 100 : 0,
+        verseRecitationRate:
+          totalPagelas > 0 ? (recitedVerseCount / totalPagelas) * 100 : 0,
+      };
+    });
   }
 
   async getPagelasOverallStats(filters: PagelasStatsQueryDto) {
@@ -122,20 +189,26 @@ export class StatisticsRepository {
 
     this.filtersService.applyPagelasFilters(query, filters);
 
-    const result = await query.getRawOne();
+    const result = await query.getRawOne<PagelasOverallStatsRaw>();
 
-    const totalPagelas = parseInt(result.totalPagelas) || 0;
+    const totalPagelas = parseInt(result?.totalPagelas || '0');
 
     return {
       totalPagelas,
-      totalChildren: parseInt(result.totalChildren) || 0,
-      totalTeachers: parseInt(result.totalTeachers) || 0,
+      totalChildren: parseInt(result?.totalChildren || '0'),
+      totalTeachers: parseInt(result?.totalTeachers || '0'),
       averagePresenceRate:
-        totalPagelas > 0 ? (result.presentCount / totalPagelas) * 100 : 0,
+        totalPagelas > 0
+          ? (parseInt(result?.presentCount || '0') / totalPagelas) * 100
+          : 0,
       averageMeditationRate:
-        totalPagelas > 0 ? (result.didMeditationCount / totalPagelas) * 100 : 0,
+        totalPagelas > 0
+          ? (parseInt(result?.didMeditationCount || '0') / totalPagelas) * 100
+          : 0,
       averageVerseRecitationRate:
-        totalPagelas > 0 ? (result.recitedVerseCount / totalPagelas) * 100 : 0,
+        totalPagelas > 0
+          ? (parseInt(result?.recitedVerseCount || '0') / totalPagelas) * 100
+          : 0,
     };
   }
 
@@ -172,7 +245,7 @@ export class StatisticsRepository {
 
     this.filtersService.applyPagelasFilters(query, filters);
 
-    const results = await query.getRawMany();
+    const results = await query.getRawMany<PagelasTopPerformerRaw>();
 
     return results.map((row) => ({
       childId: row.childId,
@@ -210,7 +283,7 @@ export class StatisticsRepository {
 
     this.filtersService.applyPagelasFilters(query, filters);
 
-    const results = await query.getRawMany();
+    const results = await query.getRawMany<PagelasDemographicsRaw>();
 
     return results.map((row) => {
       const total = parseInt(row.total);
@@ -241,7 +314,7 @@ export class StatisticsRepository {
 
     const pagelas = await query.getMany();
 
-    const ageGroups = new Map<string, any>();
+    const ageGroups = new Map<string, AgeGroupStats>();
 
     pagelas.forEach((pagela) => {
       const age = this.calculationsService.calculateAge(pagela.child.birthDate);
@@ -257,7 +330,7 @@ export class StatisticsRepository {
         });
       }
 
-      const group = ageGroups.get(ageGroup);
+      const group = ageGroups.get(ageGroup)!;
       group.total++;
       if (pagela.present) group.presentCount++;
       if (pagela.didMeditation) group.meditationCount++;
@@ -308,7 +381,7 @@ export class StatisticsRepository {
 
     this.filtersService.applyPagelasFilters(query, filters);
 
-    const results = await query.getRawMany();
+    const results = await query.getRawMany<PagelasByClubRaw>();
 
     return results.map((row) => {
       const total = parseInt(row.total);
@@ -361,7 +434,7 @@ export class StatisticsRepository {
 
     this.filtersService.applyPagelasFilters(query, filters);
 
-    const results = await query.getRawMany();
+    const results = await query.getRawMany<PagelasByTeacherRaw>();
 
     return results.map((row) => {
       const total = parseInt(row.total);
@@ -410,7 +483,7 @@ export class StatisticsRepository {
 
     this.filtersService.applyPagelasFilters(query, filters);
 
-    const results = await query.getRawMany();
+    const results = await query.getRawMany<PagelasTimeSeriesRaw>();
 
     return results.map((row) => ({
       date: row.period,
@@ -453,7 +526,7 @@ export class StatisticsRepository {
 
     this.filtersService.applyPagelasFilters(query, filters);
 
-    const results = await query.getRawMany();
+    const results = await query.getRawMany<PagelasByCityRaw>();
 
     return results.map((row) => {
       const total = parseInt(row.total);
@@ -486,7 +559,7 @@ export class StatisticsRepository {
 
     const pagelas = await query.getMany();
 
-    const timeGroups = new Map<string, any>();
+    const timeGroups = new Map<string, ParticipationTimeStats>();
 
     pagelas.forEach((pagela) => {
       const months = this.calculationsService.calculateMonthsParticipating(
@@ -506,7 +579,7 @@ export class StatisticsRepository {
         });
       }
 
-      const group = timeGroups.get(timeRange);
+      const group = timeGroups.get(timeRange)!;
       group.total++;
       if (pagela.present) group.presentCount++;
       if (pagela.didMeditation) group.meditationCount++;
@@ -532,7 +605,7 @@ export class StatisticsRepository {
     return orderedRanges
       .filter((range) => timeGroups.has(range))
       .map((range) => {
-        const group = timeGroups.get(range);
+        const group = timeGroups.get(range)!;
         const avgMonths =
           group.childrenMonths.length > 0
             ? group.childrenMonths.reduce((a: number, b: number) => a + b, 0) /
@@ -569,7 +642,7 @@ export class StatisticsRepository {
 
     query.groupBy('ac.decision');
 
-    const results = await query.getRawMany();
+    const results = await query.getRawMany<AcceptedChristsOverallStatsRaw>();
 
     const byDecisionType: { [key: string]: number } = {};
     let totalDecisions = 0;
@@ -592,11 +665,13 @@ export class StatisticsRepository {
 
     this.filtersService.applyAcceptedChristsFilters(uniqueQuery, filters);
 
-    const uniqueResult = await uniqueQuery.getRawOne();
+    const uniqueResult = await uniqueQuery.getRawOne<{
+      uniqueChildren: string;
+    }>();
 
     return {
       totalDecisions,
-      uniqueChildren: parseInt(uniqueResult.uniqueChildren) || 0,
+      uniqueChildren: parseInt(uniqueResult?.uniqueChildren || '0'),
       byDecisionType,
     };
   }
@@ -645,12 +720,20 @@ export class StatisticsRepository {
 
     this.filtersService.applyAcceptedChristsFilters(query, filters);
 
-    const results = await query.getRawMany();
+    const results = await query.getRawMany<AcceptedChristsByPeriodRaw>();
 
-    const periodMap = new Map<string, any>();
+    const periodMap = new Map<
+      string,
+      {
+        period: string;
+        totalDecisions: number;
+        byDecisionType: Record<string, number>;
+        uniqueChildren: number;
+      }
+    >();
 
     results.forEach((row) => {
-      const period = row.period;
+      const { period } = row;
       if (!periodMap.has(period)) {
         periodMap.set(period, {
           period,
@@ -660,7 +743,7 @@ export class StatisticsRepository {
         });
       }
 
-      const periodData = periodMap.get(period);
+      const periodData = periodMap.get(period)!;
       const count = parseInt(row.totalDecisions);
       periodData.totalDecisions += count;
 
@@ -722,7 +805,7 @@ export class StatisticsRepository {
 
     this.filtersService.applyAcceptedChristsFilters(query, filters);
 
-    const results = await query.getRawMany();
+    const results = await query.getRawMany<AcceptedChristsByGenderRaw>();
 
     return results.map((row) => ({
       gender: row.gender,
@@ -745,7 +828,7 @@ export class StatisticsRepository {
 
     const decisions = await query.getMany();
 
-    const ageGroups = new Map<string, any>();
+    const ageGroups = new Map<string, AcceptedAgeGroupStats>();
 
     decisions.forEach((ac) => {
       const age = this.calculationsService.calculateAge(ac.child.birthDate);
@@ -760,10 +843,10 @@ export class StatisticsRepository {
         });
       }
 
-      const group = ageGroups.get(ageGroup);
+      const group = ageGroups.get(ageGroup)!;
       group.total++;
-      if (ac.decision === 'ACCEPTED') group.accepted++;
-      if (ac.decision === 'RECONCILED') group.reconciled++;
+      if (ac.decision === DecisionType.ACCEPTED) group.accepted++;
+      if (ac.decision === DecisionType.RECONCILED) group.reconciled++;
     });
 
     return Array.from(ageGroups.values());
@@ -796,7 +879,7 @@ export class StatisticsRepository {
 
     this.filtersService.applyAcceptedChristsFilters(query, filters);
 
-    const results = await query.getRawMany();
+    const results = await query.getRawMany<AcceptedChristsByClubRaw>();
 
     return results.map((row) => ({
       clubId: row.clubId,
@@ -834,7 +917,7 @@ export class StatisticsRepository {
 
     this.filtersService.applyAcceptedChristsFilters(query, filters);
 
-    const results = await query.getRawMany();
+    const results = await query.getRawMany<AcceptedChristsByCityRaw>();
 
     return results.map((row) => ({
       city: row.city,
@@ -861,7 +944,7 @@ export class StatisticsRepository {
 
     const decisions = await query.getMany();
 
-    const timeGroups = new Map<string, any>();
+    const timeGroups = new Map<string, AcceptedParticipationTimeStats>();
 
     decisions.forEach((ac) => {
       const months = this.calculationsService.calculateMonthsParticipating(
@@ -880,10 +963,10 @@ export class StatisticsRepository {
         });
       }
 
-      const group = timeGroups.get(timeRange);
+      const group = timeGroups.get(timeRange)!;
       group.total++;
-      if (ac.decision === 'ACCEPTED') group.accepted++;
-      if (ac.decision === 'RECONCILED') group.reconciled++;
+      if (ac.decision === DecisionType.ACCEPTED) group.accepted++;
+      if (ac.decision === DecisionType.RECONCILED) group.reconciled++;
       group.childrenMonths.push(months);
     });
 
@@ -905,7 +988,7 @@ export class StatisticsRepository {
     return orderedRanges
       .filter((range) => timeGroups.has(range))
       .map((range) => {
-        const group = timeGroups.get(range);
+        const group = timeGroups.get(range)!;
         const avgMonths =
           group.childrenMonths.length > 0
             ? group.childrenMonths.reduce((a: number, b: number) => a + b, 0) /
@@ -972,7 +1055,7 @@ export class StatisticsRepository {
 
     this.filtersService.applyAcceptedChristsFilters(query, filters);
 
-    const results = await query.getRawMany();
+    const results = await query.getRawMany<AcceptedChristsTimeSeriesRaw>();
 
     return results.map((row) => ({
       date: row.period,
@@ -1018,14 +1101,14 @@ export class StatisticsRepository {
         .select('COUNT(DISTINCT pagela.child.id)', 'count')
         .where('pagela.createdAt >= :startOfMonth', { startOfMonth })
         .andWhere('child.isActive = :isActive', { isActive: true })
-        .getRawOne()
-        .then((result) => parseInt(result.count) || 0),
+        .getRawOne<{ count: string }>()
+        .then((result) => (result ? parseInt(result.count) : 0)),
       this.pagelasRepository
         .createQueryBuilder('pagela')
         .select('COUNT(DISTINCT pagela.teacher.id)', 'count')
         .where('pagela.createdAt >= :startOfMonth', { startOfMonth })
-        .getRawOne()
-        .then((result) => parseInt(result.count) || 0),
+        .getRawOne<{ count: string }>()
+        .then((result) => (result ? parseInt(result.count) : 0)),
     ]);
 
     return {
@@ -1081,7 +1164,7 @@ export class StatisticsRepository {
 
     this.filtersService.applyPagelasFilters(query, filters);
 
-    const results = await query.getRawMany();
+    const results = await query.getRawMany<TopEngagedChildStatsRaw>();
 
     const childIds = results.map((r) => r.childId);
     const decisions =
@@ -1093,7 +1176,7 @@ export class StatisticsRepository {
             .getMany()
         : [];
 
-    const decisionsMap = new Map();
+    const decisionsMap = new Map<string, string | null>();
     decisions.forEach((d) => {
       if (d.child) {
         decisionsMap.set(d.child.id, d.decision);
@@ -1105,7 +1188,7 @@ export class StatisticsRepository {
       const presenceCount = parseInt(row.presenceCount);
       const meditationCount = parseInt(row.meditationCount);
       const verseCount = parseInt(row.verseCount);
-      const age = this.calculationsService.calculateAge(row.birthDate);
+      const age = this.calculationsService.calculateAge(row.birthDate!);
 
       const engagementScore =
         totalPagelas > 0
@@ -1122,9 +1205,9 @@ export class StatisticsRepository {
       return {
         childId: row.childId,
         childName: row.childName,
-        gender: row.gender,
+        gender: row.gender!,
         age,
-        clubNumber: row.clubNumber ? parseInt(row.clubNumber) : null,
+        clubNumber: row.clubNumber,
         city: row.city || null,
         state: row.state || null,
         monthsParticipating,
@@ -1167,7 +1250,7 @@ export class StatisticsRepository {
 
     this.filtersService.applyPagelasFilters(pagelasQuery, filters);
 
-    const pagelasResults = await pagelasQuery.getRawMany();
+    const pagelasResults = await pagelasQuery.getRawMany<ClubRankingStatsRaw>();
 
     const clubIds = pagelasResults.map((r) => r.clubId);
     const childrenCounts =
@@ -1181,7 +1264,7 @@ export class StatisticsRepository {
             .andWhere('club.isActive = :clubActive', { clubActive: true })
             .andWhere('child.isActive = :isActive', { isActive: true })
             .groupBy('child.club.id')
-            .getRawMany()
+            .getRawMany<{ clubId: string; totalChildren: string }>()
         : [];
 
     const childrenMap = new Map(
@@ -1200,7 +1283,12 @@ export class StatisticsRepository {
       .groupBy('club.id');
 
     const decisionsResults =
-      clubIds.length > 0 ? await decisionsQuery.getRawMany() : [];
+      clubIds.length > 0
+        ? await decisionsQuery.getRawMany<{
+            clubId: string;
+            totalDecisions: string;
+          }>()
+        : [];
     const decisionsMap = new Map(
       decisionsResults.map((d) => [d.clubId, parseInt(d.totalDecisions)]),
     );
@@ -1231,7 +1319,7 @@ export class StatisticsRepository {
 
         return {
           clubId: row.clubId,
-          clubNumber: parseInt(row.clubNumber),
+          clubNumber: row.clubNumber,
           city: row.city || 'N/A',
           totalChildren,
           activeChildren,
@@ -1244,7 +1332,9 @@ export class StatisticsRepository {
       .sort((a, b) => b.performanceScore - a.performanceScore);
   }
 
-  async getChildrenWithStats(filters: ChildrenStatsQueryDto) {
+  async getChildrenWithStats(
+    filters: ChildrenStatsQueryDto,
+  ): Promise<ChildrenWithStatsResult> {
     const page = filters.page || 1;
     const limit = filters.limit || 20;
     const skip = (page - 1) * limit;
@@ -1346,8 +1436,6 @@ export class StatisticsRepository {
       });
     }
 
-    // REMOVED: Initial pagination. Fetch ALL matching children.
-    // Ensure deterministic sort for processing
     if (filters.sortBy === 'age') {
       query.orderBy(
         'child.birthDate',
@@ -1374,7 +1462,7 @@ export class StatisticsRepository {
       };
     }
 
-    let pagelasStats = new Map();
+    let pagelasStats = new Map<string, ChildPagelaStatsRaw>();
     const pagelasQuery = this.pagelasRepository
       .createQueryBuilder('pagela')
       .select('pagela.child.id', 'childId')
@@ -1391,7 +1479,7 @@ export class StatisticsRepository {
         'SUM(CASE WHEN pagela.recitedVerse = 1 THEN 1 ELSE 0 END)',
         'verseCount',
       )
-      .addSelect('MAX(pagela.referenceDate)', 'lastPagelaDate')
+      .addSelect('MAX(pagela.referenceDate)', 'lastActivity')
       .where('pagela.child.id IN (:...childIds)', { childIds })
       .groupBy('pagela.child.id');
 
@@ -1414,11 +1502,11 @@ export class StatisticsRepository {
       });
     }
 
-    const pagelasResults = await pagelasQuery.getRawMany();
+    const pagelasResults = await pagelasQuery.getRawMany<ChildPagelaStatsRaw>();
     pagelasStats = new Map(pagelasResults.map((p) => [p.childId, p]));
 
-    let decisionsMap = new Map();
-    const decisions = await this.acceptedChristsRepository
+    let decisionsMap = new Map<string, ChildDecisionStatsRaw>();
+    const decisions = this.acceptedChristsRepository
       .createQueryBuilder('ac')
       .leftJoinAndSelect('ac.child', 'child')
       .select('child.id', 'childId')
@@ -1434,12 +1522,11 @@ export class StatisticsRepository {
       });
     }
 
-    const decisionsResults = await decisions.getRawMany();
+    const decisionsResults =
+      await decisions.getRawMany<ChildDecisionStatsRaw>();
     decisionsMap = new Map(decisionsResults.map((d) => [d.childId, d]));
 
     let filteredChildren = children;
-
-    // --- APPLY ADVANCED FILTERS (In-Memory) ---
 
     if (filters.minPagelas !== undefined) {
       filteredChildren = filteredChildren.filter((child) => {
@@ -1453,7 +1540,7 @@ export class StatisticsRepository {
         const stats = pagelasStats.get(child.id);
         if (!stats) return false;
         const presenceRate =
-          stats.totalPagelas > 0
+          parseInt(stats.totalPagelas) > 0
             ? (parseInt(stats.presenceCount) / parseInt(stats.totalPagelas)) *
               100
             : 0;
@@ -1475,8 +1562,10 @@ export class StatisticsRepository {
 
       filteredChildren = filteredChildren.filter((child) => {
         const stats = pagelasStats.get(child.id);
-        if (!stats || !stats.lastPagelaDate) return !filters.isActive;
-        const isActive = stats.lastPagelaDate >= thirtyDaysAgoStr;
+        if (!stats || !stats.lastActivity) return !filters.isActive;
+        const lastActivityDate = new Date(stats.lastActivity);
+        const thirtyDaysAgoDate = new Date(thirtyDaysAgoStr);
+        const isActive = lastActivityDate >= thirtyDaysAgoDate;
         return filters.isActive ? isActive : !isActive;
       });
     }
@@ -1526,7 +1615,7 @@ export class StatisticsRepository {
         const stats = pagelasStats.get(child.id);
         if (!stats) return true;
         const presenceRate =
-          stats.totalPagelas > 0
+          parseInt(stats.totalPagelas) > 0
             ? (parseInt(stats.presenceCount) / parseInt(stats.totalPagelas)) *
               100
             : 0;
@@ -1550,19 +1639,6 @@ export class StatisticsRepository {
       });
     }
 
-    // --- SORTING (Applied *after* memory filters if needed for calculated fields) ---
-    // If sorting by simple fields (name, age), it was done in SQL.
-    // If sorting by advanced fields (calculations), we need to sort here.
-
-    // Note: The original code handled simple sorts in SQL.
-    // We should preserve that for simple sorts to avoid re-sorting if possible,
-    // BUT since we potentially filtered the list significantly, the original SQL sort order
-    // is preserved within the subset.
-
-    // However, the `ChildrenStatsQueryDto` doesn't seem to expose sorting by EngagementScore explicitly
-    // in the switch case I replaced, although `sortBy` is a string.
-    // If the user *does* sort by 'engagementScore', we must implementation it here.
-
     if (
       filters.sortBy === 'engagementScore' ||
       filters.sortBy === 'presenceRate'
@@ -1572,7 +1648,10 @@ export class StatisticsRepository {
         const statsA = pagelasStats.get(a.id);
         const statsB = pagelasStats.get(b.id);
 
-        const getScore = (stats: any, type: string) => {
+        const getScore = (
+          stats: ChildPagelaStatsRaw | undefined,
+          type: string,
+        ) => {
           if (!stats) return 0;
           const total = parseInt(stats.totalPagelas);
           if (total === 0) return 0;
@@ -1580,7 +1659,6 @@ export class StatisticsRepository {
           if (type === 'presenceRate') {
             return (parseInt(stats.presenceCount) / total) * 100;
           } else {
-            // Engagement
             return (
               ((parseInt(stats.presenceCount) * 0.3 +
                 parseInt(stats.meditationCount) * 0.35 +
@@ -1607,8 +1685,8 @@ export class StatisticsRepository {
       children: paginatedChildren,
       pagelasStats,
       decisionsMap,
-      totalCount, // This is now the *filtered* total count
-      filteredCount: totalCount, // Same thing
+      totalCount,
+      filteredCount: totalCount,
       page,
       limit,
     };
@@ -1744,7 +1822,9 @@ export class StatisticsRepository {
     };
   }
 
-  async getClubsWithStats(filters: ClubsStatsQueryDto) {
+  async getClubsWithStats(
+    filters: ClubsStatsQueryDto,
+  ): Promise<ClubsWithStatsResult> {
     const page = filters.page || 1;
     const limit = filters.limit || 20;
     const skip = (page - 1) * limit;
@@ -1780,14 +1860,11 @@ export class StatisticsRepository {
       });
     }
 
-    // REMOVED: Initial pagination logic from here. We fetch ALL matching clubs first.
-    // We only sorting by club number initially to have a deterministic order before processing
     query.orderBy('club.number', 'ASC');
 
     const clubs = await query.getMany();
     const clubIds = clubs.map((c) => c.id);
 
-    // If no clubs found, return empty early
     if (clubIds.length === 0) {
       return {
         clubs: [],
@@ -1803,7 +1880,6 @@ export class StatisticsRepository {
       };
     }
 
-    // Fetch RELATED data for ALL fetched clubs
     const childrenQuery = this.childrenRepository
       .createQueryBuilder('child')
       .leftJoin('child.club', 'club')
@@ -1816,7 +1892,7 @@ export class StatisticsRepository {
       .groupBy('child.club.id')
       .addGroupBy('child.gender');
 
-    const childrenResults = await childrenQuery.getRawMany();
+    const childrenResults = await childrenQuery.getRawMany<ChildStatsRaw>();
 
     const pagelasQuery = this.pagelasRepository
       .createQueryBuilder('pagela')
@@ -1858,21 +1934,18 @@ export class StatisticsRepository {
       });
     }
 
-    const pagelasResults = await pagelasQuery.getRawMany();
+    const pagelasResults = await pagelasQuery.getRawMany<PagelasByClubRaw>();
 
     const decisionsQuery = this.acceptedChristsRepository
       .createQueryBuilder('ac')
       .leftJoin('ac.child', 'child')
       .leftJoin('child.club', 'club')
       .select('child.club.id', 'clubId')
-      .addSelect('COUNT(ac.id)', 'totalDecisions')
-      .addSelect('COUNT(DISTINCT child.id)', 'childrenWithDecisions')
-      .where('child.club.id IN (:...clubIds)', { clubIds })
-      .andWhere('club.isActive = :clubActive', { clubActive: true })
       .andWhere('child.isActive = :isActive', { isActive: true })
       .groupBy('child.club.id');
 
-    const decisionsResults = await decisionsQuery.getRawMany();
+    const decisionsResults =
+      await decisionsQuery.getRawMany<AcceptedChristsByClubRaw>();
 
     const teachersQuery = this.teachersRepository
       .createQueryBuilder('teacher')
@@ -1883,20 +1956,23 @@ export class StatisticsRepository {
 
     const teachers = await teachersQuery.getMany();
 
-    // Calculate stats for ALL clubs to apply filters
-    const childrenMap = new Map();
+    const childrenMap = new Map<string, number>();
     childrenResults.forEach((r) => {
       if (!childrenMap.has(r.clubId)) childrenMap.set(r.clubId, 0);
-      childrenMap.set(r.clubId, childrenMap.get(r.clubId) + parseInt(r.total));
+      childrenMap.set(
+        r.clubId,
+        (childrenMap.get(r.clubId) || 0) + parseInt(r.total),
+      );
     });
 
     const pagelasMap = new Map(pagelasResults.map((p) => [p.clubId, p]));
     const decisionsMap = new Map(decisionsResults.map((d) => [d.clubId, d]));
-    const teachersMap = new Map();
+    const teachersMap = new Map<string, number>();
     teachers.forEach((t) => {
       if (t.club) {
         if (!teachersMap.has(t.club.id)) teachersMap.set(t.club.id, 0);
-        teachersMap.set(t.club.id, teachersMap.get(t.club.id) + 1);
+        const currentCount = teachersMap.get(t.club.id) || 0;
+        teachersMap.set(t.club.id, currentCount + 1);
       }
     });
 
@@ -1904,22 +1980,26 @@ export class StatisticsRepository {
       const pagelaStats = pagelasMap.get(club.id);
       const decisionStats = decisionsMap.get(club.id);
 
-      const totalPagelas = pagelaStats ? parseInt(pagelaStats.totalPagelas) : 0;
+      const totalPagelas = pagelaStats
+        ? parseInt(pagelaStats.totalPagelas || '0')
+        : 0;
       const presenceCount = pagelaStats
-        ? parseInt(pagelaStats.presenceCount)
+        ? parseInt(pagelaStats.presenceCount || '0')
         : 0;
       const meditationCount = pagelaStats
-        ? parseInt(pagelaStats.meditationCount)
+        ? parseInt(pagelaStats.meditationCount || '0')
         : 0;
-      const verseCount = pagelaStats ? parseInt(pagelaStats.verseCount) : 0; // Fixed: was missing in original map logic
+      const verseCount = pagelaStats
+        ? parseInt(pagelaStats.verseCount || '0')
+        : 0; // Fixed: was missing in original map logic
 
       const totalChildren = childrenMap.get(club.id) || 0;
       const activeChildren = pagelaStats
-        ? parseInt(pagelaStats.activeChildren)
+        ? parseInt(pagelaStats.activeChildren || '0')
         : 0;
 
       const totalDecisions = decisionStats
-        ? parseInt(decisionStats.totalDecisions)
+        ? parseInt(decisionStats.totalDecisions || '0')
         : 0;
       const totalTeachers = teachersMap.get(club.id) || 0;
 
@@ -1934,7 +2014,6 @@ export class StatisticsRepository {
       const decisionRate =
         activeChildren > 0 ? (totalDecisions / activeChildren) * 100 : 0;
 
-      // Simplified performance score calculation
       const performanceScore =
         avgPresenceRate * 0.3 +
         avgMeditationRate * 0.3 +
@@ -1954,8 +2033,6 @@ export class StatisticsRepository {
         },
       };
     });
-
-    // --- APPLY ADVANCED FILTERS (In-Memory) ---
 
     if (filters.minChildren !== undefined) {
       clubsWithProcessedStats = clubsWithProcessedStats.filter(
@@ -2002,12 +2079,12 @@ export class StatisticsRepository {
       );
     }
 
-    // --- SORTING ---
     const sortBy = filters.sortBy || 'clubNumber';
     const sortOrder = filters.sortOrder || 'ASC';
 
     clubsWithProcessedStats.sort((a, b) => {
-      let valA: any, valB: any;
+      let valA: number | string = 0;
+      let valB: number | string = 0;
 
       switch (sortBy) {
         case 'performanceScore':
@@ -2026,14 +2103,19 @@ export class StatisticsRepository {
           valA = a.stats.totalDecisions;
           valB = b.stats.totalDecisions;
           break;
-        // Default to existing simple fields if not a stat
         case 'clubNumber':
           valA = a.number;
           valB = b.number;
           break;
         default:
-          valA = (a as any)[sortBy] || 0;
-          valB = (b as any)[sortBy] || 0;
+          valA =
+            ((a as unknown as Record<string, unknown>)[sortBy] as
+              | number
+              | string) || 0;
+          valB =
+            ((b as unknown as Record<string, unknown>)[sortBy] as
+              | number
+              | string) || 0;
       }
 
       if (valA < valB) return sortOrder === 'ASC' ? -1 : 1;
@@ -2041,15 +2123,9 @@ export class StatisticsRepository {
       return 0;
     });
 
-    // --- PAGINATION ---
     const totalCount = clubsWithProcessedStats.length;
     const paginatedClubs = clubsWithProcessedStats.slice(skip, skip + limit);
 
-    // --- ANCILLARY DATA ---
-    // Fetch inactive stats just once (global, not filtered, or maybe we want them global?)
-    // The original code calculated this from DB unconditionally.
-
-    // We can fetch these counts separately as before
     const allClubs = await this.clubsRepository.find();
     const inactiveClubs = allClubs.filter((c) => c.isActive === false);
 
@@ -2058,7 +2134,9 @@ export class StatisticsRepository {
       .leftJoin('child.club', 'club')
       .select('COUNT(child.id)', 'total')
       .where('child.isActive = :isActive', { isActive: false });
-    const inactiveChildrenCount = await inactiveChildrenQuery.getRawOne();
+    const inactiveChildrenCount = await inactiveChildrenQuery.getRawOne<{
+      total: string;
+    }>();
 
     const childrenFromInactiveClubsQuery = this.childrenRepository
       .createQueryBuilder('child')
@@ -2066,30 +2144,14 @@ export class StatisticsRepository {
       .select('COUNT(child.id)', 'total')
       .where('club.isActive = :clubActive', { clubActive: false });
     const childrenFromInactiveClubsCount =
-      await childrenFromInactiveClubsQuery.getRawOne();
-
-    // Construct response matching the Controller expectations
-    // Note: The controller expects specific strict DTO structure.
-    // We are returning the original entities/results arrays but now they correspond
-    // only to the PAGINATED subset effectively.
-
-    // HOWEVER, the raw result arrays (childrenResults, pagelasResults, etc.) need to be
-    // compliant with the return type of this function so the Controller can map it.
-    // The previous implementation returned ALL related data for the paginated clubs.
-    // We should filter the raw result arrays to ONLY include data for the paginated clubs
-    // to keep response size optimal and consistent.
+      await childrenFromInactiveClubsQuery.getRawOne<{ total: string }>();
 
     const paginatedClubIds = new Set(paginatedClubs.map((c) => c.id));
 
     return {
       clubs: paginatedClubs.map((c) => {
-        // We must strip the 'stats' property if it confuses the Controller mapping
-        // OR we ensure the Controller uses it.
-        // Looking at `ClubsStatsResponseDto` mapping in `StatisticsService`, it likely recalculates
-        // or uses these raw arrays.
-        // To be safe and minimally invasive to Service, we return the raw arrays filtered
-        // to match `paginatedClubs`.
         const { stats, ...originalClub } = c;
+        void stats;
         return originalClub;
       }),
       childrenResults: childrenResults.filter((r) =>
@@ -2127,7 +2189,9 @@ export class StatisticsRepository {
     };
   }
 
-  async getTeachersWithStats(filters: TeachersStatsQueryDto) {
+  async getTeachersWithStats(
+    filters: TeachersStatsQueryDto,
+  ): Promise<TeachersWithStatsResult> {
     const page = filters.page || 1;
     const limit = filters.limit || 20;
     const skip = (page - 1) * limit;
@@ -2164,13 +2228,10 @@ export class StatisticsRepository {
       });
     }
 
-    // REMOVED: Initial pagination logic from here. We fetch ALL matching teachers first.
     query.orderBy('user.name', 'ASC');
 
     const teachers = await query.getMany();
     const teacherIds = teachers.map((t) => t.id);
-
-    // If no teachers found, return empty early
     if (teacherIds.length === 0) {
       return {
         teachers: [],
@@ -2182,7 +2243,6 @@ export class StatisticsRepository {
       };
     }
 
-    // Fetch RELATED data for ALL fetched teachers
     const pagelasQuery = this.pagelasRepository
       .createQueryBuilder('pagela')
       .leftJoin('pagela.child', 'child')
@@ -2219,7 +2279,7 @@ export class StatisticsRepository {
       });
     }
 
-    const pagelasResults = await pagelasQuery.getRawMany();
+    const pagelasResults = await pagelasQuery.getRawMany<TeacherStatsRaw>();
 
     const decisionsQuery = this.acceptedChristsRepository
       .createQueryBuilder('ac')
@@ -2230,9 +2290,9 @@ export class StatisticsRepository {
       .where('pagela.teacher.id IN (:...teacherIds)', { teacherIds })
       .groupBy('pagela.teacher.id');
 
-    const decisionsResults = await decisionsQuery.getRawMany();
+    const decisionsResults =
+      await decisionsQuery.getRawMany<TeacherDecisionStatsRaw>();
 
-    // Calculate stats for ALL teachers to apply filters
     const pagelasMap = new Map(pagelasResults.map((p) => [p.teacherId, p]));
     const decisionsMap = new Map(decisionsResults.map((d) => [d.teacherId, d]));
 
@@ -2248,7 +2308,6 @@ export class StatisticsRepository {
       const uniqueChildren = pagelas ? parseInt(pagelas.uniqueChildren) : 0;
       const presenceCount = pagelas ? parseInt(pagelas.presenceCount) : 0;
       const meditationCount = pagelas ? parseInt(pagelas.meditationCount) : 0;
-      // const verseCount = pagelas ? parseInt(pagelas.verseCount) : 0; // Not used in score but valid data
 
       const avgPresenceRate =
         totalPagelas > 0 ? (presenceCount / totalPagelas) * 100 : 0;
@@ -2265,7 +2324,9 @@ export class StatisticsRepository {
         avgPresenceRate * 0.4 + avgMeditationRate * 0.3 + decisionRate * 0.3;
 
       const lastActivity = pagelas?.lastActivity;
-      const isActive = lastActivity ? lastActivity >= thirtyDaysAgoStr : false;
+      const isActive = lastActivity
+        ? new Date(lastActivity) >= new Date(thirtyDaysAgoStr)
+        : false;
 
       return {
         ...teacher,
@@ -2279,8 +2340,6 @@ export class StatisticsRepository {
         },
       };
     });
-
-    // --- APPLY ADVANCED FILTERS (In-Memory) ---
 
     if (filters.minPagelas !== undefined) {
       teachersWithProcessedStats = teachersWithProcessedStats.filter(
@@ -2328,12 +2387,12 @@ export class StatisticsRepository {
       );
     }
 
-    // --- SORTING ---
     const sortBy = filters.sortBy || 'name';
     const sortOrder = filters.sortOrder || 'ASC';
 
     teachersWithProcessedStats.sort((a, b) => {
-      let valA: any, valB: any;
+      let valA: number | string = 0;
+      let valB: number | string = 0;
 
       switch (sortBy) {
         case 'effectivenessScore':
@@ -2355,8 +2414,14 @@ export class StatisticsRepository {
             ? valA.localeCompare(valB)
             : valB.localeCompare(valA);
         default:
-          valA = (a as any)[sortBy] || 0;
-          valB = (b as any)[sortBy] || 0;
+          valA =
+            ((a as unknown as Record<string, unknown>)[sortBy] as
+              | number
+              | string) || 0;
+          valB =
+            ((b as unknown as Record<string, unknown>)[sortBy] as
+              | number
+              | string) || 0;
       }
 
       if (valA < valB) return sortOrder === 'ASC' ? -1 : 1;
@@ -2364,21 +2429,18 @@ export class StatisticsRepository {
       return 0;
     });
 
-    // --- PAGINATION ---
     const totalCount = teachersWithProcessedStats.length;
     const paginatedTeachers = teachersWithProcessedStats.slice(
       skip,
       skip + limit,
     );
 
-    // Prepare return based on Controller expectation
-    // We filter raw arrays to only include data for the paginated subset
-
     const paginatedTeacherIds = new Set(paginatedTeachers.map((t) => t.id));
 
     return {
       teachers: paginatedTeachers.map((t) => {
         const { stats, ...originalTeacher } = t;
+        void stats;
         return originalTeacher;
       }),
       pagelasResults: pagelasResults.filter((r) =>
@@ -2441,7 +2503,7 @@ export class StatisticsRepository {
 
     const childIds = activeChildren.map((c) => c.id);
 
-    let pagelasQuery: any = null;
+    let pagelasQuery: SelectQueryBuilder<PagelaEntity> | null = null;
     if (childIds.length > 0) {
       pagelasQuery = this.pagelasRepository
         .createQueryBuilder('pagela')
@@ -2478,7 +2540,7 @@ export class StatisticsRepository {
             .addGroupBy('pagela.week')
             .orderBy('pagela.year', 'ASC')
             .addOrderBy('pagela.week', 'ASC')
-            .getRawMany()
+            .getRawMany<PagelaAttendanceRaw>()
         : [];
 
     let maxAcademicWeek = 0;
@@ -2503,7 +2565,7 @@ export class StatisticsRepository {
       maxAcademicWeek = Math.floor(daysDiff / 7) + 1;
     }
 
-    const weeksWithPagela = new Map<string, any>();
+    const weeksWithPagela = new Map<string, PagelaAttendanceData>();
     pagelas.forEach((p) => {
       const pagelaYear = parseInt(p.year);
       const pagelaWeek = parseInt(p.week);
@@ -2531,8 +2593,8 @@ export class StatisticsRepository {
     const start = new Date(periodStart);
     const end = new Date(periodEnd);
 
-    const allWeeks: any[] = [];
-    const missingWeeks: any[] = [];
+    const allWeeks: WeekAnalysisData[] = [];
+    const missingWeeks: WeekAnalysisData[] = [];
     const currentDate = new Date(start);
 
     while (currentDate <= end) {
@@ -2550,7 +2612,7 @@ export class StatisticsRepository {
         } else {
           weekData = this.getISOWeekYear(currentDateStr);
         }
-      } catch (error) {
+      } catch {
         currentDate.setDate(currentDate.getDate() + 7);
         continue;
       }
@@ -2795,7 +2857,6 @@ export class StatisticsRepository {
     const weekStart = academicWeekStart;
     const weekEnd = new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000);
 
-    const start = new Date(academicPeriod.startDate);
     const end = new Date(academicPeriod.endDate);
     const endWeekStart = this.getWeekStartDate(end);
     const daysDiff = Math.floor(
@@ -2808,8 +2869,6 @@ export class StatisticsRepository {
     const periodEnd = new Date(academicPeriod.endDate);
 
     let isWeekWithinPeriod = false;
-    const weekStartStr = weekStart.toISOString().split('T')[0];
-    const weekEndStr = weekEnd.toISOString().split('T')[0];
 
     if (
       (weekStart >= periodStart && weekStart <= periodEnd) ||
@@ -2876,7 +2935,7 @@ export class StatisticsRepository {
       .select('club.id', 'clubId')
       .addSelect('COUNT(pagela.id)', 'totalPagelas')
       .groupBy('club.id')
-      .getRawMany();
+      .getRawMany<{ clubId: string; totalPagelas: string }>();
 
     const clubsWithPagela = new Map(
       pagelasInWeek.map((p) => [p.clubId, parseInt(p.totalPagelas)]),
@@ -2959,7 +3018,7 @@ export class StatisticsRepository {
       SUNDAY: 0,
     };
 
-    const targetDay = weekdayMap[weekday] || 1;
+    const targetDay = weekdayMap[weekday as keyof typeof weekdayMap] || 1;
     const currentDay = weekStart.getDay();
     const daysToAdd = (targetDay - currentDay + 7) % 7;
 
@@ -2995,7 +3054,11 @@ export class StatisticsRepository {
       .having(
         '(SUM(CASE WHEN pagela.present = 1 THEN 1 ELSE 0 END) / COUNT(pagela.id)) * 100 < 70',
       )
-      .getRawMany();
+      .getRawMany<{
+        clubId: string;
+        totalPagelas: string;
+        presentCount: string;
+      }>();
 
     const currentYear = now.getFullYear();
     const startOfYear = new Date(currentYear, 0, 1);
@@ -3013,7 +3076,7 @@ export class StatisticsRepository {
       .andWhere('pagela.year = :year', { year: currentYear })
       .andWhere('pagela.week = :week', { week: currentWeek })
       .select('DISTINCT club.id', 'clubId')
-      .getRawMany();
+      .getRawMany<{ clubId: string }>();
 
     const totalActiveClubs = await this.clubsRepository
       .createQueryBuilder('club')
@@ -3060,7 +3123,13 @@ export class StatisticsRepository {
         'verseCount',
       )
       .groupBy('child.id')
-      .getRawMany();
+      .getRawMany<{
+        childId: string;
+        totalPagelas: string;
+        presentCount: string;
+        meditationCount: string;
+        verseCount: string;
+      }>();
 
     let totalEngagement = 0;
     let childrenWithLowEngagement = 0;
@@ -3102,7 +3171,7 @@ export class StatisticsRepository {
       .select('child.gender', 'gender')
       .addSelect('COUNT(child.id)', 'count')
       .groupBy('child.gender')
-      .getRawMany();
+      .getRawMany<{ gender: string; count: string }>();
 
     const distribution = { M: 0, F: 0 };
     result.forEach((row) => {
@@ -3122,7 +3191,7 @@ export class StatisticsRepository {
       .addSelect('COUNT(club.id)', 'count')
       .groupBy('address.state')
       .orderBy('count', 'DESC')
-      .getRawMany();
+      .getRawMany<{ state: string; count: string }>();
 
     const topCities = await this.clubsRepository
       .createQueryBuilder('club')
@@ -3137,7 +3206,12 @@ export class StatisticsRepository {
       .groupBy('address.city')
       .addGroupBy('address.state')
       .orderBy('totalChildren', 'DESC')
-      .getRawMany();
+      .getRawMany<{
+        city: string;
+        state: string;
+        totalClubs: string;
+        totalChildren: string;
+      }>();
 
     return {
       byState: byState.map((row) => ({

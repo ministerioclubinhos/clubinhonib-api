@@ -63,13 +63,13 @@ export class WeekMaterialsPageController {
     }
 
     try {
-      const parsed = JSON.parse(raw);
-      const dto: CreateWeekMaterialsPageDto = await new ValidationPipe({
+      const parsed: unknown = JSON.parse(raw);
+      const dto = (await new ValidationPipe({
         transform: true,
       }).transform(parsed, {
         type: 'body',
         metatype: CreateWeekMaterialsPageDto,
-      });
+      })) as CreateWeekMaterialsPageDto;
 
       const filesDict = Object.fromEntries(files.map((f) => [f.fieldname, f]));
 
@@ -80,12 +80,15 @@ export class WeekMaterialsPageController {
       this.logger.log(`Página criada com sucesso: ID=${result.id}`);
       return result;
     } catch (err) {
-      this.logger.error('Erro ao criar página de materiais', err.stack);
-      if (err.code) throw err;
+      this.logger.error(
+        'Erro ao criar página de materiais',
+        (err as Error).stack,
+      );
+      if (err && typeof err === 'object' && 'code' in err) throw err;
       throw new AppInternalException(
         ErrorCode.PAGE_CREATE_ERROR,
-        `Erro ao criar a página de materiais: ${err.message}`,
-        err,
+        `Erro ao criar a página de materiais: ${(err as Error).message}`,
+        err as Error,
       );
     }
   }
@@ -110,7 +113,7 @@ export class WeekMaterialsPageController {
     }
 
     try {
-      const parsed = JSON.parse(raw);
+      const parsed: unknown = JSON.parse(raw);
       const dto = plainToInstance(UpdateWeekMaterialsPageDto, parsed);
       const errors = await validate(dto, {
         whitelist: true,
@@ -134,12 +137,15 @@ export class WeekMaterialsPageController {
       this.logger.log(`Página atualizada com sucesso: ID=${result.id}`);
       return WeekMaterialsPageResponseDTO.fromEntity(result);
     } catch (err) {
-      this.logger.error(`Erro ao atualizar página ID=${id}`, err.stack);
-      if (err.code) throw err;
+      this.logger.error(
+        `Erro ao atualizar página ID=${id}`,
+        (err as Error).stack,
+      );
+      if (err && typeof err === 'object' && 'code' in err) throw err;
       throw new AppInternalException(
         ErrorCode.PAGE_UPDATE_ERROR,
-        `Erro ao atualizar a página de materiais: ${err.message}`,
-        err,
+        `Erro ao atualizar a página de materiais: ${(err as Error).message}`,
+        err as Error,
       );
     }
   }
@@ -154,12 +160,15 @@ export class WeekMaterialsPageController {
       await this.removeService.removeWeekMaterial(id);
       this.logger.log(`Página removida com sucesso: ID=${id}`);
     } catch (err) {
-      this.logger.error(`Erro ao remover página ID=${id}`, err.stack);
-      if (err.code) throw err;
+      this.logger.error(
+        `Erro ao remover página ID=${id}`,
+        (err as Error).stack,
+      );
+      if (err && typeof err === 'object' && 'code' in err) throw err;
       throw new AppInternalException(
         ErrorCode.PAGE_DELETE_ERROR,
-        `Erro ao remover a página de materiais: ${err.message}`,
-        err,
+        `Erro ao remover a página de materiais: ${(err as Error).message}`,
+        err as Error,
       );
     }
   }

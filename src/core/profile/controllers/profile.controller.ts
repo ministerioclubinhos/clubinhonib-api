@@ -12,6 +12,7 @@ import {
   Query,
   Logger,
 } from '@nestjs/common';
+import { Request as ExpressRequest } from 'express';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { AdminRoleGuard } from '../../auth/guards/role-guard';
 import { AuthContextService } from '../../auth/services/auth-context.service';
@@ -43,7 +44,7 @@ export class ProfileController {
 
   @Post()
   async createProfile(
-    @Request() req,
+    @Request() req: ExpressRequest,
     @Body() createProfileDto: CreateCompleteProfileDto,
   ): Promise<CompleteProfileResponseDto> {
     const userId = await this.authContextService.getUserId(req);
@@ -59,7 +60,7 @@ export class ProfileController {
 
   @Get()
   async getAllProfiles(
-    @Request() req,
+    @Request() req: ExpressRequest,
     @Query() queryDto: QueryProfilesDto,
   ): Promise<PaginatedProfilesResponseDto> {
     const userId = await this.authContextService.getUserId(req);
@@ -78,7 +79,9 @@ export class ProfileController {
   }
 
   @Get('me')
-  async getMyProfile(@Request() req): Promise<CompleteProfileResponseDto> {
+  async getMyProfile(
+    @Request() req: ExpressRequest,
+  ): Promise<CompleteProfileResponseDto> {
     const userId = await this.authContextService.getUserId(req);
     if (!userId) throw new ForbiddenException('User not authenticated');
     return this.getOneProfileService.execute(userId);
@@ -94,7 +97,7 @@ export class ProfileController {
 
   @Put('me')
   async updateMyProfile(
-    @Request() req,
+    @Request() req: ExpressRequest,
     @Body() updateProfileDto: UpdateCompleteProfileDto,
   ): Promise<CompleteProfileResponseDto> {
     const userId = await this.authContextService.getUserId(req);

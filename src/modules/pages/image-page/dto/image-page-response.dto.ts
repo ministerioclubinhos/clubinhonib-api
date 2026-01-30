@@ -84,7 +84,9 @@ export class ImageSectionDto {
       public: section.public,
       createdAt: section.createdAt,
       updatedAt: section.updatedAt,
-      mediaItems: mediaItems.map(GalleryMediaItemDto.fromEntity),
+      mediaItems: mediaItems.map((item) =>
+        GalleryMediaItemDto.fromEntity(item),
+      ),
     };
   }
 }

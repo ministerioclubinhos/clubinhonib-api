@@ -243,14 +243,15 @@ export class ClubsRepository {
         weekday: dto.weekday,
         time: dto.time ?? null,
         isActive: dto.isActive !== undefined ? dto.isActive : true,
-        address: address as any,
+        address: address,
         coordinator: coordinator ?? null,
       });
 
       try {
         await clubRepo.save(club);
-      } catch (e: any) {
-        if (e?.code === 'ER_DUP_ENTRY' || e?.code === '23505') {
+      } catch (e: unknown) {
+        const err = e as { code?: string };
+        if (err?.code === 'ER_DUP_ENTRY' || err?.code === '23505') {
           throw new AppConflictException(
             ErrorCode.CLUB_NUMBER_IN_USE,
             'Já existe um Clubinho com esse número',
@@ -287,7 +288,7 @@ export class ClubsRepository {
 
         await teacherRepo.update(
           { id: In(ids) },
-          { club: { id: club.id } as any },
+          { club: { id: club.id } as Partial<ClubEntity> },
         );
       }
       return this.findOneOrFailForResponseTx(manager, club.id);
@@ -311,11 +312,11 @@ export class ClubsRepository {
           'Clubinho não encontrado',
         );
 
-      if (dto.number !== undefined) club.number = dto.number as any;
-      if (dto.weekday !== undefined) club.weekday = dto.weekday as any;
+      if (dto.number !== undefined) club.number = dto.number;
+      if (dto.weekday !== undefined) club.weekday = dto.weekday;
 
       if (dto.time !== undefined) {
-        club.time = dto.time as any;
+        club.time = dto.time;
       }
 
       if (dto.isActive !== undefined) {
@@ -335,7 +336,7 @@ export class ClubsRepository {
 
       if (dto.coordinatorProfileId !== undefined) {
         if (dto.coordinatorProfileId === null) {
-          club.coordinator = null as any;
+          club.coordinator = null as unknown as CoordinatorProfileEntity;
         } else {
           const coordinator = await coordRepo.findOne({
             where: { id: dto.coordinatorProfileId },
@@ -428,12 +429,15 @@ export class ClubsRepository {
     if (attachProfiles.length) {
       await txTeacherRepo.update(
         { id: In(attachProfiles.map((p) => p.id)) },
-        { club: { id: clubId } as any },
+        { club: { id: clubId } as Partial<ClubEntity> },
       );
     }
 
     if (toDetach.length) {
-      await txTeacherRepo.update({ id: In(toDetach) }, { club: null as any });
+      await txTeacherRepo.update(
+        { id: In(toDetach) },
+        { club: null as unknown as ClubEntity },
+      );
     }
   }
 
@@ -456,12 +460,15 @@ export class ClubsRepository {
       if (club.teachers?.length) {
         await txTeacher.update(
           { id: In(club.teachers.map((t) => t.id)) },
-          { club: null as any },
+          { club: null as unknown as ClubEntity },
         );
       }
 
       if (club.coordinator) {
-        await txClub.update({ id: club.id }, { coordinator: null as any });
+        await txClub.update(
+          { id: club.id },
+          { coordinator: null as unknown as CoordinatorProfileEntity },
+        );
       }
 
       const addressId = club.address?.id;
@@ -489,9 +496,12 @@ export class ClubsRepository {
       .where('club.id = :clubId', { clubId })
       .andWhere('coord_user.id = :uid', { uid: userId });
 
-    const hasGetExists = typeof (qb as any).getExists === 'function';
+    const qbWithExists = qb as SelectQueryBuilder<ClubEntity> & {
+      getExists?: () => Promise<boolean>;
+    };
+    const hasGetExists = typeof qbWithExists.getExists === 'function';
     return hasGetExists
-      ? !!(await (qb as any).getExists())
+      ? !!(await qbWithExists.getExists())
       : (await qb.getCount()) > 0;
   }
 
@@ -499,7 +509,7 @@ export class ClubsRepository {
     userId: string,
   ): Promise<string | null> {
     const coord = await this.coordRepo.findOne({
-      where: { user: { id: userId } as any },
+      where: { user: { id: userId } },
       select: { id: true },
     });
     return coord?.id ?? null;

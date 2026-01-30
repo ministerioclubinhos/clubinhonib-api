@@ -6,7 +6,6 @@ import {
   ValidateNested,
   ArrayMinSize,
   ArrayMaxSize,
-  IsOptional,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { WeekDay } from '../entities/day.entity';

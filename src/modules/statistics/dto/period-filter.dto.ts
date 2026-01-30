@@ -110,7 +110,7 @@ export class PeriodCalculator {
       }
 
       case PeriodShortcut.CUSTOM:
-      default:
+      default: {
         if (filter.startDate && filter.endDate) {
           return {
             startDate: filter.startDate,
@@ -127,6 +127,7 @@ export class PeriodCalculator {
           endDate: today,
           groupBy: 'day',
         };
+      }
     }
   }
 

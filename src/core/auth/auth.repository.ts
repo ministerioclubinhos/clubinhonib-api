@@ -5,7 +5,7 @@ import { UserRepository } from '../user/user.repository';
 export class AuthRepository {
   constructor(private readonly userRepo: UserRepository) {}
 
-  async validateUser(email: string, password: string) {
+  async validateUser(email: string) {
     return this.userRepo.findByEmail(email);
   }
 }

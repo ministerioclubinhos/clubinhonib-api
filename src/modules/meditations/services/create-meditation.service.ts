@@ -132,8 +132,9 @@ export class CreateMeditationService {
       this.logger.log(`🎉 Meditação criada com sucesso`);
 
       return savedMeditation;
-    } catch (error) {
-      this.logger.error('❌ Erro ao criar meditação', error.stack);
+    } catch (error: unknown) {
+      const errStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error('❌ Erro ao criar meditação', errStack);
       if (error instanceof AppException) {
         throw error;
       }

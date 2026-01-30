@@ -6,7 +6,10 @@ import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { RouteService } from 'src/modules/routes/route.service';
 import { RouteType } from 'src/modules/routes/route-page.entity';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
-import { MediaType } from 'src/shared/media/media-item/media-item.entity';
+import {
+  MediaType,
+  UploadType,
+} from 'src/shared/media/media-item/media-item.entity';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
 import { CreateIdeasPageDto } from '../dto/create-ideas-page.dto';
 import { IdeasPageResponseDto } from '../dto/ideas-page-response.dto';
@@ -44,14 +47,16 @@ export class IdeasPageCreateService {
       this.logger.debug('✅  Transaction committed');
 
       return plainToInstance(IdeasPageResponseDto, page);
-    } catch (err) {
+    } catch (err: unknown) {
       await runner.rollbackTransaction();
-      this.logger.error('Transaction rolled-back', err.stack);
-      if (err.code) throw err;
+      const error = err instanceof Error ? err : new Error(String(err));
+      this.logger.error('Transaction rolled-back', error.stack);
+      const hasCode = err && typeof err === 'object' && 'code' in err;
+      if (hasCode) throw err as unknown as Error;
       throw new AppInternalException(
         ErrorCode.PAGE_CREATE_ERROR,
-        `Erro ao criar a página de ideias: ${err.message}`,
-        err,
+        `Erro ao criar a página de ideias: ${error.message}`,
+        error,
       );
     } finally {
       await runner.release();
@@ -158,7 +163,7 @@ export class IdeasPageCreateService {
               : MediaType.IMAGE,
         type: item.uploadType,
         fileField:
-          item.uploadType === 'upload' && item.isLocalFile
+          item.uploadType === UploadType.UPLOAD && item.isLocalFile
             ? item.fieldKey
             : undefined,
       }));
@@ -168,7 +173,7 @@ export class IdeasPageCreateService {
         dbSection.id,
         MediaTargetType.IdeasSection,
         filesDict,
-        this.s3.upload.bind(this.s3),
+        (file: Express.Multer.File) => this.s3.upload(file),
       );
 
       this.logger.debug(`       • ${saved.length} mídias processadas`);

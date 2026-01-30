@@ -9,6 +9,14 @@ import { ChildEntity } from 'src/modules/children/entities/child.entity';
 import { PagelaEntity } from 'src/modules/pagelas/entities/pagela.entity';
 import { ClubWeekCheckService } from '../services/club-week-check.service';
 import { AcademicWeekService } from '../services/academic-week.service';
+import { PagelaChildIdRaw } from '../dto/club-control-raw.dto';
+import { ClubCheckResultDto } from '../dto/club-check-result.dto';
+import { DetailedIndicatorsResultDto } from '../dto/detailed-indicators-result.dto';
+import {
+  ClubIndicatorDetailDto,
+  WeekdayStatsDto,
+} from '../dto/detailed-indicators-helpers.dto';
+import { DeepPartial, FindOptionsWhere } from 'typeorm';
 
 @Injectable()
 export class ClubControlRepository {
@@ -31,11 +39,11 @@ export class ClubControlRepository {
     private readonly academicWeekService: AcademicWeekService,
   ) {}
 
-  async createPeriod(data: any): Promise<ClubPeriodEntity> {
+  async createPeriod(
+    data: DeepPartial<ClubPeriodEntity>,
+  ): Promise<ClubPeriodEntity> {
     const period = this.periodsRepository.create(data);
-    return (await this.periodsRepository.save(
-      period,
-    )) as unknown as ClubPeriodEntity;
+    return this.periodsRepository.save(period);
   }
 
   async findPeriodByYear(year: number): Promise<ClubPeriodEntity | null> {
@@ -61,7 +69,7 @@ export class ClubControlRepository {
     page?: number,
     limit?: number,
   ): Promise<{ items: ClubPeriodEntity[]; total: number }> {
-    const where = { isActive: true } as any;
+    const where: FindOptionsWhere<ClubPeriodEntity> = { isActive: true };
     const total = await this.periodsRepository.count({ where });
     let items: ClubPeriodEntity[];
     if (page && limit) {
@@ -98,11 +106,11 @@ export class ClubControlRepository {
     return { success: true };
   }
 
-  async createException(data: any): Promise<ClubExceptionEntity> {
+  async createException(
+    data: DeepPartial<ClubExceptionEntity>,
+  ): Promise<ClubExceptionEntity> {
     const exception = this.exceptionsRepository.create(data);
-    return (await this.exceptionsRepository.save(
-      exception,
-    )) as unknown as ClubExceptionEntity;
+    return this.exceptionsRepository.save(exception);
   }
 
   async findExceptionByDate(date: string): Promise<ClubExceptionEntity | null> {
@@ -184,7 +192,7 @@ export class ClubControlRepository {
       .andWhere('pagela.week = :week', { week })
       .andWhere('child.id IN (:...childIds)', { childIds })
       .select('DISTINCT child.id', 'childId')
-      .getRawMany();
+      .getRawMany<PagelaChildIdRaw>();
 
     return pagelas.map((p) => p.childId);
   }
@@ -208,625 +216,9 @@ export class ClubControlRepository {
       .getCount();
   }
 
-  async findMissingChildrenList(
-    clubId: string,
-    year: number,
-    week: number,
-    activeChildren: ChildEntity[],
-    childrenWithPagelaIds: string[],
-  ): Promise<Array<{ childId: string; childName: string }>> {
-    return activeChildren
-      .filter((c) => !childrenWithPagelaIds.includes(c.id))
-      .map((c) => ({
-        childId: c.id,
-        childName: c.name,
-      }));
-  }
-
   async findAllClubs(): Promise<ClubEntity[]> {
     return this.clubsRepository.find();
   }
-
-  async checkClubWeek(
-    clubId: string,
-    year: number,
-    week: number,
-    includeCurrentWeek?: boolean,
-  ): Promise<any> {
-    throw new Error(
-      'checkClubWeek foi movido para ClubWeekCheckService. Use o service ao invés do repository.',
-    );
-  }
-
-  private async _oldCheckClubWeek(
-    clubId: string,
-    year: number,
-    week: number,
-  ): Promise<any> {
-    const club = await this.clubsRepository.findOne({
-      where: { id: clubId },
-    });
-
-    if (!club) {
-      throw new Error('Clubinho not found');
-    }
-
-    const period = await this.findPeriodByYear(year);
-
-    let maxAcademicWeek = 0;
-    if (period) {
-      const start = new Date(period.startDate);
-      const end = new Date(period.endDate);
-
-      const getWeekStartDate = (date: Date): Date => {
-        const d = new Date(date);
-        const day = d.getDay();
-        const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-        return new Date(d.setDate(diff));
-      };
-
-      const startWeekStart = getWeekStartDate(start);
-      const endWeekStart = getWeekStartDate(end);
-
-      const daysDiff = Math.floor(
-        (endWeekStart.getTime() - startWeekStart.getTime()) /
-          (1000 * 60 * 60 * 24),
-      );
-      maxAcademicWeek = Math.floor(daysDiff / 7) + 1;
-    }
-
-    if (period && maxAcademicWeek > 0 && week > maxAcademicWeek) {
-      return {
-        clubId: club.id,
-        clubNumber: club.number,
-        weekday: club.weekday,
-        week: {
-          year,
-          week,
-          expectedDate: null,
-        },
-        children: {
-          total: 0,
-          activeCount: 0,
-          inactiveCount: 0,
-          withPagela: 0,
-          missing: 0,
-          missingList: [],
-          notAttendingCount: 0,
-          notAttendingList: [],
-          note: 'Apenas crianças ATIVAS e que já tinham entrado são consideradas nos indicadores normais',
-        },
-        status: 'out_of_period',
-        indicators: [],
-        exception: null,
-        period: {
-          year: period.year,
-          startDate: period.startDate,
-          endDate: period.endDate,
-        },
-        note: `Semana ${week} está fora do período letivo (período tem ${maxAcademicWeek} semanas) - indicadores não são gerados`,
-      };
-    }
-
-    const expectedDate =
-      club.weekday && period
-        ? this.getExpectedDateForAcademicWeek(year, week, club.weekday, period)
-        : null;
-
-    const allChildren = await this.childrenRepository.find({
-      where: { club: { id: clubId } },
-    });
-
-    if (club.isActive === false) {
-      const expectedDateObj = expectedDate ? new Date(expectedDate) : null;
-      const childrenNotAttending = allChildren.filter((child) => {
-        if (child.joinedAt && expectedDateObj) {
-          const joinedDate = new Date(child.joinedAt);
-          return joinedDate <= expectedDateObj;
-        }
-        return true;
-      });
-
-      return {
-        clubId: club.id,
-        clubNumber: club.number,
-        weekday: club.weekday,
-        week: {
-          year,
-          week,
-          expectedDate,
-        },
-        children: {
-          total: 0,
-          activeCount: 0,
-          inactiveCount: allChildren.length,
-          withPagela: 0,
-          missing: 0,
-          missingList: [],
-          notAttendingCount: childrenNotAttending.length,
-          notAttendingList: childrenNotAttending.map((c) => ({
-            childId: c.id,
-            childName: c.name,
-            isActive: c.isActive,
-          })),
-          note: "Clubinho desativado - todas as crianças entram no indicador de 'não frequentam mais'",
-        },
-        status: 'inactive',
-        indicators: [
-          {
-            type: 'club_inactive',
-            severity: 'info',
-            message: `ℹ️ Clubinho desativado`,
-            details: {
-              totalChildren: allChildren.length,
-              childrenNotAttending: childrenNotAttending.length,
-              note: 'Todas as crianças deste clubinho (ativas e inativas) entram no indicador de "crianças que não frequentam mais os clubinhos"',
-            },
-          },
-          {
-            type: 'children_not_attending',
-            severity: 'warning',
-            message: `⚠️ ${childrenNotAttending.length} criança(s) que não frequentam mais os clubinhos`,
-            details: {
-              totalChildren: childrenNotAttending.length,
-              childrenList: childrenNotAttending.map((c) => ({
-                childId: c.id,
-                childName: c.name,
-                isActive: c.isActive,
-                reason: 'Clubinho desativado',
-              })),
-              note: 'Todas as crianças deste clubinho desativado são consideradas como não frequentando mais',
-            },
-          },
-        ],
-        exception: null,
-      };
-    }
-
-    const expectedDateObj = expectedDate ? new Date(expectedDate) : null;
-
-    const activeChildren = allChildren.filter((child) => {
-      if (child.isActive === false) {
-        return false;
-      }
-
-      if (child.joinedAt && expectedDateObj) {
-        const joinedDate = new Date(child.joinedAt);
-
-        return joinedDate <= expectedDateObj;
-      }
-
-      return true;
-    });
-
-    const inactiveChildren = allChildren.filter((child) => {
-      if (child.isActive !== false) {
-        return false;
-      }
-
-      if (child.joinedAt && expectedDateObj) {
-        const joinedDate = new Date(child.joinedAt);
-        return joinedDate <= expectedDateObj;
-      }
-
-      return true;
-    });
-
-    const totalChildren = activeChildren.length;
-    const inactiveCount = inactiveChildren.length;
-
-    const childIds = activeChildren.map((c) => c.id);
-    const pagelas =
-      childIds.length > 0
-        ? await this.pagelasRepository
-            .createQueryBuilder('pagela')
-            .leftJoin('pagela.child', 'child')
-            .leftJoin('child.club', 'club')
-            .where('club.id = :clubId', { clubId })
-            .andWhere('club.isActive = :clubActive', { clubActive: true })
-            .andWhere('pagela.year = :year', { year })
-            .andWhere('pagela.week = :week', { week })
-            .andWhere('child.id IN (:...childIds)', { childIds })
-            .select('DISTINCT child.id', 'childId')
-            .getRawMany()
-        : [];
-
-    const childrenWithPagela = pagelas.length;
-    const childrenMissing = totalChildren - childrenWithPagela;
-
-    const childIdsWithPagela = pagelas.map((p) => p.childId);
-    const childrenMissingList = activeChildren
-      .filter((c) => !childIdsWithPagela.includes(c.id))
-      .map((c) => ({
-        childId: c.id,
-        childName: c.name,
-      }));
-
-    if (!club.weekday) {
-      return {
-        clubId: club.id,
-        clubNumber: club.number,
-        weekday: null,
-        week: {
-          year,
-          week,
-          expectedDate: null,
-        },
-        children: {
-          total: totalChildren,
-          activeCount: totalChildren,
-          inactiveCount: 0,
-          withPagela: childrenWithPagela,
-          missing: childrenMissing,
-          missingList: childrenMissingList,
-          notAttendingCount: 0,
-          notAttendingList: [],
-          note: 'Apenas crianças ATIVAS e que já tinham entrado são consideradas nos indicadores normais',
-        },
-        status: 'inactive',
-        indicators: [
-          {
-            type: 'no_weekday',
-            severity: 'info',
-            message: `ℹ️ Clubinho sem dia da semana definido (provavelmente inativo)`,
-          },
-        ],
-        exception: null,
-      };
-    }
-
-    let isWithinPeriod = false;
-
-    if (!period) {
-      return {
-        clubId: club.id,
-        clubNumber: club.number,
-        weekday: club.weekday,
-        week: {
-          year,
-          week,
-          expectedDate,
-        },
-        children: {
-          total: totalChildren,
-          activeCount: totalChildren,
-          inactiveCount: inactiveCount,
-          withPagela: childrenWithPagela,
-          missing: childrenMissing,
-          missingList: childrenMissingList,
-          notAttendingCount: inactiveCount,
-          notAttendingList:
-            inactiveCount > 0
-              ? allChildren
-                  .filter((c) => c.isActive === false)
-                  .map((c) => ({
-                    childId: c.id,
-                    childName: c.name,
-                    isActive: c.isActive,
-                  }))
-              : [],
-          note: 'Apenas crianças ATIVAS e que já tinham entrado são consideradas nos indicadores normais',
-        },
-        status: 'ok',
-        indicators: [],
-        exception: null,
-        note: 'Período letivo não cadastrado - indicadores não são gerados',
-      };
-    }
-
-    if (period && expectedDate) {
-      const expectedDateObj = new Date(expectedDate);
-      const startDateObj = new Date(period.startDate);
-      const endDateObj = new Date(period.endDate);
-
-      isWithinPeriod =
-        expectedDateObj >= startDateObj && expectedDateObj <= endDateObj;
-
-      if (!isWithinPeriod) {
-        return {
-          clubId: club.id,
-          clubNumber: club.number,
-          weekday: club.weekday,
-          week: {
-            year,
-            week,
-            expectedDate,
-          },
-          children: {
-            total: totalChildren,
-            activeCount: totalChildren,
-            inactiveCount: inactiveCount,
-            withPagela: childrenWithPagela,
-            missing: childrenMissing,
-            missingList: childrenMissingList,
-            notAttendingCount: inactiveCount,
-            notAttendingList:
-              inactiveCount > 0
-                ? allChildren
-                    .filter((c) => c.isActive === false)
-                    .map((c) => ({
-                      childId: c.id,
-                      childName: c.name,
-                      isActive: c.isActive,
-                    }))
-                : [],
-            note: 'Apenas crianças ATIVAS e que já tinham entrado são consideradas nos indicadores normais',
-          },
-          status: 'out_of_period',
-          indicators: [],
-          exception: null,
-          period: {
-            year: period.year,
-            startDate: period.startDate,
-            endDate: period.endDate,
-          },
-          note: 'Fora do período letivo - indicadores não são gerados',
-        };
-      }
-    } else if (period && !expectedDate) {
-      return {
-        clubId: club.id,
-        clubNumber: club.number,
-        weekday: club.weekday,
-        week: {
-          year,
-          week,
-          expectedDate,
-        },
-        children: {
-          total: totalChildren,
-          activeCount: totalChildren,
-          inactiveCount: inactiveCount,
-          withPagela: childrenWithPagela,
-          missing: childrenMissing,
-          missingList: childrenMissingList,
-          notAttendingCount: inactiveCount,
-          notAttendingList:
-            inactiveCount > 0
-              ? allChildren
-                  .filter((c) => c.isActive === false)
-                  .map((c) => ({
-                    childId: c.id,
-                    childName: c.name,
-                    isActive: c.isActive,
-                  }))
-              : [],
-          note: 'Apenas crianças ATIVAS e que já tinham entrado são consideradas nos indicadores normais',
-        },
-        status: 'ok',
-        indicators: [],
-        exception: null,
-        note: 'Sem data esperada - indicadores não são gerados',
-      };
-    }
-
-    const exception = expectedDate
-      ? await this.findExceptionByDate(expectedDate)
-      : null;
-
-    let hasPassedClubDay = false;
-    let isCurrentWeek = false;
-    let isFutureWeek = false;
-    if (expectedDate) {
-      const currentAcademicWeek =
-        await this.academicWeekService.calculateCurrentAcademicWeek();
-
-      isCurrentWeek = !!(
-        currentAcademicWeek &&
-        currentAcademicWeek.academicYear === year &&
-        currentAcademicWeek.academicWeek === week &&
-        currentAcademicWeek.isWithinPeriod
-      );
-
-      if (
-        currentAcademicWeek &&
-        currentAcademicWeek.isWithinPeriod &&
-        currentAcademicWeek.academicYear !== null &&
-        currentAcademicWeek.academicWeek !== null
-      ) {
-        if (year > currentAcademicWeek.academicYear) {
-          isFutureWeek = true;
-        } else if (
-          year === currentAcademicWeek.academicYear &&
-          week > currentAcademicWeek.academicWeek
-        ) {
-          isFutureWeek = true;
-        }
-      }
-
-      if (isFutureWeek) {
-        hasPassedClubDay = false;
-      } else if (!isCurrentWeek) {
-        hasPassedClubDay = true;
-      } else {
-        const today = new Date();
-        const todayStr = today.toISOString().split('T')[0];
-
-        hasPassedClubDay = todayStr > expectedDate;
-      }
-    }
-
-    let status: string;
-    if (exception) {
-      status = 'exception';
-    } else if (isFutureWeek) {
-      if (childrenWithPagela === totalChildren && totalChildren > 0) {
-        status = 'ok';
-      } else if (childrenWithPagela > 0) {
-        status = 'partial';
-      } else {
-        status = 'pending';
-      }
-    } else if (!hasPassedClubDay && isCurrentWeek) {
-      if (childrenWithPagela === totalChildren && totalChildren > 0) {
-        status = 'ok';
-      } else {
-        status = 'pending';
-      }
-    } else if (childrenWithPagela === totalChildren) {
-      status = 'ok';
-    } else if (childrenWithPagela > 0) {
-      status = 'partial';
-    } else {
-      status = 'missing';
-    }
-
-    const indicators: any[] = [];
-
-    if (inactiveChildren.length > 0) {
-      indicators.push({
-        type: 'children_not_attending',
-        severity: 'warning',
-        message: `⚠️ ${inactiveChildren.length} criança(s) que não frequentam mais os clubinhos`,
-        details: {
-          totalChildren: inactiveChildren.length,
-          childrenList: inactiveChildren.map((c) => ({
-            childId: c.id,
-            childName: c.name,
-            isActive: c.isActive,
-            reason: 'Criança desativada',
-          })),
-          note: 'Crianças desativadas não entram nos indicadores positivos nem negativos, apenas neste indicador',
-        },
-      });
-    }
-
-    const completionRate =
-      totalChildren > 0 ? (childrenWithPagela / totalChildren) * 100 : 0;
-    const missingRate =
-      totalChildren > 0 ? (childrenMissing / totalChildren) * 100 : 0;
-
-    if (!exception) {
-      if (status === 'ok') {
-        if (totalChildren > 0) {
-          indicators.push({
-            type: 'all_ok',
-            severity: 'success',
-            message: `✅ Todas as ${totalChildren} crianças tiveram pagela`,
-            details: {
-              totalChildren,
-              childrenWithPagela,
-              childrenMissing,
-              completionRate: Math.round(completionRate * 10) / 10,
-              missingRate: 0,
-              isPerfect: true,
-            },
-          });
-        }
-      } else if (status === 'pending') {
-      } else if (status === 'partial') {
-        if (hasPassedClubDay) {
-          indicators.push({
-            type: 'some_missing',
-            severity: 'warning',
-            message: `⚠️ ${childrenMissing} de ${totalChildren} crianças SEM pagela (${Math.round(missingRate)}% faltando)`,
-            details: {
-              totalChildren,
-              childrenWithPagela,
-              childrenMissing,
-              completionRate: Math.round(completionRate * 10) / 10,
-              missingRate: Math.round(missingRate * 10) / 10,
-              isPerfect: false,
-              needsAttention: true,
-              urgency:
-                missingRate > 50 ? 'high' : missingRate > 25 ? 'medium' : 'low',
-            },
-          });
-        }
-      } else if (status === 'missing') {
-        if (hasPassedClubDay) {
-          if (totalChildren > 0) {
-            indicators.push({
-              type: 'no_pagela',
-              severity: 'critical',
-              message: `🔴 NENHUMA pagela registrada (${totalChildren} crianças esperadas)`,
-              details: {
-                totalChildren,
-                childrenWithPagela: 0,
-                childrenMissing,
-                completionRate: 0,
-                missingRate: 100,
-                isPerfect: false,
-                needsAttention: true,
-                urgency: 'critical',
-                lastPagelaDate: null,
-              },
-            });
-          } else {
-            indicators.push({
-              type: 'no_children',
-              severity: 'warning',
-              message: `⚠️ Clubinho sem crianças cadastradas`,
-              details: {
-                totalChildren: 0,
-                childrenWithPagela: 0,
-                childrenMissing: 0,
-                completionRate: 0,
-                missingRate: 0,
-                isPerfect: false,
-                needsAttention: false,
-                urgency: 'low',
-                possibleIssue:
-                  'Clubinho pode estar inativo ou sem configuração de crianças',
-              },
-            });
-          }
-        }
-      }
-    } else {
-      indicators.push({
-        type: 'exception',
-        severity: 'info',
-        message: `ℹ️ Exceção global: ${exception.reason}`,
-        details: {
-          exceptionDate: exception.exceptionDate,
-          reason: exception.reason,
-          type: exception.type,
-          isRecurrent: exception.isRecurrent,
-          totalChildren,
-          childrenWithPagela,
-          childrenMissing,
-          note: 'Pagelas não são obrigatórias nesta data devido à exceção cadastrada',
-        },
-      });
-    }
-
-    return {
-      clubId: club.id,
-      clubNumber: club.number,
-      weekday: club.weekday,
-      week: {
-        year,
-        week,
-        expectedDate,
-      },
-      children: {
-        total: totalChildren,
-        activeCount: totalChildren,
-        inactiveCount: inactiveCount,
-        withPagela: childrenWithPagela,
-        missing: childrenMissing,
-        missingList: childrenMissingList,
-        notAttendingCount: inactiveChildren.length,
-        notAttendingList: inactiveChildren.map((c) => ({
-          childId: c.id,
-          childName: c.name,
-          isActive: c.isActive,
-        })),
-        note: "Apenas crianças ATIVAS e que já tinham entrado são consideradas nos indicadores normais. Crianças inativas entram apenas no indicador de 'não frequentam mais'",
-      },
-      status,
-      indicators,
-      exception: exception
-        ? {
-            date: exception.exceptionDate,
-            reason: exception.reason,
-            type: exception.type,
-          }
-        : null,
-    };
-  }
-
   async getDetailedIndicators(
     year: number,
     week: number,
@@ -839,18 +231,18 @@ export class ClubControlRepository {
       page?: number;
       limit?: number;
     },
-  ): Promise<any> {
+  ): Promise<DetailedIndicatorsResultDto> {
     const allClubs = await this.clubsRepository.find();
     const activeClubs = allClubs.filter((c) => c.isActive === true);
     const inactiveClubs = allClubs.filter((c) => c.isActive === false);
 
-    let clubsResults = await Promise.all(
+    let clubsResults: ClubCheckResultDto[] = await Promise.all(
       activeClubs.map((club) =>
         this.clubWeekCheckService.checkClubWeek(club.id, year, week),
       ),
     );
 
-    const inactiveClubsResults = await Promise.all(
+    const inactiveClubsResults: ClubCheckResultDto[] = await Promise.all(
       inactiveClubs.map((club) =>
         this.clubWeekCheckService.checkClubWeek(club.id, year, week),
       ),
@@ -892,10 +284,10 @@ export class ClubControlRepository {
         if (filters.hasProblems) {
           clubsResults = clubsResults.filter((r) => {
             const hasCritical = r.indicators?.some(
-              (i: any) => i.severity === 'critical',
+              (i) => i.severity === 'critical',
             );
             const hasWarning = r.indicators?.some(
-              (i: any) => i.severity === 'warning',
+              (i) => i.severity === 'warning',
             );
             return (
               hasCritical ||
@@ -911,31 +303,33 @@ export class ClubControlRepository {
 
       if (filters.severity) {
         clubsResults = clubsResults.filter((r) =>
-          r.indicators?.some((i: any) => i.severity === filters.severity),
+          r.indicators?.some((i) => i.severity === filters.severity),
         );
       }
 
       if (filters.indicatorType) {
         clubsResults = clubsResults.filter((r) =>
-          r.indicators?.some((i: any) => i.type === filters.indicatorType),
+          r.indicators?.some((i) => i.type === filters.indicatorType),
         );
       }
     }
 
-    const indicatorsByType: Record<string, any[]> = {
+    const statsByWeekday: Record<string, WeekdayStatsDto> = {};
+    const indicatorsByType: Record<string, ClubIndicatorDetailDto[]> = {
+      children_not_attending: [],
+      exception: [],
       all_ok: [],
       some_missing: [],
       no_pagela: [],
       no_children: [],
-      exception: [],
       no_weekday: [],
       out_of_period: [],
       club_inactive: [],
-      children_not_attending: [],
     };
 
-    const clubsByStatus: Record<string, any[]> = {
+    const clubsByStatus: Record<string, ClubCheckResultDto[]> = {
       ok: [],
+      pending: [],
       partial: [],
       missing: [],
       exception: [],
@@ -946,9 +340,9 @@ export class ClubControlRepository {
     let totalChildrenAll = 0;
     let totalChildrenWithPagela = 0;
     let totalChildrenMissing = 0;
-    const clubsWithProblems: any[] = [];
-    const clubsCritical: any[] = [];
-    const clubsWarning: any[] = [];
+    const clubsWithProblems: ClubCheckResultDto[] = [];
+    const clubsCritical: ClubCheckResultDto[] = [];
+    const clubsWarning: ClubCheckResultDto[] = [];
 
     clubsResults.forEach((result) => {
       if (!clubsByStatus[result.status]) {
@@ -957,13 +351,13 @@ export class ClubControlRepository {
       clubsByStatus[result.status].push(result);
 
       if (result.indicators && result.indicators.length > 0) {
-        result.indicators.forEach((indicator: any) => {
+        result.indicators.forEach((indicator) => {
           const type = indicator.type;
           if (indicatorsByType[type]) {
             indicatorsByType[type].push({
               clubId: result.clubId,
               clubNumber: result.clubNumber,
-              weekday: result.weekday,
+              weekday: result.weekday!,
               indicator,
               children: result.children,
               week: result.week,
@@ -972,10 +366,10 @@ export class ClubControlRepository {
         });
 
         const hasCritical = result.indicators.some(
-          (i: any) => i.severity === 'critical',
+          (i) => i.severity === 'critical',
         );
         const hasWarning = result.indicators.some(
-          (i: any) => i.severity === 'warning',
+          (i) => i.severity === 'warning',
         );
 
         if (hasCritical) {
@@ -1001,7 +395,6 @@ export class ClubControlRepository {
         ? (totalChildrenMissing / totalChildrenAll) * 100
         : 0;
 
-    const statsByWeekday: Record<string, any> = {};
     clubsResults.forEach((result) => {
       if (result.weekday) {
         if (!statsByWeekday[result.weekday]) {
@@ -1018,6 +411,7 @@ export class ClubControlRepository {
             completionRate: 0,
           };
         }
+
         const stats = statsByWeekday[result.weekday];
         stats.totalClubs++;
         if (result.status === 'ok') stats.clubsOk++;
@@ -1120,16 +514,16 @@ export class ClubControlRepository {
         ),
         bySeverity: {
           critical: clubsResults.filter((r) =>
-            r.indicators?.some((i: any) => i.severity === 'critical'),
+            r.indicators?.some((i) => i.severity === 'critical'),
           ).length,
           warning: clubsResults.filter((r) =>
-            r.indicators?.some((i: any) => i.severity === 'warning'),
+            r.indicators?.some((i) => i.severity === 'warning'),
           ).length,
           info: clubsResults.filter((r) =>
-            r.indicators?.some((i: any) => i.severity === 'info'),
+            r.indicators?.some((i) => i.severity === 'info'),
           ).length,
           success: clubsResults.filter((r) =>
-            r.indicators?.some((i: any) => i.severity === 'success'),
+            r.indicators?.some((i) => i.severity === 'success'),
           ).length,
         },
       },
@@ -1139,7 +533,7 @@ export class ClubControlRepository {
       executiveSummary,
       indicators: {
         byType: indicatorsByType,
-        critical: indicatorsByType.no_pagela.map((item: any) => ({
+        critical: indicatorsByType.no_pagela.map((item) => ({
           clubId: item.clubId,
           clubNumber: item.clubNumber,
           weekday: item.weekday,
@@ -1149,7 +543,7 @@ export class ClubControlRepository {
         warning: [
           ...indicatorsByType.some_missing,
           ...indicatorsByType.no_children,
-        ].map((item: any) => ({
+        ].map((item) => ({
           clubId: item.clubId,
           clubNumber: item.clubNumber,
           weekday: item.weekday,
@@ -1159,24 +553,9 @@ export class ClubControlRepository {
       },
       clubs: {
         byStatus: clubsByStatus,
-        withProblems: clubsWithProblems.map((c) => ({
-          clubId: c.clubId,
-          clubNumber: c.clubNumber,
-          weekday: c.weekday,
-          status: c.status,
-          indicators: c.indicators,
-          children: c.children,
-          week: c.week,
-        })),
-        critical: clubsCritical.map((c) => ({
-          clubId: c.clubId,
-          clubNumber: c.clubNumber,
-          weekday: c.weekday,
-          status: c.status,
-          indicators: c.indicators,
-          children: c.children,
-          week: c.week,
-        })),
+        withProblems: clubsWithProblems,
+        critical: clubsCritical,
+        warning: clubsWarning,
       },
       statistics: {
         byWeekday: Object.values(statsByWeekday),

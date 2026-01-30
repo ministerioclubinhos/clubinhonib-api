@@ -5,7 +5,7 @@ import {
   ErrorCode,
 } from 'src/shared/exceptions';
 import { Injectable, Logger } from '@nestjs/common';
-import { DataSource, In, QueryRunner } from 'typeorm';
+import { DataSource, In } from 'typeorm';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { RouteService } from 'src/modules/routes/route.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
@@ -63,7 +63,7 @@ export class IdeasPageRemoveService {
         );
         await this.mediaItemProcessor.deleteMediaItems(
           mediaItems,
-          this.awsS3Service.delete.bind(this.awsS3Service),
+          (url: string) => this.awsS3Service.delete(url),
         );
         this.logger.debug(`✅ ${mediaItems.length} mídias excluídas`);
       } else {
@@ -111,17 +111,19 @@ export class IdeasPageRemoveService {
       this.logger.debug('✅ Iniciando commit da transação');
       await queryRunner.commitTransaction();
       this.logger.log(`✅ Página de ideias removida com sucesso: ID=${id}`);
-    } catch (error) {
+    } catch (error: unknown) {
+      const errStack = error instanceof Error ? error.stack : undefined;
       this.logger.error(
         'Erro ao remover página de ideias. Iniciando rollback.',
-        error.stack,
+        errStack,
       );
       await queryRunner.rollbackTransaction();
-      if (error.code) throw error;
+      const hasCode = error && typeof error === 'object' && 'code' in error;
+      if (hasCode) throw error as unknown as Error;
       throw new AppInternalException(
         ErrorCode.PAGE_DELETE_ERROR,
         'Erro ao remover a página de ideias',
-        error,
+        error instanceof Error ? error : new Error(String(error)),
       );
     } finally {
       this.logger.debug('🔚 Liberando QueryRunner');

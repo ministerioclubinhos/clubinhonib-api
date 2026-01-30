@@ -71,7 +71,9 @@ export class UpdateUserService {
         if (nextActive) {
           try {
             await this.teacherProfilesService.createForUser(id);
-          } catch {}
+          } catch {
+            // Profile may already exist, ignore
+          }
         } else {
           await this.teacherProfilesService.removeByUserId(id);
         }
@@ -80,7 +82,9 @@ export class UpdateUserService {
         if (nextActive) {
           try {
             await this.coordinatorProfilesService.createForUser(id);
-          } catch {}
+          } catch {
+            // Profile may already exist, ignore
+          }
         } else {
           await this.coordinatorProfilesService.removeByUserId(id);
         }
@@ -95,7 +99,9 @@ export class UpdateUserService {
         if (nextActive) {
           try {
             await this.teacherProfilesService.createForUser(id);
-          } catch {}
+          } catch {
+            // Profile may already exist, ignore
+          }
         } else {
           await this.teacherProfilesService.removeByUserId(id);
         }
@@ -103,7 +109,9 @@ export class UpdateUserService {
         if (nextActive) {
           try {
             await this.coordinatorProfilesService.createForUser(id);
-          } catch {}
+          } catch {
+            // Profile may already exist, ignore
+          }
         } else {
           await this.coordinatorProfilesService.removeByUserId(id);
         }

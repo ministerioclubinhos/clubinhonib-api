@@ -75,7 +75,7 @@ export class ProfileController {
     @Req() req: Request,
     @UploadedFiles() files: Express.Multer.File[] = [],
     @Body('imageData') imageDataRaw?: string,
-    @Body() body?: any,
+    @Body() body?: Record<string, unknown>,
   ) {
     const payload = await this.authContextService.getPayloadFromRequest(req);
     const userId = payload.sub;

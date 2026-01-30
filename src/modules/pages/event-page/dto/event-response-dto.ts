@@ -2,7 +2,9 @@ import {
   MediaType,
   PlatformType,
   UploadType,
+  MediaItemEntity,
 } from 'src/shared/media/media-item/media-item.entity';
+import { EventEntity } from '../entities/event.entity';
 
 export class MediaItemDto {
   id: string;
@@ -18,7 +20,7 @@ export class MediaItemDto {
   createdAt?: Date;
   updatedAt?: Date;
 
-  static fromEntity(entity: any): MediaItemDto {
+  static fromEntity(entity: MediaItemEntity): MediaItemDto {
     return {
       id: entity.id,
       title: entity.title,
@@ -46,7 +48,10 @@ export class EventResponseDto {
   createdAt: Date;
   updatedAt: Date;
 
-  static fromEntity(event: any, media: any): EventResponseDto {
+  static fromEntity(
+    event: EventEntity,
+    media: MediaItemEntity | null,
+  ): EventResponseDto {
     return {
       id: event.id,
       title: event.title,

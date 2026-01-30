@@ -1,10 +1,5 @@
 import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
-import {
-  Injectable,
-  NotFoundException,
-  ConflictException,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, ConflictException, Logger } from '@nestjs/common';
 import { FeatureFlagsRepository } from './feature-flags.repository';
 import { CreateFeatureFlagDto } from './dto/create-feature-flag.dto';
 import { UpdateFeatureFlagDto } from './dto/update-feature-flag.dto';

@@ -4,15 +4,18 @@ import { TeacherProfileEntity } from '../entities/teacher-profile.entity/teacher
 @Exclude()
 export class TeacherSimpleListDto {
   @Expose()
-  @Transform(({ obj }) => obj.id)
+  @Transform(({ obj }: { obj: TeacherProfileEntity }) => obj.id)
   teacherProfileId!: string;
 
   @Expose()
-  @Transform(({ obj }) => obj.user?.name || obj.user?.email || '—')
+  @Transform(
+    ({ obj }: { obj: TeacherProfileEntity }) =>
+      obj.user?.name || obj.user?.email || '—',
+  )
   name!: string;
 
   @Expose()
-  @Transform(({ obj }) => !!obj.club)
+  @Transform(({ obj }: { obj: TeacherProfileEntity }) => !!obj.club)
   vinculado!: boolean;
 }
 

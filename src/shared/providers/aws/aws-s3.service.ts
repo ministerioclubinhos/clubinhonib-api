@@ -55,8 +55,9 @@ export class AwsS3Service {
     try {
       await this.s3Client.send(command);
       return `https://${this.bucketName}.s3.amazonaws.com/${key}`;
-    } catch (err) {
-      this.logger.error(`Error uploading to S3: ${err.message}`);
+    } catch (err: any) {
+      const error = err as Error;
+      this.logger.error(`Error uploading to S3: ${error.message}`);
       throw new Error('Error uploading to S3');
     }
   }
@@ -75,8 +76,9 @@ export class AwsS3Service {
 
     try {
       await this.s3Client.send(command);
-    } catch (err) {
-      this.logger.error(`Error deleting from S3: ${err.message}`);
+    } catch (err: any) {
+      const error = err as Error;
+      this.logger.error(`Error deleting from S3: ${error.message}`);
     }
   }
 }

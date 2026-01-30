@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DataSource, QueryRunner } from 'typeorm';
+import { DataSource } from 'typeorm';
 import {
   AppInternalException,
   AppValidationException,
@@ -97,24 +97,24 @@ export class WeekMaterialsPageCreateService {
         savedPage.id,
         MediaTargetType.WeekMaterialsPage,
         filesDict,
-        this.s3.upload.bind(this.s3),
+        (file: Express.Multer.File) => this.s3.upload(file),
       );
 
       await queryRunner.commitTransaction();
       this.logger.debug(`✅ Página criada com sucesso. ID=${savedPage.id}`);
 
       return WeekMaterialsPageResponseDTO.fromEntity(savedPage, mediaItems);
-    } catch (error) {
+    } catch (error: unknown) {
       await queryRunner.rollbackTransaction();
-      this.logger.error(
-        'Erro ao criar página. Rollback executado.',
-        error.stack,
-      );
-      if (error.code) throw error;
+      const errStack = error instanceof Error ? error.stack : undefined;
+      const errMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error('Erro ao criar página. Rollback executado.', errStack);
+      const hasCode = error && typeof error === 'object' && 'code' in error;
+      if (hasCode) throw error as unknown as Error;
       throw new AppInternalException(
         ErrorCode.PAGE_CREATE_ERROR,
-        `Erro ao criar a página de materiais: ${error.message}`,
-        error,
+        `Erro ao criar a página de materiais: ${errMsg}`,
+        error as Error,
       );
     } finally {
       await queryRunner.release();

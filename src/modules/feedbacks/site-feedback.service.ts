@@ -84,10 +84,11 @@ export class SiteFeedbackService {
       const updatedFeedback = await this.siteFeedbackRepo.save(feedback);
 
       return updatedFeedback;
-    } catch (error) {
+    } catch (error: unknown) {
+      const errStack = error instanceof Error ? error.stack : undefined;
       this.logger.error(
         '❌ Erro ao buscar ou atualizar feedback do site',
-        error.stack,
+        errStack,
       );
       throw new AppInternalException(
         ErrorCode.DATABASE_ERROR,

@@ -61,20 +61,22 @@ export class ImageSectionCreateService {
           savedSection.id,
           MediaTargetType.ImagesPage,
           filesDict,
-          this.awsS3Service.upload.bind(this.awsS3Service),
+          (file: Express.Multer.File) => this.awsS3Service.upload(file),
         );
 
       await queryRunner.commitTransaction();
 
       return ImageSectionResponseDto.fromEntity(savedSection, mediaItems);
-    } catch (error) {
+    } catch (error: unknown) {
       await queryRunner.rollbackTransaction();
-      this.logger.error('Erro ao criar seção', error.stack);
-      if (error.code) throw error;
+      const errStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error('Erro ao criar seção', errStack);
+      const hasCode = error && typeof error === 'object' && 'code' in error;
+      if (hasCode) throw error as unknown as Error;
       throw new AppInternalException(
         ErrorCode.SECTION_CREATE_ERROR,
         'Erro ao criar a seção',
-        error,
+        error as Error,
       );
     } finally {
       await queryRunner.release();

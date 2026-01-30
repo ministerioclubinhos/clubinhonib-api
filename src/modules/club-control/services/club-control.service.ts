@@ -8,6 +8,7 @@ import { ClubControlRepository } from '../repositories/club-control.repository';
 import { CreateClubPeriodDto } from '../dto/create-club-period.dto';
 import { UpdateClubPeriodDto } from '../dto/update-club-period.dto';
 import { CreateClubExceptionDto } from '../dto/create-club-exception.dto';
+import { DetailedIndicatorsResultDto } from '../dto/detailed-indicators-result.dto';
 import { AcademicWeekService } from './academic-week.service';
 import { ClubWeekCheckService } from './club-week-check.service';
 
@@ -463,7 +464,7 @@ export class ClubControlService {
       page?: number;
       limit?: number;
     },
-  ) {
+  ): Promise<DetailedIndicatorsResultDto> {
     return this.clubControlRepository.getDetailedIndicators(
       year,
       week,

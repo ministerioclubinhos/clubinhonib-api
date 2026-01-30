@@ -16,7 +16,8 @@ export class PersonalDataRepository extends Repository<PersonalData> {
     userId: string,
     data: Partial<PersonalData>,
   ): Promise<PersonalData> {
-    const { userId: _, ...cleanData } = data;
+    const { userId: _ignoredUserId, ...cleanData } = data;
+    void _ignoredUserId;
     const personalData = this.create({
       ...cleanData,
       userId,

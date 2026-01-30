@@ -1,5 +1,5 @@
 import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
 import { IdeasSectionEntity } from '../entities/ideas-section.entity';
 

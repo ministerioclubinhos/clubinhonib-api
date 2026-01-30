@@ -8,6 +8,7 @@ import {
   Logger,
   Query,
 } from '@nestjs/common';
+import { AuthRequest } from './auth.types';
 
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -54,7 +55,7 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Post('logout')
-  async logout(@Request() req) {
+  async logout(@Request() req: AuthRequest) {
     this.logger.log(`User logging out: ${req.user.userId}`);
     const result = await this.authService.logout(req.user.userId);
     this.logger.log(`User logged out successfully: ${req.user.userId}`);
@@ -63,7 +64,7 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Get('me')
-  getMe(@Request() req) {
+  getMe(@Request() req: AuthRequest) {
     return this.authService.getMe(req.user.userId);
   }
 
