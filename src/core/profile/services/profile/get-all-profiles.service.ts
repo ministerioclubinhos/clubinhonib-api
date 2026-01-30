@@ -29,7 +29,7 @@ export class GetAllProfilesService {
     private readonly personalDataRepository: PersonalDataRepository,
     private readonly userPreferencesRepository: UserPreferencesRepository,
     private readonly mediaItemRepository: MediaItemRepository,
-  ) { }
+  ) {}
 
   async execute(
     requestingUserId: string,
@@ -76,26 +76,26 @@ export class GetAllProfilesService {
           image: mediaMap.get(user.id),
           personalData: personalData
             ? {
-              birthDate: personalData.birthDate
-                ? personalData.birthDate instanceof Date
-                  ? personalData.birthDate.toISOString().split('T')[0]
-                  : String(personalData.birthDate).split('T')[0]
-                : undefined,
-              gender: personalData.gender,
-              gaLeaderName: personalData.gaLeaderName,
-              gaLeaderContact: personalData.gaLeaderContact,
-            }
+                birthDate: personalData.birthDate
+                  ? personalData.birthDate instanceof Date
+                    ? personalData.birthDate.toISOString().split('T')[0]
+                    : String(personalData.birthDate).split('T')[0]
+                  : undefined,
+                gender: personalData.gender,
+                gaLeaderName: personalData.gaLeaderName,
+                gaLeaderContact: personalData.gaLeaderContact,
+              }
             : undefined,
           preferences: preferences
             ? {
-              loveLanguages: preferences.loveLanguages,
-              temperaments: preferences.temperaments,
-              favoriteColor: preferences.favoriteColor,
-              favoriteFood: preferences.favoriteFood,
-              favoriteMusic: preferences.favoriteMusic,
-              whatMakesYouSmile: preferences.whatMakesYouSmile,
-              skillsAndTalents: preferences.skillsAndTalents,
-            }
+                loveLanguages: preferences.loveLanguages,
+                temperaments: preferences.temperaments,
+                favoriteColor: preferences.favoriteColor,
+                favoriteFood: preferences.favoriteFood,
+                favoriteMusic: preferences.favoriteMusic,
+                whatMakesYouSmile: preferences.whatMakesYouSmile,
+                skillsAndTalents: preferences.skillsAndTalents,
+              }
             : undefined,
         };
       }),
