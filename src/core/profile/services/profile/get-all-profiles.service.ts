@@ -29,7 +29,7 @@ export class GetAllProfilesService {
     private readonly personalDataRepository: PersonalDataRepository,
     private readonly userPreferencesRepository: UserPreferencesRepository,
     private readonly mediaItemRepository: MediaItemRepository,
-  ) {}
+  ) { }
 
   async execute(
     requestingUserId: string,
@@ -76,26 +76,26 @@ export class GetAllProfilesService {
           image: mediaMap.get(user.id),
           personalData: personalData
             ? {
-                birthDate: personalData.birthDate
-                  ? personalData.birthDate instanceof Date
-                    ? personalData.birthDate.toISOString().split('T')[0]
-                    : String(personalData.birthDate).split('T')[0]
-                  : undefined,
-                gender: personalData.gender,
-                gaLeaderName: personalData.gaLeaderName,
-                gaLeaderContact: personalData.gaLeaderContact,
-              }
+              birthDate: personalData.birthDate
+                ? personalData.birthDate instanceof Date
+                  ? personalData.birthDate.toISOString().split('T')[0]
+                  : String(personalData.birthDate).split('T')[0]
+                : undefined,
+              gender: personalData.gender,
+              gaLeaderName: personalData.gaLeaderName,
+              gaLeaderContact: personalData.gaLeaderContact,
+            }
             : undefined,
           preferences: preferences
             ? {
-                loveLanguages: preferences.loveLanguages,
-                temperaments: preferences.temperaments,
-                favoriteColor: preferences.favoriteColor,
-                favoriteFood: preferences.favoriteFood,
-                favoriteMusic: preferences.favoriteMusic,
-                whatMakesYouSmile: preferences.whatMakesYouSmile,
-                skillsAndTalents: preferences.skillsAndTalents,
-              }
+              loveLanguages: preferences.loveLanguages,
+              temperaments: preferences.temperaments,
+              favoriteColor: preferences.favoriteColor,
+              favoriteFood: preferences.favoriteFood,
+              favoriteMusic: preferences.favoriteMusic,
+              whatMakesYouSmile: preferences.whatMakesYouSmile,
+              skillsAndTalents: preferences.skillsAndTalents,
+            }
             : undefined,
         };
       }),
@@ -161,22 +161,20 @@ export class GetAllProfilesService {
         SELECT DISTINCT u.*, pd.birthDate, up.loveLanguages, up.temperaments, up.favoriteColor
         FROM users u
         INNER JOIN teacher_profiles tp ON tp.user_id = u.id
-        INNER JOIN teams t ON t.id = tp.team_id
-        INNER JOIN coordinator_teams lt ON lt.team_id = t.id
-        INNER JOIN coordinator_profiles lp ON lp.id = lt.coordinator_id
+        INNER JOIN clubs c ON c.id = tp.club_id
+        INNER JOIN coordinator_profiles cp ON cp.id = c.coordinator_profile_id
         LEFT JOIN personal_data pd ON pd.userId = u.id
         LEFT JOIN user_preferences up ON up.userId = u.id
-        WHERE lp.user_id = ?
+        WHERE cp.user_id = ?
       `;
 
       countQuery = `
         SELECT COUNT(DISTINCT u.id) as total
         FROM users u
         INNER JOIN teacher_profiles tp ON tp.user_id = u.id
-        INNER JOIN teams t ON t.id = tp.team_id
-        INNER JOIN coordinator_teams lt ON lt.team_id = t.id
-        INNER JOIN coordinator_profiles lp ON lp.id = lt.coordinator_id
-        WHERE lp.user_id = ?
+        INNER JOIN clubs c ON c.id = tp.club_id
+        INNER JOIN coordinator_profiles cp ON cp.id = c.coordinator_profile_id
+        WHERE cp.user_id = ?
       `;
 
       params.push(requestingUserId);
