@@ -1,10 +1,8 @@
 export class ClubStatsItemDto {
-
   clubId: string;
   clubNumber: number;
   weekday: string;
   time?: string | null;
-
 
   address?: {
     city?: string;
@@ -13,12 +11,10 @@ export class ClubStatsItemDto {
     street?: string;
   };
 
-
   coordinator?: {
     id: string;
     name: string;
   } | null;
-
 
   children: {
     total: number;
@@ -31,7 +27,6 @@ export class ClubStatsItemDto {
     withDecisions: number;
   };
 
-
   teachers: {
     total: number;
     active: number;
@@ -40,7 +35,6 @@ export class ClubStatsItemDto {
       name: string;
     }[];
   };
-
 
   performance: {
     totalPagelas: number;
@@ -51,12 +45,10 @@ export class ClubStatsItemDto {
     totalDecisions: number;
   };
 
-
   lastActivity?: {
     date: string;
     type: string;
   } | null;
-
 
   rank?: number;
 }
@@ -113,7 +105,6 @@ export class ClubsStatsResponseDto {
     hasPrevious: boolean;
   };
 
-
   inactiveClubs: {
     total: number;
     list: {
@@ -129,5 +120,3 @@ export class ClubsStatsResponseDto {
     fromInactiveClubs: number;
   };
 }
-
-

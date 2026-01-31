@@ -4,17 +4,24 @@ import { CoordinatorProfileEntity } from '../entities/coordinator-profile.entity
 @Exclude()
 export class CoordinatorSimpleListDto {
   @Expose()
-  @Transform(({ obj }) => obj.id)
+  @Transform(({ obj }: { obj: CoordinatorProfileEntity }) => obj.id)
   coordinatorProfileId!: string;
 
   @Expose()
-  @Transform(({ obj }) => obj.user?.name)
+  @Transform(({ obj }: { obj: CoordinatorProfileEntity }) => obj.user?.name)
   name!: string;
 
   @Expose()
-  @Transform(({ obj }) => Array.isArray(obj.clubs) && obj.clubs.length > 0)
+  @Transform(
+    ({ obj }: { obj: CoordinatorProfileEntity }) =>
+      Array.isArray(obj.clubs) && obj.clubs.length > 0,
+  )
   vinculado!: boolean;
 }
 
-export const toCoordinatorSimple = (entity: CoordinatorProfileEntity): CoordinatorSimpleListDto =>
-  plainToInstance(CoordinatorSimpleListDto, entity, { excludeExtraneousValues: true });
+export const toCoordinatorSimple = (
+  entity: CoordinatorProfileEntity,
+): CoordinatorSimpleListDto =>
+  plainToInstance(CoordinatorSimpleListDto, entity, {
+    excludeExtraneousValues: true,
+  });

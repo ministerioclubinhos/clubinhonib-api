@@ -16,7 +16,7 @@ export class UpdateClubsService {
   constructor(
     private readonly clubsRepository: ClubsRepository,
     private readonly authCtx: AuthContextService,
-  ) { }
+  ) {}
 
   private async getCtx(req: Request): Promise<Ctx> {
     const p = await this.authCtx.tryGetPayload(req);
@@ -25,17 +25,38 @@ export class UpdateClubsService {
 
   async update(id: string, dto: UpdateClubDto, req: Request) {
     const ctx = await this.getCtx(req);
-    if (!ctx.role || ctx.role === 'teacher') throw new AppForbiddenException(ErrorCode.CLUB_ACCESS_DENIED, 'Acesso negado');
+    if (!ctx.role || ctx.role === 'teacher')
+      throw new AppForbiddenException(
+        ErrorCode.CLUB_ACCESS_DENIED,
+        'Acesso negado',
+      );
 
     if (ctx.role === 'coordinator') {
       const allowed = await this.clubsRepository.userHasAccessToClub(id, ctx);
-      if (!allowed) throw new AppNotFoundException(ErrorCode.CLUB_NOT_FOUND, 'Clubinho não encontrado');
+      if (!allowed)
+        throw new AppNotFoundException(
+          ErrorCode.CLUB_NOT_FOUND,
+          'Clubinho não encontrado',
+        );
 
       if (dto.coordinatorProfileId !== undefined) {
-        const myCoordId = await this.clubsRepository.getCoordinatorProfileIdByUserId(ctx.userId!);
-        if (!myCoordId) throw new AppForbiddenException(ErrorCode.CLUB_ACCESS_DENIED, 'Acesso negado');
-        if (dto.coordinatorProfileId !== null && dto.coordinatorProfileId !== myCoordId) {
-          throw new AppForbiddenException(ErrorCode.CLUB_ACCESS_DENIED, 'Não é permitido atribuir outro coordenador');
+        const myCoordId =
+          await this.clubsRepository.getCoordinatorProfileIdByUserId(
+            ctx.userId!,
+          );
+        if (!myCoordId)
+          throw new AppForbiddenException(
+            ErrorCode.CLUB_ACCESS_DENIED,
+            'Acesso negado',
+          );
+        if (
+          dto.coordinatorProfileId !== null &&
+          dto.coordinatorProfileId !== myCoordId
+        ) {
+          throw new AppForbiddenException(
+            ErrorCode.CLUB_ACCESS_DENIED,
+            'Não é permitido atribuir outro coordenador',
+          );
         }
         if (dto.coordinatorProfileId === undefined) {
           dto.coordinatorProfileId = myCoordId;

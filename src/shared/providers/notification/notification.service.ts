@@ -52,16 +52,27 @@ export class NotificationService {
       let sent = false;
       for (const from of fromAddresses) {
         try {
-          await this.sesService.sendEmailViaSES(to, subject, '', htmlBody, from);
+          await this.sesService.sendEmailViaSES(
+            to,
+            subject,
+            '',
+            htmlBody,
+            from,
+          );
           this.logger.log(`Email sent successfully to ${to} (via ${from})`);
           sent = true;
           break;
-        } catch (error) {
-          this.logger.warn(`Failed to send email to ${to} via ${from}: ${error.message}`);
+        } catch (error: any) {
+          const err = error as Error;
+          this.logger.warn(
+            `Failed to send email to ${to} via ${from}: ${err.message}`,
+          );
         }
       }
       if (!sent) {
-        this.logger.error(`Failed to send email to ${to} with all configured senders`);
+        this.logger.error(
+          `Failed to send email to ${to} with all configured senders`,
+        );
       }
     }
   }
@@ -111,7 +122,9 @@ ${contact.message}
   }
 
   private getFromAddresses(): string[] {
-    const fromEnv = this.configService.get<string>('SES_DEFAULT_FROM') || 'no-reply@clubinhonib.com';
+    const fromEnv =
+      this.configService.get<string>('SES_DEFAULT_FROM') ||
+      'no-reply@clubinhonib.com';
     return fromEnv
       .split(',')
       .map((e) => e.trim())

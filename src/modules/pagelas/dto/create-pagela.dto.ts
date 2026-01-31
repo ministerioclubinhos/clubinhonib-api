@@ -1,4 +1,13 @@
-import { IsBoolean, IsDateString, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  Min,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreatePagelaDto {
@@ -12,7 +21,6 @@ export class CreatePagelaDto {
   @IsDateString()
   referenceDate: string;
 
-  
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -20,7 +28,6 @@ export class CreatePagelaDto {
   @Max(53)
   week?: number;
 
-  
   @IsOptional()
   @Type(() => Number)
   @IsInt()

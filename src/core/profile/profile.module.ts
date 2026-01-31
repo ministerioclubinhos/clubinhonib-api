@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ProfileController } from './controllers/profile.controller';
 import { CreateProfileService } from './services/profile/create-profile.service';
@@ -13,11 +13,13 @@ import { UserEntity } from '../user/entities/user.entity';
 import { PersonalData } from './entities/personal-data.entity';
 import { UserPreferences } from './entities/user-preferences.entity';
 import { AuthModule } from '../auth/auth.module';
+import { MediaModule } from 'src/shared/media/media.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([UserEntity, PersonalData, UserPreferences]),
-    AuthModule,
+    forwardRef(() => AuthModule),
+    MediaModule,
   ],
   controllers: [ProfileController],
   providers: [

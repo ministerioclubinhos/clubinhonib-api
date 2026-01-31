@@ -1,5 +1,4 @@
-
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   AppNotFoundException,
   AppBusinessException,
@@ -23,7 +22,7 @@ export class IdeasSectionDeleteService {
     private readonly awsS3Service: AwsS3Service,
     private readonly ideasSectionRepository: IdeasSectionRepository,
     private readonly mediaItemProcessor: MediaItemProcessor,
-  ) { }
+  ) {}
 
   async deleteSection(id: string): Promise<void> {
     this.logger.log(`🚀 Iniciando exclusão de seção de ideias ID=${id}`);
@@ -33,18 +32,24 @@ export class IdeasSectionDeleteService {
     await queryRunner.startTransaction();
 
     try {
-      const existingSection = await queryRunner.manager.findOne(IdeasSectionEntity, {
-        where: { id },
-      });
+      const existingSection = await queryRunner.manager.findOne(
+        IdeasSectionEntity,
+        {
+          where: { id },
+        },
+      );
 
       if (!existingSection) {
-        throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, `Seção de ideias com ID=${id} não encontrada`);
+        throw new AppNotFoundException(
+          ErrorCode.RESOURCE_NOT_FOUND,
+          `Seção de ideias com ID=${id} não encontrada`,
+        );
       }
 
       if (existingSection.page) {
-        throw new BadRequestException(
-          `Seção de ideias ID=${id} está vinculada à página ID=${existingSection.page.id}. ` +
-          `Remova a vinculação primeiro ou delete a página.`
+        throw new AppBusinessException(
+          ErrorCode.SECTION_DELETE_ERROR,
+          `Seção de ideias ID=${id} está vinculada à página ID=${existingSection.page.id}. Remova a vinculação primeiro ou delete a página.`,
         );
       }
 
@@ -61,8 +66,11 @@ export class IdeasSectionDeleteService {
           try {
             await this.awsS3Service.delete(media.url);
             this.logger.debug(`✅ Arquivo removido do S3: ${media.url}`);
-          } catch (error) {
-            this.logger.warn(`⚠️ Erro ao remover arquivo do S3: ${media.url}`, error);
+          } catch (error: unknown) {
+            this.logger.warn(
+              `⚠️ Erro ao remover arquivo do S3: ${media.url}`,
+              error instanceof Error ? error.stack : error,
+            );
           }
         }
       }
@@ -80,16 +88,17 @@ export class IdeasSectionDeleteService {
 
       await queryRunner.commitTransaction();
       this.logger.log(`✅ Seção de ideias ID=${id} excluída com sucesso`);
-
-    } catch (error) {
+    } catch (error: unknown) {
       await queryRunner.rollbackTransaction();
-      this.logger.error(`❌ Erro ao excluir seção de ideias ID=${id}`, error);
-
-      if (error instanceof AppNotFoundException || error instanceof BadRequestException) {
-        throw error;
-      }
-
-      throw new BadRequestException('Erro ao excluir a seção de ideias');
+      const errStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`Erro ao excluir seção de ideias ID=${id}`, errStack);
+      const hasCode = error && typeof error === 'object' && 'code' in error;
+      if (hasCode) throw error as unknown as Error;
+      throw new AppInternalException(
+        ErrorCode.SECTION_DELETE_ERROR,
+        'Erro ao excluir a seção de ideias',
+        error instanceof Error ? error : new Error(String(error)),
+      );
     } finally {
       await queryRunner.release();
     }

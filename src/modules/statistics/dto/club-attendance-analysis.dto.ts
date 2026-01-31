@@ -1,12 +1,10 @@
-
-
 export class MissingWeekDto {
   year: number;
   week: number;
-  expectedDate: string; 
+  expectedDate: string;
   weekRange: {
-    start: string; 
-    end: string; 
+    start: string;
+    end: string;
   };
   reason: 'no_pagela' | 'club_inactive' | 'vacation_period';
   severity: 'critical' | 'warning' | 'info';
@@ -21,14 +19,14 @@ export class ClubAttendanceAnalysisDto {
     startDate: string;
     endDate: string;
     totalWeeks: number;
-    activeWeeks: number; 
+    activeWeeks: number;
   };
 
   attendance: {
     weeksWithPagela: number;
     weeksExpected: number;
     weeksMissing: number;
-    attendanceRate: number; 
+    attendanceRate: number;
     consecutiveWeeksPresent: number;
     consecutiveWeeksMissing: number;
   };
@@ -36,7 +34,11 @@ export class ClubAttendanceAnalysisDto {
   missingWeeks: MissingWeekDto[];
 
   alerts: {
-    type: 'missing_weeks' | 'low_attendance' | 'inactive' | 'consecutive_missing';
+    type:
+      | 'missing_weeks'
+      | 'low_attendance'
+      | 'inactive'
+      | 'consecutive_missing';
     severity: 'critical' | 'warning' | 'info';
     message: string;
     weeksMissing?: number;
@@ -104,4 +106,3 @@ export class WeeklyAttendanceDto {
     attendanceRate: number;
   };
 }
-

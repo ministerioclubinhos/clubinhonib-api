@@ -22,7 +22,7 @@ export class UpdateUserService {
     private readonly userRepo: UserRepository,
     private teacherProfilesService: TeacherProfilesService,
     private coordinatorProfilesService: CoordinatorProfilesService,
-  ) { }
+  ) {}
 
   async update(id: string, dto: Partial<UpdateUserDto>): Promise<UserEntity> {
     const current = await this.userRepo.findById(id);
@@ -59,20 +59,20 @@ export class UpdateUserService {
       }
     }
 
-    const nextRole: UserRole = (dto.role ?? current.role) as UserRole;
+    const nextRole: UserRole = dto.role ?? current.role;
     const activeInDto = typeof dto.active === 'boolean';
-    const nextActive: boolean = (dto.active ?? current.active) as boolean;
+    const nextActive: boolean = dto.active ?? current.active;
 
     const willChangeRole = dto.role !== undefined && dto.role !== current.role;
 
     if (willChangeRole) {
-
       if (nextRole === UserRole.TEACHER) {
         await this.coordinatorProfilesService.removeByUserId(id);
         if (nextActive) {
           try {
             await this.teacherProfilesService.createForUser(id);
           } catch {
+            // Profile may already exist, ignore
           }
         } else {
           await this.teacherProfilesService.removeByUserId(id);
@@ -83,6 +83,7 @@ export class UpdateUserService {
           try {
             await this.coordinatorProfilesService.createForUser(id);
           } catch {
+            // Profile may already exist, ignore
           }
         } else {
           await this.coordinatorProfilesService.removeByUserId(id);
@@ -99,6 +100,7 @@ export class UpdateUserService {
           try {
             await this.teacherProfilesService.createForUser(id);
           } catch {
+            // Profile may already exist, ignore
           }
         } else {
           await this.teacherProfilesService.removeByUserId(id);
@@ -108,6 +110,7 @@ export class UpdateUserService {
           try {
             await this.coordinatorProfilesService.createForUser(id);
           } catch {
+            // Profile may already exist, ignore
           }
         } else {
           await this.coordinatorProfilesService.removeByUserId(id);

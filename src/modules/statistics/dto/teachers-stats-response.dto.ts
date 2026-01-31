@@ -1,9 +1,7 @@
 export class TeacherStatsItemDto {
-  
   teacherId: string;
   name: string;
 
-  
   club?: {
     id: string;
     number: number;
@@ -12,13 +10,11 @@ export class TeacherStatsItemDto {
     state: string;
   } | null;
 
-  
   coordinator?: {
     id: string;
     name: string;
   } | null;
 
-  
   children: {
     total: number;
     unique: number;
@@ -27,24 +23,21 @@ export class TeacherStatsItemDto {
     avgEngagement: number;
   };
 
-  
   performance: {
     totalPagelas: number;
     avgPresenceRate: number;
     avgMeditationRate: number;
     avgVerseRate: number;
-    effectivenessScore: number; 
+    effectivenessScore: number;
   };
 
-  
   lastActivity?: {
     date: string;
     totalPagelas: number;
   } | null;
 
-  isActive: boolean; 
+  isActive: boolean;
 
-  
   rank?: number;
 }
 
@@ -77,7 +70,7 @@ export class TeachersStatsResponseDto {
       percentage: number;
     }[];
     byEffectiveness: {
-      range: string; 
+      range: string;
       count: number;
       percentage: number;
     }[];
@@ -94,5 +87,3 @@ export class TeachersStatsResponseDto {
     hasPrevious: boolean;
   };
 }
-
-

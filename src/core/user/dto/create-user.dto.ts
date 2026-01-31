@@ -1,5 +1,11 @@
-import { IsEmail, IsEnum, IsOptional, IsString, MinLength } from "class-validator";
-import { UserRole } from "src/core/auth/auth.types";
+import {
+  IsEmail,
+  IsEnum,
+  IsOptional,
+  IsString,
+  MinLength,
+} from 'class-validator';
+import { UserRole } from 'src/core/auth/auth.types';
 
 export class CreateUserDto {
   @IsString()

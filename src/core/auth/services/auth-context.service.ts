@@ -3,14 +3,18 @@ import { Request } from 'express';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { JwtPayload, UserRole } from '../auth.types';
-import { AppUnauthorizedException, AppInternalException, ErrorCode } from 'src/shared/exceptions';
+import {
+  AppUnauthorizedException,
+  AppInternalException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 
 @Injectable()
 export class AuthContextService {
   constructor(
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
-  ) { }
+  ) {}
 
   getTokenFromRequest(req: Request): string | null {
     const auth = req.headers['authorization'] || req.headers['Authorization'];
@@ -19,21 +23,20 @@ export class AuthContextService {
       if (scheme?.toLowerCase() === 'bearer' && token) return token.trim();
     }
 
-    const cookies = (req as any).cookies || {};
-    if (cookies['access_token']) return String(cookies['access_token']);
-    if (cookies['auth_token']) return String(cookies['auth_token']);
+    const cookies = (req as unknown as { cookies?: Record<string, string> })
+      .cookies;
+    if (cookies?.['access_token']) return String(cookies['access_token']);
+    if (cookies?.['auth_token']) return String(cookies['auth_token']);
 
-    const q: any = (req as any).query || {};
-    if (q['access_token']) return String(q['access_token']);
+    const q = (req as unknown as { query?: Record<string, string> }).query;
+    if (q?.['access_token']) return String(q['access_token']);
 
     return null;
   }
 
   async verifyToken(token: string): Promise<JwtPayload> {
     const secret =
-      this.config.get<string>('JWT_SECRET') ??
-      process.env.JWT_SECRET ??
-      '';
+      this.config.get<string>('JWT_SECRET') ?? process.env.JWT_SECRET ?? '';
     if (!secret) {
       throw new AppInternalException(
         ErrorCode.INTERNAL_ERROR,
@@ -45,8 +48,13 @@ export class AuthContextService {
   }
 
   decodeToken(token: string): JwtPayload | null {
-    const payload = this.jwt.decode(token) as JwtPayload | null;
-    return payload ? this.normalizePayload(payload) : null;
+    const decoded: string | { [key: string]: unknown } | null =
+      this.jwt.decode(token);
+    if (!decoded || typeof decoded === 'string') {
+      return null;
+    }
+    const payload = decoded as unknown as JwtPayload;
+    return this.normalizePayload(payload);
   }
 
   async getPayloadFromRequest(req: Request): Promise<JwtPayload> {
@@ -118,9 +126,9 @@ export class AuthContextService {
   private normalizeRole(role?: string | UserRole): UserRole | undefined {
     if (!role) return undefined;
     const r = String(role).toLowerCase();
-    if (r === UserRole.ADMIN) return UserRole.ADMIN;
-    if (r === UserRole.TEACHER) return UserRole.TEACHER;
-    if (r === UserRole.COORDINATOR) return UserRole.COORDINATOR;
+    if (r === (UserRole.ADMIN as string)) return UserRole.ADMIN;
+    if (r === (UserRole.TEACHER as string)) return UserRole.TEACHER;
+    if (r === (UserRole.COORDINATOR as string)) return UserRole.COORDINATOR;
     return undefined;
   }
 }

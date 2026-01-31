@@ -90,7 +90,9 @@ export class IdeasSectionResponseDto {
       public: section.public,
       createdAt: section.createdAt,
       updatedAt: section.updatedAt,
-      medias: mediaItems.map(IdeasMediaItemResponseDto.fromEntity),
+      medias: mediaItems.map((item) =>
+        IdeasMediaItemResponseDto.fromEntity(item),
+      ),
     };
   }
 }
@@ -105,7 +107,6 @@ export class IdeasPageResponseDto {
   updatedAt: Date;
   route: IdeasRouteDto;
   sections: IdeasSectionResponseDto[];
-
 
   static fromEntity(
     page: IdeasPageEntity,

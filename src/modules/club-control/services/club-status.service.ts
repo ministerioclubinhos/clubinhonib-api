@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { ClubExceptionEntity } from '../entities/club-exception.entity';
 
 @Injectable()
 export class ClubStatusService {

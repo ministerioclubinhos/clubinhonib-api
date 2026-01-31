@@ -9,7 +9,11 @@ export interface ContactEmailData {
 }
 
 export class EmailTemplateGenerator {
-  static generate(title: string, recipientName: string, bodyContent: string): string {
+  static generate(
+    title: string,
+    recipientName: string,
+    bodyContent: string,
+  ): string {
     const year = new Date().getFullYear();
 
     return `
@@ -162,6 +166,3 @@ export class EmailTemplateGenerator {
     return this.generate('Novo Contato', '', body);
   }
 }
-
-
-

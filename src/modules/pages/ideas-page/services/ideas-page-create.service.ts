@@ -1,15 +1,15 @@
-import {
-  Injectable,
-  Logger,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { AppInternalException, ErrorCode } from 'src/shared/exceptions';
 import { DataSource, QueryRunner } from 'typeorm';
 import { plainToInstance } from 'class-transformer';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { RouteService } from 'src/modules/routes/route.service';
 import { RouteType } from 'src/modules/routes/route-page.entity';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
-import { MediaType } from 'src/shared/media/media-item/media-item.entity';
+import {
+  MediaType,
+  UploadType,
+} from 'src/shared/media/media-item/media-item.entity';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
 import { CreateIdeasPageDto } from '../dto/create-ideas-page.dto';
 import { IdeasPageResponseDto } from '../dto/ideas-page-response.dto';
@@ -25,7 +25,7 @@ export class IdeasPageCreateService {
     private readonly s3: AwsS3Service,
     private readonly routeService: RouteService,
     private readonly mediaProcessor: MediaItemProcessor,
-  ) { }
+  ) {}
 
   async createIdeasPage(
     dto: CreateIdeasPageDto,
@@ -47,11 +47,16 @@ export class IdeasPageCreateService {
       this.logger.debug('✅  Transaction committed');
 
       return plainToInstance(IdeasPageResponseDto, page);
-    } catch (err) {
+    } catch (err: unknown) {
       await runner.rollbackTransaction();
-      this.logger.error('💥  Transaction rolled‑back', err.stack);
-      throw new BadRequestException(
-        `Erro ao criar a página de ideias: ${err.message}`,
+      const error = err instanceof Error ? err : new Error(String(err));
+      this.logger.error('Transaction rolled-back', error.stack);
+      const hasCode = err && typeof err === 'object' && 'code' in err;
+      if (hasCode) throw err as unknown as Error;
+      throw new AppInternalException(
+        ErrorCode.PAGE_CREATE_ERROR,
+        `Erro ao criar a página de ideias: ${error.message}`,
+        error,
       );
     } finally {
       await runner.release();
@@ -116,7 +121,8 @@ export class IdeasPageCreateService {
         entityId: page.id,
         idToFetch: page.id,
         entityType: MediaTargetType.IdeasPage,
-        image: 'https://clubinho-nib.s3.us-east-1.amazonaws.com/production/cards/card_ideias.png',
+        image:
+          'https://clubinho-nib.s3.us-east-1.amazonaws.com/production/cards/card_ideias.png',
         public: false,
       },
     );
@@ -150,10 +156,14 @@ export class IdeasPageCreateService {
       const normalized = secDto.medias.map((item) => ({
         ...item,
         mediaType:
-          item.mediaType === MediaType.VIDEO ? MediaType.VIDEO : item.mediaType === MediaType.DOCUMENT ? MediaType.DOCUMENT : MediaType.IMAGE,
+          item.mediaType === MediaType.VIDEO
+            ? MediaType.VIDEO
+            : item.mediaType === MediaType.DOCUMENT
+              ? MediaType.DOCUMENT
+              : MediaType.IMAGE,
         type: item.uploadType,
         fileField:
-          item.uploadType === 'upload' && item.isLocalFile
+          item.uploadType === UploadType.UPLOAD && item.isLocalFile
             ? item.fieldKey
             : undefined,
       }));
@@ -163,7 +173,7 @@ export class IdeasPageCreateService {
         dbSection.id,
         MediaTargetType.IdeasSection,
         filesDict,
-        this.s3.upload.bind(this.s3),
+        (file: Express.Multer.File) => this.s3.upload(file),
       );
 
       this.logger.debug(`       • ${saved.length} mídias processadas`);

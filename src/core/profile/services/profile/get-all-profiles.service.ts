@@ -6,6 +6,20 @@ import { UserPreferencesRepository } from '../../repositories/user-preferences.r
 import { UserRole } from '../../../auth/auth.types';
 import { QueryProfilesDto } from '../../dto/query-profiles.dto';
 import { PaginatedProfilesResponseDto } from '../../dto/paginated-profiles-response.dto';
+import { MediaItemRepository } from 'src/shared/media/media-item-repository';
+import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
+
+interface UserQueryResult {
+  id: string;
+  email: string;
+  phone: string;
+  name: string;
+  role: string;
+}
+
+interface CountQueryResult {
+  total: string;
+}
 
 @Injectable()
 export class GetAllProfilesService {
@@ -14,14 +28,15 @@ export class GetAllProfilesService {
     private readonly userRepository: UserRepository,
     private readonly personalDataRepository: PersonalDataRepository,
     private readonly userPreferencesRepository: UserPreferencesRepository,
-  ) { }
+    private readonly mediaItemRepository: MediaItemRepository,
+  ) {}
 
   async execute(
     requestingUserId: string,
     requestingUserRole: UserRole,
     queryDto: QueryProfilesDto,
   ): Promise<PaginatedProfilesResponseDto> {
-    const { page = 1, limit = 10, sortBy = 'name', order = 'ASC' } = queryDto;
+    const { page = 1, limit = 10 } = queryDto;
 
     // Ensure page and limit are numbers
     const pageNum = Number(page) || 1;
@@ -37,10 +52,20 @@ export class GetAllProfilesService {
       offset,
     );
 
+    const mediaItems = await this.mediaItemRepository.findManyByTargets(
+      users.map((u) => u.id),
+      MediaTargetType.User,
+    );
+    const mediaMap = new Map(mediaItems.map((m) => [m.targetId, m]));
+
     const profiles = await Promise.all(
       users.map(async (user) => {
-        const personalData = await this.personalDataRepository.findByUserId(user.id);
-        const preferences = await this.userPreferencesRepository.findByUserId(user.id);
+        const personalData = await this.personalDataRepository.findByUserId(
+          user.id,
+        );
+        const preferences = await this.userPreferencesRepository.findByUserId(
+          user.id,
+        );
 
         return {
           id: user.id,
@@ -48,25 +73,30 @@ export class GetAllProfilesService {
           phone: user.phone,
           name: user.name,
           role: user.role,
-          personalData: personalData ? {
-            birthDate: personalData.birthDate
-              ? (personalData.birthDate instanceof Date
-                ? personalData.birthDate.toISOString().split('T')[0]
-                : String(personalData.birthDate).split('T')[0])
-              : undefined,
-            gender: personalData.gender,
-            gaLeaderName: personalData.gaLeaderName,
-            gaLeaderContact: personalData.gaLeaderContact,
-          } : undefined,
-          preferences: preferences ? {
-            loveLanguages: preferences.loveLanguages,
-            temperaments: preferences.temperaments,
-            favoriteColor: preferences.favoriteColor,
-            favoriteFood: preferences.favoriteFood,
-            favoriteMusic: preferences.favoriteMusic,
-            whatMakesYouSmile: preferences.whatMakesYouSmile,
-            skillsAndTalents: preferences.skillsAndTalents,
-          } : undefined,
+          image: mediaMap.get(user.id),
+          personalData: personalData
+            ? {
+                birthDate: personalData.birthDate
+                  ? personalData.birthDate instanceof Date
+                    ? personalData.birthDate.toISOString().split('T')[0]
+                    : String(personalData.birthDate).split('T')[0]
+                  : undefined,
+                gender: personalData.gender,
+                gaLeaderName: personalData.gaLeaderName,
+                gaLeaderContact: personalData.gaLeaderContact,
+              }
+            : undefined,
+          preferences: preferences
+            ? {
+                loveLanguages: preferences.loveLanguages,
+                temperaments: preferences.temperaments,
+                favoriteColor: preferences.favoriteColor,
+                favoriteFood: preferences.favoriteFood,
+                favoriteMusic: preferences.favoriteMusic,
+                whatMakesYouSmile: preferences.whatMakesYouSmile,
+                skillsAndTalents: preferences.skillsAndTalents,
+              }
+            : undefined,
         };
       }),
     );
@@ -92,7 +122,7 @@ export class GetAllProfilesService {
     queryDto: QueryProfilesDto,
     limit: number,
     offset: number,
-  ): Promise<{ users: any[]; total: number }> {
+  ): Promise<{ users: UserQueryResult[]; total: number }> {
     const {
       q,
       name,
@@ -107,8 +137,8 @@ export class GetAllProfilesService {
 
     let baseQuery = '';
     let countQuery = '';
-    const params: any[] = [];
-    const countParams: any[] = [];
+    const params: (string | number)[] = [];
+    const countParams: (string | number)[] = [];
 
     if (requestingUserRole === UserRole.ADMIN) {
       baseQuery = `
@@ -131,22 +161,20 @@ export class GetAllProfilesService {
         SELECT DISTINCT u.*, pd.birthDate, up.loveLanguages, up.temperaments, up.favoriteColor
         FROM users u
         INNER JOIN teacher_profiles tp ON tp.user_id = u.id
-        INNER JOIN teams t ON t.id = tp.team_id
-        INNER JOIN coordinator_teams lt ON lt.team_id = t.id
-        INNER JOIN coordinator_profiles lp ON lp.id = lt.coordinator_id
+        INNER JOIN clubs c ON c.id = tp.club_id
+        INNER JOIN coordinator_profiles cp ON cp.id = c.coordinator_profile_id
         LEFT JOIN personal_data pd ON pd.userId = u.id
         LEFT JOIN user_preferences up ON up.userId = u.id
-        WHERE lp.user_id = ?
+        WHERE cp.user_id = ?
       `;
 
       countQuery = `
         SELECT COUNT(DISTINCT u.id) as total
         FROM users u
         INNER JOIN teacher_profiles tp ON tp.user_id = u.id
-        INNER JOIN teams t ON t.id = tp.team_id
-        INNER JOIN coordinator_teams lt ON lt.team_id = t.id
-        INNER JOIN coordinator_profiles lp ON lp.id = lt.coordinator_id
-        WHERE lp.user_id = ?
+        INNER JOIN clubs c ON c.id = tp.club_id
+        INNER JOIN coordinator_profiles cp ON cp.id = c.coordinator_profile_id
+        WHERE cp.user_id = ?
       `;
 
       params.push(requestingUserId);
@@ -210,8 +238,14 @@ export class GetAllProfilesService {
     baseQuery += ` LIMIT ? OFFSET ?`;
     params.push(limit, offset);
 
-    const users = await this.dataSource.query(baseQuery, params);
-    const countResult = await this.dataSource.query(countQuery, countParams);
+    const users = await this.dataSource.query<UserQueryResult[]>(
+      baseQuery,
+      params,
+    );
+    const countResult = await this.dataSource.query<CountQueryResult[]>(
+      countQuery,
+      countParams,
+    );
     const total = parseInt(countResult[0]?.total || '0', 10);
 
     return { users, total };

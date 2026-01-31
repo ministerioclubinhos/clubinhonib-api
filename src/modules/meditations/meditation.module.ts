@@ -4,7 +4,7 @@ import { DataSource } from 'typeorm';
 import { MeditationController } from './meditation.controller';
 import { MeditationRepository } from './meditation.repository';
 import { MeditationEntity } from './entities/meditation.entity';
-import { DayEntity } from './entities/day.entity'; 
+import { DayEntity } from './entities/day.entity';
 import { RouteModule } from 'src/modules/routes/route.module';
 import { MediaModule } from 'src/shared/media/media.module';
 import { CreateMeditationService } from './services/create-meditation.service';
@@ -16,7 +16,7 @@ import { GetMeditationService } from './services/get-meditation.service';
   imports: [
     TypeOrmModule.forFeature([MeditationEntity, DayEntity]),
     forwardRef(() => RouteModule),
-        MediaModule
+    MediaModule,
   ],
   controllers: [MeditationController],
   providers: [
@@ -26,17 +26,17 @@ import { GetMeditationService } from './services/get-meditation.service';
     GetMeditationService,
     {
       provide: 'MeditationRepository',
-      useFactory: (dataSource: DataSource) => new MeditationRepository(dataSource),
+      useFactory: (dataSource: DataSource) =>
+        new MeditationRepository(dataSource),
       inject: [DataSource],
     },
     {
       provide: MeditationRepository,
-      useFactory: (dataSource: DataSource) => new MeditationRepository(dataSource),
+      useFactory: (dataSource: DataSource) =>
+        new MeditationRepository(dataSource),
       inject: [DataSource],
     },
   ],
-  exports: [
-    GetMeditationService
-  ],
+  exports: [GetMeditationService],
 })
 export class MeditationModule {}

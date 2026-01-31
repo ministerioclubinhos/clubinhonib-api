@@ -1,14 +1,19 @@
-import { IsNotEmpty, IsString, IsEnum, IsBoolean, IsOptional } from 'class-validator';
-
+import {
+  IsNotEmpty,
+  IsString,
+  IsEnum,
+  IsBoolean,
+  IsOptional,
+} from 'class-validator';
 
 export class CreateClubExceptionDto {
   @IsNotEmpty()
   @IsString()
-  exceptionDate: string; 
+  exceptionDate: string;
 
   @IsNotEmpty()
   @IsString()
-  reason: string; 
+  reason: string;
 
   @IsOptional()
   @IsEnum(['holiday', 'event', 'maintenance', 'vacation', 'other'])
@@ -24,5 +29,5 @@ export class CreateClubExceptionDto {
 
   @IsOptional()
   @IsBoolean()
-  isRecurrent?: boolean; 
+  isRecurrent?: boolean;
 }

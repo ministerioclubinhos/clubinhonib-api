@@ -8,7 +8,6 @@ import {
   Body,
   UploadedFiles,
   UseInterceptors,
-  UseGuards,
   Logger,
 } from '@nestjs/common';
 import {
@@ -17,8 +16,6 @@ import {
   ErrorCode,
 } from 'src/shared/exceptions';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
-import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
-import { AdminRoleGuard } from 'src/core/auth/guards/role-guard';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { ImageSectionUpdateService } from './services/image-section-update-service';
@@ -48,7 +45,10 @@ export class ImageSectionController {
   ): Promise<ImageSectionResponseDto> {
     this.logger.debug('🚀 Criando nova section');
 
-    const dto = this.parseDto<CreateImageSectionDto>(raw, CreateImageSectionDto);
+    const dto = this.parseDto<CreateImageSectionDto>(
+      raw,
+      CreateImageSectionDto,
+    );
     await this.validateDto(dto);
 
     const filesDict = this.mapFiles(files);
@@ -67,7 +67,10 @@ export class ImageSectionController {
   ): Promise<ImageSectionResponseDto> {
     this.logger.debug(`🚀 Atualizando section ID=${id}`);
 
-    const dto = this.parseDto<UpdateImageSectionDto>(raw, UpdateImageSectionDto);
+    const dto = this.parseDto<UpdateImageSectionDto>(
+      raw,
+      UpdateImageSectionDto,
+    );
     await this.validateDto(dto);
 
     const filesDict = this.mapFiles(files);
@@ -93,7 +96,10 @@ export class ImageSectionController {
 
     const result = await this.getService.findOne(id);
     if (!result) {
-      throw new AppNotFoundException(ErrorCode.IMAGE_NOT_FOUND, `Section com id=${id} não encontrada`);
+      throw new AppNotFoundException(
+        ErrorCode.IMAGE_NOT_FOUND,
+        `Section com id=${id} não encontrada`,
+      );
     }
 
     this.logger.log(`✅ Section encontrada ID=${id}`);
@@ -111,26 +117,46 @@ export class ImageSectionController {
 
   private parseDto<T>(raw: string, dtoClass: new () => T): T {
     try {
-      const obj = JSON.parse(raw);
+      const obj: unknown = JSON.parse(raw);
       return plainToInstance(dtoClass, obj);
-    } catch (error) {
-      this.logger.error('❌ Erro ao fazer o parse do JSON recebido.', error);
-      throw new AppValidationException(ErrorCode.INVALID_INPUT, 'Formato inválido de JSON.');
+    } catch (error: unknown) {
+      this.logger.error(
+        '❌ Erro ao fazer o parse do JSON recebido.',
+        error instanceof Error ? error.stack : error,
+      );
+      throw new AppValidationException(
+        ErrorCode.INVALID_INPUT,
+        'Formato inválido de JSON.',
+      );
     }
   }
 
   private async validateDto(dto: object): Promise<void> {
-    const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
+    const errors = await validate(dto, {
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    });
     if (errors.length > 0) {
-      this.logger.error('❌ Erros de validação:', JSON.stringify(errors, null, 2));
-      throw new AppValidationException(ErrorCode.VALIDATION_ERROR, 'Dados inválidos na requisição.');
+      this.logger.error(
+        '❌ Erros de validação:',
+        JSON.stringify(errors, null, 2),
+      );
+      throw new AppValidationException(
+        ErrorCode.VALIDATION_ERROR,
+        'Dados inválidos na requisição.',
+      );
     }
   }
 
-  private mapFiles(files: Express.Multer.File[]): Record<string, Express.Multer.File> {
-    return files.reduce((acc, file) => {
-      acc[file.fieldname] = file;
-      return acc;
-    }, {} as Record<string, Express.Multer.File>);
+  private mapFiles(
+    files: Express.Multer.File[],
+  ): Record<string, Express.Multer.File> {
+    return files.reduce(
+      (acc, file) => {
+        acc[file.fieldname] = file;
+        return acc;
+      },
+      {} as Record<string, Express.Multer.File>,
+    );
   }
 }

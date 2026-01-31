@@ -15,7 +15,7 @@ export class ContactRepository extends Repository<ContactEntity> {
 
   async getAll(): Promise<ContactEntity[]> {
     return this.find({
-      order: {        createdAt: 'DESC',      },
+      order: { createdAt: 'DESC' },
     });
   }
 
@@ -24,5 +24,4 @@ export class ContactRepository extends Repository<ContactEntity> {
       where: { id },
     });
   }
-  
 }

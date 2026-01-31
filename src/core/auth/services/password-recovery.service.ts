@@ -24,7 +24,7 @@ export class PasswordRecoveryService {
     private passwordResetTokenRepo: PasswordResetTokenRepository,
     private sesIdentityService: SesIdentityService,
     private configService: ConfigService,
-  ) { }
+  ) {}
 
   async forgotPassword(data: ForgotPasswordDto) {
     const user = await this.getUsersService.findByEmail(data.email);
@@ -35,12 +35,14 @@ export class PasswordRecoveryService {
       );
     }
 
-    const sesCheck = await this.sesIdentityService.checkAndResendSesVerification(user.email);
+    const sesCheck =
+      await this.sesIdentityService.checkAndResendSesVerification(user.email);
 
     if (sesCheck.verificationEmailSent || !sesCheck.alreadyVerified) {
       return {
         status: 'VERIFICATION_EMAIL_SENT',
-        message: 'Seu email ainda não foi verificado. Um novo email de verificação foi enviado.',
+        message:
+          'Seu email ainda não foi verificado. Um novo email de verificação foi enviado.',
       };
     }
 
@@ -49,23 +51,30 @@ export class PasswordRecoveryService {
     expiresAt.setMinutes(expiresAt.getMinutes() + 30);
 
     await this.passwordResetTokenRepo.invalidateTokensForUser(user.id);
-    await this.passwordResetTokenRepo.createToken(user.id, resetToken, expiresAt);
+    await this.passwordResetTokenRepo.createToken(
+      user.id,
+      resetToken,
+      expiresAt,
+    );
 
     const baseUrl = this.getBaseUrl();
     const resetLink = `${baseUrl}/recuperar-senha/${resetToken}`;
 
-    const emailHtml = EmailTemplateGenerator.generatePasswordRecovery(user.name, resetLink);
+    const emailHtml = EmailTemplateGenerator.generatePasswordRecovery(
+      user.name,
+      resetLink,
+    );
 
     await this.emailService.sendEmailViaSES(
       user.email,
       'Recuperação de Senha - Clubinhos NIB',
       `Olá ${user.name},\n\nRecebemos uma solicitação para redefinir sua senha.\nClique no link abaixo: \n${resetLink}`,
-      emailHtml
+      emailHtml,
     );
 
     return {
       status: 'RESET_LINK_SENT',
-      message: 'As instruções de recuperação foram enviadas para o seu email.'
+      message: 'As instruções de recuperação foram enviadas para o seu email.',
     };
   }
 
@@ -81,7 +90,9 @@ export class PasswordRecoveryService {
   }
 
   async resetPassword(dto: ResetPasswordDto) {
-    const validToken = await this.passwordResetTokenRepo.findValidToken(dto.token);
+    const validToken = await this.passwordResetTokenRepo.findValidToken(
+      dto.token,
+    );
     if (!validToken) {
       throw new AppBusinessException(
         ErrorCode.RECOVERY_CODE_EXPIRED,
@@ -98,13 +109,16 @@ export class PasswordRecoveryService {
     await this.passwordResetTokenRepo.deleteToken(dto.token);
 
     const baseUrl = this.getBaseUrl();
-    const emailHtml = EmailTemplateGenerator.generatePasswordChanged(user.name, baseUrl);
+    const emailHtml = EmailTemplateGenerator.generatePasswordChanged(
+      user.name,
+      baseUrl,
+    );
 
     await this.emailService.sendEmailViaSES(
       user.email,
       'Senha Alterada com Sucesso - Clubinhos NIB',
       `Olá ${user.name},\n\nSua senha foi alterada com sucesso.`,
-      emailHtml
+      emailHtml,
     );
 
     return { message: 'Senha alterada com sucesso.' };

@@ -3,19 +3,20 @@ import { PeriodCalculator, PeriodShortcut } from '../dto/period-filter.dto';
 
 @Injectable()
 export class StatisticsPeriodService {
-  
-  applyPeriodFilter<T extends { period?: PeriodShortcut; startDate?: string; endDate?: string; year?: number }>(
-    filters: T,
-  ): T {
-    
+  applyPeriodFilter<
+    T extends {
+      period?: PeriodShortcut;
+      startDate?: string;
+      endDate?: string;
+      year?: number;
+    },
+  >(filters: T): T {
     if (!filters.period) {
       return filters;
     }
 
-    
     const calculated = PeriodCalculator.calculatePeriod(filters);
 
-    
     return {
       ...filters,
       startDate: calculated.startDate,
@@ -23,10 +24,9 @@ export class StatisticsPeriodService {
     };
   }
 
-  
-  getPeriodSummary<T extends { period?: PeriodShortcut; startDate?: string; endDate?: string }>(
-    filters: T,
-  ): string {
+  getPeriodSummary<
+    T extends { period?: PeriodShortcut; startDate?: string; endDate?: string },
+  >(filters: T): string {
     if (filters.period) {
       return PeriodCalculator.getPeriodLabel(filters);
     }

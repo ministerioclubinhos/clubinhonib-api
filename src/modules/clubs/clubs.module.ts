@@ -43,4 +43,4 @@ import { AuthModule } from 'src/core/auth/auth.module';
     TypeOrmModule,
   ],
 })
-export class ClubsModule { }
+export class ClubsModule {}

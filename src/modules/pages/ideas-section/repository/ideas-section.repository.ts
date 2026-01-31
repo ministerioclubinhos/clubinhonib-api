@@ -22,12 +22,17 @@ export class IdeasSectionRepository extends Repository<IdeasSectionEntity> {
     });
   }
 
-  async upsertSection(sectionData: Partial<IdeasSectionEntity>): Promise<IdeasSectionEntity> {
+  async upsertSection(
+    sectionData: Partial<IdeasSectionEntity>,
+  ): Promise<IdeasSectionEntity> {
     if (sectionData.id) {
       const existing = await this.findOne({ where: { id: sectionData.id } });
 
       if (!existing) {
-        throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, `Seção de ideias com ID=${sectionData.id} não encontrada.`);
+        throw new AppNotFoundException(
+          ErrorCode.RESOURCE_NOT_FOUND,
+          `Seção de ideias com ID=${sectionData.id} não encontrada.`,
+        );
       }
 
       const merged = this.merge(existing, sectionData);

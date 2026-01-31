@@ -4,26 +4,42 @@ import { AwsSESService } from './aws-ses.service';
 export interface SesVerificationResult {
   verificationEmailSent: boolean;
   alreadyVerified: boolean;
-  verificationStatus?: 'Success' | 'Pending' | 'Failed' | 'TemporaryFailure' | 'NotStarted';
+  verificationStatus?:
+    | 'Success'
+    | 'Pending'
+    | 'Failed'
+    | 'TemporaryFailure'
+    | 'NotStarted';
 }
 
 @Injectable()
 export class SesIdentityService {
   private readonly logger = new Logger(SesIdentityService.name);
 
-  constructor(private readonly awsSesService: AwsSESService) { }
+  constructor(private readonly awsSesService: AwsSESService) {}
 
-  async checkAndResendSesVerification(email: string): Promise<SesVerificationResult> {
-
+  async checkAndResendSesVerification(
+    email: string,
+  ): Promise<SesVerificationResult> {
     try {
-      if (!this.awsSesService['sesClient'] || typeof this.awsSesService['sesClient'].send !== 'function') {
-        this.logger.warn('Cliente SES não disponível. Pulando verificação de email.');
+      if (
+        !this.awsSesService['sesClient'] ||
+        typeof this.awsSesService['sesClient'].send !== 'function'
+      ) {
+        this.logger.warn(
+          'Cliente SES não disponível. Pulando verificação de email.',
+        );
         return { verificationEmailSent: false, alreadyVerified: false };
       }
 
-      const { GetIdentityVerificationAttributesCommand, VerifyEmailIdentityCommand } = await import('@aws-sdk/client-ses');
+      const {
+        GetIdentityVerificationAttributesCommand,
+        VerifyEmailIdentityCommand,
+      } = await import('@aws-sdk/client-ses');
 
-      const getCommand = new GetIdentityVerificationAttributesCommand({ Identities: [email] });
+      const getCommand = new GetIdentityVerificationAttributesCommand({
+        Identities: [email],
+      });
       const result = await this.awsSesService['sesClient'].send(getCommand);
 
       const attrs = result.VerificationAttributes?.[email];
@@ -38,7 +54,9 @@ export class SesIdentityService {
       }
 
       if (verificationStatus === 'Pending') {
-        this.logger.log(`Verificação SES já está pendente para: ${email}. Não reenviaremos email.`);
+        this.logger.log(
+          `Verificação SES já está pendente para: ${email}. Não reenviaremos email.`,
+        );
         return {
           verificationEmailSent: true,
           alreadyVerified: false,
@@ -47,9 +65,13 @@ export class SesIdentityService {
       }
 
       {
-        const verifyCommand = new VerifyEmailIdentityCommand({ EmailAddress: email });
+        const verifyCommand = new VerifyEmailIdentityCommand({
+          EmailAddress: email,
+        });
         await this.awsSesService['sesClient'].send(verifyCommand);
-        this.logger.log(`Email de verificação SES enviado com sucesso para: ${email}`);
+        this.logger.log(
+          `Email de verificação SES enviado com sucesso para: ${email}`,
+        );
 
         return {
           verificationEmailSent: true,
@@ -57,10 +79,11 @@ export class SesIdentityService {
           verificationStatus: verificationStatus || 'NotStarted',
         };
       }
-    } catch (err) {
+    } catch (err: any) {
+      const error = err as Error;
       this.logger.error(
-        `Erro ao checar/reenviar verificação SES para ${email}: ${err?.message}`,
-        err?.stack,
+        `Erro ao checar/reenviar verificação SES para ${email}: ${error?.message}`,
+        error?.stack,
       );
       return { verificationEmailSent: false, alreadyVerified: false };
     }
@@ -68,26 +91,36 @@ export class SesIdentityService {
 
   async verifyEmailIdentitySES(email: string): Promise<SesVerificationResult> {
     try {
-      if (!this.awsSesService['sesClient'] || typeof this.awsSesService['sesClient'].send !== 'function') {
-        this.logger.warn('Cliente SES não disponível. Pulando cadastro/verificação de email.');
+      if (
+        !this.awsSesService['sesClient'] ||
+        typeof this.awsSesService['sesClient'].send !== 'function'
+      ) {
+        this.logger.warn(
+          'Cliente SES não disponível. Pulando cadastro/verificação de email.',
+        );
         return { verificationEmailSent: false, alreadyVerified: false };
       }
 
-      const { VerifyEmailIdentityCommand } = await import('@aws-sdk/client-ses');
+      const { VerifyEmailIdentityCommand } = await import(
+        '@aws-sdk/client-ses'
+      );
       const command = new VerifyEmailIdentityCommand({ EmailAddress: email });
 
       await this.awsSesService['sesClient'].send(command);
-      this.logger.log(`Email ${email} cadastrado/verificado com sucesso no SES.`);
+      this.logger.log(
+        `Email ${email} cadastrado/verificado com sucesso no SES.`,
+      );
 
       return {
         verificationEmailSent: true,
         alreadyVerified: false,
         verificationStatus: 'Pending',
       };
-    } catch (err) {
+    } catch (err: any) {
+      const error = err as Error;
       this.logger.error(
-        `Erro ao cadastrar/verificar email no SES (${email}): ${err?.message}`,
-        err?.stack,
+        `Erro ao cadastrar/verificar email no SES (${email}): ${error?.message}`,
+        error?.stack,
       );
       return { verificationEmailSent: false, alreadyVerified: false };
     }

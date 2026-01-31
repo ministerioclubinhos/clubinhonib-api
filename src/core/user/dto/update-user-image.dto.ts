@@ -3,7 +3,7 @@ import { UploadType } from 'src/shared/media/media-item/media-item.entity';
 
 /**
  * DTO para receber dados de atualização de imagem de usuário via form-data ou JSON
- * 
+ *
  * Pode receber:
  * - imageData: string JSON (quando vem como form-data)
  * - Campos diretos (title, url, etc.) quando vem como JSON puro
@@ -14,14 +14,16 @@ export class UpdateUserImageDto {
    */
   @IsOptional()
   @IsString()
-  imageData?: string | {
-    title?: string;
-    description?: string;
-    uploadType?: UploadType;
-    url?: string;
-    isLocalFile?: boolean;
-    fieldKey?: string;
-  };
+  imageData?:
+    | string
+    | {
+        title?: string;
+        description?: string;
+        uploadType?: UploadType;
+        url?: string;
+        isLocalFile?: boolean;
+        fieldKey?: string;
+      };
 
   /**
    * Campos diretos (usado quando vem como JSON puro ou form-data com campos separados)
@@ -50,4 +52,3 @@ export class UpdateUserImageDto {
   @IsString()
   fieldKey?: string;
 }
-

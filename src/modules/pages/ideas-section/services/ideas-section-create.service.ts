@@ -1,7 +1,7 @@
-import {  Injectable, Logger , BadRequestException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
-  AppBusinessException,
   AppInternalException,
+  AppValidationException,
   ErrorCode,
 } from 'src/shared/exceptions';
 import { DataSource, QueryRunner } from 'typeorm';
@@ -25,7 +25,7 @@ export class IdeasSectionCreateService {
     private readonly awsS3Service: AwsS3Service,
     private readonly mediaItemProcessor: MediaItemProcessor,
     private readonly ideasSectionRepository: IdeasSectionRepository,
-  ) { }
+  ) {}
 
   async createSection(
     dto: CreateIdeasSectionDto,
@@ -53,10 +53,18 @@ export class IdeasSectionCreateService {
       });
 
       return IdeasSectionResponseDto.fromEntity(section, mediaItems);
-    } catch (error) {
+    } catch (error: unknown) {
       await queryRunner.rollbackTransaction();
-      this.logger.error('💥  Transaction rolled‑back', error.stack);
-      throw new BadRequestException(`Erro ao criar a seção de ideias: ${error.message}`);
+      const errStack = error instanceof Error ? error.stack : undefined;
+      const errMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error('Transaction rolled-back', errStack);
+      const hasCode = error && typeof error === 'object' && 'code' in error;
+      if (hasCode) throw error as unknown as Error;
+      throw new AppInternalException(
+        ErrorCode.SECTION_CREATE_ERROR,
+        `Erro ao criar a seção de ideias: ${errMsg}`,
+        error instanceof Error ? error : new Error(String(error)),
+      );
     } finally {
       await queryRunner.release();
       this.logger.debug('⛔  QueryRunner released');
@@ -67,7 +75,9 @@ export class IdeasSectionCreateService {
     queryRunner: QueryRunner,
     dto: CreateIdeasSectionDto,
   ): Promise<IdeasSectionEntity> {
-    this.logger.debug('📝 persistOrphanSection() - Extraído do IdeasPageCreateService');
+    this.logger.debug(
+      '📝 persistOrphanSection() - Extraído do IdeasPageCreateService',
+    );
 
     const sectionRepo = queryRunner.manager.getRepository(IdeasSectionEntity);
 
@@ -89,49 +99,66 @@ export class IdeasSectionCreateService {
     dto: CreateIdeasSectionDto,
     filesDict: Record<string, Express.Multer.File>,
   ): Promise<void> {
-    this.logger.debug('🎞️ processOrphanSectionMedia() - Extraído do IdeasPageCreateService');
+    this.logger.debug(
+      '🎞️ processOrphanSectionMedia() - Extraído do IdeasPageCreateService',
+    );
 
     if (!dto.medias?.length) {
       this.logger.debug(`   ↳ section (ID=${section.id}) sem itens`);
       return;
     }
 
-    this.logger.debug(`   ↳ section (ID=${section.id}) | items=${dto.medias.length}`);
+    this.logger.debug(
+      `   ↳ section (ID=${section.id}) | items=${dto.medias.length}`,
+    );
 
     const normalized = dto.medias.map((item) => ({
       ...item,
       mediaType:
-        item.mediaType === IdeasSectionMediaType.VIDEO ? 'video' :
-          item.mediaType === IdeasSectionMediaType.DOCUMENT ? 'document' :
-            'image',
+        item.mediaType === IdeasSectionMediaType.VIDEO
+          ? 'video'
+          : item.mediaType === IdeasSectionMediaType.DOCUMENT
+            ? 'document'
+            : 'image',
       type: item.uploadType,
       fileField:
-        item.uploadType === 'upload' && item.isLocalFile
+        item.uploadType === UploadType.UPLOAD && item.isLocalFile
           ? item.fieldKey
           : undefined,
     }));
 
-    this.logger.debug(`🔄 Normalized items: ${JSON.stringify(normalized.map(item => ({ title: item.title, fileField: item.fileField, fieldKey: item.fieldKey })))}`);
+    this.logger.debug(
+      `🔄 Normalized items: ${JSON.stringify(normalized.map((item) => ({ title: item.title, fileField: item.fileField, fieldKey: item.fieldKey })))}`,
+    );
 
     const saved = await this.mediaItemProcessor.processMediaItemsPolymorphic(
       normalized,
       section.id,
       MediaTargetType.IdeasSection,
       filesDict,
-      this.awsS3Service.upload.bind(this.awsS3Service),
+      (file: Express.Multer.File) => this.awsS3Service.upload(file),
     );
 
     this.logger.debug(`       • ${saved.length} mídias processadas`);
   }
 
-  private validateFiles(dto: CreateIdeasSectionDto, filesDict: Record<string, Express.Multer.File>) {
+  private validateFiles(
+    dto: CreateIdeasSectionDto,
+    filesDict: Record<string, Express.Multer.File>,
+  ) {
     for (const media of dto.medias) {
       if (media.uploadType === UploadType.UPLOAD && media.isLocalFile) {
         if (!media.originalName) {
-          throw new BadRequestException('Campo originalName ausente');
+          throw new AppValidationException(
+            ErrorCode.MEDIA_FIELD_MISSING,
+            'Campo originalName ausente',
+          );
         }
         if (!media.fieldKey || !filesDict[media.fieldKey]) {
-          throw new BadRequestException(`Arquivo não encontrado para fieldKey: ${media.fieldKey}`);
+          throw new AppValidationException(
+            ErrorCode.MEDIA_FILE_NOT_FOUND,
+            `Arquivo não encontrado para fieldKey: ${media.fieldKey}`,
+          );
         }
       }
     }

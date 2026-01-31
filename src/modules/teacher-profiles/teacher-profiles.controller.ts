@@ -17,7 +17,10 @@ import {
 } from './dto/teacher-profile.request.dto';
 import { TeacherResponseDto } from './dto/teacher-profile.response.dto';
 import { TeacherSimpleListDto } from './dto/teacher-simple-list.dto';
-import { PageDto, TeacherProfilesQueryDto } from './dto/teacher-profiles.query.dto';
+import {
+  PageDto,
+  TeacherProfilesQueryDto,
+} from './dto/teacher-profiles.query.dto';
 import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 
 @Controller('teacher-profiles')

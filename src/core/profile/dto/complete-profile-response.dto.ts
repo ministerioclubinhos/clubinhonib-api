@@ -15,12 +15,15 @@ export class UserPreferencesResponseDto {
   skillsAndTalents?: string;
 }
 
+import { MediaItemEntity } from '../../../shared/media/media-item/media-item.entity';
+
 export class CompleteProfileResponseDto {
   id: number | string;
   email: string;
   phone: string;
   name: string;
   role: string;
+  image?: MediaItemEntity;
   personalData?: PersonalDataResponseDto;
   preferences?: UserPreferencesResponseDto;
 }

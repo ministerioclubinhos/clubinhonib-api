@@ -12,6 +12,7 @@ import {
   Query,
   Logger,
 } from '@nestjs/common';
+import { Request as ExpressRequest } from 'express';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { AdminRoleGuard } from '../../auth/guards/role-guard';
 import { AuthContextService } from '../../auth/services/auth-context.service';
@@ -39,24 +40,27 @@ export class ProfileController {
     private readonly getOneProfileService: GetOneProfileService,
     private readonly updateProfileService: UpdateProfileService,
     private readonly deleteProfileService: DeleteProfileService,
-  ) { }
+  ) {}
 
   @Post()
   async createProfile(
-    @Request() req,
+    @Request() req: ExpressRequest,
     @Body() createProfileDto: CreateCompleteProfileDto,
   ): Promise<CompleteProfileResponseDto> {
     const userId = await this.authContextService.getUserId(req);
     if (!userId) throw new ForbiddenException('User not authenticated');
     this.logger.log(`Creating profile for user: ${userId}`);
-    const result = await this.createProfileService.execute(userId, createProfileDto);
+    const result = await this.createProfileService.execute(
+      userId,
+      createProfileDto,
+    );
     this.logger.log(`Profile created successfully for user: ${userId}`);
     return result;
   }
 
   @Get()
   async getAllProfiles(
-    @Request() req,
+    @Request() req: ExpressRequest,
     @Query() queryDto: QueryProfilesDto,
   ): Promise<PaginatedProfilesResponseDto> {
     const userId = await this.authContextService.getUserId(req);
@@ -66,14 +70,18 @@ export class ProfileController {
     if (!userRole) throw new ForbiddenException('User role not found');
 
     if (userRole !== UserRole.ADMIN && userRole !== UserRole.COORDINATOR) {
-      throw new ForbiddenException('Only admins and coordinators can list profiles');
+      throw new ForbiddenException(
+        'Only admins and coordinators can list profiles',
+      );
     }
 
     return this.getAllProfilesService.execute(userId, userRole, queryDto);
   }
 
   @Get('me')
-  async getMyProfile(@Request() req): Promise<CompleteProfileResponseDto> {
+  async getMyProfile(
+    @Request() req: ExpressRequest,
+  ): Promise<CompleteProfileResponseDto> {
     const userId = await this.authContextService.getUserId(req);
     if (!userId) throw new ForbiddenException('User not authenticated');
     return this.getOneProfileService.execute(userId);
@@ -89,7 +97,7 @@ export class ProfileController {
 
   @Put('me')
   async updateMyProfile(
-    @Request() req,
+    @Request() req: ExpressRequest,
     @Body() updateProfileDto: UpdateCompleteProfileDto,
   ): Promise<CompleteProfileResponseDto> {
     const userId = await this.authContextService.getUserId(req);
@@ -99,14 +107,20 @@ export class ProfileController {
 
     if (userRole === UserRole.TEACHER || userRole === UserRole.COORDINATOR) {
       this.logger.log(`Updating own profile for user: ${userId}`);
-      const result = await this.updateProfileService.execute(userId, updateProfileDto);
+      const result = await this.updateProfileService.execute(
+        userId,
+        updateProfileDto,
+      );
       this.logger.log(`Own profile updated successfully for user: ${userId}`);
       return result;
     }
 
     if (userRole === UserRole.ADMIN) {
       this.logger.log(`Admin updating profile for user: ${userId}`);
-      const result = await this.updateProfileService.execute(userId, updateProfileDto);
+      const result = await this.updateProfileService.execute(
+        userId,
+        updateProfileDto,
+      );
       this.logger.log(`Profile updated successfully for user: ${userId}`);
       return result;
     }
@@ -121,7 +135,10 @@ export class ProfileController {
     @Body() updateProfileDto: UpdateCompleteProfileDto,
   ): Promise<CompleteProfileResponseDto> {
     this.logger.log(`Updating profile by ID: ${id}`);
-    const result = await this.updateProfileService.execute(id, updateProfileDto);
+    const result = await this.updateProfileService.execute(
+      id,
+      updateProfileDto,
+    );
     this.logger.log(`Profile updated successfully: ${id}`);
     return result;
   }

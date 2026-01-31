@@ -15,13 +15,19 @@ export class UpdateWeekMaterialsPageDto {
   @IsString({ message: 'O campo "pageTitle" da página deve ser uma string.' })
   pageTitle: string;
 
-  @IsString({ message: 'O campo "pageSubtitle" da página deve ser uma string.' })
+  @IsString({
+    message: 'O campo "pageSubtitle" da página deve ser uma string.',
+  })
   pageSubtitle: string;
 
-  @IsString({ message: 'O campo "pageDescription" da página deve ser uma string.' })
+  @IsString({
+    message: 'O campo "pageDescription" da página deve ser uma string.',
+  })
   pageDescription: string;
-  
-  @IsBoolean({ message: 'O campo "currentWeek" da página deve ser uma boolean.' })
+
+  @IsBoolean({
+    message: 'O campo "currentWeek" da página deve ser uma boolean.',
+  })
   currentWeek: boolean;
 
   @IsOptional()

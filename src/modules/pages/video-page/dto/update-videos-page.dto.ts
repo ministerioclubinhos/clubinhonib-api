@@ -1,27 +1,22 @@
-import {
-    IsArray,
-    IsBoolean,
-    IsString,
-    ValidateNested,
-  } from 'class-validator';
-  import { Type } from 'class-transformer';
+import { IsArray, IsBoolean, IsString, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { MediaItemDto } from 'src/shared/share-dto/media-item-dto';
-  
-  export class UpdateVideosPageDto {
-    @IsString({ message: 'O campo "id" da página deve ser uma string.' })
-    id: string;
-  
-    @IsString({ message: 'O campo "title" da página deve ser uma string.' })
-    title: string;
-  
-    @IsString({ message: 'O campo "description" da página deve ser uma string.' })
-    description: string;
-  
-    @IsBoolean({ message: 'O campo "public" da página deve ser booleano.' })
-    public: boolean;
-  
-    @IsArray({ message: 'O campo "videos" deve ser um array.' })
-    @ValidateNested({ each: true })
-    @Type(() => MediaItemDto)
-    videos: MediaItemDto[];
-  }
+
+export class UpdateVideosPageDto {
+  @IsString({ message: 'O campo "id" da página deve ser uma string.' })
+  id: string;
+
+  @IsString({ message: 'O campo "title" da página deve ser uma string.' })
+  title: string;
+
+  @IsString({ message: 'O campo "description" da página deve ser uma string.' })
+  description: string;
+
+  @IsBoolean({ message: 'O campo "public" da página deve ser booleano.' })
+  public: boolean;
+
+  @IsArray({ message: 'O campo "videos" deve ser um array.' })
+  @ValidateNested({ each: true })
+  @Type(() => MediaItemDto)
+  videos: MediaItemDto[];
+}

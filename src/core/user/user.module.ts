@@ -50,4 +50,4 @@ import { ProfileModule } from '../profile/profile.module';
     TypeOrmModule,
   ],
 })
-export class UserModule { }
+export class UserModule {}

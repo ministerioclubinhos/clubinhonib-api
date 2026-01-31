@@ -16,10 +16,7 @@ import { RouteRepository } from 'src/modules/routes/route-page.repository';
 import { MeditationModule } from 'src/modules/meditations/meditation.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([InformativeEntity]),
-    MeditationModule,
-  ],
+  imports: [TypeOrmModule.forFeature([InformativeEntity]), MeditationModule],
   controllers: [InformativeController],
   providers: [
     CreateInformativeService,

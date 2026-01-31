@@ -31,7 +31,7 @@ export class ProfileController {
     private readonly updateOwnProfileService: UpdateOwnProfileService,
     private readonly changePasswordService: ChangePasswordService,
     private readonly updateUserImageService: UpdateUserImageService,
-  ) { }
+  ) {}
 
   @Get()
   async getOwnProfile(@Req() req: Request) {
@@ -75,16 +75,21 @@ export class ProfileController {
     @Req() req: Request,
     @UploadedFiles() files: Express.Multer.File[] = [],
     @Body('imageData') imageDataRaw?: string,
-    @Body() body?: any,
+    @Body() body?: Record<string, unknown>,
   ) {
     const payload = await this.authContextService.getPayloadFromRequest(req);
     const userId = payload.sub;
 
     this.logger.log(`Updating own profile image: ${userId}`);
-    const bodyToProcess = imageDataRaw ? { imageData: imageDataRaw } : (body || {});
-    await this.updateUserImageService.updateUserImage(userId, bodyToProcess, files);
+    const bodyToProcess = imageDataRaw
+      ? { imageData: imageDataRaw }
+      : body || {};
+    await this.updateUserImageService.updateUserImage(
+      userId,
+      bodyToProcess,
+      files,
+    );
     this.logger.log(`Own profile image updated successfully: ${userId}`);
     return this.getUsersService.findOneForProfile(userId);
   }
 }
-

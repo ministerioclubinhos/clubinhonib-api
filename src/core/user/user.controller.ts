@@ -38,7 +38,7 @@ export class UserController {
     private readonly updateUserService: UpdateUserService,
     private readonly getUsersService: GetUsersService,
     private readonly updateUserImageService: UpdateUserImageService,
-  ) { }
+  ) {}
 
   /**
    * Criar novo usuário (apenas admin)
@@ -103,11 +103,17 @@ export class UserController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @UploadedFiles() files: Express.Multer.File[] = [],
     @Body('imageData') imageDataRaw?: string,
-    @Body() body?: any,
+    @Body() body?: Record<string, unknown>,
   ): Promise<UserEntity> {
     this.logger.log(`Updating user image: ${id}`);
-    const bodyToProcess = imageDataRaw ? { imageData: imageDataRaw } : (body || {});
-    const result = await this.updateUserImageService.updateUserImage(id, bodyToProcess, files);
+    const bodyToProcess = imageDataRaw
+      ? { imageData: imageDataRaw }
+      : body || {};
+    const result = await this.updateUserImageService.updateUserImage(
+      id,
+      bodyToProcess,
+      files,
+    );
     this.logger.log(`User image updated successfully: ${id}`);
     return result;
   }

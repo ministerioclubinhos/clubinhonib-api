@@ -9,10 +9,6 @@ import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 @Module({
   imports: [TypeOrmModule.forFeature([ContactEntity])],
   controllers: [ContactController],
-  providers: [
-    ContactService,
-    ContactRepository,
-    AwsS3Service,
-  ],
+  providers: [ContactService, ContactRepository, AwsS3Service],
 })
 export class ContactModule {}

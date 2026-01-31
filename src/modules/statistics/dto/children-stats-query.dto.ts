@@ -1,14 +1,20 @@
-import { IsOptional, IsInt, Min, Max, IsString, IsEnum, IsBoolean } from 'class-validator';
+import {
+  IsOptional,
+  IsInt,
+  Min,
+  Max,
+  IsString,
+  IsEnum,
+  IsBoolean,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { Transform } from 'class-transformer';
 import { PeriodShortcut } from './period-filter.dto';
 
 export class ChildrenStatsQueryDto {
-
   @IsOptional()
   @IsEnum(PeriodShortcut)
   period?: PeriodShortcut;
-
 
   @IsOptional()
   @Type(() => Number)
@@ -25,7 +31,6 @@ export class ChildrenStatsQueryDto {
   @IsString()
   endDate?: string;
 
-
   @IsOptional()
   @IsString()
   clubId?: string;
@@ -37,7 +42,6 @@ export class ChildrenStatsQueryDto {
   @IsOptional()
   @IsString()
   coordinatorId?: string;
-
 
   @IsOptional()
   @IsString()
@@ -61,7 +65,6 @@ export class ChildrenStatsQueryDto {
   @IsString()
   ageGroup?: string;
 
-
   @IsOptional()
   @IsString()
   city?: string;
@@ -74,7 +77,6 @@ export class ChildrenStatsQueryDto {
   @IsString()
   district?: string;
 
-
   @IsOptional()
   @IsString()
   joinedAfter?: string;
@@ -82,7 +84,6 @@ export class ChildrenStatsQueryDto {
   @IsOptional()
   @IsString()
   joinedBefore?: string;
-
 
   @IsOptional()
   @Type(() => Number)
@@ -132,7 +133,6 @@ export class ChildrenStatsQueryDto {
   @IsBoolean()
   isActive?: boolean;
 
-
   @IsOptional()
   @IsString()
   sortBy?: string;
@@ -140,7 +140,6 @@ export class ChildrenStatsQueryDto {
   @IsOptional()
   @IsString()
   sortOrder?: 'ASC' | 'DESC';
-
 
   @IsOptional()
   @Type(() => Number)
@@ -154,7 +153,6 @@ export class ChildrenStatsQueryDto {
   @Min(1)
   @Max(100)
   limit?: number;
-
 
   @IsOptional()
   @IsString()
@@ -174,7 +172,4 @@ export class ChildrenStatsQueryDto {
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   isVeteran?: boolean;
-
 }
-
-

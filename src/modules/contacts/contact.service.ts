@@ -24,9 +24,14 @@ export class ContactService {
     try {
       contact = await this.contactRepo.saveContact(data);
       this.logger.log(`Contact saved: ID=${contact.id}`);
-    } catch (error) {
-      this.logger.error(`Error saving contact: ${error.message}`, error.stack);
-      throw new AppInternalException(ErrorCode.DATABASE_ERROR, 'Erro ao salvar o contato');
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      const errStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`Error saving contact: ${errMsg}`, errStack);
+      throw new AppInternalException(
+        ErrorCode.DATABASE_ERROR,
+        'Erro ao salvar o contato',
+      );
     }
 
     await this.notificationService.notifyNewContact(contact);
@@ -40,9 +45,13 @@ export class ContactService {
       const contacts = await this.contactRepo.getAll();
       this.logger.log(`${contacts.length} contact(s) found`);
       return contacts;
-    } catch (error) {
-      this.logger.error('Error fetching contacts', error.stack);
-      throw new AppInternalException(ErrorCode.DATABASE_ERROR, 'Erro ao buscar contatos');
+    } catch (error: unknown) {
+      const errStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error('Error fetching contacts', errStack);
+      throw new AppInternalException(
+        ErrorCode.DATABASE_ERROR,
+        'Erro ao buscar contatos',
+      );
     }
   }
 
@@ -53,7 +62,10 @@ export class ContactService {
 
     if (!contact) {
       this.logger.warn(`Contact not found: ID=${id}`);
-      throw new AppNotFoundException(ErrorCode.CONTACT_NOT_FOUND, 'Contato não encontrado');
+      throw new AppNotFoundException(
+        ErrorCode.CONTACT_NOT_FOUND,
+        'Contato não encontrado',
+      );
     }
 
     contact.read = true;
@@ -62,9 +74,13 @@ export class ContactService {
       await this.contactRepo.save(contact);
       this.logger.log(`Contact marked as read: ID=${id}`);
       return contact;
-    } catch (error) {
-      this.logger.error('Error updating contact', error.stack);
-      throw new AppInternalException(ErrorCode.DATABASE_ERROR, 'Erro ao atualizar contato');
+    } catch (error: unknown) {
+      const errStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error('Error updating contact', errStack);
+      throw new AppInternalException(
+        ErrorCode.DATABASE_ERROR,
+        'Erro ao atualizar contato',
+      );
     }
   }
 
@@ -75,15 +91,22 @@ export class ContactService {
 
     if (!contact) {
       this.logger.warn(`Contact not found: ID=${id}`);
-      throw new AppNotFoundException(ErrorCode.CONTACT_NOT_FOUND, 'Contato não encontrado');
+      throw new AppNotFoundException(
+        ErrorCode.CONTACT_NOT_FOUND,
+        'Contato não encontrado',
+      );
     }
 
     try {
       await this.contactRepo.remove(contact);
       this.logger.log(`Contact deleted: ID=${id}`);
-    } catch (error) {
-      this.logger.error(`Error deleting contact: ID=${id}`, error.stack);
-      throw new AppInternalException(ErrorCode.DATABASE_ERROR, 'Erro ao excluir contato');
+    } catch (error: unknown) {
+      const errStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`Error deleting contact: ID=${id}`, errStack);
+      throw new AppInternalException(
+        ErrorCode.DATABASE_ERROR,
+        'Erro ao excluir contato',
+      );
     }
   }
 }

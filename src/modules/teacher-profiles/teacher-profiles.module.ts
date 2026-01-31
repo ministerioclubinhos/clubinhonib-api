@@ -23,4 +23,4 @@ import { AuthModule } from 'src/core/auth/auth.module';
   providers: [TeacherProfilesRepository, TeacherProfilesService],
   exports: [TeacherProfilesRepository, TeacherProfilesService, TypeOrmModule],
 })
-export class TeacherProfilesModule { }
+export class TeacherProfilesModule {}

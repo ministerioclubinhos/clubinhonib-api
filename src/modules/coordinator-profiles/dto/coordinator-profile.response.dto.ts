@@ -1,4 +1,10 @@
-import { Exclude, Expose, Type, Transform, plainToInstance } from 'class-transformer';
+import {
+  Exclude,
+  Expose,
+  Type,
+  Transform,
+  plainToInstance,
+} from 'class-transformer';
 import { Weekday } from 'src/modules/clubs/enums/weekday.enum/weekday.enum';
 import { CoordinatorProfileEntity } from '../entities/coordinator-profile.entity/coordinator-profile.entity';
 
@@ -39,7 +45,9 @@ export class ClubWithTeachersDto {
 
   @Expose()
   @Type(() => TeacherMiniDto)
-  @Transform(({ value }) => (Array.isArray(value) ? value : []))
+  @Transform(({ value }: { value: TeacherMiniDto[] | null | undefined }) =>
+    Array.isArray(value) ? value : [],
+  )
   teachers!: TeacherMiniDto[];
 }
 
@@ -67,7 +75,10 @@ export class CoordinatorResponseDto {
 
   @Expose()
   @Type(() => ClubWithTeachersDto)
-  @Transform(({ value }) => (Array.isArray(value) ? value : []))
+  @Transform(
+    ({ value }: { value: ClubWithTeachersDto[] | null | undefined }) =>
+      Array.isArray(value) ? value : [],
+  )
   clubs!: ClubWithTeachersDto[];
 
   @Expose()
@@ -76,9 +87,17 @@ export class CoordinatorResponseDto {
   updatedAt!: Date;
 }
 
-export function toCoordinatorDto(entity: CoordinatorProfileEntity): CoordinatorResponseDto {
-  return plainToInstance(CoordinatorResponseDto, entity, { excludeExtraneousValues: true });
+export function toCoordinatorDto(
+  entity: CoordinatorProfileEntity,
+): CoordinatorResponseDto {
+  return plainToInstance(CoordinatorResponseDto, entity, {
+    excludeExtraneousValues: true,
+  });
 }
-export function toCoordinatorMini(entity: CoordinatorProfileEntity): CoordinatorMiniDto {
-  return plainToInstance(CoordinatorMiniDto, entity, { excludeExtraneousValues: true });
+export function toCoordinatorMini(
+  entity: CoordinatorProfileEntity,
+): CoordinatorMiniDto {
+  return plainToInstance(CoordinatorMiniDto, entity, {
+    excludeExtraneousValues: true,
+  });
 }

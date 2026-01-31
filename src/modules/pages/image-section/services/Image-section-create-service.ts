@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
@@ -9,6 +9,11 @@ import { CreateImageSectionDto } from '../dto/create-image-section.dto';
 import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 import { ImageSectionResponseDto } from '../dto/image-section-response.dto';
 import { ImageSectionEntity } from 'src/modules/pages/image-page/entity/Image-section.entity';
+import {
+  AppInternalException,
+  AppValidationException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 
 @Injectable()
 export class ImageSectionCreateService {
@@ -19,13 +24,15 @@ export class ImageSectionCreateService {
     private readonly awsS3Service: AwsS3Service,
     private readonly mediaItemProcessor: MediaItemProcessor,
     private readonly imageSectionRepository: ImageSectionRepository,
-  ) { }
+  ) {}
 
   async createSection(
     dto: CreateImageSectionDto,
     filesDict: Record<string, Express.Multer.File>,
   ): Promise<ImageSectionResponseDto> {
-    this.logger.log('🚀 Iniciando criação de seção órfã (sem página associada)');
+    this.logger.log(
+      '🚀 Iniciando criação de seção órfã (sem página associada)',
+    );
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -43,39 +50,56 @@ export class ImageSectionCreateService {
 
       this.validateFiles(dto, filesDict);
 
-      const preparedMediaItems = dto.mediaItems.map(item => ({
+      const preparedMediaItems = dto.mediaItems.map((item) => ({
         ...item,
         fileField: item.fieldKey,
       }));
 
-      const mediaItems: MediaItemEntity[] = await this.mediaItemProcessor.processMediaItemsPolymorphic(
-        preparedMediaItems,
-        savedSection.id,
-        MediaTargetType.ImagesPage,
-        filesDict,
-        this.awsS3Service.upload.bind(this.awsS3Service),
-      );
+      const mediaItems: MediaItemEntity[] =
+        await this.mediaItemProcessor.processMediaItemsPolymorphic(
+          preparedMediaItems,
+          savedSection.id,
+          MediaTargetType.ImagesPage,
+          filesDict,
+          (file: Express.Multer.File) => this.awsS3Service.upload(file),
+        );
 
       await queryRunner.commitTransaction();
 
       return ImageSectionResponseDto.fromEntity(savedSection, mediaItems);
-    } catch (error) {
+    } catch (error: unknown) {
       await queryRunner.rollbackTransaction();
-      this.logger.error('❌ Erro ao criar seção', error);
-      throw new BadRequestException('Erro ao criar a seção');
+      const errStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error('Erro ao criar seção', errStack);
+      const hasCode = error && typeof error === 'object' && 'code' in error;
+      if (hasCode) throw error as unknown as Error;
+      throw new AppInternalException(
+        ErrorCode.SECTION_CREATE_ERROR,
+        'Erro ao criar a seção',
+        error as Error,
+      );
     } finally {
       await queryRunner.release();
     }
   }
 
-  private validateFiles(dto: CreateImageSectionDto, filesDict: Record<string, Express.Multer.File>) {
+  private validateFiles(
+    dto: CreateImageSectionDto,
+    filesDict: Record<string, Express.Multer.File>,
+  ) {
     for (const media of dto.mediaItems) {
       if (media.uploadType === UploadType.UPLOAD && media.isLocalFile) {
         if (!media.originalName) {
-          throw new BadRequestException('Campo originalName ausente');
+          throw new AppValidationException(
+            ErrorCode.MEDIA_FIELD_MISSING,
+            'Campo originalName ausente',
+          );
         }
         if (!media.fieldKey || !filesDict[media.fieldKey]) {
-          throw new BadRequestException(`Arquivo não encontrado para fieldKey: ${media.fieldKey}`);
+          throw new AppValidationException(
+            ErrorCode.MEDIA_FILE_NOT_FOUND,
+            `Arquivo não encontrado para fieldKey: ${media.fieldKey}`,
+          );
         }
       }
     }

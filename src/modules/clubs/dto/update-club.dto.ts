@@ -25,15 +25,21 @@ export class AddressPatchDto {
 }
 
 export class UpdateClubDto {
-  @IsOptional() @Type(() => Number) @IsInt() @Min(1)
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
   number?: number;
 
-  @IsOptional() @IsEnum(Weekday)
+  @IsOptional()
+  @IsEnum(Weekday)
   weekday?: Weekday;
 
   @IsOptional()
   @ValidateIf((_, v) => typeof v === 'string')
-  @Matches(/^([01]?\d|2[0-3]):([0-5]\d)$/, { message: 'time deve ser H:mm ou HH:mm (0:00–23:59)' })
+  @Matches(/^([01]?\d|2[0-3]):([0-5]\d)$/, {
+    message: 'time deve ser H:mm ou HH:mm (0:00–23:59)',
+  })
   time?: string | null;
 
   @IsOptional()

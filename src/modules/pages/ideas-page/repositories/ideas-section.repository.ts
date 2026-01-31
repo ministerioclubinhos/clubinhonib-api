@@ -1,9 +1,7 @@
 import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
 import { IdeasSectionEntity } from '../entities/ideas-section.entity';
-
-
 
 @Injectable()
 export class IdeasSectionRepository extends Repository<IdeasSectionEntity> {
@@ -15,10 +13,16 @@ export class IdeasSectionRepository extends Repository<IdeasSectionEntity> {
     return this.find({ where: { page: { id: pageId } }, relations: ['page'] });
   }
 
-  async upsertSection(section: Partial<IdeasSectionEntity>): Promise<IdeasSectionEntity> {
+  async upsertSection(
+    section: Partial<IdeasSectionEntity>,
+  ): Promise<IdeasSectionEntity> {
     if (section.id) {
       const existing = await this.findOne({ where: { id: section.id } });
-      if (!existing) throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, `Seção ID=${section.id} não encontrada.`);
+      if (!existing)
+        throw new AppNotFoundException(
+          ErrorCode.RESOURCE_NOT_FOUND,
+          `Seção ID=${section.id} não encontrada.`,
+        );
       const merged = this.merge(existing, section);
       return this.save(merged);
     }

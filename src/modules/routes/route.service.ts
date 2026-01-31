@@ -15,12 +15,11 @@ export class RouteService {
 
   constructor(
     private readonly routeRepo: RouteRepository,
-    private readonly getMeditationService: GetMeditationService
-
-  ) { }
+    private readonly getMeditationService: GetMeditationService,
+  ) {}
 
   generateRoute(title: string, prefix: string): string {
-    const route = (
+    const route =
       prefix +
       title
         .toLowerCase()
@@ -29,13 +28,15 @@ export class RouteService {
         .replace(/[^\w\s]/gi, '')
         .replace(/\s+/g, '_')
         .replace(/_+/g, '_')
-        .trim()
-    );
+        .trim();
     this.logger.debug(`🔤 Rota gerada: ${route}`);
     return route;
   }
 
-  async generateAvailablePath(baseName: string, prefix: string): Promise<string> {
+  async generateAvailablePath(
+    baseName: string,
+    prefix: string,
+  ): Promise<string> {
     const basePath = this.generateRoute(baseName, prefix);
     let candidate = basePath;
     let count = 1;
@@ -61,7 +62,9 @@ export class RouteService {
     image?: string;
     prefix?: string;
   }): Promise<RouteEntity> {
-    const path = data.path || (await this.generateAvailablePath(data.title, data.prefix ?? ''));
+    const path =
+      data.path ||
+      (await this.generateAvailablePath(data.title, data.prefix ?? ''));
     this.logger.debug(`🚧 Criando rota com path: "${path}"`);
 
     const route = new RouteEntity();
@@ -83,14 +86,26 @@ export class RouteService {
     return saved;
   }
 
-  async updateRoute(id: string, updateData: Partial<Pick<RouteEntity, 'title' | 'description' | 'path' | 'subtitle'>>): Promise<RouteEntity> {
+  async updateRoute(
+    id: string,
+    updateData: Partial<
+      Pick<RouteEntity, 'title' | 'description' | 'path' | 'subtitle'>
+    >,
+  ): Promise<RouteEntity> {
     const route = await this.routeRepo.findOne({ where: { id } });
-    if (!route) throw new AppNotFoundException(ErrorCode.ROUTE_NOT_FOUND, 'Rota não encontrada');
+    if (!route)
+      throw new AppNotFoundException(
+        ErrorCode.ROUTE_NOT_FOUND,
+        'Rota não encontrada',
+      );
 
     if (updateData.path) {
       const existing = await this.routeRepo.findByPath(updateData.path);
       if (existing && existing.id !== id) {
-        throw new AppBusinessException(ErrorCode.RESOURCE_CONFLICT, `A rota "${updateData.path}" já está em uso`);
+        throw new AppBusinessException(
+          ErrorCode.RESOURCE_CONFLICT,
+          `A rota "${updateData.path}" já está em uso`,
+        );
       }
     }
 
@@ -110,27 +125,29 @@ export class RouteService {
     const meditationData = meditation.meditation;
     if (!meditationData) return routes;
 
-    const dayRoutes = meditationData.days.map((day) => ({
-      id: day.id,
-      title: day.topic,
-      subtitle: day.verse,
-      description: day.verse,
-      path: day.day,
-      public: false,
-      current: false,
-      image: meditationData.media?.url,
-      idToFetch: meditationData.id,
-      entityType: 'MeditationDay',
-      entityId: meditationData.id,
-      type: 'page',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    } as RouteEntity));
+    const dayRoutes = meditationData.days.map(
+      (day) =>
+        ({
+          id: day.id,
+          title: day.topic,
+          subtitle: day.verse,
+          description: day.verse,
+          path: day.day,
+          public: false,
+          current: false,
+          image: meditationData.media?.url,
+          idToFetch: meditationData.id,
+          entityType: 'MeditationDay',
+          entityId: meditationData.id,
+          type: 'page',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }) as RouteEntity,
+    );
 
     routes.push(...dayRoutes);
     return routes;
   }
-
 
   async findById(id: string): Promise<RouteEntity | null> {
     this.logger.debug(`🔍 Buscando rota ID=${id}`);
@@ -156,10 +173,17 @@ export class RouteService {
     this.logger.debug(`🗑️ Rota removida: ID=${id}`);
   }
 
-  async removeRouteByEntity(entityType: string, entityId: string): Promise<void> {
-    const route = await this.routeRepo.findOne({ where: { entityType, entityId } });
+  async removeRouteByEntity(
+    entityType: string,
+    entityId: string,
+  ): Promise<void> {
+    const route = await this.routeRepo.findOne({
+      where: { entityType, entityId },
+    });
     if (!route) {
-      this.logger.warn(`⚠️ Nenhuma rota encontrada para ${entityType} com ID=${entityId}`);
+      this.logger.warn(
+        `⚠️ Nenhuma rota encontrada para ${entityType} com ID=${entityId}`,
+      );
       return;
     }
 
@@ -180,7 +204,7 @@ export class RouteService {
       entityId: string;
       type: RouteType;
       image?: string;
-      current?: boolean
+      current?: boolean;
     },
   ): Promise<RouteEntity> {
     const route = manager.create(RouteEntity, {
@@ -192,8 +216,14 @@ export class RouteService {
     return await manager.save(route);
   }
 
-  async upsertRoute(routeId: string, updateData: Partial<RouteEntity>): Promise<RouteEntity> {
-    const path = this.generateRoute(updateData.title || '', updateData.path || '');
+  async upsertRoute(
+    routeId: string,
+    updateData: Partial<RouteEntity>,
+  ): Promise<RouteEntity> {
+    const path = this.generateRoute(
+      updateData.title || '',
+      updateData.path || '',
+    );
     updateData.path = path;
 
     this.logger.debug(`🛠️ Upsert da rota ID=${routeId}, path="${path}"`);

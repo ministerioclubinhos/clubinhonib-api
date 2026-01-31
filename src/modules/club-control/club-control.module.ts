@@ -44,4 +44,3 @@ import { ClubWeekCheckService } from './services/club-week-check.service';
   ],
 })
 export class ClubControlModule {}
-

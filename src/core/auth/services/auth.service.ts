@@ -12,8 +12,9 @@ import { AuthRepository } from '../auth.repository';
 import { CompleteUserDto } from '../dto/complete-register.dto';
 import { RegisterUserDto } from '../dto/register.dto';
 import { LoginDto } from '../dto/login.dto';
-import { UserRole } from '../auth.types';
+import { UserRole, JwtPayload } from '../auth.types';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
+import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 import { PersonalDataRepository } from 'src/core/profile/repositories/personal-data.repository';
 import { UserPreferencesRepository } from 'src/core/profile/repositories/user-preferences.repository';
 import { SesIdentityService } from 'src/shared/providers/aws/ses-identity.service';
@@ -55,14 +56,16 @@ export class AuthService {
     const accessToken = this.jwtService.sign(payload);
     const refreshToken = this.jwtService.sign(payload, {
       secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
-      expiresIn: this.configService.getOrThrow<string>('JWT_REFRESH_EXPIRES_IN') as any,
+      expiresIn: this.configService.getOrThrow<string>(
+        'JWT_REFRESH_EXPIRES_IN',
+      ),
     });
 
     return { accessToken, refreshToken };
   }
 
   async login({ email, password }: LoginDto) {
-    const user = await this.authRepo.validateUser(email, password);
+    const user = await this.authRepo.validateUser(email);
     if (!user || !(await bcrypt.compare(password, user.password))) {
       throw new AppUnauthorizedException(
         ErrorCode.INVALID_CREDENTIALS,
@@ -70,11 +73,13 @@ export class AuthService {
       );
     }
 
-    const sesVerification = await this.sesIdentityService.checkAndResendSesVerification(email);
+    const sesVerification =
+      await this.sesIdentityService.checkAndResendSesVerification(email);
 
     if (!user.active) {
       return {
-        message: 'User is inactive. Please verify your email to activate your account.',
+        message:
+          'User is inactive. Please verify your email to activate your account.',
         user: this.buildUserResponse(user),
         emailVerification: {
           verificationEmailSent: sesVerification.verificationEmailSent,
@@ -135,7 +140,8 @@ export class AuthService {
           role: UserRole.COORDINATOR,
         });
 
-        const sesVerification = await this.sesIdentityService.verifyEmailIdentitySES(email);
+        const sesVerification =
+          await this.sesIdentityService.verifyEmailIdentitySES(email);
 
         return {
           email,
@@ -153,7 +159,8 @@ export class AuthService {
       }
 
       if (!user.completed) {
-        const sesVerification = await this.sesIdentityService.checkAndResendSesVerification(email);
+        const sesVerification =
+          await this.sesIdentityService.checkAndResendSesVerification(email);
         return {
           email,
           name,
@@ -169,8 +176,9 @@ export class AuthService {
         };
       }
 
-      if (!(user as any).active) {
-        const sesVerification = await this.sesIdentityService.checkAndResendSesVerification(email);
+      if (!user.active) {
+        const sesVerification =
+          await this.sesIdentityService.checkAndResendSesVerification(email);
         return {
           message: 'User is inactive',
           active: false,
@@ -186,7 +194,8 @@ export class AuthService {
         };
       }
 
-      const sesVerification = await this.sesIdentityService.checkAndResendSesVerification(email);
+      const sesVerification =
+        await this.sesIdentityService.checkAndResendSesVerification(email);
 
       const tokens = this.generateTokens(user);
       await this.updateRefreshToken(user.id, tokens.refreshToken);
@@ -205,17 +214,21 @@ export class AuthService {
               : undefined,
         },
       };
-    } catch (error) {
-      this.logger.error(`Error during Google login: ${error.message}`, error.stack);
+    } catch (error: any) {
+      const err = error as Error;
+      this.logger.error(`Error during Google login: ${err.message}`, err.stack);
 
-      if (error.message?.includes('Token used too late') || error.message?.includes('expired')) {
+      if (
+        err.message?.includes('Token used too late') ||
+        err.message?.includes('expired')
+      ) {
         throw new AppUnauthorizedException(
           ErrorCode.TOKEN_EXPIRED,
           'Token do Google expirado. Por favor, tente novamente.',
         );
       }
 
-      if (error.message?.includes('Invalid token')) {
+      if (err.message?.includes('Invalid token')) {
         throw new AppUnauthorizedException(
           ErrorCode.TOKEN_INVALID,
           'Token do Google inválido. Por favor, tente novamente.',
@@ -238,7 +251,7 @@ export class AuthService {
     }
 
     try {
-      const payload = this.jwtService.verify(token, {
+      const payload = this.jwtService.verify<JwtPayload>(token, {
         secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
       });
 
@@ -267,7 +280,10 @@ export class AuthService {
     return { message: 'User logged out' };
   }
 
-  private buildMeResponse(user: UserEntity, imageMedia?: any) {
+  private buildMeResponse(
+    user: UserEntity,
+    imageMedia?: MediaItemEntity | null,
+  ) {
     return {
       id: user.id,
       email: user.email,
@@ -279,49 +295,51 @@ export class AuthService {
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
       role: user.role,
-      image: imageMedia ? {
-        id: imageMedia.id,
-        title: imageMedia.title,
-        description: imageMedia.description,
-        url: imageMedia.url,
-        uploadType: imageMedia.uploadType,
-        mediaType: imageMedia.mediaType,
-        isLocalFile: imageMedia.isLocalFile,
-        platformType: imageMedia.platformType,
-        originalName: imageMedia.originalName,
-        size: imageMedia.size,
-        createdAt: imageMedia.createdAt,
-        updatedAt: imageMedia.updatedAt,
-      } : null,
+      image: imageMedia
+        ? {
+            id: imageMedia.id,
+            title: imageMedia.title,
+            description: imageMedia.description,
+            url: imageMedia.url,
+            uploadType: imageMedia.uploadType,
+            mediaType: imageMedia.mediaType,
+            isLocalFile: imageMedia.isLocalFile,
+            platformType: imageMedia.platformType,
+            originalName: imageMedia.originalName,
+            size: imageMedia.size,
+            createdAt: imageMedia.createdAt,
+            updatedAt: imageMedia.updatedAt,
+          }
+        : null,
       teacherProfile: user.teacherProfile
         ? {
-          id: user.teacherProfile.id,
-          active: user.teacherProfile.active,
-          club: user.teacherProfile.club
-            ? {
-              id: user.teacherProfile.club.id,
-              number: user.teacherProfile.club.number,
-              weekday: user.teacherProfile.club.weekday,
-              time: user.teacherProfile.club.time,
-              isActive: user.teacherProfile.club.isActive,
-            }
-            : null,
-        }
+            id: user.teacherProfile.id,
+            active: user.teacherProfile.active,
+            club: user.teacherProfile.club
+              ? {
+                  id: user.teacherProfile.club.id,
+                  number: user.teacherProfile.club.number,
+                  weekday: user.teacherProfile.club.weekday,
+                  time: user.teacherProfile.club.time,
+                  isActive: user.teacherProfile.club.isActive,
+                }
+              : null,
+          }
         : null,
       coordinatorProfile: user.coordinatorProfile
         ? {
-          id: user.coordinatorProfile.id,
-          active: user.coordinatorProfile.active,
-          clubs: user.coordinatorProfile.clubs
-            ? user.coordinatorProfile.clubs.map(club => ({
-              id: club.id,
-              number: club.number,
-              weekday: club.weekday,
-              time: club.time,
-              isActive: club.isActive,
-            }))
-            : [],
-        }
+            id: user.coordinatorProfile.id,
+            active: user.coordinatorProfile.active,
+            clubs: user.coordinatorProfile.clubs
+              ? user.coordinatorProfile.clubs.map((club) => ({
+                  id: club.id,
+                  number: club.number,
+                  weekday: club.weekday,
+                  time: club.time,
+                  isActive: club.isActive,
+                }))
+              : [],
+          }
         : null,
     };
   }
@@ -341,7 +359,8 @@ export class AuthService {
     );
 
     const personalData = await this.personalDataRepository.findByUserId(userId);
-    const preferences = await this.userPreferencesRepository.findByUserId(userId);
+    const preferences =
+      await this.userPreferencesRepository.findByUserId(userId);
 
     return {
       id: user.id,
@@ -351,68 +370,74 @@ export class AuthService {
       role: user.role,
       commonUser: user.commonUser,
       cpf: user.cpf,
-      image: imageMedia ? {
-        id: imageMedia.id,
-        title: imageMedia.title,
-        description: imageMedia.description,
-        url: imageMedia.url,
-        uploadType: imageMedia.uploadType,
-        mediaType: imageMedia.mediaType,
-        isLocalFile: imageMedia.isLocalFile,
-        platformType: imageMedia.platformType,
-        originalName: imageMedia.originalName,
-        size: imageMedia.size,
-        createdAt: imageMedia.createdAt,
-        updatedAt: imageMedia.updatedAt,
-      } : null,
-      personalData: personalData ? {
-        birthDate: personalData.birthDate
-          ? (personalData.birthDate instanceof Date
-            ? personalData.birthDate.toISOString().split('T')[0]
-            : String(personalData.birthDate).split('T')[0])
-          : undefined,
-        gender: personalData.gender,
-        gaLeaderName: personalData.gaLeaderName,
-        gaLeaderContact: personalData.gaLeaderContact,
-      } : undefined,
-      preferences: preferences ? {
-        loveLanguages: preferences.loveLanguages,
-        temperaments: preferences.temperaments,
-        favoriteColor: preferences.favoriteColor,
-        favoriteFood: preferences.favoriteFood,
-        favoriteMusic: preferences.favoriteMusic,
-        whatMakesYouSmile: preferences.whatMakesYouSmile,
-        skillsAndTalents: preferences.skillsAndTalents,
-      } : undefined,
+      image: imageMedia
+        ? {
+            id: imageMedia.id,
+            title: imageMedia.title,
+            description: imageMedia.description,
+            url: imageMedia.url,
+            uploadType: imageMedia.uploadType,
+            mediaType: imageMedia.mediaType,
+            isLocalFile: imageMedia.isLocalFile,
+            platformType: imageMedia.platformType,
+            originalName: imageMedia.originalName,
+            size: imageMedia.size,
+            createdAt: imageMedia.createdAt,
+            updatedAt: imageMedia.updatedAt,
+          }
+        : null,
+      personalData: personalData
+        ? {
+            birthDate: personalData.birthDate
+              ? personalData.birthDate instanceof Date
+                ? personalData.birthDate.toISOString().split('T')[0]
+                : String(personalData.birthDate).split('T')[0]
+              : undefined,
+            gender: personalData.gender,
+            gaLeaderName: personalData.gaLeaderName,
+            gaLeaderContact: personalData.gaLeaderContact,
+          }
+        : undefined,
+      preferences: preferences
+        ? {
+            loveLanguages: preferences.loveLanguages,
+            temperaments: preferences.temperaments,
+            favoriteColor: preferences.favoriteColor,
+            favoriteFood: preferences.favoriteFood,
+            favoriteMusic: preferences.favoriteMusic,
+            whatMakesYouSmile: preferences.whatMakesYouSmile,
+            skillsAndTalents: preferences.skillsAndTalents,
+          }
+        : undefined,
       teacherProfile: user.teacherProfile
         ? {
-          id: user.teacherProfile.id,
-          active: user.teacherProfile.active,
-          club: user.teacherProfile.club
-            ? {
-              id: user.teacherProfile.club.id,
-              number: user.teacherProfile.club.number,
-              weekday: user.teacherProfile.club.weekday,
-              time: user.teacherProfile.club.time,
-              isActive: user.teacherProfile.club.isActive,
-            }
-            : null,
-        }
+            id: user.teacherProfile.id,
+            active: user.teacherProfile.active,
+            club: user.teacherProfile.club
+              ? {
+                  id: user.teacherProfile.club.id,
+                  number: user.teacherProfile.club.number,
+                  weekday: user.teacherProfile.club.weekday,
+                  time: user.teacherProfile.club.time,
+                  isActive: user.teacherProfile.club.isActive,
+                }
+              : null,
+          }
         : null,
       coordinatorProfile: user.coordinatorProfile
         ? {
-          id: user.coordinatorProfile.id,
-          active: user.coordinatorProfile.active,
-          clubs: user.coordinatorProfile.clubs
-            ? user.coordinatorProfile.clubs.map(club => ({
-              id: club.id,
-              number: club.number,
-              weekday: club.weekday,
-              time: club.time,
-              isActive: club.isActive,
-            }))
-            : [],
-        }
+            id: user.coordinatorProfile.id,
+            active: user.coordinatorProfile.active,
+            clubs: user.coordinatorProfile.clubs
+              ? user.coordinatorProfile.clubs.map((club) => ({
+                  id: club.id,
+                  number: club.number,
+                  weekday: club.weekday,
+                  time: club.time,
+                  isActive: club.isActive,
+                }))
+              : [],
+          }
         : null,
     };
   }
@@ -441,7 +466,8 @@ export class AuthService {
       role: data.role,
     });
 
-    const sesVerification = await this.sesIdentityService.verifyEmailIdentitySES(data.email);
+    const sesVerification =
+      await this.sesIdentityService.verifyEmailIdentitySES(data.email);
 
     return {
       message: 'Registration completed successfully',
@@ -474,7 +500,8 @@ export class AuthService {
       role: data.role,
     });
 
-    const sesVerification = await this.sesIdentityService.verifyEmailIdentitySES(data.email);
+    const sesVerification =
+      await this.sesIdentityService.verifyEmailIdentitySES(data.email);
 
     return {
       message: 'Registration successful',
@@ -503,7 +530,10 @@ export class AuthService {
     };
   }
 
-  async updateRefreshToken(userId: string, token: string | null): Promise<void> {
+  async updateRefreshToken(
+    userId: string,
+    token: string | null,
+  ): Promise<void> {
     await this.userRepo.updateRefreshToken(userId, token);
   }
 }
