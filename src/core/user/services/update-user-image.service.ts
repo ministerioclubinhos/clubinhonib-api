@@ -3,6 +3,7 @@ import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import {
   MediaType,
+  PlatformType,
   UploadType,
 } from 'src/shared/media/media-item/media-item.entity';
 import { GetUsersService } from './get-user.service';
@@ -96,6 +97,7 @@ export class UpdateUserImageService {
           ...mediaDto,
           mediaType: MediaType.IMAGE,
           uploadType: uploadTypeValue,
+          platformType: PlatformType.ANY,
         },
         userId,
         'UserEntity',
@@ -166,6 +168,7 @@ export class UpdateUserImageService {
           ...mediaDto,
           mediaType: MediaType.IMAGE,
           uploadType: uploadTypeValue,
+          platformType: PlatformType.ANY,
           title: mediaDto.title || 'Foto do Usuário',
           description: mediaDto.description || 'Imagem de perfil do usuário',
         },
