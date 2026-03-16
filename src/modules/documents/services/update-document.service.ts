@@ -122,7 +122,20 @@ export class UpdateDocumentService {
           await this.s3Service.delete(mediaToUpdate.url);
         }
 
-        if (wasLink && isNowUpload) {
+        if (wasUpload && isNowUpload && file && mediaToUpdate.url) {
+          this.logger.log(
+            `🗑️ Substituindo arquivo no S3: removendo antigo ${mediaToUpdate.url}`,
+          );
+          await this.s3Service.delete(mediaToUpdate.url);
+          const newUrl = await this.s3Service.upload(file);
+          dto.media.url = newUrl;
+          dto.media.originalName = file.originalname;
+          dto.media.size = file.size;
+          mediaToUpdate.url = newUrl;
+          mediaToUpdate.originalName = file.originalname;
+          mediaToUpdate.size = file.size;
+          this.logger.log(`⬆️ Novo arquivo enviado para S3: ${newUrl}`);
+        } else if (wasLink && isNowUpload) {
           if (!file) {
             throw new AppValidationException(
               ErrorCode.FILE_REQUIRED,
@@ -176,7 +189,6 @@ export class UpdateDocumentService {
       entityId: documentId,
       public: false,
       type: RouteType.PAGE,
-      path: 'documento_',
       image:
         'https://bucket-clubinho-galeria.s3.us-east-2.amazonaws.com/uploads/img_card.jpg',
     };

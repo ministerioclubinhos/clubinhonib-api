@@ -18,11 +18,15 @@ export class GetDocumentService {
     private readonly mediaItemProcessor: MediaItemProcessor,
   ) {}
 
-  async findAll(): Promise<DocumentDto[]> {
-    this.logger.log('📄 Buscando todos os documentos com mídias');
+  async findAll(search?: string): Promise<DocumentDto[]> {
+    this.logger.log(
+      search?.trim()
+        ? `📄 Buscando documentos com filtro: "${search.trim()}"`
+        : '📄 Buscando todos os documentos com mídias',
+    );
 
     try {
-      const documents = await this.documentRepo.findAllSorted();
+      const documents = await this.documentRepo.findAllSorted(search);
       if (!documents.length) return [];
 
       const ids = documents.map((d) => d.id);

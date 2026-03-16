@@ -220,13 +220,17 @@ export class RouteService {
     routeId: string,
     updateData: Partial<RouteEntity>,
   ): Promise<RouteEntity> {
-    const path = this.generateRoute(
-      updateData.title || '',
-      updateData.path || '',
-    );
-    updateData.path = path;
+    const existing = await this.routeRepo.findOne({ where: { id: routeId } });
+    if (existing && updateData.path === undefined) {
+      updateData.path = existing.path;
+      this.logger.debug(`🛠️ Upsert da rota ID=${routeId}, path mantido="${existing.path}"`);
+    } else {
+      const prefix = typeof updateData.path === 'string' ? updateData.path : '';
+      const path = this.generateRoute(updateData.title || '', prefix);
+      updateData.path = path;
+      this.logger.debug(`🛠️ Upsert da rota ID=${routeId}, path="${path}"`);
+    }
 
-    this.logger.debug(`🛠️ Upsert da rota ID=${routeId}, path="${path}"`);
     return this.routeRepo.upsertRoute(routeId, updateData);
   }
 }

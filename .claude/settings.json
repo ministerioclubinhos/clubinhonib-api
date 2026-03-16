@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(node scripts/run-all-testes.js:*)"
+      "Bash(node scripts/run-all-testes.js:*)",
+      "Bash(aws ec2 describe-security-groups:*)"
     ]
   }
 }

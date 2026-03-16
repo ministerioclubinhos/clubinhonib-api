@@ -416,6 +416,14 @@ export class IdeasSectionUpdateService {
       MediaTargetType.IdeasSection,
     );
 
+    // Busca mídia existente para verificar se precisa deletar arquivo antigo do S3
+    let existingMedia: MediaItemEntity | null = null;
+    if (mediaInput.id) {
+      existingMedia = await queryRunner.manager.findOne(MediaItemEntity, {
+        where: { id: mediaInput.id },
+      });
+    }
+
     if (
       mediaInput.isLocalFile &&
       !mediaInput.id &&
@@ -444,6 +452,38 @@ export class IdeasSectionUpdateService {
       media.isLocalFile = mediaInput.isLocalFile;
       media.size = file.size;
     } else {
+      // Verifica se está mudando de UPLOAD para LINK e deleta arquivo antigo do S3
+      const isNowLink =
+        mediaInput.uploadType === UploadType.LINK ||
+        mediaInput.isLocalFile === false;
+
+      if (
+        existingMedia &&
+        existingMedia.isLocalFile &&
+        existingMedia.url &&
+        isNowLink
+      ) {
+        const oldUrl = existingMedia.url;
+        this.logger.log(
+          `🗑️ Deletando arquivo antigo do S3 (mudança UPLOAD→LINK): ${oldUrl}`,
+        );
+        try {
+          await this.awsS3Service.delete(oldUrl);
+          this.logger.debug(`✅ Arquivo antigo removido do S3: ${oldUrl}`);
+        } catch (error: unknown) {
+          const errStack = error instanceof Error ? error.stack : undefined;
+          this.logger.error(
+            `Falha ao remover arquivo antigo do S3: ${oldUrl}`,
+            errStack,
+          );
+          throw new AppInternalException(
+            ErrorCode.S3_DELETE_ERROR,
+            `Falha ao remover arquivo antigo do S3: ${oldUrl}`,
+            error as Error,
+          );
+        }
+      }
+
       media.title = mediaInput.title || media.title;
       media.description = mediaInput.description || media.description;
       media.uploadType = mediaInput.uploadType || media.uploadType;
@@ -452,7 +492,7 @@ export class IdeasSectionUpdateService {
         (mediaInput.mediaType as unknown as MediaType) || media.mediaType;
       media.url = mediaInput.url?.trim() || media.url;
       media.originalName = mediaInput.originalName || media.originalName;
-      media.isLocalFile = mediaInput.isLocalFile || media.isLocalFile;
+      media.isLocalFile = mediaInput.isLocalFile ?? media.isLocalFile;
       media.size = mediaInput.size || media.size;
     }
 

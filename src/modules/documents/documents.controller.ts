@@ -11,6 +11,7 @@ import {
   UploadedFiles,
   Logger,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { AppBusinessException, ErrorCode } from 'src/shared/exceptions';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
@@ -88,9 +89,13 @@ export class DocumentsController {
   }
 
   @Get()
-  async findAll() {
-    this.logger.log('📄 [GET /documents] Listando todos os documentos');
-    return this.getService.findAll();
+  async findAll(@Query('search') search?: string) {
+    this.logger.log(
+      search
+        ? `📄 [GET /documents] Listando documentos com busca: "${search}"`
+        : '📄 [GET /documents] Listando todos os documentos',
+    );
+    return this.getService.findAll(search);
   }
 
   @Get(':id')

@@ -1,0 +1,41 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'DNS Route53 - Aponta subdominio para ALB em outra conta'
+
+Parameters:
+  HostedZoneId:
+    Type: String
+    Description: ID da Hosted Zone do dominio clubinhonib.com
+
+  DomainName:
+    Type: String
+    Default: api.clubinhonib.com
+    Description: Subdominio a ser criado
+
+  AlbDnsName:
+    Type: String
+    Description: DNS Name do ALB na outra conta
+
+  AlbHostedZoneId:
+    Type: String
+    Description: Hosted Zone ID do ALB na outra conta
+
+Resources:
+  DNSRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref DomainName
+      Type: A
+      AliasTarget:
+        DNSName: !Ref AlbDnsName
+        HostedZoneId: !Ref AlbHostedZoneId
+        EvaluateTargetHealth: true
+
+Outputs:
+  DomainName:
+    Value: !Ref DomainName
+    Description: Dominio configurado
+
+  RecordSetId:
+    Value: !Ref DNSRecord
+    Description: ID do Record Set
