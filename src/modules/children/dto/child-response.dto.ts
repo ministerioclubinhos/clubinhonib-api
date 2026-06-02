@@ -1,4 +1,4 @@
-import { AcceptedChristShortDto } from "src/modules/accepted-christs/dtos/accepted-christ-short.dto";
+import { AcceptedChristShortDto } from 'src/modules/accepted-christs/dtos/accepted-christ-short.dto';
 
 export class ChildListItemDto {
   id: string;

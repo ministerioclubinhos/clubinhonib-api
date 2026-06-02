@@ -16,7 +16,7 @@ export class ImagePageRepository extends Repository<ImagePageEntity> {
     });
   }
 
-    async findById(id: string): Promise<ImagePageEntity | null> {
+  async findById(id: string): Promise<ImagePageEntity | null> {
     return this.findOne({
       where: { id },
     });
@@ -29,11 +29,15 @@ export class ImagePageRepository extends Repository<ImagePageEntity> {
     });
   }
 
-  async upsertGallery(data: Partial<ImagePageEntity>): Promise<ImagePageEntity> {
+  async upsertGallery(
+    data: Partial<ImagePageEntity>,
+  ): Promise<ImagePageEntity> {
     if (data.id) {
       const existing = await this.preload(data);
       if (!existing) {
-        throw new Error(`Galeria com id=${data.id} não encontrada para atualização`);
+        throw new Error(
+          `Galeria com id=${data.id} não encontrada para atualização`,
+        );
       }
       return this.save(existing);
     }

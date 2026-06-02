@@ -15,7 +15,8 @@ export class TwilioService {
   }
 
   async sendWhatsApp(to: string, body: string, from?: string): Promise<string> {
-    const fromNumber = from ?? this.configService.get<string>('TWILIO_WHATSAPP_FROM');
+    const fromNumber =
+      from ?? this.configService.get<string>('TWILIO_WHATSAPP_FROM');
 
     if (!fromNumber) {
       this.logger.warn('TWILIO_WHATSAPP_FROM not configured');

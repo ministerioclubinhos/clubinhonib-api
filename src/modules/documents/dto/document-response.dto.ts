@@ -4,7 +4,7 @@ import {
   PlatformType,
   MediaItemEntity,
 } from 'src/shared/media/media-item/media-item.entity';
-import { DocumentEntity } from '../entities/document.entity'; 
+import { DocumentEntity } from '../entities/document.entity';
 
 export class MediaItemDto {
   id: string;
@@ -46,7 +46,10 @@ export class DocumentDto {
   updatedAt: Date;
   media: MediaItemDto | null;
 
-  static fromEntity(document: DocumentEntity | any, media?: MediaItemEntity | null): DocumentDto {
+  static fromEntity(
+    document: DocumentEntity,
+    media?: MediaItemEntity | null,
+  ): DocumentDto {
     return {
       id: document.id,
       name: document.name,

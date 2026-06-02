@@ -1,4 +1,14 @@
-import { Body, Controller, Post, Get, Patch, Param, Logger, Delete, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Post,
+  Get,
+  Patch,
+  Param,
+  Logger,
+  Delete,
+  UseGuards,
+} from '@nestjs/common';
 import { ContactService } from './contact.service';
 import { ContactEntity } from './contact.entity';
 import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
@@ -8,16 +18,21 @@ import { AdminRoleGuard } from 'src/core/auth/guards/role-guard';
 export class ContactController {
   private readonly logger = new Logger(ContactController.name);
 
-  constructor(private readonly contactService: ContactService) { }
+  constructor(private readonly contactService: ContactService) {}
 
   @Post()
-  async create(@Body() body: {
-    name: string;
-    email: string;
-    phone: string;
-    message: string;
-  }): Promise<ContactEntity> {
-    this.logger.debug(`📩 Recebendo nova mensagem de contato de: ${body.name} <${body.email}>`);
+  async create(
+    @Body()
+    body: {
+      name: string;
+      email: string;
+      phone: string;
+      message: string;
+    },
+  ): Promise<ContactEntity> {
+    this.logger.debug(
+      `📩 Recebendo nova mensagem de contato de: ${body.name} <${body.email}>`,
+    );
     const result = await this.contactService.createContact(body);
     this.logger.log(`✅ Contato criado com sucesso para: ${body.email}`);
     return result;

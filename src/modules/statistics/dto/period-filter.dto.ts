@@ -12,26 +12,22 @@ export enum PeriodShortcut {
 }
 
 export class PeriodFilterDto {
-  
   @IsOptional()
   @IsEnum(PeriodShortcut)
   period?: PeriodShortcut;
 
-  
   @IsOptional()
   @IsString()
-  startDate?: string; 
+  startDate?: string;
 
   @IsOptional()
   @IsString()
-  endDate?: string; 
+  endDate?: string;
 
-  
   @IsOptional()
   @IsEnum(['day', 'week', 'month', 'year'])
   groupBy?: 'day' | 'week' | 'month' | 'year';
 
-  
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -40,9 +36,12 @@ export class PeriodFilterDto {
   year?: number;
 }
 
-
 export class PeriodCalculator {
-  static calculatePeriod(filter: PeriodFilterDto): { startDate: string; endDate: string; groupBy?: string } {
+  static calculatePeriod(filter: PeriodFilterDto): {
+    startDate: string;
+    endDate: string;
+    groupBy?: string;
+  } {
     const now = new Date();
     const today = now.toISOString().split('T')[0];
 
@@ -111,8 +110,7 @@ export class PeriodCalculator {
       }
 
       case PeriodShortcut.CUSTOM:
-      default:
-        
+      default: {
         if (filter.startDate && filter.endDate) {
           return {
             startDate: filter.startDate,
@@ -121,7 +119,6 @@ export class PeriodCalculator {
           };
         }
 
-        
         const oneMonthAgo = new Date(now);
         oneMonthAgo.setMonth(now.getMonth() - 1);
 
@@ -130,10 +127,10 @@ export class PeriodCalculator {
           endDate: today,
           groupBy: 'day',
         };
+      }
     }
   }
 
-  
   static getPeriodLabel(filter: PeriodFilterDto): string {
     switch (filter.period) {
       case PeriodShortcut.TODAY:

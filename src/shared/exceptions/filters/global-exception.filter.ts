@@ -37,7 +37,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     response.status(status).json(errorResponse);
   }
 
-  private buildErrorResponse(exception: unknown, request: Request): ErrorResponse {
+  private buildErrorResponse(
+    exception: unknown,
+    request: Request,
+  ): ErrorResponse {
     if (exception instanceof AppException) {
       return {
         success: false,
@@ -53,15 +56,18 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     if (exception instanceof HttpException) {
       const response = exception.getResponse();
-      const message = typeof response === 'string'
-        ? response
-        : (response as { message?: string | string[] }).message;
+      const message =
+        typeof response === 'string'
+          ? response
+          : (response as { message?: string | string[] }).message;
 
       return {
         success: false,
         error: {
           code: this.mapHttpStatusToErrorCode(exception.getStatus()),
-          message: Array.isArray(message) ? message.join(', ') : message || 'Erro na requisição',
+          message: Array.isArray(message)
+            ? message.join(', ')
+            : message || 'Erro na requisição',
           timestamp: new Date().toISOString(),
           path: request.url,
         },

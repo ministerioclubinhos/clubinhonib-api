@@ -23,7 +23,7 @@ export class UpdateDocumentService {
     private readonly s3Service: AwsS3Service,
     private readonly mediaProcessor: MediaItemProcessor,
     private readonly routeService: RouteService,
-  ) { }
+  ) {}
 
   async execute(
     id: string,
@@ -35,12 +35,18 @@ export class UpdateDocumentService {
     const existingDocument = await this.documentRepo.findOneWithRelations(id);
     if (!existingDocument) {
       this.logger.warn(`⚠️ Documento não encontrado: ID=${id}`);
-      throw new AppNotFoundException(ErrorCode.DOCUMENT_NOT_FOUND, 'Documento não encontrado.');
+      throw new AppNotFoundException(
+        ErrorCode.DOCUMENT_NOT_FOUND,
+        'Documento não encontrado.',
+      );
     }
 
     if (!dto.media) {
       this.logger.error('❌ Dados da mídia são obrigatórios.');
-      throw new AppValidationException(ErrorCode.VALIDATION_ERROR, 'Dados da mídia são obrigatórios.');
+      throw new AppValidationException(
+        ErrorCode.VALIDATION_ERROR,
+        'Dados da mídia são obrigatórios.',
+      );
     }
 
     return await this.dataSource.transaction(async (manager) => {
@@ -79,10 +85,13 @@ export class UpdateDocumentService {
           [
             {
               title: dto.media.title ?? savedDocument.name,
-              description: dto.media.description ?? `Documento: ${savedDocument.name}`,
+              description:
+                dto.media.description ?? `Documento: ${savedDocument.name}`,
               mediaType: dto.media.mediaType,
               uploadType: dto.media.uploadType,
-              platformType: dto.media.isLocalFile ? undefined : dto.media.platformType,
+              platformType: dto.media.isLocalFile
+                ? undefined
+                : dto.media.platformType,
               url: dto.media.url,
               originalName: dto.media.originalName,
               size: dto.media.size,
@@ -107,13 +116,18 @@ export class UpdateDocumentService {
         const isNowUpload = dto.media.isLocalFile === true;
 
         if (wasUpload && isNowLink && mediaToUpdate.url) {
-          this.logger.log(`🗑️ Deletando arquivo antigo do S3: ${mediaToUpdate.url}`);
+          this.logger.log(
+            `🗑️ Deletando arquivo antigo do S3: ${mediaToUpdate.url}`,
+          );
           await this.s3Service.delete(mediaToUpdate.url);
         }
 
         if (wasLink && isNowUpload) {
           if (!file) {
-            throw new AppValidationException(ErrorCode.FILE_REQUIRED, 'Arquivo de upload obrigatório ao mudar para upload.');
+            throw new AppValidationException(
+              ErrorCode.FILE_REQUIRED,
+              'Arquivo de upload obrigatório ao mudar para upload.',
+            );
           }
           const newUrl = await this.s3Service.upload(file);
           dto.media.url = newUrl;
@@ -123,11 +137,15 @@ export class UpdateDocumentService {
         }
 
         mediaToUpdate.title = dto.media.title ?? mediaToUpdate.title;
-        mediaToUpdate.description = dto.media.description ?? mediaToUpdate.description;
+        mediaToUpdate.description =
+          dto.media.description ?? mediaToUpdate.description;
         mediaToUpdate.uploadType = dto.media.uploadType;
-        mediaToUpdate.platformType = dto.media.isLocalFile ? undefined : dto.media.platformType;
+        mediaToUpdate.platformType = dto.media.isLocalFile
+          ? undefined
+          : dto.media.platformType;
         mediaToUpdate.url = dto.media.url ?? mediaToUpdate.url;
-        mediaToUpdate.originalName = dto.media.originalName ?? mediaToUpdate.originalName;
+        mediaToUpdate.originalName =
+          dto.media.originalName ?? mediaToUpdate.originalName;
         mediaToUpdate.size = dto.media.size ?? mediaToUpdate.size;
         mediaToUpdate.isLocalFile = dto.media.isLocalFile;
 
@@ -145,7 +163,9 @@ export class UpdateDocumentService {
     documentData: { name: string; subtitle?: string; description?: string },
     documentId: string,
   ): Promise<RouteEntity> {
-    this.logger.debug(`🔄 Iniciando upsert da rota do documento ID: ${routeId}`);
+    this.logger.debug(
+      `🔄 Iniciando upsert da rota do documento ID: ${routeId}`,
+    );
 
     const routeData: Partial<RouteEntity> = {
       title: documentData.name,
@@ -157,11 +177,14 @@ export class UpdateDocumentService {
       public: false,
       type: RouteType.PAGE,
       path: 'documento_',
-      image: 'https://bucket-clubinho-galeria.s3.us-east-2.amazonaws.com/uploads/img_card.jpg',
+      image:
+        'https://bucket-clubinho-galeria.s3.us-east-2.amazonaws.com/uploads/img_card.jpg',
     };
 
     const savedRoute = await this.routeService.upsertRoute(routeId, routeData);
-    this.logger.debug(`✅ Rota do documento upsertada: ${savedRoute.id}, path: ${savedRoute.path}`);
+    this.logger.debug(
+      `✅ Rota do documento upsertada: ${savedRoute.id}, path: ${savedRoute.path}`,
+    );
     return savedRoute;
   }
 }

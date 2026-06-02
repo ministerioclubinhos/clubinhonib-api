@@ -27,7 +27,7 @@ export class CreateDocumentService {
     private readonly s3Service: AwsS3Service,
     private readonly routeService: RouteService,
     private readonly mediaProcessor: MediaItemProcessor,
-  ) { }
+  ) {}
 
   async createDocument(
     dto: CreateDocumentDto,
@@ -42,19 +42,20 @@ export class CreateDocumentService {
 
     try {
       const savedDoc = await this.persistDocument(runner, dto);
-      const route = await this.attachRoute(runner, savedDoc, dto);
+      await this.attachRoute(runner, savedDoc, dto);
       const media = await this.processMedia(runner, savedDoc.id, dto, file);
 
       await runner.commitTransaction();
       this.logger.debug('✅  Transaction committed');
 
       return DocumentDto.fromEntity(savedDoc, media);
-    } catch (err) {
+    } catch (err: unknown) {
       await runner.rollbackTransaction();
-      this.logger.error('💥  Transaction rolled‑back', err.stack);
+      const error = err instanceof Error ? err : new Error(String(err));
+      this.logger.error('💥  Transaction rolled‑back', error.stack);
       throw new AppBusinessException(
         ErrorCode.VALIDATION_ERROR,
-        `Erro ao criar o documento: ${err.message}`,
+        `Erro ao criar o documento: ${error.message}`,
       );
     } finally {
       await runner.release();
@@ -130,7 +131,10 @@ export class CreateDocumentService {
     if (dto.media.isLocalFile) {
       if (!file) {
         this.logger.error('🚫 Arquivo obrigatório não enviado.');
-        throw new AppValidationException(ErrorCode.FILE_REQUIRED, 'Arquivo obrigatório não enviado.');
+        throw new AppValidationException(
+          ErrorCode.FILE_REQUIRED,
+          'Arquivo obrigatório não enviado.',
+        );
       }
 
       this.logger.log(`⬆️ Upload para S3: ${file.originalname}`);
@@ -138,12 +142,16 @@ export class CreateDocumentService {
         mediaUrl = await this.s3Service.upload(file);
         originalName = file.originalname;
         size = file.size;
-      } catch (error) {
+      } catch (error: unknown) {
+        const errStack = error instanceof Error ? error.stack : undefined;
         this.logger.error(
           `❌ Erro no upload do arquivo: ${file.originalname}`,
-          error.stack,
+          errStack,
         );
-        throw new AppInternalException(ErrorCode.FILE_UPLOAD_ERROR, 'Falha no upload do arquivo.');
+        throw new AppInternalException(
+          ErrorCode.FILE_UPLOAD_ERROR,
+          'Falha no upload do arquivo.',
+        );
       }
     }
 

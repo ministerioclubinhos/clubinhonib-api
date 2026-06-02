@@ -1,5 +1,12 @@
 import { BaseEntity } from 'src/shared/share-entity/base.entity';
-import { Entity, Column, OneToOne, JoinColumn, OneToMany, ManyToOne } from 'typeorm';
+import {
+  Entity,
+  Column,
+  OneToOne,
+  JoinColumn,
+  OneToMany,
+  ManyToOne,
+} from 'typeorm';
 import { Weekday } from '../../enums/weekday.enum/weekday.enum';
 import { AddressEntity } from 'src/modules/addresses/entities/address.entity/address.entity';
 import { TeacherProfileEntity } from 'src/modules/teacher-profiles/entities/teacher-profile.entity/teacher-profile.entity';
@@ -28,7 +35,11 @@ export class ClubEntity extends BaseEntity {
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
 
-  @OneToOne(() => AddressEntity, { cascade: true, eager: true, onDelete: 'RESTRICT' })
+  @OneToOne(() => AddressEntity, {
+    cascade: true,
+    eager: true,
+    onDelete: 'RESTRICT',
+  })
   @JoinColumn({ name: 'address_id' })
   address: AddressEntity;
 

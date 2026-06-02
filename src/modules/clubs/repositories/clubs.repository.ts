@@ -22,7 +22,10 @@ import { ClubEntity } from '../entities/club.entity/club.entity';
 import { AddressEntity } from 'src/modules/addresses/entities/address.entity/address.entity';
 import { CoordinatorProfileEntity } from 'src/modules/coordinator-profiles/entities/coordinator-profile.entity/coordinator-profile.entity';
 import { TeacherProfileEntity } from 'src/modules/teacher-profiles/entities/teacher-profile.entity/teacher-profile.entity';
-import { ClubSelectOptionDto, toClubSelectOption } from '../dto/club-select-option.dto';
+import {
+  ClubSelectOptionDto,
+  toClubSelectOption,
+} from '../dto/club-select-option.dto';
 
 type RoleCtx = { role?: string; userId?: string | null };
 
@@ -42,9 +45,11 @@ export class ClubsRepository {
 
     @InjectRepository(TeacherProfileEntity)
     private readonly teacherProfileRepo: Repository<TeacherProfileEntity>,
-  ) { }
+  ) {}
 
-  private buildClubBaseQB(manager?: EntityManager): SelectQueryBuilder<ClubEntity> {
+  private buildClubBaseQB(
+    manager?: EntityManager,
+  ): SelectQueryBuilder<ClubEntity> {
     const repo = manager ? manager.getRepository(ClubEntity) : this.clubRepo;
     return repo
       .createQueryBuilder('club')
@@ -97,11 +102,18 @@ export class ClubsRepository {
       },
       order: { number: 'ASC' },
     });
-    if (!club) throw new AppNotFoundException(ErrorCode.CLUB_NOT_FOUND, 'Clubinho não encontrado');
+    if (!club)
+      throw new AppNotFoundException(
+        ErrorCode.CLUB_NOT_FOUND,
+        'Clubinho não encontrado',
+      );
     return club;
   }
 
-  async findOneOrFailForResponse(id: string, ctx?: RoleCtx): Promise<ClubEntity | null> {
+  async findOneOrFailForResponse(
+    id: string,
+    ctx?: RoleCtx,
+  ): Promise<ClubEntity | null> {
     const qb = this.buildClubBaseQB()
       .where('club.id = :id', { id })
       .orderBy('club.number', 'ASC')
@@ -126,7 +138,6 @@ export class ClubsRepository {
     const qb = this.buildClubBaseQB().distinct(true);
     this.applyRoleFilter(qb, ctx);
 
-
     if (searchString?.trim()) {
       const raw = searchString.trim();
       const like = `%${raw}%`;
@@ -134,7 +145,6 @@ export class ClubsRepository {
       const isNum = Number.isInteger(n) && n > 0;
 
       if (isNum) {
-
         qb.andWhere(
           `(
             club.number = :clubNum OR
@@ -144,7 +154,6 @@ export class ClubsRepository {
           { clubNum: n, like },
         );
       } else {
-
         qb.andWhere(
           `(
             LOWER(address.district) LIKE LOWER(:like) OR
@@ -170,7 +179,7 @@ export class ClubsRepository {
     };
     const orderBy = sortMap[sort] ?? 'club.number';
     const orderDir = (order || 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
-    qb.orderBy(orderBy, orderDir as 'ASC' | 'DESC');
+    qb.orderBy(orderBy, orderDir);
 
     qb.skip((page - 1) * limit).take(limit);
 
@@ -222,7 +231,10 @@ export class ClubsRepository {
           where: { id: dto.coordinatorProfileId },
         });
         if (!coordinator) {
-          throw new AppNotFoundException(ErrorCode.COORDINATOR_NOT_FOUND, 'Perfil de coordenador não encontrado');
+          throw new AppNotFoundException(
+            ErrorCode.COORDINATOR_NOT_FOUND,
+            'Perfil de coordenador não encontrado',
+          );
         }
       }
 
@@ -231,15 +243,19 @@ export class ClubsRepository {
         weekday: dto.weekday,
         time: dto.time ?? null,
         isActive: dto.isActive !== undefined ? dto.isActive : true,
-        address: address as any,
+        address: address,
         coordinator: coordinator ?? null,
       });
 
       try {
         await clubRepo.save(club);
-      } catch (e: any) {
-        if (e?.code === 'ER_DUP_ENTRY' || e?.code === '23505') {
-          throw new AppConflictException(ErrorCode.CLUB_NUMBER_IN_USE, 'Já existe um Clubinho com esse número');
+      } catch (e: unknown) {
+        const err = e as { code?: string };
+        if (err?.code === 'ER_DUP_ENTRY' || err?.code === '23505') {
+          throw new AppConflictException(
+            ErrorCode.CLUB_NUMBER_IN_USE,
+            'Já existe um Clubinho com esse número',
+          );
         }
         throw e;
       }
@@ -270,7 +286,10 @@ export class ClubsRepository {
           );
         }
 
-        await teacherRepo.update({ id: In(ids) }, { club: { id: club.id } as any });
+        await teacherRepo.update(
+          { id: In(ids) },
+          { club: { id: club.id } as Partial<ClubEntity> },
+        );
       }
       return this.findOneOrFailForResponseTx(manager, club.id);
     });
@@ -287,13 +306,17 @@ export class ClubsRepository {
         where: { id },
         relations: { address: true, coordinator: true, teachers: true },
       });
-      if (!club) throw new AppNotFoundException(ErrorCode.CLUB_NOT_FOUND, 'Clubinho não encontrado');
+      if (!club)
+        throw new AppNotFoundException(
+          ErrorCode.CLUB_NOT_FOUND,
+          'Clubinho não encontrado',
+        );
 
-      if (dto.number !== undefined) club.number = dto.number as any;
-      if (dto.weekday !== undefined) club.weekday = dto.weekday as any;
+      if (dto.number !== undefined) club.number = dto.number;
+      if (dto.weekday !== undefined) club.weekday = dto.weekday;
 
       if (dto.time !== undefined) {
-        club.time = dto.time as any;
+        club.time = dto.time;
       }
 
       if (dto.isActive !== undefined) {
@@ -313,13 +336,16 @@ export class ClubsRepository {
 
       if (dto.coordinatorProfileId !== undefined) {
         if (dto.coordinatorProfileId === null) {
-          club.coordinator = null as any;
+          club.coordinator = null as unknown as CoordinatorProfileEntity;
         } else {
           const coordinator = await coordRepo.findOne({
             where: { id: dto.coordinatorProfileId },
           });
           if (!coordinator) {
-            throw new AppNotFoundException(ErrorCode.COORDINATOR_NOT_FOUND, 'Perfil de coordenador não encontrado');
+            throw new AppNotFoundException(
+              ErrorCode.COORDINATOR_NOT_FOUND,
+              'Perfil de coordenador não encontrado',
+            );
           }
           club.coordinator = coordinator;
         }
@@ -328,7 +354,11 @@ export class ClubsRepository {
       await clubRepo.save(club);
 
       if (dto.teacherProfileIds !== undefined) {
-        await this.syncTeachersForClubTx(teacherRepo, club.id, dto.teacherProfileIds);
+        await this.syncTeachersForClubTx(
+          teacherRepo,
+          club.id,
+          dto.teacherProfileIds,
+        );
       }
 
       return this.findOneOrFailForResponseTx(manager, club.id);
@@ -345,7 +375,11 @@ export class ClubsRepository {
       .addOrderBy('teachers.createdAt', 'ASC');
 
     const club = await qb.getOne();
-    if (!club) throw new AppNotFoundException(ErrorCode.CLUB_NOT_FOUND, 'Clubinho não encontrado');
+    if (!club)
+      throw new AppNotFoundException(
+        ErrorCode.CLUB_NOT_FOUND,
+        'Clubinho não encontrado',
+      );
     return club;
   }
 
@@ -366,9 +400,9 @@ export class ClubsRepository {
 
     const attachProfiles = toAttach.length
       ? await txTeacherRepo.find({
-        where: { id: In(toAttach) },
-        relations: { club: true },
-      })
+          where: { id: In(toAttach) },
+          relations: { club: true },
+        })
       : [];
 
     if (attachProfiles.length !== toAttach.length) {
@@ -395,12 +429,15 @@ export class ClubsRepository {
     if (attachProfiles.length) {
       await txTeacherRepo.update(
         { id: In(attachProfiles.map((p) => p.id)) },
-        { club: { id: clubId } as any },
+        { club: { id: clubId } as Partial<ClubEntity> },
       );
     }
 
     if (toDetach.length) {
-      await txTeacherRepo.update({ id: In(toDetach) }, { club: null as any });
+      await txTeacherRepo.update(
+        { id: In(toDetach) },
+        { club: null as unknown as ClubEntity },
+      );
     }
   }
 
@@ -414,17 +451,24 @@ export class ClubsRepository {
         where: { id },
         relations: { teachers: true, coordinator: true, address: true },
       });
-      if (!club) throw new AppNotFoundException(ErrorCode.CLUB_NOT_FOUND, 'Clubinho não encontrado');
+      if (!club)
+        throw new AppNotFoundException(
+          ErrorCode.CLUB_NOT_FOUND,
+          'Clubinho não encontrado',
+        );
 
       if (club.teachers?.length) {
         await txTeacher.update(
           { id: In(club.teachers.map((t) => t.id)) },
-          { club: null as any },
+          { club: null as unknown as ClubEntity },
         );
       }
 
       if (club.coordinator) {
-        await txClub.update({ id: club.id }, { coordinator: null as any });
+        await txClub.update(
+          { id: club.id },
+          { coordinator: null as unknown as CoordinatorProfileEntity },
+        );
       }
 
       const addressId = club.address?.id;
@@ -452,13 +496,20 @@ export class ClubsRepository {
       .where('club.id = :clubId', { clubId })
       .andWhere('coord_user.id = :uid', { uid: userId });
 
-    const hasGetExists = typeof (qb as any).getExists === 'function';
-    return hasGetExists ? !!(await (qb as any).getExists()) : (await qb.getCount()) > 0;
+    const qbWithExists = qb as SelectQueryBuilder<ClubEntity> & {
+      getExists?: () => Promise<boolean>;
+    };
+    const hasGetExists = typeof qbWithExists.getExists === 'function';
+    return hasGetExists
+      ? !!(await qbWithExists.getExists())
+      : (await qb.getCount()) > 0;
   }
 
-  async getCoordinatorProfileIdByUserId(userId: string): Promise<string | null> {
+  async getCoordinatorProfileIdByUserId(
+    userId: string,
+  ): Promise<string | null> {
     const coord = await this.coordRepo.findOne({
-      where: { user: { id: userId } as any },
+      where: { user: { id: userId } },
       select: { id: true },
     });
     return coord?.id ?? null;

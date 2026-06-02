@@ -1,7 +1,7 @@
 import { DecisionType } from 'src/modules/accepted-christs/enums/decision-type.enum';
 
 export class AcceptedChristPeriodStatsDto {
-  period: string; 
+  period: string;
   totalDecisions: number;
   byDecisionType: {
     [key in DecisionType]?: number;
@@ -31,4 +31,3 @@ export class AcceptedChristsStatsResponseDto {
     notes?: string | null;
   }[];
 }
-

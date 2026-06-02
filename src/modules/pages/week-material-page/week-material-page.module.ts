@@ -26,4 +26,4 @@ import { WeekMaterialsPageGetService } from './services/WeekMaterialsPageGetServ
   ],
   exports: [TypeOrmModule],
 })
-export class WeekMaterialsPageModule { }
+export class WeekMaterialsPageModule {}

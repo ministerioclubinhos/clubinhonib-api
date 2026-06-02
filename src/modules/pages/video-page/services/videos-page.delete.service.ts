@@ -1,5 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { AppNotFoundException, AppInternalException, ErrorCode } from 'src/shared/exceptions';
+import {
+  AppNotFoundException,
+  AppInternalException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import { DataSource } from 'typeorm';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { RouteService } from 'src/modules/routes/route.service';
@@ -26,16 +30,21 @@ export class DeleteVideosPageService {
 
     try {
       const page = await this.videosPageRepo.findById(id);
-      if (!page) throw new AppNotFoundException(ErrorCode.VIDEO_NOT_FOUND, `Página com id ${id} não encontrada`);
+      if (!page)
+        throw new AppNotFoundException(
+          ErrorCode.VIDEO_NOT_FOUND,
+          `Página com id ${id} não encontrada`,
+        );
 
-      const mediaItems: MediaItemEntity[] = await this.mediaItemProcessor.findMediaItemsByTarget(
-        page.id,
-        'VideosPage',
-      );
+      const mediaItems: MediaItemEntity[] =
+        await this.mediaItemProcessor.findMediaItemsByTarget(
+          page.id,
+          'VideosPage',
+        );
 
       await this.mediaItemProcessor.deleteMediaItems(
         mediaItems,
-        this.awsS3Service.delete.bind(this.awsS3Service),
+        (url: string) => this.awsS3Service.delete(url),
       );
 
       if (page.route?.id) {
@@ -45,10 +54,16 @@ export class DeleteVideosPageService {
       await queryRunner.manager.remove(page);
       await queryRunner.commitTransaction();
       this.logger.debug(`✅ Página de vídeos removida com sucesso: ID=${id}`);
-    } catch (error) {
+    } catch (error: unknown) {
       await queryRunner.rollbackTransaction();
-      this.logger.error('❌ Erro ao remover página de vídeos. Rollback executado.', error);
-      throw new AppInternalException(ErrorCode.INTERNAL_ERROR, 'Erro ao remover a página de vídeos.');
+      this.logger.error(
+        '❌ Erro ao remover página de vídeos. Rollback executado.',
+        error instanceof Error ? error.stack : error,
+      );
+      throw new AppInternalException(
+        ErrorCode.INTERNAL_ERROR,
+        'Erro ao remover a página de vídeos.',
+      );
     } finally {
       await queryRunner.release();
     }

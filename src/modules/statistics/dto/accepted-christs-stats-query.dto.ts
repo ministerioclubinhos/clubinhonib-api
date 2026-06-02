@@ -3,16 +3,14 @@ import { Type } from 'class-transformer';
 import { DecisionType } from 'src/modules/accepted-christs/enums/decision-type.enum';
 
 export class AcceptedChristsStatsQueryDto {
-  
   @IsOptional()
   @IsString()
-  startDate?: string; 
+  startDate?: string;
 
   @IsOptional()
   @IsString()
-  endDate?: string; 
+  endDate?: string;
 
-  
   @IsOptional()
   @IsString()
   clubId?: string;
@@ -21,12 +19,10 @@ export class AcceptedChristsStatsQueryDto {
   @IsString()
   coordinatorId?: string;
 
-  
   @IsOptional()
   @IsEnum(DecisionType)
   decision?: DecisionType;
 
-  
   @IsOptional()
   @IsString()
   gender?: string;
@@ -45,7 +41,6 @@ export class AcceptedChristsStatsQueryDto {
   @Max(100)
   maxAge?: number;
 
-  
   @IsOptional()
   @IsString()
   city?: string;
@@ -58,18 +53,26 @@ export class AcceptedChristsStatsQueryDto {
   @IsString()
   district?: string;
 
-  
   @IsOptional()
   @IsString()
-  joinedAfter?: string; 
+  joinedAfter?: string;
 
   @IsOptional()
   @IsString()
-  joinedBefore?: string; 
+  joinedBefore?: string;
 
-  
   @IsOptional()
   @IsEnum(['day', 'week', 'month', 'year'])
   groupBy?: 'day' | 'week' | 'month' | 'year';
-}
 
+  @IsOptional()
+  @IsString()
+  period?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(2020)
+  @Max(2100)
+  year?: number;
+}

@@ -57,7 +57,7 @@ All error responses follow this format:
 | `USER_2005` | 400 | Invalid recovery code |
 | `USER_2006` | 400 | Recovery code expired |
 
-### permission (PERM_3xxx)
+### Permission (PERM_3xxx)
 
 | Code | HTTP | Description |
 |--------|------|-----------|
@@ -134,6 +134,29 @@ All error responses follow this format:
 | `CONTENT_8611` | 404 | Pagela (Report Card) not found |
 | `CONTENT_8612` | 404 | Week Material not found |
 
+### Pages (PAGE_87xx)
+
+| Code | HTTP | Description |
+|--------|------|-----------|
+| `PAGE_8701` | 404 | Page not found |
+| `PAGE_8702` | 500 | Error creating page |
+| `PAGE_8703` | 500 | Error updating page |
+| `PAGE_8704` | 500 | Error deleting page |
+| `PAGE_8705` | 404 | Section not found |
+| `PAGE_8706` | 500 | Error creating section |
+| `PAGE_8707` | 500 | Error updating section |
+| `PAGE_8708` | 500 | Error deleting section |
+
+### Media (MEDIA_88xx)
+
+| Code | HTTP | Description |
+|--------|------|-----------|
+| `MEDIA_8801` | 404 | Media not found |
+| `MEDIA_8802` | 500 | Error uploading media |
+| `MEDIA_8803` | 500 | Error deleting media |
+| `MEDIA_8804` | 422 | Required media field missing (fieldKey, originalName) |
+| `MEDIA_8805` | 422 | Media file not found for upload |
+
 ### Internal (INT_9xxx)
 
 | Code | HTTP | Description |
@@ -143,6 +166,9 @@ All error responses follow this format:
 | `INT_9003` | 500 | External service error |
 | `INT_9004` | 500 | File upload error |
 | `INT_9005` | 500 | Email send error |
+| `INT_9006` | 500 | S3 delete error |
+| `INT_9007` | 500 | S3 upload error |
+| `INT_9008` | 500 | Transaction error |
 
 ## How to Throw Errors (Backend)
 
@@ -150,49 +176,132 @@ The project uses custom exceptions extending `AppException`. **Never** throw gen
 
 ### Exception Classes
 
- | Class | HTTP Status | Usage |
- |--------|-------------|-----|
- | `AppBusinessException` | 400 | Business rule violations, logical validation. |
- | `AppNotFoundException` | 404 | Resource not found (ID missing, route, file). |
- | `AppUnauthorizedException` | 401 | Authentication failure (invalid/expired token). |
- | `AppForbiddenException` | 403 | Authorization failure (insufficient permissions). |
- | `AppConflictException` | 409 | State conflict (email exists, duplicate resource). |
- | `AppValidationException` | 422 | Field validation error (DTOs). |
- | `AppInternalException` | 500 | Unexpected errors, infrastructure failure. |
+| Class | HTTP Status | Usage |
+|--------|-------------|-----|
+| `AppBusinessException` | 400 | Business rule violations, logical validation. |
+| `AppNotFoundException` | 404 | Resource not found (ID missing, route, file). |
+| `AppUnauthorizedException` | 401 | Authentication failure (invalid/expired token). |
+| `AppForbiddenException` | 403 | Authorization failure (insufficient permissions). |
+| `AppConflictException` | 409 | State conflict (email exists, duplicate resource). |
+| `AppValidationException` | 422 | Field validation error (DTOs, missing fields). |
+| `AppInternalException` | 500 | Unexpected errors, infrastructure failure. |
 
 ### Usage Examples
 
- ```typescript
- import { AppNotFoundException, AppBusinessException, ErrorCode } from 'src/shared/exceptions';
+```typescript
+import {
+  AppNotFoundException,
+  AppBusinessException,
+  AppValidationException,
+  AppInternalException,
+  ErrorCode
+} from 'src/shared/exceptions';
 
- // Example 1: Resource not found
- const user = await this.repo.findOne(id);
- if (!user) {
-   throw new AppNotFoundException(
-     ErrorCode.USER_NOT_FOUND,
-     'Usuário não encontrado' // Message in Portuguese
-   );
- }
+// Example 1: Resource not found
+const user = await this.repo.findOne(id);
+if (!user) {
+  throw new AppNotFoundException(
+    ErrorCode.USER_NOT_FOUND,
+    'Usuário não encontrado' // Message in Portuguese
+  );
+}
 
- // Example 2: Business Error
- if (user.isActive) {
-   throw new AppBusinessException(
-     ErrorCode.USER_ALREADY_EXISTS, // or more specific code
-     'Usuário já está ativo'
-   );
- }
+// Example 2: Business Error
+if (user.isActive) {
+  throw new AppBusinessException(
+    ErrorCode.USER_ALREADY_EXISTS,
+    'Usuário já está ativo'
+  );
+}
 
- // Example 3: Internal Error (try-catch)
- try {
-   await this.emailService.send();
- } catch (error) {
-   this.logger.error(error);
-   throw new AppInternalException(
-     ErrorCode.EMAIL_SEND_ERROR,
-     'Falha ao enviar email de boas-vindas'
-   );
- }
- ```
+// Example 3: Validation Error (missing field)
+if (!mediaInput.fieldKey) {
+  throw new AppValidationException(
+    ErrorCode.MEDIA_FIELD_MISSING,
+    `FieldKey ausente para mídia "${mediaInput.title}"`
+  );
+}
+
+// Example 4: File not found for upload
+const file = filesDict[mediaInput.fieldKey];
+if (!file) {
+  throw new AppValidationException(
+    ErrorCode.MEDIA_FILE_NOT_FOUND,
+    `Arquivo não encontrado para upload: ${mediaInput.fieldKey}`
+  );
+}
+```
+
+### Try-Catch Pattern with Transaction
+
+When using database transactions, follow this pattern to properly handle and re-throw exceptions:
+
+```typescript
+async createPage(dto: CreatePageDto): Promise<PageEntity> {
+  const queryRunner = this.dataSource.createQueryRunner();
+  await queryRunner.connect();
+  await queryRunner.startTransaction();
+
+  try {
+    // Validation that throws custom exceptions
+    const existingPage = await this.validatePage(dto.id);
+
+    // Business logic
+    const page = await queryRunner.manager.save(PageEntity, dto);
+
+    await queryRunner.commitTransaction();
+    return page;
+  } catch (error) {
+    await queryRunner.rollbackTransaction();
+    this.logger.error('Error creating page', error.stack);
+
+    // IMPORTANT: Re-throw if it's already a custom exception
+    if (error.code) throw error;
+
+    // Wrap unknown errors in AppInternalException
+    throw new AppInternalException(
+      ErrorCode.PAGE_CREATE_ERROR,
+      'Erro ao criar a página',
+      error
+    );
+  } finally {
+    await queryRunner.release();
+  }
+}
+```
+
+**Key Points:**
+1. Always check `if (error.code) throw error;` before wrapping - this preserves specific error codes from validation methods
+2. Use `error.stack` in logger for proper stack trace
+3. Pass the original error as third parameter to `AppInternalException` for debugging
+
+### S3 Operations Error Handling
+
+```typescript
+// Delete operation
+try {
+  await this.awsS3Service.delete(media.url);
+} catch (error) {
+  this.logger.error(`Failed to delete S3 file: ${media.url}`, error.stack);
+  throw new AppInternalException(
+    ErrorCode.S3_DELETE_ERROR,
+    `Falha ao remover arquivo do S3: ${media.url}`,
+    error
+  );
+}
+
+// Upload operation
+try {
+  const url = await this.awsS3Service.upload(file);
+} catch (error) {
+  this.logger.error(`Failed to upload to S3`, error.stack);
+  throw new AppInternalException(
+    ErrorCode.S3_UPLOAD_ERROR,
+    'Falha ao fazer upload do arquivo',
+    error
+  );
+}
+```
 
 ## How to Handle Errors (Frontend)
 
@@ -227,6 +336,12 @@ async function handleApiError(response: Response): Promise<never> {
     case 'PERM_3002':
       // Show access denied message
       toast.error('You do not have permission for this action');
+      break;
+
+    // Handle media validation errors
+    case 'MEDIA_8804':
+    case 'MEDIA_8805':
+      toast.error('Arquivo obrigatório não enviado');
       break;
 
     default:
@@ -289,6 +404,9 @@ Use `details.field` to highlight the input with error in your form.
 3. **Show `message` to user**: It is already provided in Portuguese.
 4. **Log `timestamp` and `path`**: Useful for debugging.
 5. **Handle network errors**: `catch` for when the request fails completely.
+6. **Re-throw custom exceptions**: In catch blocks, check `if (error.code) throw error;` before wrapping.
+7. **Log with stack trace**: Use `error.stack` when logging errors.
+8. **Never use NestJS built-in exceptions**: Always use custom `App*Exception` classes.
 
 ---
 
@@ -323,8 +441,8 @@ Use `details.field` to highlight the input with error in your form.
         ▼                                   ▼
    ┌──────────┐                      ┌──────────┐
    │Validation│                      │Internal  │
-   │Exception │                      │Internal  │
-   │  (422)   │                      │Option    │
+   │Exception │                      │Exception │
+   │  (422)   │                      │  (500)   │
    └──────────┘                      └──────────┘
 ```
 
@@ -443,5 +561,109 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 }
 ```
 
+### ErrorCode Enum (Complete)
+
+```typescript
+// src/shared/exceptions/error-codes.enum.ts
+export enum ErrorCode {
+  // Auth (1xxx)
+  INVALID_CREDENTIALS = 'AUTH_1001',
+  TOKEN_EXPIRED = 'AUTH_1002',
+  TOKEN_INVALID = 'AUTH_1003',
+  TOKEN_MISSING = 'AUTH_1004',
+  REFRESH_TOKEN_INVALID = 'AUTH_1005',
+  PASSWORD_MISMATCH = 'AUTH_1006',
+  PASSWORD_SAME_AS_CURRENT = 'AUTH_1007',
+
+  // User (2xxx)
+  USER_NOT_FOUND = 'USER_2001',
+  USER_ALREADY_EXISTS = 'USER_2002',
+  EMAIL_ALREADY_IN_USE = 'USER_2003',
+  USER_INACTIVE = 'USER_2004',
+  INVALID_RECOVERY_CODE = 'USER_2005',
+  RECOVERY_CODE_EXPIRED = 'USER_2006',
+
+  // Permission (3xxx)
+  ACCESS_DENIED = 'PERM_3001',
+  INSUFFICIENT_PERMISSIONS = 'PERM_3002',
+  FEATURE_DISABLED = 'PERM_3003',
+  ROLE_NOT_ALLOWED = 'PERM_3004',
+
+  // Validation (4xxx)
+  VALIDATION_ERROR = 'VAL_4001',
+  INVALID_INPUT = 'VAL_4002',
+  INVALID_FILE = 'VAL_4003',
+  FILE_REQUIRED = 'VAL_4004',
+  INVALID_DATE_RANGE = 'VAL_4005',
+  INVALID_FORMAT = 'VAL_4006',
+
+  // Resource (5xxx)
+  RESOURCE_NOT_FOUND = 'RES_5001',
+  RESOURCE_CONFLICT = 'RES_5002',
+  RESOURCE_ALREADY_EXISTS = 'RES_5003',
+
+  // Club (6xxx)
+  CLUB_NOT_FOUND = 'CLUB_6001',
+  CLUB_ALREADY_EXISTS = 'CLUB_6002',
+  CLUB_NUMBER_IN_USE = 'CLUB_6003',
+  CLUB_ACCESS_DENIED = 'CLUB_6004',
+
+  // Children (7xxx)
+  CHILD_NOT_FOUND = 'CHILD_7001',
+  CHILD_ACCESS_DENIED = 'CHILD_7002',
+
+  // Profile (8xxx)
+  PROFILE_NOT_FOUND = 'PROFILE_8001',
+  PROFILE_ALREADY_EXISTS = 'PROFILE_8002',
+  COORDINATOR_NOT_FOUND = 'PROFILE_8003',
+  TEACHER_NOT_FOUND = 'PROFILE_8004',
+  PROFILE_INVALID_OPERATION = 'PROFILE_8005',
+
+  // Contact (85xx)
+  CONTACT_NOT_FOUND = 'CONTACT_8501',
+
+  // Content (86xx)
+  DOCUMENT_NOT_FOUND = 'CONTENT_8601',
+  MEDITATION_NOT_FOUND = 'CONTENT_8602',
+  INFORMATIVE_NOT_FOUND = 'CONTENT_8603',
+  EVENT_NOT_FOUND = 'CONTENT_8604',
+  VIDEO_NOT_FOUND = 'CONTENT_8605',
+  IMAGE_NOT_FOUND = 'CONTENT_8606',
+  IDEA_NOT_FOUND = 'CONTENT_8607',
+  ROUTE_NOT_FOUND = 'CONTENT_8608',
+  COMMENT_NOT_FOUND = 'CONTENT_8609',
+  FEEDBACK_NOT_FOUND = 'CONTENT_8610',
+  PAGELA_NOT_FOUND = 'CONTENT_8611',
+  WEEK_MATERIAL_NOT_FOUND = 'CONTENT_8612',
+
+  // Pages (87xx)
+  PAGE_NOT_FOUND = 'PAGE_8701',
+  PAGE_CREATE_ERROR = 'PAGE_8702',
+  PAGE_UPDATE_ERROR = 'PAGE_8703',
+  PAGE_DELETE_ERROR = 'PAGE_8704',
+  SECTION_NOT_FOUND = 'PAGE_8705',
+  SECTION_CREATE_ERROR = 'PAGE_8706',
+  SECTION_UPDATE_ERROR = 'PAGE_8707',
+  SECTION_DELETE_ERROR = 'PAGE_8708',
+
+  // Media (88xx)
+  MEDIA_NOT_FOUND = 'MEDIA_8801',
+  MEDIA_UPLOAD_ERROR = 'MEDIA_8802',
+  MEDIA_DELETE_ERROR = 'MEDIA_8803',
+  MEDIA_FIELD_MISSING = 'MEDIA_8804',
+  MEDIA_FILE_NOT_FOUND = 'MEDIA_8805',
+
+  // Internal (9xxx)
+  INTERNAL_ERROR = 'INT_9001',
+  DATABASE_ERROR = 'INT_9002',
+  EXTERNAL_SERVICE_ERROR = 'INT_9003',
+  FILE_UPLOAD_ERROR = 'INT_9004',
+  EMAIL_SEND_ERROR = 'INT_9005',
+  S3_DELETE_ERROR = 'INT_9006',
+  S3_UPLOAD_ERROR = 'INT_9007',
+  TRANSACTION_ERROR = 'INT_9008',
+}
+```
+
 ---
-⬅️ [Back to Documentation Hub](README.md)
+Back to [Documentation Hub](README.md)

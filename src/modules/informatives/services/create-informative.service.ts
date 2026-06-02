@@ -1,5 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { AppException, AppInternalException, ErrorCode } from 'src/shared/exceptions';
+import {
+  AppException,
+  AppInternalException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import { DataSource, QueryRunner } from 'typeorm';
 import { RouteService } from 'src/modules/routes/route.service';
 import { RouteType } from 'src/modules/routes/route-page.entity';
@@ -16,7 +20,7 @@ export class CreateInformativeService {
     private readonly dataSource: DataSource,
     private readonly informativeRepo: InformativeRepository,
     private readonly routeService: RouteService,
-  ) { }
+  ) {}
 
   async createInformative(
     dto: CreateInformativeDto,
@@ -36,9 +40,10 @@ export class CreateInformativeService {
       this.logger.debug('✅  Transaction committed');
 
       return informative;
-    } catch (err) {
+    } catch (err: unknown) {
       await runner.rollbackTransaction();
-      this.logger.error('💥  Transaction rolled‑back', err.stack);
+      const error = err instanceof Error ? err : new Error(String(err));
+      this.logger.error('💥  Transaction rolled‑back', error.stack);
       if (err instanceof AppException) {
         throw err;
       }

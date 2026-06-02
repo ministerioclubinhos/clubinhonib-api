@@ -4,7 +4,7 @@ import { Entity, Column } from 'typeorm';
 export enum RouteType {
   PAGE = 'page',
   DOC = 'doc',
-  IMAGE = 'image',  
+  IMAGE = 'image',
   OTHER = 'other',
 }
 
@@ -21,7 +21,7 @@ export class RouteEntity extends BaseEntity {
 
   @Column({ default: false })
   current?: boolean;
-  
+
   @Column({ type: 'varchar', nullable: true })
   image: string;
 

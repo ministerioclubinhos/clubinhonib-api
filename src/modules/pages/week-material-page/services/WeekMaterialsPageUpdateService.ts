@@ -1,14 +1,38 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { DataSource, QueryRunner } from 'typeorm';
-import { AppNotFoundException, AppBusinessException, AppInternalException, ErrorCode } from 'src/shared/exceptions';
+import {
+  AppNotFoundException,
+  AppInternalException,
+  AppValidationException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { RouteService } from 'src/modules/routes/route.service';
 import { RouteEntity, RouteType } from 'src/modules/routes/route-page.entity';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
-import { MediaItemEntity, MediaType, UploadType } from 'src/shared/media/media-item/media-item.entity';
+import {
+  MediaItemEntity,
+  MediaType,
+  UploadType,
+} from 'src/shared/media/media-item/media-item.entity';
 import { WeekMaterialsPageEntity } from '../entities/week-material-page.entity';
 import { MediaItemDto } from 'src/shared/share-dto/media-item-dto';
+
+interface UpdateWeekMaterialsPageDto {
+  pageTitle: string;
+  pageSubtitle: string;
+  pageDescription: string;
+  videos?: MediaItemDto[];
+  documents?: MediaItemDto[];
+  images?: MediaItemDto[];
+  audios?: MediaItemDto[];
+  currentWeek?: boolean;
+}
+
+interface IncomingMediaItem {
+  id?: string;
+}
 
 @Injectable()
 export class WeekMaterialsPageUpdateService {
@@ -19,12 +43,11 @@ export class WeekMaterialsPageUpdateService {
     private readonly s3: AwsS3Service,
     private readonly routeService: RouteService,
     private readonly mediaItemProcessor: MediaItemProcessor,
-  ) {
-  }
+  ) {}
 
   async updateWeekMaterialsPage(
     id: string,
-    dto: any,
+    dto: UpdateWeekMaterialsPageDto,
     filesDict: Record<string, Express.Multer.File>,
   ): Promise<WeekMaterialsPageEntity> {
     this.logger.debug(`🚀 Iniciando atualização da página ID=${id}`);
@@ -38,12 +61,25 @@ export class WeekMaterialsPageUpdateService {
       const existingPage = await this.validatePage(id, queryRunner);
       const existingRoute = await this.validateRoute(existingPage.id);
       const existingVideos = await this.validateVideoMedia(existingPage.id);
-      const existingDocuments = await this.validateDocumentMedia(existingPage.id);
+      const existingDocuments = await this.validateDocumentMedia(
+        existingPage.id,
+      );
       const existingImages = await this.validateImageMedia(existingPage.id);
       const existingAudios = await this.validateAudioMedia(existingPage.id);
 
-      const { pageTitle, pageSubtitle, pageDescription, videos, documents, images, audios, currentWeek } = dto;
-      this.logger.debug(`📋 Dados extraídos: title="${pageTitle}", subtitle="${pageSubtitle}", vídeos=${videos?.length || 0}, documentos=${documents?.length || 0}, imagens=${images?.length || 0}, áudios=${audios?.length || 0}`);
+      const {
+        pageTitle,
+        pageSubtitle,
+        pageDescription,
+        videos,
+        documents,
+        images,
+        audios,
+        currentWeek,
+      } = dto;
+      this.logger.debug(
+        `📋 Dados extraídos: title="${pageTitle}", subtitle="${pageSubtitle}", vídeos=${videos?.length || 0}, documentos=${documents?.length || 0}, imagens=${images?.length || 0}, áudios=${audios?.length || 0}`,
+      );
 
       await this.deleteVideoMedia(existingVideos, videos);
       await this.deleteDocumentMedia(existingDocuments, documents);
@@ -52,49 +88,94 @@ export class WeekMaterialsPageUpdateService {
 
       for (const video of videos || []) {
         if (video.id) {
-          await this.upsertVideoMedia(video, existingPage.id, filesDict, queryRunner);
+          await this.upsertVideoMedia(
+            video,
+            existingPage.id,
+            filesDict,
+            queryRunner,
+          );
         } else {
-          await this.addVideoMedia(video, existingPage.id, filesDict, queryRunner);
+          await this.addVideoMedia(video, existingPage.id, filesDict);
         }
       }
       for (const document of documents || []) {
         if (document.id) {
-          await this.upsertDocumentMedia(document, existingPage.id, filesDict, queryRunner);
+          await this.upsertDocumentMedia(
+            document,
+            existingPage.id,
+            filesDict,
+            queryRunner,
+          );
         } else {
-          await this.addDocumentMedia(document, existingPage.id, filesDict, queryRunner);
+          await this.addDocumentMedia(document, existingPage.id, filesDict);
         }
       }
       for (const image of images || []) {
         if (image.id) {
-          await this.upsertImageMedia(image, existingPage.id, filesDict, queryRunner);
+          await this.upsertImageMedia(
+            image,
+            existingPage.id,
+            filesDict,
+            queryRunner,
+          );
         } else {
-          await this.addImageMedia(image, existingPage.id, filesDict, queryRunner);
+          await this.addImageMedia(image, existingPage.id, filesDict);
         }
       }
       for (const audio of audios || []) {
         if (audio.id) {
-          await this.upsertAudioMedia(audio, existingPage.id, filesDict, queryRunner);
+          await this.upsertAudioMedia(
+            audio,
+            existingPage.id,
+            filesDict,
+            queryRunner,
+          );
         } else {
-          await this.addAudioMedia(audio, existingPage.id, filesDict, queryRunner);
+          await this.addAudioMedia(audio, existingPage.id, filesDict);
         }
       }
 
-      const routeUpsert = await this.upsertRoute(existingRoute.id, { pageTitle, pageSubtitle, pageDescription, currentWeek }, existingPage.id, existingRoute.public, existingRoute.current);
+      const resolvedCurrentWeek =
+        currentWeek ?? existingPage.currentWeek ?? false;
+      const routeUpsert = await this.upsertRoute(
+        existingRoute.id,
+        {
+          pageTitle,
+          pageSubtitle,
+          pageDescription,
+          currentWeek: resolvedCurrentWeek,
+        },
+        existingPage.id,
+        existingRoute.public,
+        existingRoute.current,
+      );
 
       existingPage.title = pageTitle;
       existingPage.subtitle = pageSubtitle;
       existingPage.description = pageDescription;
-      existingPage.currentWeek = currentWeek;
+      existingPage.currentWeek = resolvedCurrentWeek;
       existingPage.route = routeUpsert;
-      const updatedPage = await queryRunner.manager.save(WeekMaterialsPageEntity, existingPage);
+      const updatedPage = await queryRunner.manager.save(
+        WeekMaterialsPageEntity,
+        existingPage,
+      );
 
       await queryRunner.commitTransaction();
-      this.logger.debug(`✅ Página atualizada com sucesso. ID=${updatedPage.id}`);
+      this.logger.debug(
+        `✅ Página atualizada com sucesso. ID=${updatedPage.id}`,
+      );
       return updatedPage;
-    } catch (error) {
-      this.logger.error('❌ Erro ao atualizar página', error.stack);
+    } catch (error: unknown) {
+      const errStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error('Erro ao atualizar página', errStack);
       await queryRunner.rollbackTransaction();
-      throw new BadRequestException('Erro ao atualizar a página de materiais.');
+      const hasCode = error && typeof error === 'object' && 'code' in error;
+      if (hasCode) throw error as unknown as Error;
+      throw new AppInternalException(
+        ErrorCode.PAGE_UPDATE_ERROR,
+        'Erro ao atualizar a página de materiais',
+        error as Error,
+      );
     } finally {
       await queryRunner.release();
     }
@@ -102,7 +183,12 @@ export class WeekMaterialsPageUpdateService {
 
   private async upsertRoute(
     routeId: string,
-    pageData: { pageTitle: string; pageSubtitle: string; pageDescription: string, currentWeek: boolean },
+    pageData: {
+      pageTitle: string;
+      pageSubtitle: string;
+      pageDescription: string;
+      currentWeek: boolean;
+    },
     weekMaterialsPageId: string,
     existingRoutePublic: boolean,
     existingRouteCurrent?: boolean,
@@ -119,14 +205,20 @@ export class WeekMaterialsPageUpdateService {
       current: existingRouteCurrent,
       type: RouteType.PAGE,
       path: 'materiais_semanal_',
-      image: 'https://clubinho-nib.s3.us-east-1.amazonaws.com/production/cards/card_materiais.png',
+      image:
+        'https://clubinho-nib.s3.us-east-1.amazonaws.com/production/cards/card_materiais.png',
     };
     const savedRoute = await this.routeService.upsertRoute(routeId, routeData);
-    this.logger.debug(`✅ Rota upsertada: ${savedRoute.id}, path: ${savedRoute.path}`);
+    this.logger.debug(
+      `✅ Rota upsertada: ${savedRoute.id}, path: ${savedRoute.path}`,
+    );
     return savedRoute;
   }
 
-  private async validatePage(id: string, queryRunner: QueryRunner): Promise<WeekMaterialsPageEntity> {
+  private async validatePage(
+    id: string,
+    queryRunner: QueryRunner,
+  ): Promise<WeekMaterialsPageEntity> {
     this.logger.debug(`🔍 Buscando página ID=${id}`);
     const page = await queryRunner.manager.findOne(WeekMaterialsPageEntity, {
       where: { id },
@@ -134,7 +226,10 @@ export class WeekMaterialsPageUpdateService {
     });
     if (!page) {
       this.logger.warn(`⚠️ Página ID=${id} não encontrada`);
-      throw new AppNotFoundException(ErrorCode.WEEK_MATERIAL_NOT_FOUND, 'Página não encontrada');
+      throw new AppNotFoundException(
+        ErrorCode.WEEK_MATERIAL_NOT_FOUND,
+        'Página não encontrada',
+      );
     }
     this.logger.debug(`✅ Página ID=${id} encontrada`);
     return page;
@@ -145,7 +240,10 @@ export class WeekMaterialsPageUpdateService {
     const route = await this.routeService.findRouteByEntityId(entityId);
     if (!route) {
       this.logger.warn(`⚠️ Rota para entityId=${entityId} não encontrada`);
-      throw new AppNotFoundException(ErrorCode.ROUTE_NOT_FOUND, 'Rota não encontrada');
+      throw new AppNotFoundException(
+        ErrorCode.ROUTE_NOT_FOUND,
+        'Rota não encontrada',
+      );
     }
     this.logger.debug(`✅ Rota ID=${route.id} encontrada`);
     return route;
@@ -153,46 +251,71 @@ export class WeekMaterialsPageUpdateService {
 
   private async validateVideoMedia(pageId: string): Promise<MediaItemEntity[]> {
     this.logger.debug(`🔍 Buscando vídeos para página ID=${pageId}`);
-    const items = await this.mediaItemProcessor.findMediaItemsByTarget(pageId, MediaTargetType.WeekMaterialsPage);
-    const videos = items.filter(item => item.mediaType === MediaType.VIDEO);
+    const items = await this.mediaItemProcessor.findMediaItemsByTarget(
+      pageId,
+      MediaTargetType.WeekMaterialsPage,
+    );
+    const videos = items.filter((item) => item.mediaType === MediaType.VIDEO);
     this.logger.debug(`✅ Encontrados ${videos.length} vídeos`);
     return videos;
   }
 
-  private async validateDocumentMedia(pageId: string): Promise<MediaItemEntity[]> {
+  private async validateDocumentMedia(
+    pageId: string,
+  ): Promise<MediaItemEntity[]> {
     this.logger.debug(`🔍 Buscando documentos para página ID=${pageId}`);
-    const items = await this.mediaItemProcessor.findMediaItemsByTarget(pageId, MediaTargetType.WeekMaterialsPage);
-    const documents = items.filter(item => item.mediaType === MediaType.DOCUMENT);
+    const items = await this.mediaItemProcessor.findMediaItemsByTarget(
+      pageId,
+      MediaTargetType.WeekMaterialsPage,
+    );
+    const documents = items.filter(
+      (item) => item.mediaType === MediaType.DOCUMENT,
+    );
     this.logger.debug(`✅ Encontrados ${documents.length} documentos`);
     return documents;
   }
 
   private async validateImageMedia(pageId: string): Promise<MediaItemEntity[]> {
     this.logger.debug(`🔍 Buscando imagens para página ID=${pageId}`);
-    const items = await this.mediaItemProcessor.findMediaItemsByTarget(pageId, MediaTargetType.WeekMaterialsPage);
-    const images = items.filter(item => item.mediaType === MediaType.IMAGE);
+    const items = await this.mediaItemProcessor.findMediaItemsByTarget(
+      pageId,
+      MediaTargetType.WeekMaterialsPage,
+    );
+    const images = items.filter((item) => item.mediaType === MediaType.IMAGE);
     this.logger.debug(`✅ Encontradas ${images.length} imagens`);
     return images;
   }
 
   private async validateAudioMedia(pageId: string): Promise<MediaItemEntity[]> {
     this.logger.debug(`🔍 Buscando áudios para página ID=${pageId}`);
-    const items = await this.mediaItemProcessor.findMediaItemsByTarget(pageId, MediaTargetType.WeekMaterialsPage);
-    const audios = items.filter(item => item.mediaType === MediaType.AUDIO);
+    const items = await this.mediaItemProcessor.findMediaItemsByTarget(
+      pageId,
+      MediaTargetType.WeekMaterialsPage,
+    );
+    const audios = items.filter((item) => item.mediaType === MediaType.AUDIO);
     this.logger.debug(`✅ Encontrados ${audios.length} áudios`);
     return audios;
   }
 
   private async deleteVideoMedia(
     existingVideos: MediaItemEntity[],
-    incomingVideos: any[],
+    incomingVideos: IncomingMediaItem[] | undefined,
   ): Promise<void> {
-    this.logger.debug(`🗑️ Verificando vídeos para exclusão. Existentes: ${existingVideos.length}, Recebidos: ${incomingVideos?.length || 0}`);
-    const incomingIds = new Set((incomingVideos || []).map((v) => v.id).filter(Boolean));
-    const videosToRemove = existingVideos.filter((video) => !incomingIds.has(video.id));
+    this.logger.debug(
+      `🗑️ Verificando vídeos para exclusão. Existentes: ${existingVideos.length}, Recebidos: ${incomingVideos?.length || 0}`,
+    );
+    const incomingIds = new Set(
+      (incomingVideos || []).map((v) => v.id).filter(Boolean),
+    );
+    const videosToRemove = existingVideos.filter(
+      (video) => !incomingIds.has(video.id),
+    );
     if (videosToRemove.length > 0) {
       this.logger.debug(`🗑️ Removendo ${videosToRemove.length} vídeos`);
-      await this.mediaItemProcessor.deleteMediaItems(videosToRemove, this.s3.delete.bind(this.s3));
+      await this.mediaItemProcessor.deleteMediaItems(
+        videosToRemove,
+        (url: string) => this.s3.delete(url),
+      );
       this.logger.debug(`✅ ${videosToRemove.length} vídeos removidos`);
     } else {
       this.logger.debug('ℹ️ Nenhum vídeo para remover');
@@ -201,14 +324,23 @@ export class WeekMaterialsPageUpdateService {
 
   private async deleteDocumentMedia(
     existingDocuments: MediaItemEntity[],
-    incomingDocuments: any[],
+    incomingDocuments: IncomingMediaItem[] | undefined,
   ): Promise<void> {
-    this.logger.debug(`🗑️ Verificando documentos para exclusão. Existentes: ${existingDocuments.length}, Recebidos: ${incomingDocuments?.length || 0}`);
-    const incomingIds = new Set((incomingDocuments || []).map((d) => d.id).filter(Boolean));
-    const documentsToRemove = existingDocuments.filter((doc) => !incomingIds.has(doc.id));
+    this.logger.debug(
+      `🗑️ Verificando documentos para exclusão. Existentes: ${existingDocuments.length}, Recebidos: ${incomingDocuments?.length || 0}`,
+    );
+    const incomingIds = new Set(
+      (incomingDocuments || []).map((d) => d.id).filter(Boolean),
+    );
+    const documentsToRemove = existingDocuments.filter(
+      (doc) => !incomingIds.has(doc.id),
+    );
     if (documentsToRemove.length > 0) {
       this.logger.debug(`🗑️ Removendo ${documentsToRemove.length} documentos`);
-      await this.mediaItemProcessor.deleteMediaItems(documentsToRemove, this.s3.delete.bind(this.s3));
+      await this.mediaItemProcessor.deleteMediaItems(
+        documentsToRemove,
+        (url: string) => this.s3.delete(url),
+      );
       this.logger.debug(`✅ ${documentsToRemove.length} documentos removidos`);
     } else {
       this.logger.debug('ℹ️ Nenhum documento para remover');
@@ -217,14 +349,23 @@ export class WeekMaterialsPageUpdateService {
 
   private async deleteImageMedia(
     existingImages: MediaItemEntity[],
-    incomingImages: any[],
+    incomingImages: IncomingMediaItem[] | undefined,
   ): Promise<void> {
-    this.logger.debug(`🗑️ Verificando imagens para exclusão. Existentes: ${existingImages.length}, Recebidas: ${incomingImages?.length || 0}`);
-    const incomingIds = new Set((incomingImages || []).map((i) => i.id).filter(Boolean));
-    const imagesToRemove = existingImages.filter((img) => !incomingIds.has(img.id));
+    this.logger.debug(
+      `🗑️ Verificando imagens para exclusão. Existentes: ${existingImages.length}, Recebidas: ${incomingImages?.length || 0}`,
+    );
+    const incomingIds = new Set(
+      (incomingImages || []).map((i) => i.id).filter(Boolean),
+    );
+    const imagesToRemove = existingImages.filter(
+      (img) => !incomingIds.has(img.id),
+    );
     if (imagesToRemove.length > 0) {
       this.logger.debug(`🗑️ Removendo ${imagesToRemove.length} imagens`);
-      await this.mediaItemProcessor.deleteMediaItems(imagesToRemove, this.s3.delete.bind(this.s3));
+      await this.mediaItemProcessor.deleteMediaItems(
+        imagesToRemove,
+        (url: string) => this.s3.delete(url),
+      );
       this.logger.debug(`✅ ${imagesToRemove.length} imagens removidas`);
     } else {
       this.logger.debug('ℹ️ Nenhuma imagem para remover');
@@ -233,14 +374,23 @@ export class WeekMaterialsPageUpdateService {
 
   private async deleteAudioMedia(
     existingAudios: MediaItemEntity[],
-    incomingAudios: any[],
+    incomingAudios: IncomingMediaItem[] | undefined,
   ): Promise<void> {
-    this.logger.debug(`🗑️ Verificando áudios para exclusão. Existentes: ${existingAudios.length}, Recebidos: ${incomingAudios?.length || 0}`);
-    const incomingIds = new Set((incomingAudios || []).map((a) => a.id).filter(Boolean));
-    const audiosToRemove = existingAudios.filter((audio) => !incomingIds.has(audio.id));
+    this.logger.debug(
+      `🗑️ Verificando áudios para exclusão. Existentes: ${existingAudios.length}, Recebidos: ${incomingAudios?.length || 0}`,
+    );
+    const incomingIds = new Set(
+      (incomingAudios || []).map((a) => a.id).filter(Boolean),
+    );
+    const audiosToRemove = existingAudios.filter(
+      (audio) => !incomingIds.has(audio.id),
+    );
     if (audiosToRemove.length > 0) {
       this.logger.debug(`🗑️ Removendo ${audiosToRemove.length} áudios`);
-      await this.mediaItemProcessor.deleteMediaItems(audiosToRemove, this.s3.delete.bind(this.s3));
+      await this.mediaItemProcessor.deleteMediaItems(
+        audiosToRemove,
+        (url: string) => this.s3.delete(url),
+      );
       this.logger.debug(`✅ ${audiosToRemove.length} áudios removidos`);
     } else {
       this.logger.debug('ℹ️ Nenhum áudio para remover');
@@ -250,7 +400,7 @@ export class WeekMaterialsPageUpdateService {
     videoInput: MediaItemDto,
     pageId: string,
     filesDict: Record<string, Express.Multer.File>,
-    queryRunner: QueryRunner,
+    // _queryRunner: QueryRunner,
   ): Promise<MediaItemEntity> {
     this.logger.debug(`🆕 Construindo novo vídeo: "${videoInput.title}"`);
 
@@ -260,21 +410,35 @@ export class WeekMaterialsPageUpdateService {
       MediaTargetType.WeekMaterialsPage,
     );
 
-    const isUpload = videoInput.uploadType === UploadType.UPLOAD || videoInput.isLocalFile === true;
+    const isUpload =
+      videoInput.uploadType === UploadType.UPLOAD ||
+      videoInput.isLocalFile === true;
 
     if (isUpload) {
       media.platformType = undefined;
       if (!videoInput.fieldKey) {
-        this.logger.error(`❌ FieldKey ausente para mídia "${videoInput.title}"`);
-        throw new BadRequestException(`FieldKey ausente para mídia "${videoInput.title}"`);
+        this.logger.error(
+          `❌ FieldKey ausente para mídia "${videoInput.title}"`,
+        );
+        throw new AppValidationException(
+          ErrorCode.MEDIA_FIELD_MISSING,
+          `FieldKey ausente para mídia "${videoInput.title}"`,
+        );
       }
       const file = filesDict[videoInput.fieldKey];
       if (!file) {
-        this.logger.error(`❌ Arquivo ausente para mídia "${videoInput.title}" (fieldKey: ${videoInput.fieldKey})`);
-        throw new BadRequestException(`Arquivo ausente para mídia "${videoInput.title}"`);
+        this.logger.error(
+          `❌ Arquivo ausente para mídia "${videoInput.title}" (fieldKey: ${videoInput.fieldKey})`,
+        );
+        throw new AppValidationException(
+          ErrorCode.MEDIA_FILE_NOT_FOUND,
+          `Arquivo ausente para mídia "${videoInput.title}"`,
+        );
       }
 
-      this.logger.debug(`⬆️ Fazendo upload do vídeo "${file.originalname}" para S3`);
+      this.logger.debug(
+        `⬆️ Fazendo upload do vídeo "${file.originalname}" para S3`,
+      );
       media.url = await this.s3.upload(file);
       media.isLocalFile = videoInput.isLocalFile;
       media.originalName = file.originalname;
@@ -301,26 +465,48 @@ export class WeekMaterialsPageUpdateService {
   }
 
   private async addDocumentMedia(
-    documentInput: any,
+    documentInput: MediaItemDto,
     pageId: string,
     filesDict: Record<string, Express.Multer.File>,
-    queryRunner: QueryRunner,
+    // _queryRunner: QueryRunner,
   ): Promise<MediaItemEntity> {
-    this.logger.debug(`🆕 Construindo novo documento: "${documentInput.title}"`);
+    this.logger.debug(
+      `🆕 Construindo novo documento: "${documentInput.title}"`,
+    );
     const media = this.mediaItemProcessor.buildBaseMediaItem(
       { ...documentInput, mediaType: MediaType.DOCUMENT },
       pageId,
       MediaTargetType.WeekMaterialsPage,
     );
 
-    if (documentInput.uploadType === UploadType.UPLOAD || documentInput.isLocalFile === true) {
+    if (
+      documentInput.uploadType === UploadType.UPLOAD ||
+      documentInput.isLocalFile === true
+    ) {
       media.platformType = undefined;
-      const file = filesDict[documentInput.fieldKey];
-      if (!file) {
-        this.logger.error(`❌ Arquivo ausente para documento "${documentInput.title}" (fieldKey: ${documentInput.fieldKey})`);
-        throw new BadRequestException(`Arquivo ausente para documento "${documentInput.title}"`);
+      const fieldKey = documentInput.fieldKey;
+      if (!fieldKey) {
+        this.logger.error(
+          `❌ fieldKey ausente para documento "${documentInput.title}"`,
+        );
+        throw new AppValidationException(
+          ErrorCode.MEDIA_FIELD_MISSING,
+          `fieldKey ausente para documento "${documentInput.title}"`,
+        );
       }
-      this.logger.debug(`⬆️ Fazendo upload do documento "${file.originalname}" para S3`);
+      const file = filesDict[fieldKey];
+      if (!file) {
+        this.logger.error(
+          `❌ Arquivo ausente para documento "${documentInput.title}" (fieldKey: ${fieldKey})`,
+        );
+        throw new AppValidationException(
+          ErrorCode.MEDIA_FILE_NOT_FOUND,
+          `Arquivo ausente para documento "${documentInput.title}"`,
+        );
+      }
+      this.logger.debug(
+        `⬆️ Fazendo upload do documento "${file.originalname}" para S3`,
+      );
       media.url = await this.s3.upload(file);
       media.isLocalFile = documentInput.isLocalFile;
       media.originalName = file.originalname;
@@ -346,10 +532,10 @@ export class WeekMaterialsPageUpdateService {
   }
 
   private async addImageMedia(
-    imageInput: any,
+    imageInput: MediaItemDto,
     pageId: string,
     filesDict: Record<string, Express.Multer.File>,
-    queryRunner: QueryRunner,
+    // _queryRunner: QueryRunner,
   ): Promise<MediaItemEntity> {
     this.logger.debug(`🆕 Construindo nova imagem: "${imageInput.title}"`);
     const media = this.mediaItemProcessor.buildBaseMediaItem(
@@ -358,14 +544,34 @@ export class WeekMaterialsPageUpdateService {
       MediaTargetType.WeekMaterialsPage,
     );
 
-    if (imageInput.uploadType === UploadType.UPLOAD || imageInput.isLocalFile === true) {
+    if (
+      imageInput.uploadType === UploadType.UPLOAD ||
+      imageInput.isLocalFile === true
+    ) {
       media.platformType = undefined;
-      const file = filesDict[imageInput.fieldKey];
-      if (!file) {
-        this.logger.error(`❌ Arquivo ausente para imagem "${imageInput.title}" (fieldKey: ${imageInput.fieldKey})`);
-        throw new BadRequestException(`Arquivo ausente para imagem "${imageInput.title}"`);
+      const fieldKey = imageInput.fieldKey;
+      if (!fieldKey) {
+        this.logger.error(
+          `❌ fieldKey ausente para imagem "${imageInput.title}"`,
+        );
+        throw new AppValidationException(
+          ErrorCode.MEDIA_FIELD_MISSING,
+          `fieldKey ausente para imagem "${imageInput.title}"`,
+        );
       }
-      this.logger.debug(`⬆️ Fazendo upload da imagem "${file.originalname}" para S3`);
+      const file = filesDict[fieldKey];
+      if (!file) {
+        this.logger.error(
+          `❌ Arquivo ausente para imagem "${imageInput.title}" (fieldKey: ${fieldKey})`,
+        );
+        throw new AppValidationException(
+          ErrorCode.MEDIA_FILE_NOT_FOUND,
+          `Arquivo ausente para imagem "${imageInput.title}"`,
+        );
+      }
+      this.logger.debug(
+        `⬆️ Fazendo upload da imagem "${file.originalname}" para S3`,
+      );
       media.url = await this.s3.upload(file);
       media.isLocalFile = imageInput.isLocalFile;
       media.originalName = file.originalname;
@@ -390,12 +596,11 @@ export class WeekMaterialsPageUpdateService {
     return savedMedia;
   }
 
-
   private async addAudioMedia(
-    audioInput: any,
+    audioInput: MediaItemDto,
     pageId: string,
     filesDict: Record<string, Express.Multer.File>,
-    queryRunner: QueryRunner,
+    // _queryRunner: QueryRunner,
   ): Promise<MediaItemEntity> {
     this.logger.debug(`🆕 Construindo novo áudio: "${audioInput.title}"`);
     const media = this.mediaItemProcessor.buildBaseMediaItem(
@@ -404,14 +609,34 @@ export class WeekMaterialsPageUpdateService {
       MediaTargetType.WeekMaterialsPage,
     );
 
-    if (audioInput.uploadType === UploadType.UPLOAD || audioInput.isLocalFile === true) {
+    if (
+      audioInput.uploadType === UploadType.UPLOAD ||
+      audioInput.isLocalFile === true
+    ) {
       media.platformType = undefined;
-      const file = filesDict[audioInput.fieldKey];
-      if (!file) {
-        this.logger.error(`❌ Arquivo ausente para áudio "${audioInput.title}" (fieldKey: ${audioInput.fieldKey})`);
-        throw new BadRequestException(`Arquivo ausente para áudio "${audioInput.title}"`);
+      const fieldKey = audioInput.fieldKey;
+      if (!fieldKey) {
+        this.logger.error(
+          `❌ fieldKey ausente para áudio "${audioInput.title}"`,
+        );
+        throw new AppValidationException(
+          ErrorCode.MEDIA_FIELD_MISSING,
+          `fieldKey ausente para áudio "${audioInput.title}"`,
+        );
       }
-      this.logger.debug(`⬆️ Fazendo upload do áudio "${file.originalname}" para S3`);
+      const file = filesDict[fieldKey];
+      if (!file) {
+        this.logger.error(
+          `❌ Arquivo ausente para áudio "${audioInput.title}" (fieldKey: ${fieldKey})`,
+        );
+        throw new AppValidationException(
+          ErrorCode.MEDIA_FILE_NOT_FOUND,
+          `Arquivo ausente para áudio "${audioInput.title}"`,
+        );
+      }
+      this.logger.debug(
+        `⬆️ Fazendo upload do áudio "${file.originalname}" para S3`,
+      );
       media.url = await this.s3.upload(file);
       media.isLocalFile = true;
       media.originalName = file.originalname;
@@ -437,36 +662,49 @@ export class WeekMaterialsPageUpdateService {
     return savedMedia;
   }
 
-
   private async upsertVideoMedia(
     videoInput: MediaItemDto,
     pageId: string,
     filesDict: Record<string, Express.Multer.File>,
     queryRunner: QueryRunner,
   ): Promise<MediaItemEntity> {
-
-    this.logger.debug(`✏️ Construindo atualização de vídeo ID=${videoInput.id}`);
+    this.logger.debug(
+      `✏️ Construindo atualização de vídeo ID=${videoInput.id}`,
+    );
     const media = this.mediaItemProcessor.buildBaseMediaItem(
       { ...videoInput, mediaType: MediaType.VIDEO },
       pageId,
       MediaTargetType.WeekMaterialsPage,
     );
 
-    if (videoInput.uploadType === UploadType.UPLOAD && videoInput.isLocalFile && videoInput.fieldKey) {
+    if (
+      videoInput.uploadType === UploadType.UPLOAD &&
+      videoInput.isLocalFile &&
+      videoInput.fieldKey
+    ) {
       this.logger.debug(`🔍 Verificando vídeo existente ID=${videoInput.id}`);
       const existing = await queryRunner.manager.findOne(MediaItemEntity, {
         where: { id: videoInput.id },
       });
       if (existing && existing.isLocalFile) {
-        this.logger.debug(`🗑️ Removendo arquivo existente do S3: ${existing.url}`);
+        this.logger.debug(
+          `🗑️ Removendo arquivo existente do S3: ${existing.url}`,
+        );
         await this.s3.delete(existing.url);
       }
       const file = filesDict[videoInput.fieldKey];
       if (!file) {
-        this.logger.error(`❌ Arquivo ausente para vídeo "${videoInput.title}" (fieldKey: ${videoInput.fieldKey})`);
-        throw new BadRequestException(`Arquivo ausente para vídeo "${videoInput.title}"`);
+        this.logger.error(
+          `❌ Arquivo ausente para vídeo "${videoInput.title}" (fieldKey: ${videoInput.fieldKey})`,
+        );
+        throw new AppValidationException(
+          ErrorCode.MEDIA_FILE_NOT_FOUND,
+          `Arquivo ausente para vídeo "${videoInput.title}"`,
+        );
       }
-      this.logger.debug(`⬆️ Fazendo upload do novo vídeo "${file.originalname}" para S3`);
+      this.logger.debug(
+        `⬆️ Fazendo upload do novo vídeo "${file.originalname}" para S3`,
+      );
       media.url = await this.s3.upload(file);
       media.description = videoInput.description || media.description;
 
@@ -487,7 +725,10 @@ export class WeekMaterialsPageUpdateService {
       this.logger.debug(`🔗 Usando URL externa para vídeo: "${media.url}"`);
     }
     this.logger.debug(`💾 Atualizando vídeo no banco`);
-    const updatedMedia = await this.mediaItemProcessor.upsertMediaItem(videoInput.id, media);
+    const updatedMedia = await this.mediaItemProcessor.upsertMediaItem(
+      videoInput.id,
+      media,
+    );
     this.logger.debug(`✅ Vídeo atualizado com ID=${updatedMedia.id}`);
     return updatedMedia;
   }
@@ -498,27 +739,44 @@ export class WeekMaterialsPageUpdateService {
     filesDict: Record<string, Express.Multer.File>,
     queryRunner: QueryRunner,
   ): Promise<MediaItemEntity> {
-    this.logger.debug(`✏️ Construindo atualização de documento ID=${documentInput.id}`);
+    this.logger.debug(
+      `✏️ Construindo atualização de documento ID=${documentInput.id}`,
+    );
     const media = this.mediaItemProcessor.buildBaseMediaItem(
       { ...documentInput, mediaType: MediaType.DOCUMENT },
       pageId,
       MediaTargetType.WeekMaterialsPage,
     );
-    if (documentInput.uploadType === UploadType.UPLOAD && documentInput.isLocalFile && documentInput.fieldKey) {
-      this.logger.debug(`🔍 Verificando documento existente ID=${documentInput.id}`);
+    if (
+      documentInput.uploadType === UploadType.UPLOAD &&
+      documentInput.isLocalFile &&
+      documentInput.fieldKey
+    ) {
+      this.logger.debug(
+        `🔍 Verificando documento existente ID=${documentInput.id}`,
+      );
       const existing = await queryRunner.manager.findOne(MediaItemEntity, {
         where: { id: documentInput.id },
       });
       if (existing && existing.isLocalFile) {
-        this.logger.debug(`🗑️ Removendo arquivo existente do S3: ${existing.url}`);
+        this.logger.debug(
+          `🗑️ Removendo arquivo existente do S3: ${existing.url}`,
+        );
         await this.s3.delete(existing.url);
       }
       const file = filesDict[documentInput.fieldKey];
       if (!file) {
-        this.logger.error(`❌ Arquivo ausente para documento "${documentInput.title}" (fieldKey: ${documentInput.fieldKey})`);
-        throw new BadRequestException(`Arquivo ausente para documento "${documentInput.title}"`);
+        this.logger.error(
+          `❌ Arquivo ausente para documento "${documentInput.title}" (fieldKey: ${documentInput.fieldKey})`,
+        );
+        throw new AppValidationException(
+          ErrorCode.MEDIA_FILE_NOT_FOUND,
+          `Arquivo ausente para documento "${documentInput.title}"`,
+        );
       }
-      this.logger.debug(`⬆️ Fazendo upload do novo documento "${file.originalname}" para S3`);
+      this.logger.debug(
+        `⬆️ Fazendo upload do novo documento "${file.originalname}" para S3`,
+      );
       media.url = await this.s3.upload(file);
       media.isLocalFile = true;
       media.originalName = file.originalname;
@@ -537,7 +795,10 @@ export class WeekMaterialsPageUpdateService {
       this.logger.debug(`🔗 Usando URL externa para documento: "${media.url}"`);
     }
     this.logger.debug(`💾 Atualizando documento no banco`);
-    const updatedMedia = await this.mediaItemProcessor.upsertMediaItem(documentInput.id, media);
+    const updatedMedia = await this.mediaItemProcessor.upsertMediaItem(
+      documentInput.id,
+      media,
+    );
     this.logger.debug(`✅ Documento atualizado com ID=${updatedMedia.id}`);
     return updatedMedia;
   }
@@ -548,27 +809,42 @@ export class WeekMaterialsPageUpdateService {
     filesDict: Record<string, Express.Multer.File>,
     queryRunner: QueryRunner,
   ): Promise<MediaItemEntity> {
-    this.logger.debug(`✏️ Construindo atualização de imagem ID=${imageInput.id}`);
+    this.logger.debug(
+      `✏️ Construindo atualização de imagem ID=${imageInput.id}`,
+    );
     const media = this.mediaItemProcessor.buildBaseMediaItem(
       { ...imageInput, mediaType: MediaType.IMAGE },
       pageId,
       MediaTargetType.WeekMaterialsPage,
     );
-    if (imageInput.uploadType === UploadType.UPLOAD && imageInput.isLocalFile && imageInput.fieldKey) {
+    if (
+      imageInput.uploadType === UploadType.UPLOAD &&
+      imageInput.isLocalFile &&
+      imageInput.fieldKey
+    ) {
       this.logger.debug(`🔍 Verificando imagem existente ID=${imageInput.id}`);
       const existing = await queryRunner.manager.findOne(MediaItemEntity, {
         where: { id: imageInput.id },
       });
       if (existing && existing.isLocalFile) {
-        this.logger.debug(`🗑️ Removendo arquivo existente do S3: ${existing.url}`);
+        this.logger.debug(
+          `🗑️ Removendo arquivo existente do S3: ${existing.url}`,
+        );
         await this.s3.delete(existing.url);
       }
       const file = filesDict[imageInput.fieldKey];
       if (!file) {
-        this.logger.error(`❌ Arquivo ausente para imagem "${imageInput.title}" (fieldKey: ${imageInput.fieldKey})`);
-        throw new BadRequestException(`Arquivo ausente para imagem "${imageInput.title}"`);
+        this.logger.error(
+          `❌ Arquivo ausente para imagem "${imageInput.title}" (fieldKey: ${imageInput.fieldKey})`,
+        );
+        throw new AppValidationException(
+          ErrorCode.MEDIA_FILE_NOT_FOUND,
+          `Arquivo ausente para imagem "${imageInput.title}"`,
+        );
       }
-      this.logger.debug(`⬆️ Fazendo upload da nova imagem "${file.originalname}" para S3`);
+      this.logger.debug(
+        `⬆️ Fazendo upload da nova imagem "${file.originalname}" para S3`,
+      );
       media.url = await this.s3.upload(file);
       media.isLocalFile = true;
       media.originalName = file.originalname;
@@ -587,7 +863,10 @@ export class WeekMaterialsPageUpdateService {
       this.logger.debug(`🔗 Usando URL externa para imagem: "${media.url}"`);
     }
     this.logger.debug(`💾 Atualizando imagem no banco`);
-    const updatedMedia = await this.mediaItemProcessor.upsertMediaItem(imageInput.id, media);
+    const updatedMedia = await this.mediaItemProcessor.upsertMediaItem(
+      imageInput.id,
+      media,
+    );
     this.logger.debug(`✅ Imagem atualizada com ID=${updatedMedia.id}`);
     return updatedMedia;
   }
@@ -598,27 +877,42 @@ export class WeekMaterialsPageUpdateService {
     filesDict: Record<string, Express.Multer.File>,
     queryRunner: QueryRunner,
   ): Promise<MediaItemEntity> {
-    this.logger.debug(`✏️ Construindo atualização de áudio ID=${audioInput.id}`);
+    this.logger.debug(
+      `✏️ Construindo atualização de áudio ID=${audioInput.id}`,
+    );
     const media = this.mediaItemProcessor.buildBaseMediaItem(
       { ...audioInput, mediaType: MediaType.AUDIO },
       pageId,
       MediaTargetType.WeekMaterialsPage,
     );
-    if (audioInput.uploadType === UploadType.UPLOAD && audioInput.isLocalFile && audioInput.fieldKey) {
+    if (
+      audioInput.uploadType === UploadType.UPLOAD &&
+      audioInput.isLocalFile &&
+      audioInput.fieldKey
+    ) {
       this.logger.debug(`🔍 Verificando áudio existente ID=${audioInput.id}`);
       const existing = await queryRunner.manager.findOne(MediaItemEntity, {
         where: { id: audioInput.id },
       });
       if (existing && existing.isLocalFile) {
-        this.logger.debug(`🗑️ Removendo arquivo existente do S3: ${existing.url}`);
+        this.logger.debug(
+          `🗑️ Removendo arquivo existente do S3: ${existing.url}`,
+        );
         await this.s3.delete(existing.url);
       }
       const file = filesDict[audioInput.fieldKey];
       if (!file) {
-        this.logger.error(`❌ Arquivo ausente para áudio "${audioInput.title}" (fieldKey: ${audioInput.fieldKey})`);
-        throw new BadRequestException(`Arquivo ausente para áudio "${audioInput.title}"`);
+        this.logger.error(
+          `❌ Arquivo ausente para áudio "${audioInput.title}" (fieldKey: ${audioInput.fieldKey})`,
+        );
+        throw new AppValidationException(
+          ErrorCode.MEDIA_FILE_NOT_FOUND,
+          `Arquivo ausente para áudio "${audioInput.title}"`,
+        );
       }
-      this.logger.debug(`⬆️ Fazendo upload do novo áudio "${file.originalname}" para S3`);
+      this.logger.debug(
+        `⬆️ Fazendo upload do novo áudio "${file.originalname}" para S3`,
+      );
       media.url = await this.s3.upload(file);
       media.isLocalFile = audioInput.isLocalFile;
       media.originalName = file.originalname;
@@ -638,7 +932,10 @@ export class WeekMaterialsPageUpdateService {
     }
 
     this.logger.debug(`💾 Atualizando áudio no banco`);
-    const updatedMedia = await this.mediaItemProcessor.upsertMediaItem(audioInput.id, media);
+    const updatedMedia = await this.mediaItemProcessor.upsertMediaItem(
+      audioInput.id,
+      media,
+    );
     this.logger.debug(`✅ Áudio atualizado com ID=${updatedMedia.id}`);
     return updatedMedia;
   }

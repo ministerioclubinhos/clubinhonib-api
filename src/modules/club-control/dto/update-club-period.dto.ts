@@ -1,21 +1,19 @@
 import { IsString, IsBoolean, IsOptional } from 'class-validator';
 
-
 export class UpdateClubPeriodDto {
   @IsOptional()
   @IsString()
-  startDate?: string; 
+  startDate?: string;
 
   @IsOptional()
   @IsString()
-  endDate?: string; 
+  endDate?: string;
 
   @IsOptional()
   @IsString()
-  description?: string; 
+  description?: string;
 
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
 }
-

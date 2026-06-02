@@ -6,12 +6,9 @@ import { TeacherProfileEntity } from 'src/modules/teacher-profiles/entities/teac
 @Entity('pagelas')
 @Unique('UQ_pagela_child_year_week', ['child', 'year', 'week'])
 export class PagelaEntity extends BaseEntity {
-  
-  
   @Column({ type: 'tinyint', unsigned: true })
   week: number;
 
-  
   @Column({ type: 'smallint', unsigned: true })
   year: number;
 
@@ -37,7 +34,10 @@ export class PagelaEntity extends BaseEntity {
   @JoinColumn({ name: 'child_id' })
   child: ChildEntity;
 
-  @ManyToOne(() => TeacherProfileEntity, { nullable: true, onDelete: 'SET NULL' })
+  @ManyToOne(() => TeacherProfileEntity, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
   @JoinColumn({ name: 'teacher_profile_id' })
   teacher?: TeacherProfileEntity | null;
 }

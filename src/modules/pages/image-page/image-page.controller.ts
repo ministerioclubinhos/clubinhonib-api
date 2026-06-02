@@ -15,7 +15,6 @@ import {
 } from '@nestjs/common';
 import {
   AppNotFoundException,
-  AppBusinessException,
   AppValidationException,
   AppInternalException,
   ErrorCode,
@@ -35,7 +34,6 @@ import { AdminRoleGuard } from 'src/core/auth/guards/role-guard';
 import { PaginatedImageSectionResponseDto } from './dto/paginated-image-section.dto';
 import { Request } from 'express';
 
-
 @Controller('image-pages')
 export class ImageController {
   private readonly logger = new Logger(ImageController.name);
@@ -45,7 +43,7 @@ export class ImageController {
     private readonly deleteService: ImagePageDeleteService,
     private readonly getService: ImagePageGetService,
     private readonly updateService: ImagePageUpdateService,
-  ) { }
+  ) {}
 
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Post()
@@ -66,9 +64,15 @@ export class ImageController {
       this.logger.log(`✅ Galeria criada: ID=${result.id}`);
 
       return result;
-    } catch (error) {
-      this.logger.error('❌ Erro ao criar galeria', error);
-      throw new AppInternalException(ErrorCode.INTERNAL_ERROR, 'Erro ao criar a galeria.');
+    } catch (error: unknown) {
+      this.logger.error(
+        '❌ Erro ao criar galeria',
+        error instanceof Error ? error.stack : error,
+      );
+      throw new AppInternalException(
+        ErrorCode.INTERNAL_ERROR,
+        'Erro ao criar a galeria.',
+      );
     }
   }
 
@@ -83,7 +87,7 @@ export class ImageController {
     this.logger.debug(`🚀 Atualizando galeria ID=${id}`);
 
     try {
-      const rawObject = JSON.parse(raw);
+      const rawObject = JSON.parse(raw) as Record<string, unknown>;
       this.cleanMediaFiles(rawObject);
 
       const dto = plainToInstance(UpdateImagePageDto, rawObject);
@@ -92,9 +96,15 @@ export class ImageController {
       const filesDict = this.mapFiles(files);
 
       return await this.updateService.updateImagePage(id, dto, filesDict);
-    } catch (error) {
-      this.logger.error('❌ Erro ao atualizar galeria', error);
-      throw new AppInternalException(ErrorCode.INTERNAL_ERROR, 'Erro ao atualizar a galeria.');
+    } catch (error: unknown) {
+      this.logger.error(
+        '❌ Erro ao atualizar galeria',
+        error instanceof Error ? error.stack : error,
+      );
+      throw new AppInternalException(
+        ErrorCode.INTERNAL_ERROR,
+        'Erro ao atualizar a galeria.',
+      );
     }
   }
 
@@ -108,23 +118,33 @@ export class ImageController {
     @Param('id') pageId: string,
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '2',
-    @Req() req: Request
+    @Req() req: Request,
   ): Promise<PaginatedImageSectionResponseDto> {
     const pageNumber = Number(page);
     const limitNumber = Number(limit);
 
-    this.logger.debug(`📥 Requisição recebida para seções paginadas — pageId=${pageId}, page=${pageNumber}, limit=${limitNumber}`);
+    this.logger.debug(
+      `📥 Requisição recebida para seções paginadas — pageId=${pageId}, page=${pageNumber}, limit=${limitNumber}`,
+    );
 
-    return this.getService.findSectionsPaginated(pageId, pageNumber, limitNumber, req);
+    return this.getService.findSectionsPaginated(
+      pageId,
+      pageNumber,
+      limitNumber,
+      req,
+    );
   }
 
   @Get(':id')
   async findOne(@Param('id') id: string): Promise<ImagePageResponseDto> {
     try {
       return await this.getService.findOne(id);
-    } catch (error) {
+    } catch (error: unknown) {
       if (error instanceof AppNotFoundException) throw error;
-      throw new AppInternalException(ErrorCode.INTERNAL_ERROR, 'Erro ao buscar galeria.');
+      throw new AppInternalException(
+        ErrorCode.INTERNAL_ERROR,
+        'Erro ao buscar galeria.',
+      );
     }
   }
 
@@ -136,25 +156,43 @@ export class ImageController {
   }
 
   private async validateDto(dto: object) {
-    const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
+    const errors = await validate(dto, {
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    });
     if (errors.length > 0) {
-      this.logger.error('❌ Erros de validação:', JSON.stringify(errors, null, 2));
-      throw new AppValidationException(ErrorCode.VALIDATION_ERROR, 'Dados inválidos na requisição');
+      this.logger.error(
+        '❌ Erros de validação:',
+        JSON.stringify(errors, null, 2),
+      );
+      throw new AppValidationException(
+        ErrorCode.VALIDATION_ERROR,
+        'Dados inválidos na requisição',
+      );
     }
   }
 
-  private mapFiles(files: Express.Multer.File[]): Record<string, Express.Multer.File> {
-    return files.reduce((acc, file) => {
-      acc[file.fieldname] = file;
-      return acc;
-    }, {} as Record<string, Express.Multer.File>);
+  private mapFiles(
+    files: Express.Multer.File[],
+  ): Record<string, Express.Multer.File> {
+    return files.reduce(
+      (acc, file) => {
+        acc[file.fieldname] = file;
+        return acc;
+      },
+      {} as Record<string, Express.Multer.File>,
+    );
   }
 
-  private cleanMediaFiles(rawObject: any) {
-    rawObject.sections?.forEach(section =>
-      section.mediaItems?.forEach(media => {
+  private cleanMediaFiles(
+    rawObject: Partial<{
+      sections: { mediaItems?: { file?: unknown }[] }[];
+    }>,
+  ) {
+    rawObject.sections?.forEach((section) =>
+      section.mediaItems?.forEach((media) => {
         delete media.file;
-      })
+      }),
     );
   }
 }

@@ -9,7 +9,9 @@ export class AddressesService {
 
   constructor(private readonly repo: AddressesRepository) {}
 
-  private tag(txId?: string) { return txId ? `[${txId}] ` : ''; }
+  private tag(txId?: string) {
+    return txId ? `[${txId}] ` : '';
+  }
 
   create(partial: Partial<AddressEntity>, txId?: string) {
     this.logger.debug(`${this.tag(txId)}create(partial)`);
@@ -17,15 +19,21 @@ export class AddressesService {
   }
 
   merge(target: AddressEntity, partial: Partial<AddressEntity>, txId?: string) {
-    this.logger.debug(`${this.tag(txId)}merge(targetId=${(target as any)?.id ?? 'new'})`);
+    this.logger.debug(
+      `${this.tag(txId)}merge(targetId=${target?.id ?? 'new'})`,
+    );
     return this.repo.merge(target, partial);
   }
 
   async save(entity: AddressEntity, em?: EntityManager, txId?: string) {
     const t0 = Date.now();
-    this.logger.debug(`${this.tag(txId)}save(addressId=${(entity as any)?.id ?? 'new'})…`);
+    this.logger.debug(
+      `${this.tag(txId)}save(addressId=${entity?.id ?? 'new'})…`,
+    );
     const out = await this.repo.save(entity);
-    this.logger.debug(`${this.tag(txId)}save -> OK (id=${(out as any)?.id}) (ms=${Date.now() - t0})`);
+    this.logger.debug(
+      `${this.tag(txId)}save -> OK (id=${out?.id}) (ms=${Date.now() - t0})`,
+    );
     return out;
   }
 
@@ -33,7 +41,9 @@ export class AddressesService {
     const t0 = Date.now();
     this.logger.debug(`${this.tag(txId)}findById(${id})…`);
     const out = await this.repo.findById(id);
-    this.logger.debug(`${this.tag(txId)}findById -> ${out ? 'OK' : 'NOT FOUND'} (ms=${Date.now() - t0})`);
+    this.logger.debug(
+      `${this.tag(txId)}findById -> ${out ? 'OK' : 'NOT FOUND'} (ms=${Date.now() - t0})`,
+    );
     return out;
   }
 }

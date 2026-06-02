@@ -22,7 +22,10 @@ export class UpdateEventDto {
   description?: string;
 
   @IsOptional()
-  @IsDateString({}, { message: 'date deve estar em formato ISO válido (YYYY-MM-DD)' })
+  @IsDateString(
+    {},
+    { message: 'date deve estar em formato ISO válido (YYYY-MM-DD)' },
+  )
   date?: string;
 
   @IsOptional()
@@ -35,6 +38,8 @@ export class UpdateEventDto {
   media?: MediaItemDto;
 
   @IsOptional()
-  @IsBoolean({ message: 'isLocalFile deve ser um valor booleano (true ou false)' })
+  @IsBoolean({
+    message: 'isLocalFile deve ser um valor booleano (true ou false)',
+  })
   isLocalFile?: boolean;
 }

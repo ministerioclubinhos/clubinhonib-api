@@ -21,9 +21,13 @@ export class GetInformativeService {
     try {
       const list = await this.informativeRepo.findAllSorted();
       return list.map((entity) => InformativeResponseDto.fromEntity(entity));
-    } catch (error) {
-      this.logger.error('❌ Erro ao buscar banners', error.stack);
-      throw new AppInternalException(ErrorCode.DATABASE_ERROR, 'Erro ao buscar banners informativos');
+    } catch (error: unknown) {
+      const errStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error('❌ Erro ao buscar banners', errStack);
+      throw new AppInternalException(
+        ErrorCode.DATABASE_ERROR,
+        'Erro ao buscar banners informativos',
+      );
     }
   }
 
@@ -32,7 +36,10 @@ export class GetInformativeService {
     const item = await this.informativeRepo.findOneById(id);
     if (!item) {
       this.logger.warn(`⚠️ Banner não encontrado: ID=${id}`);
-      throw new AppNotFoundException(ErrorCode.INFORMATIVE_NOT_FOUND, 'Banner informativo não encontrado');
+      throw new AppNotFoundException(
+        ErrorCode.INFORMATIVE_NOT_FOUND,
+        'Banner informativo não encontrado',
+      );
     }
 
     return InformativeResponseDto.fromEntity(item);

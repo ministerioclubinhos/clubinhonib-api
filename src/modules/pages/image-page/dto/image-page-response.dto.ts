@@ -1,5 +1,10 @@
 import { RouteEntity } from 'src/modules/routes/route-page.entity';
-import { MediaItemEntity, MediaType, UploadType, PlatformType } from 'src/shared/media/media-item/media-item.entity';
+import {
+  MediaItemEntity,
+  MediaType,
+  UploadType,
+  PlatformType,
+} from 'src/shared/media/media-item/media-item.entity';
 import { ImagePageEntity } from '../entity/Image-page.entity';
 import { ImageSectionEntity } from '../entity/Image-section.entity';
 
@@ -68,7 +73,10 @@ export class ImageSectionDto {
   updatedAt: Date;
   mediaItems: GalleryMediaItemDto[];
 
-  static fromEntity(section: ImageSectionEntity, mediaItems: MediaItemEntity[]): ImageSectionDto {
+  static fromEntity(
+    section: ImageSectionEntity,
+    mediaItems: MediaItemEntity[],
+  ): ImageSectionDto {
     return {
       id: section.id,
       caption: section.caption,
@@ -76,7 +84,9 @@ export class ImageSectionDto {
       public: section.public,
       createdAt: section.createdAt,
       updatedAt: section.updatedAt,
-      mediaItems: mediaItems.map(GalleryMediaItemDto.fromEntity),
+      mediaItems: mediaItems.map((item) =>
+        GalleryMediaItemDto.fromEntity(item),
+      ),
     };
   }
 }

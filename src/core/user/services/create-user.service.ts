@@ -18,7 +18,7 @@ export class CreateUserService {
     private readonly userRepo: UserRepository,
     private teacherProfilesService: TeacherProfilesService,
     private coordinatorProfilesService: CoordinatorProfilesService,
-  ) { }
+  ) {}
 
   async create(dto: CreateUserDto): Promise<UserEntity> {
     const existingEmail = await this.userRepo.findByEmail(dto.email);

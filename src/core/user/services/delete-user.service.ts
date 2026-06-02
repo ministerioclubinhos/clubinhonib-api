@@ -15,7 +15,7 @@ export class DeleteUserService {
     private readonly coordinatorService: CoordinatorProfilesService,
     private readonly mediaItemProcessor: MediaItemProcessor,
     private readonly s3Service: AwsS3Service,
-  ) { }
+  ) {}
 
   async remove(id: string): Promise<{ message: string }> {
     const userImage = await this.mediaItemProcessor.findMediaItemByTarget(
@@ -24,10 +24,9 @@ export class DeleteUserService {
     );
 
     if (userImage) {
-      await this.mediaItemProcessor.removeMediaItem(
-        userImage,
-        this.s3Service.delete.bind(this.s3Service),
-      );
+      const deleteFn = (url: string): Promise<void> =>
+        this.s3Service.delete(url);
+      await this.mediaItemProcessor.removeMediaItem(userImage, deleteFn);
       this.logger.log(`Imagem do usuário deletada: ${userImage.id}`);
     }
 

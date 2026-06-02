@@ -22,7 +22,9 @@ export class CommentService {
   async findAllPublished(): Promise<CommentEntity[]> {
     this.logger.debug('📄 Buscando comentários publicados');
     const comments = await this.commentRepo.findAllPublished();
-    this.logger.log(`✅ Comentários publicados encontrados: ${comments.length}`);
+    this.logger.log(
+      `✅ Comentários publicados encontrados: ${comments.length}`,
+    );
     return comments;
   }
 
@@ -38,7 +40,10 @@ export class CommentService {
     const comment = await this.commentRepo.findOneBy({ id });
     if (!comment) {
       this.logger.warn(`⚠️ Comentário não encontrado: ID=${id}`);
-      throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, 'Comentário não encontrado');
+      throw new AppNotFoundException(
+        ErrorCode.RESOURCE_NOT_FOUND,
+        'Comentário não encontrado',
+      );
     }
     this.logger.log(`✅ Comentário encontrado: ID=${comment.id}`);
     return comment;

@@ -1,7 +1,12 @@
 import { RouteType } from 'src/modules/routes/route-page.entity';
 import { WeekMaterialsPageEntity } from '../entities/week-material-page.entity';
 import { Logger } from '@nestjs/common';
-import { MediaItemEntity, PlatformType, MediaType, UploadType } from 'src/shared/media/media-item/media-item.entity';
+import {
+  MediaItemEntity,
+  PlatformType,
+  MediaType,
+  UploadType,
+} from 'src/shared/media/media-item/media-item.entity';
 
 export class weekMediaItemResponseDTO {
   id: string;
@@ -42,7 +47,7 @@ export class WeekMaterialsPageResponseDTO {
 
   static fromEntity(
     entity: WeekMaterialsPageEntity,
-    mediaItems: MediaItemEntity[] = []
+    mediaItems: MediaItemEntity[] = [],
   ): WeekMaterialsPageResponseDTO {
     const logger = new Logger(WeekMaterialsPageResponseDTO.name);
     logger.debug(`🧩 Convertendo entidade para DTO: ID=${entity.id}`);
@@ -84,10 +89,18 @@ export class WeekMaterialsPageResponseDTO {
       };
     };
 
-    dto.videos = mediaItems.filter((i) => i.mediaType === MediaType.VIDEO).map(mapItem);
-    dto.documents = mediaItems.filter((i) => i.mediaType === MediaType.DOCUMENT).map(mapItem);
-    dto.images = mediaItems.filter((i) => i.mediaType === MediaType.IMAGE).map(mapItem);
-    dto.audios = mediaItems.filter((i) => i.mediaType === MediaType.AUDIO).map(mapItem);
+    dto.videos = mediaItems
+      .filter((i) => i.mediaType === MediaType.VIDEO)
+      .map(mapItem);
+    dto.documents = mediaItems
+      .filter((i) => i.mediaType === MediaType.DOCUMENT)
+      .map(mapItem);
+    dto.images = mediaItems
+      .filter((i) => i.mediaType === MediaType.IMAGE)
+      .map(mapItem);
+    dto.audios = mediaItems
+      .filter((i) => i.mediaType === MediaType.AUDIO)
+      .map(mapItem);
 
     logger.debug(`✅ DTO criado com sucesso. ID=${dto.id}`);
     return dto;

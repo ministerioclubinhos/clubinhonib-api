@@ -5,16 +5,22 @@ import {
   toCoordinatorDto,
 } from '../dto/coordinator-profile.response.dto';
 import { CoordinatorSimpleListDto } from '../dto/coordinator-simple-list.dto';
-import { CoordinatorProfilesQueryDto, PageDto } from '../dto/coordinator-profiles.query.dto';
+import {
+  CoordinatorProfilesQueryDto,
+  PageDto,
+} from '../dto/coordinator-profiles.query.dto';
 
 @Injectable()
 export class CoordinatorProfilesService {
-  constructor(private readonly repo: CoordinatorProfilesRepository) { }
+  constructor(private readonly repo: CoordinatorProfilesRepository) {}
 
-    async findPage(query: CoordinatorProfilesQueryDto): Promise<PageDto<CoordinatorResponseDto>> {
-      console.log("Buscando página com filtros:", query);
+  async findPage(
+    query: CoordinatorProfilesQueryDto,
+  ): Promise<PageDto<CoordinatorResponseDto>> {
+    console.log('Buscando página com filtros:', query);
 
-    const { items, total, page, limit } = await this.repo.findPageWithFilters(query);
+    const { items, total, page, limit } =
+      await this.repo.findPageWithFilters(query);
     return {
       items: items.map(toCoordinatorDto),
       total,
@@ -50,8 +56,16 @@ export class CoordinatorProfilesService {
     await this.repo.unassignClubFromCoordinator(coordinatorId, clubId);
   }
 
-  async moveClub(fromCoordinatorId: string, clubId: string, toCoordinatorId: string): Promise<void> {
-    await this.repo.moveClubBetweenCoordinators(fromCoordinatorId, clubId, toCoordinatorId);
+  async moveClub(
+    fromCoordinatorId: string,
+    clubId: string,
+    toCoordinatorId: string,
+  ): Promise<void> {
+    await this.repo.moveClubBetweenCoordinators(
+      fromCoordinatorId,
+      clubId,
+      toCoordinatorId,
+    );
   }
 
   async createForUser(userId: string) {

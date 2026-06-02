@@ -1,4 +1,10 @@
-import { Exclude, Expose, Type, Transform, plainToInstance } from 'class-transformer';
+import {
+  Exclude,
+  Expose,
+  Type,
+  Transform,
+  plainToInstance,
+} from 'class-transformer';
 import { AddressResponseDto } from 'src/modules/addresses/dto/address.response.dto';
 import { Weekday } from '../enums/weekday.enum/weekday.enum';
 import { ClubEntity } from '../entities/club.entity/club.entity';
@@ -41,7 +47,9 @@ export class ClubMiniDto {
   @Expose() weekday!: Weekday;
 
   @Expose()
-  @Transform(({ value }) => (typeof value === 'string' ? value.slice(0, 5) : null))
+  @Transform(({ value }: { value: string | null }) =>
+    typeof value === 'string' ? value.slice(0, 5) : null,
+  )
   time!: string | null;
 
   @Expose() isActive!: boolean;
@@ -54,7 +62,9 @@ export class ClubSimpleResponseDto {
   @Expose() weekday!: Weekday;
 
   @Expose()
-  @Transform(({ value }) => (typeof value === 'string' ? value.slice(0, 5) : null))
+  @Transform(({ value }: { value: string | null }) =>
+    typeof value === 'string' ? value.slice(0, 5) : null,
+  )
   time!: string | null;
 
   @Expose() isActive!: boolean;
@@ -73,7 +83,9 @@ export class ClubResponseDto {
   @Expose() number!: number;
 
   @Expose()
-  @Transform(({ value }) => (typeof value === 'string' ? value.slice(0, 5) : null))
+  @Transform(({ value }: { value: string | null }) =>
+    typeof value === 'string' ? value.slice(0, 5) : null,
+  )
   time!: string | null;
 
   @Expose() isActive!: boolean;
@@ -84,12 +96,17 @@ export class ClubResponseDto {
 
   @Expose()
   @Type(() => CoordinatorWithUserDto)
-  @Transform(({ value }) => value ?? null)
+  @Transform(
+    ({ value }: { value: CoordinatorWithUserDto | null | undefined }) =>
+      value ?? null,
+  )
   coordinator!: CoordinatorWithUserDto | null;
 
   @Expose()
   @Type(() => TeacherWithUserDto)
-  @Transform(({ value }) => (Array.isArray(value) ? value : []))
+  @Transform(({ value }: { value: TeacherWithUserDto[] | null | undefined }) =>
+    Array.isArray(value) ? value : [],
+  )
   teachers!: TeacherWithUserDto[];
 
   @Expose() weekday!: Weekday;
@@ -98,8 +115,12 @@ export class ClubResponseDto {
 }
 
 export function toClubSimpleDto(entity: ClubEntity): ClubSimpleResponseDto {
-  return plainToInstance(ClubSimpleResponseDto, entity, { excludeExtraneousValues: true });
+  return plainToInstance(ClubSimpleResponseDto, entity, {
+    excludeExtraneousValues: true,
+  });
 }
 export function toClubDto(entity: ClubEntity): ClubResponseDto {
-  return plainToInstance(ClubResponseDto, entity, { excludeExtraneousValues: true });
+  return plainToInstance(ClubResponseDto, entity, {
+    excludeExtraneousValues: true,
+  });
 }

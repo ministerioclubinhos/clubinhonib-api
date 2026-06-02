@@ -13,7 +13,7 @@ import { UpdateSiteFeedbackDto } from './dto/update-site-feedback.dto';
 export class SiteFeedbackService {
   private readonly logger = new Logger(SiteFeedbackService.name);
 
-  constructor(private readonly siteFeedbackRepo: SiteFeedbackRepository) { }
+  constructor(private readonly siteFeedbackRepo: SiteFeedbackRepository) {}
 
   async create(dto: CreateSiteFeedbackDto): Promise<SiteFeedbackEntity> {
     this.logger.debug(`📝 Criando novo feedback do site`);
@@ -26,7 +26,9 @@ export class SiteFeedbackService {
   async findAll(): Promise<SiteFeedbackEntity[]> {
     this.logger.debug('📄 Buscando todos os feedbacks do site');
     const feedbacks = await this.siteFeedbackRepo.findAll();
-    this.logger.log(`✅ Total de feedbacks do site encontrados: ${feedbacks.length}`);
+    this.logger.log(
+      `✅ Total de feedbacks do site encontrados: ${feedbacks.length}`,
+    );
     return feedbacks;
   }
 
@@ -35,13 +37,19 @@ export class SiteFeedbackService {
     const feedback = await this.siteFeedbackRepo.findOneBy({ id });
     if (!feedback) {
       this.logger.warn(`⚠️ Feedback do site não encontrado: ID=${id}`);
-      throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, 'Feedback do site não encontrado');
+      throw new AppNotFoundException(
+        ErrorCode.RESOURCE_NOT_FOUND,
+        'Feedback do site não encontrado',
+      );
     }
     this.logger.log(`✅ Feedback do site encontrado: ID=${feedback.id}`);
     return feedback;
   }
 
-  async update(id: string, dto: UpdateSiteFeedbackDto): Promise<SiteFeedbackEntity> {
+  async update(
+    id: string,
+    dto: UpdateSiteFeedbackDto,
+  ): Promise<SiteFeedbackEntity> {
     this.logger.debug(`✏️ Atualizando feedback do site ID=${id}`);
     const feedback = await this.findOne(id);
     Object.assign(feedback, dto);
@@ -64,7 +72,10 @@ export class SiteFeedbackService {
 
       if (!feedback) {
         this.logger.warn(`⚠️ Feedback do site não encontrado com id: ${id}`);
-        throw new AppNotFoundException(ErrorCode.RESOURCE_NOT_FOUND, 'Feedback do site não encontrado');
+        throw new AppNotFoundException(
+          ErrorCode.RESOURCE_NOT_FOUND,
+          'Feedback do site não encontrado',
+        );
       }
 
       feedback.read = true;
@@ -73,9 +84,16 @@ export class SiteFeedbackService {
       const updatedFeedback = await this.siteFeedbackRepo.save(feedback);
 
       return updatedFeedback;
-    } catch (error) {
-      this.logger.error('❌ Erro ao buscar ou atualizar feedback do site', error.stack);
-      throw new AppInternalException(ErrorCode.DATABASE_ERROR, 'Erro ao buscar ou atualizar feedback do site');
+    } catch (error: unknown) {
+      const errStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(
+        '❌ Erro ao buscar ou atualizar feedback do site',
+        errStack,
+      );
+      throw new AppInternalException(
+        ErrorCode.DATABASE_ERROR,
+        'Erro ao buscar ou atualizar feedback do site',
+      );
     }
   }
 }

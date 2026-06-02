@@ -1,4 +1,10 @@
-import { Exclude, Expose, Type, Transform, plainToInstance } from 'class-transformer';
+import {
+  Exclude,
+  Expose,
+  Type,
+  Transform,
+  plainToInstance,
+} from 'class-transformer';
 import { Weekday } from 'src/modules/clubs/enums/weekday.enum/weekday.enum';
 import { TeacherProfileEntity } from '../entities/teacher-profile.entity/teacher-profile.entity';
 
@@ -41,7 +47,10 @@ export class ClubMiniWithCoordinatorDto {
 
   @Expose()
   @Type(() => CoordinatorMiniDto)
-  @Transform(({ value }) => value ?? null)
+  @Transform(
+    ({ value }: { value: CoordinatorMiniDto | null | undefined }) =>
+      value ?? null,
+  )
   coordinator!: CoordinatorMiniDto | null;
 }
 
@@ -56,7 +65,10 @@ export class TeacherResponseDto {
 
   @Expose()
   @Type(() => ClubMiniWithCoordinatorDto)
-  @Transform(({ value }) => value ?? null)
+  @Transform(
+    ({ value }: { value: ClubMiniWithCoordinatorDto | null | undefined }) =>
+      value ?? null,
+  )
   club!: ClubMiniWithCoordinatorDto | null;
 
   @Expose() createdAt!: Date;
@@ -64,5 +76,7 @@ export class TeacherResponseDto {
 }
 
 export function toTeacherDto(entity: TeacherProfileEntity): TeacherResponseDto {
-  return plainToInstance(TeacherResponseDto, entity, { excludeExtraneousValues: true });
+  return plainToInstance(TeacherResponseDto, entity, {
+    excludeExtraneousValues: true,
+  });
 }

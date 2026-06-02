@@ -12,14 +12,14 @@ import { GetVideosPageService } from './services/videos-page.get.service';
 import { UpdateVideosPageService } from './services/videos-page.update.service';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([VideosPage]),
-    RouteModule,
-    MediaModule
-  ],
+  imports: [TypeOrmModule.forFeature([VideosPage]), RouteModule, MediaModule],
   controllers: [VideosPageController],
   providers: [
-    CreateVideosPageService, DeleteVideosPageService, GetVideosPageService, UpdateVideosPageService, VideosPageRepository,
+    CreateVideosPageService,
+    DeleteVideosPageService,
+    GetVideosPageService,
+    UpdateVideosPageService,
+    VideosPageRepository,
   ],
 })
-export class VideosPageModule { }
+export class VideosPageModule {}

@@ -36,7 +36,7 @@ export class UpdateIdeasPageDto {
 
   @IsString({ message: 'O campo "title" da página deve ser uma string.' })
   title: string;
-  
+
   @IsOptional()
   @IsString({ message: 'O campo "subtitle" da página deve ser uma string.' })
   subtitle?: string;

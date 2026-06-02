@@ -1,5 +1,3 @@
-
-
 export interface ChartDataPoint {
   label: string;
   value: number;
@@ -20,10 +18,7 @@ export interface MultiSeriesDataPoint {
   };
 }
 
-
-
 export class PagelasChartDataDto {
-  
   timeSeries?: {
     presence: TimeSeriesDataPoint[];
     meditation: TimeSeriesDataPoint[];
@@ -31,7 +26,6 @@ export class PagelasChartDataDto {
     total: TimeSeriesDataPoint[];
   };
 
-  
   byGender?: {
     gender: string;
     total: number;
@@ -40,16 +34,14 @@ export class PagelasChartDataDto {
     verseRecitationRate: number;
   }[];
 
-  
   byAgeGroup?: {
-    ageGroup: string; 
+    ageGroup: string;
     total: number;
     presenceRate: number;
     meditationRate: number;
     verseRecitationRate: number;
   }[];
 
-  
   byClub?: {
     clubId: string;
     clubNumber: number;
@@ -60,7 +52,6 @@ export class PagelasChartDataDto {
     uniqueChildren: number;
   }[];
 
-  
   byTeacher?: {
     teacherId: string;
     teacherName: string;
@@ -71,7 +62,6 @@ export class PagelasChartDataDto {
     uniqueChildren: number;
   }[];
 
-  
   byCity?: {
     city: string;
     state: string;
@@ -82,9 +72,8 @@ export class PagelasChartDataDto {
     uniqueChildren: number;
   }[];
 
-  
   byParticipationTime?: {
-    timeRange: string; 
+    timeRange: string;
     total: number;
     presenceRate: number;
     meditationRate: number;
@@ -93,7 +82,6 @@ export class PagelasChartDataDto {
     avgMonthsParticipating: number;
   }[];
 
-  
   activityHeatmap?: {
     week: number;
     year: number;
@@ -102,7 +90,6 @@ export class PagelasChartDataDto {
     verse: number;
   }[];
 
-  
   comparison?: {
     current: {
       period: string;
@@ -127,13 +114,9 @@ export class PagelasChartDataDto {
   };
 }
 
-
-
 export class AcceptedChristsChartDataDto {
-  
   timeSeries?: MultiSeriesDataPoint[];
 
-  
   byGender?: {
     gender: string;
     total: number;
@@ -141,7 +124,6 @@ export class AcceptedChristsChartDataDto {
     reconciled: number;
   }[];
 
-  
   byAgeGroup?: {
     ageGroup: string;
     total: number;
@@ -149,7 +131,6 @@ export class AcceptedChristsChartDataDto {
     reconciled: number;
   }[];
 
-  
   byClub?: {
     clubId: string;
     clubNumber: number;
@@ -159,7 +140,6 @@ export class AcceptedChristsChartDataDto {
     uniqueChildren: number;
   }[];
 
-  
   byCity?: {
     city: string;
     state: string;
@@ -169,7 +149,6 @@ export class AcceptedChristsChartDataDto {
     uniqueChildren: number;
   }[];
 
-  
   byParticipationTime?: {
     timeRange: string;
     total: number;
@@ -179,7 +158,6 @@ export class AcceptedChristsChartDataDto {
     avgMonthsParticipating: number;
   }[];
 
-  
   conversionFunnel?: {
     totalChildren: number;
     childrenWithPagelas: number;
@@ -189,7 +167,6 @@ export class AcceptedChristsChartDataDto {
     conversionRate: number;
   };
 
-  
   comparison?: {
     current: {
       period: string;
@@ -211,10 +188,7 @@ export class AcceptedChristsChartDataDto {
   };
 }
 
-
-
 export class CombinedInsightsDto {
-  
   topEngagedChildren?: {
     childId: string;
     childName: string;
@@ -224,14 +198,13 @@ export class CombinedInsightsDto {
     city?: string | null;
     state?: string | null;
     monthsParticipating?: number;
-    engagementScore: number; 
+    engagementScore: number;
     totalPagelas: number;
     presenceRate: number;
     hasDecision: boolean;
     decisionType?: string | null;
   }[];
 
-  
   clubRankings?: {
     clubId: string;
     clubNumber: number;
@@ -240,10 +213,9 @@ export class CombinedInsightsDto {
     avgPresenceRate: number;
     avgMeditationRate: number;
     totalDecisions: number;
-    performanceScore: number; 
+    performanceScore: number;
   }[];
 
-  
   teacherEffectiveness?: {
     teacherId: string;
     teacherName: string;
@@ -251,10 +223,9 @@ export class CombinedInsightsDto {
     avgPresenceRate: number;
     avgActivityRate: number;
     childrenWithDecisions: number;
-    effectivenessScore: number; 
+    effectivenessScore: number;
   }[];
 
-  
   trends?: {
     metric: string;
     trend: 'up' | 'down' | 'stable';
@@ -262,4 +233,3 @@ export class CombinedInsightsDto {
     forecast?: number;
   }[];
 }
-

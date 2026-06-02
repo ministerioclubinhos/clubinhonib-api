@@ -1,89 +1,123 @@
-import { IsIn, IsInt, IsOptional, IsString, IsUUID, Min, IsNumber, IsBoolean } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Min,
+  IsNumber,
+  IsBoolean,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class QueryChildrenDto {
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   searchString?: string;
 
-  @IsOptional() @IsUUID()
+  @IsOptional()
+  @IsUUID()
   clubId?: string;
 
-  @Transform(({ value }) => Number(value))
-  @IsOptional() @IsNumber()
+  @Transform(({ value }: { value: unknown }) => Number(value))
+  @IsOptional()
+  @IsNumber()
   clubNumber?: number;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   city?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   state?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   birthDate?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   birthDateFrom?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   birthDateTo?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   joinedAt?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   joinedFrom?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   joinedTo?: string;
 
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: unknown }) => {
     if (value === 'true') return true;
     if (value === 'false') return false;
-    return value;
+    return value as boolean;
   })
-  @IsOptional() @IsBoolean()
+  @IsOptional()
+  @IsBoolean()
   isActive?: boolean;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   orderBy?: 'name' | 'birthDate' | 'joinedAt' | 'createdAt';
 
-  @IsOptional() @IsIn(['ASC', 'DESC'])
+  @IsOptional()
+  @IsIn(['ASC', 'DESC'])
   order?: 'ASC' | 'DESC' = 'ASC';
 
-  @Transform(({ value }) => Number(value))
-  @IsOptional() @IsInt() @Min(1)
+  @Transform(({ value }: { value: unknown }) => Number(value))
+  @IsOptional()
+  @IsInt()
+  @Min(1)
   page?: number = 1;
 
-  @Transform(({ value }) => Number(value))
-  @IsOptional() @IsInt() @Min(1)
+  @Transform(({ value }: { value: unknown }) => Number(value))
+  @IsOptional()
+  @IsInt()
+  @Min(1)
   limit?: number = 20;
 }
 
 export class QueryChildrenSimpleDto {
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   searchString?: string;
 
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: unknown }) => {
     if (value === 'true') return true;
     if (value === 'false') return false;
-    return value;
+    return value as boolean;
   })
-  @IsOptional() @IsBoolean()
+  @IsOptional()
+  @IsBoolean()
   isActive?: boolean;
 
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: unknown }) => {
     if (value === 'true') return true;
     if (value === 'false') return false;
-    return value;
+    return value as boolean;
   })
-  @IsOptional() @IsBoolean()
+  @IsOptional()
+  @IsBoolean()
   acceptedChrist?: boolean;
 
-  @Transform(({ value }) => Number(value))
-  @IsOptional() @IsInt() @Min(1)
+  @Transform(({ value }: { value: unknown }) => Number(value))
+  @IsOptional()
+  @IsInt()
+  @Min(1)
   page?: number = 1;
 
-  @Transform(({ value }) => Number(value))
-  @IsOptional() @IsInt() @Min(1)
+  @Transform(({ value }: { value: unknown }) => Number(value))
+  @IsOptional()
+  @IsInt()
+  @Min(1)
   limit?: number = 20;
 }

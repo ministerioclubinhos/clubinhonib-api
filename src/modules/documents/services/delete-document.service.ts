@@ -21,7 +21,7 @@ export class DeleteDocumentService {
     private readonly routeService: RouteService,
 
     private readonly mediaItemProcessor: MediaItemProcessor,
-  ) { }
+  ) {}
 
   async execute(id: string): Promise<void> {
     this.logger.log(`🗑️ [DELETE] Iniciando remoção do documento ID=${id}`);
@@ -29,13 +29,21 @@ export class DeleteDocumentService {
     const document = await this.documentRepo.findOneById(id);
     if (!document) {
       this.logger.warn(`⚠️ Documento não encontrado: ID=${id}`);
-      throw new AppNotFoundException(ErrorCode.DOCUMENT_NOT_FOUND, 'Documento não encontrado');
+      throw new AppNotFoundException(
+        ErrorCode.DOCUMENT_NOT_FOUND,
+        'Documento não encontrado',
+      );
     }
 
     try {
-      const media = await this.mediaItemProcessor.findMediaItemsByTarget(id, 'document');
+      const media = await this.mediaItemProcessor.findMediaItemsByTarget(
+        id,
+        'document',
+      );
       if (media.length > 0) {
-        await this.mediaItemProcessor.deleteMediaItems(media, this.s3Service.delete.bind(this.s3Service));
+        await this.mediaItemProcessor.deleteMediaItems(media, (url: string) =>
+          this.s3Service.delete(url),
+        );
         this.logger.log(`🧹 ${media.length} mídias associadas removidas`);
       }
 
@@ -44,9 +52,13 @@ export class DeleteDocumentService {
       this.logger.log(`🛤️ Rota removida`);
 
       this.logger.log(`✅ Documento removido com sucesso: ID=${id}`);
-    } catch (error) {
-      this.logger.error(`❌ Erro ao remover documento ID=${id}`, error.stack);
-      throw new AppInternalException(ErrorCode.DATABASE_ERROR, 'Erro ao remover documento.');
+    } catch (error: unknown) {
+      const errStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`❌ Erro ao remover documento ID=${id}`, errStack);
+      throw new AppInternalException(
+        ErrorCode.DATABASE_ERROR,
+        'Erro ao remover documento.',
+      );
     }
   }
 }

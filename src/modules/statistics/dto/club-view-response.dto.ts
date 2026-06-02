@@ -1,5 +1,3 @@
-
-
 export class ClubDetailedStatsDto {
   clubInfo: {
     clubId: string;
@@ -91,8 +89,6 @@ export class ClubDetailedStatsDto {
   }[];
 }
 
-
-
 export class ChildDetailedStatsDto {
   childInfo: {
     childId: string;
@@ -119,8 +115,8 @@ export class ChildDetailedStatsDto {
     meditationRate: number;
     verseRecitationRate: number;
     engagementScore: number;
-    rank: number; 
-    totalRank: number; 
+    rank: number;
+    totalRank: number;
   };
 
   decisions: {
@@ -172,8 +168,6 @@ export class ChildDetailedStatsDto {
   }[];
 }
 
-
-
 export class CityDetailedStatsDto {
   cityInfo: {
     city: string;
@@ -222,7 +216,7 @@ export class CityDetailedStatsDto {
       decisions: number;
     };
     comparisonToState: {
-      presenceRate: number; 
+      presenceRate: number;
       meditationRate: number;
       decisionsRate: number;
     };
@@ -242,8 +236,6 @@ export class CityDetailedStatsDto {
     avgPresenceRate: number;
   }[];
 }
-
-
 
 export class TeacherDetailedStatsDto {
   teacherInfo: {
@@ -307,8 +299,6 @@ export class TeacherDetailedStatsDto {
   };
 }
 
-
-
 export class ComparativeStatsDto {
   comparison: {
     clubs?: {
@@ -362,8 +352,6 @@ export class ComparativeStatsDto {
   };
 }
 
-
-
 export class TrendsAnalysisDto {
   overview: {
     period: string;
@@ -410,8 +398,6 @@ export class TrendsAnalysisDto {
     type: 'spike' | 'drop';
   }[];
 }
-
-
 
 export class ConsolidatedReportDto {
   reportInfo: {
@@ -471,4 +457,3 @@ export class ConsolidatedReportDto {
     action: string;
   }[];
 }
-

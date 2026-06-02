@@ -1,16 +1,13 @@
 export class ChildStatsItemDto {
-
   childId: string;
   name: string;
   gender: string;
   age: number;
   birthDate: string;
 
-
   joinedAt?: string | null;
   monthsParticipating: number;
   participationTimeRange: string;
-
 
   club?: {
     id: string;
@@ -18,13 +15,11 @@ export class ChildStatsItemDto {
     weekday: string;
   } | null;
 
-
   address?: {
     city?: string;
     state?: string;
     district?: string;
   } | null;
-
 
   stats: {
     totalPagelas: number;
@@ -39,7 +34,6 @@ export class ChildStatsItemDto {
     consecutiveWeeks: number;
   };
 
-
   decisions: {
     hasDecision: boolean;
     decisionType?: string | null;
@@ -47,9 +41,7 @@ export class ChildStatsItemDto {
     totalDecisions: number;
   };
 
-
   isActive: boolean;
-
 
   rank?: number;
 }
@@ -111,5 +103,3 @@ export class ChildrenStatsResponseDto {
     hasPrevious: boolean;
   };
 }
-
-

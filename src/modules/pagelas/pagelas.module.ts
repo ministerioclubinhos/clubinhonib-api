@@ -11,10 +11,10 @@ import { ClubControlModule } from '../club-control/club-control.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([PagelaEntity, ChildEntity, TeacherProfileEntity]),
-    ClubControlModule, 
+    ClubControlModule,
   ],
   controllers: [PagelasController],
   providers: [PagelasRepository, PagelasService],
   exports: [PagelasService, PagelasRepository],
 })
-export class PagelasModule { }
+export class PagelasModule {}

@@ -9,7 +9,6 @@ import { Type } from 'class-transformer';
 import { IdeasSectionMediaItemDto } from './ideas-section-media-item.dto';
 
 export class UpdateIdeasSectionDto {
-
   @IsString({ message: 'O campo "title" deve ser uma string.' })
   title: string;
 

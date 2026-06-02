@@ -1,15 +1,7 @@
-import {
-  Controller,
-  Get,
-  Delete,
-  Param,
-  Logger,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Param, Logger } from '@nestjs/common';
 import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import { RouteService } from './route.service';
 import { RouteEntity } from './route-page.entity';
-import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 
 @Controller('routes')
 export class RouteController {
@@ -29,7 +21,10 @@ export class RouteController {
     const route = await this.routeService.findById(id);
     if (!route) {
       this.logger.warn(`⚠️ Rota ID=${id} não encontrada`);
-      throw new AppNotFoundException(ErrorCode.ROUTE_NOT_FOUND, 'Rota não encontrada');
+      throw new AppNotFoundException(
+        ErrorCode.ROUTE_NOT_FOUND,
+        'Rota não encontrada',
+      );
     }
     return route;
   }

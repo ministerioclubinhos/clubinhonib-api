@@ -5,17 +5,21 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { UserRole } from '../auth.types';
-import { AppForbiddenException, AppUnauthorizedException, ErrorCode } from 'src/shared/exceptions';
+import { UserRole, AuthRequest } from '../auth.types';
+import {
+  AppForbiddenException,
+  AppUnauthorizedException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 
 @Injectable()
 export class AdminRoleGuard implements CanActivate {
   private readonly logger = new Logger(AdminRoleGuard.name);
 
-  constructor(private readonly reflector: Reflector) { }
+  constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<AuthRequest>();
     const user = request.user;
 
     if (!user) {
@@ -34,7 +38,7 @@ export class AdminRoleGuard implements CanActivate {
       );
     }
 
-    if (role !== UserRole.ADMIN) {
+    if (role !== (UserRole.ADMIN as string)) {
       throw new AppForbiddenException(
         ErrorCode.ROLE_NOT_ALLOWED,
         'Acesso restrito a administradores',
@@ -49,10 +53,10 @@ export class AdminRoleGuard implements CanActivate {
 export class AdminOrLeaderRoleGuard implements CanActivate {
   private readonly logger = new Logger(AdminOrLeaderRoleGuard.name);
 
-  constructor(private readonly reflector: Reflector) { }
+  constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<AuthRequest>();
     const user = request.user;
 
     if (!user) {
@@ -71,7 +75,10 @@ export class AdminOrLeaderRoleGuard implements CanActivate {
       );
     }
 
-    if (role !== UserRole.ADMIN && role !== UserRole.COORDINATOR) {
+    if (
+      role !== (UserRole.ADMIN as string) &&
+      role !== (UserRole.COORDINATOR as string)
+    ) {
       throw new AppForbiddenException(
         ErrorCode.ROLE_NOT_ALLOWED,
         'Acesso restrito a administradores e coordenadores',

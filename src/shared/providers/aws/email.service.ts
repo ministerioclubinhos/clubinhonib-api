@@ -5,7 +5,7 @@ import { AwsSESService } from './aws-ses.service';
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
 
-  constructor(private readonly awsSESService: AwsSESService) { }
+  constructor(private readonly awsSESService: AwsSESService) {}
 
   async sendEmailViaSES(
     to: string,

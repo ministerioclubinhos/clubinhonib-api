@@ -10,4 +10,4 @@ import { SiteFeedbackRepository } from './repository/site-feedback.repository';
   controllers: [SiteFeedbackController],
   providers: [SiteFeedbackService, SiteFeedbackRepository],
 })
-export class SiteFeedbackModule { }
+export class SiteFeedbackModule {}

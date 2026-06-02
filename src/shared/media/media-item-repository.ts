@@ -10,15 +10,25 @@ export class MediaItemRepository {
   constructor(
     @InjectRepository(MediaItemEntity)
     private readonly mediaRepo: Repository<MediaItemEntity>,
-  ) { }
+  ) {}
 
-  async findByTarget(targetId: string, targetType: string): Promise<MediaItemEntity[]> {
-    this.logger.debug(`🔍 Buscando mídias por targetId=${targetId}, targetType=${targetType}`);
+  async findByTarget(
+    targetId: string,
+    targetType: string,
+  ): Promise<MediaItemEntity[]> {
+    this.logger.debug(
+      `🔍 Buscando mídias por targetId=${targetId}, targetType=${targetType}`,
+    );
     return this.mediaRepo.find({ where: { targetId, targetType } });
   }
 
-  async findManyByTargets(targetIds: string[], targetType: string): Promise<MediaItemEntity[]> {
-    this.logger.debug(`🔍 Buscando mídias para múltiplos targets do tipo ${targetType}`);
+  async findManyByTargets(
+    targetIds: string[],
+    targetType: string,
+  ): Promise<MediaItemEntity[]> {
+    this.logger.debug(
+      `🔍 Buscando mídias para múltiplos targets do tipo ${targetType}`,
+    );
     return this.mediaRepo.find({
       where: {
         targetType,
@@ -33,13 +43,15 @@ export class MediaItemRepository {
     return saved;
   }
 
-  async saveById(id: string, data: Partial<MediaItemEntity>): Promise<MediaItemEntity> {
-    await this.mediaRepo.upsert(
-      { ...data, id },
-      ['id'],
-    );
+  async saveById(
+    id: string,
+    data: Partial<MediaItemEntity>,
+  ): Promise<MediaItemEntity> {
+    await this.mediaRepo.upsert({ ...data, id }, ['id']);
     const updated = await this.mediaRepo.findOneBy({ id });
-    this.logger.debug(`🔁 Mídia upserted (saveById): ID=${id}, título=${updated?.title}`);
+    this.logger.debug(
+      `🔁 Mídia upserted (saveById): ID=${id}, título=${updated?.title}`,
+    );
     return updated!;
   }
 

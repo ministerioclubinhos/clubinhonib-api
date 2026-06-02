@@ -12,7 +12,7 @@ import {
   Logger,
   UseGuards,
 } from '@nestjs/common';
-import { AppBusinessException, AppValidationException, ErrorCode } from 'src/shared/exceptions';
+import { AppBusinessException, ErrorCode } from 'src/shared/exceptions';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { plainToInstance } from 'class-transformer';
 import { validateOrReject } from 'class-validator';
@@ -50,17 +50,26 @@ export class DocumentsController {
 
     if (!documentDataRaw) {
       this.logger.warn('❗ Campo "documentData" não enviado');
-      throw new AppBusinessException(ErrorCode.INVALID_INPUT, 'Campo "documentData" não enviado.');
+      throw new AppBusinessException(
+        ErrorCode.INVALID_INPUT,
+        'Campo "documentData" não enviado.',
+      );
     }
 
     let dto: CreateDocumentDto;
     try {
-      const parsed = JSON.parse(documentDataRaw);
+      const parsed = JSON.parse(documentDataRaw) as Record<string, unknown>;
       dto = plainToInstance(CreateDocumentDto, parsed);
       await validateOrReject(dto);
-    } catch (error) {
-      this.logger.error('❌ Erro ao processar dados do documento', error);
-      throw new AppBusinessException(ErrorCode.INVALID_INPUT, 'Erro ao processar dados do documento.');
+    } catch (error: unknown) {
+      this.logger.error(
+        '❌ Erro ao processar dados do documento',
+        error instanceof Error ? error.stack : error,
+      );
+      throw new AppBusinessException(
+        ErrorCode.INVALID_INPUT,
+        'Erro ao processar dados do documento.',
+      );
     }
 
     const file = dto.media?.fileField
@@ -68,7 +77,9 @@ export class DocumentsController {
       : undefined;
 
     if (dto.media?.fileField && !file) {
-      this.logger.warn(`⚠️ Nenhum arquivo encontrado com fieldname: ${dto.media.fileField}`);
+      this.logger.warn(
+        `⚠️ Nenhum arquivo encontrado com fieldname: ${dto.media.fileField}`,
+      );
     }
 
     const result = await this.createService.createDocument(dto, file);
@@ -100,18 +111,27 @@ export class DocumentsController {
 
     if (!documentDataRaw) {
       this.logger.warn('❗ Campo "documentData" não enviado');
-      throw new AppBusinessException(ErrorCode.INVALID_INPUT, 'Campo "documentData" não enviado.');
+      throw new AppBusinessException(
+        ErrorCode.INVALID_INPUT,
+        'Campo "documentData" não enviado.',
+      );
     }
 
     let dto: UpdateDocumentDto;
     try {
-      const parsed = JSON.parse(documentDataRaw);
+      const parsed = JSON.parse(documentDataRaw) as Record<string, unknown>;
       dto = plainToInstance(UpdateDocumentDto, parsed);
       dto.id = id;
       await validateOrReject(dto);
-    } catch (error) {
-      this.logger.error('❌ Erro ao processar dados do documento', error);
-      throw new AppBusinessException(ErrorCode.INVALID_INPUT, 'Erro ao processar dados do documento.');
+    } catch (error: unknown) {
+      this.logger.error(
+        '❌ Erro ao processar dados do documento',
+        error instanceof Error ? error.stack : error,
+      );
+      throw new AppBusinessException(
+        ErrorCode.INVALID_INPUT,
+        'Erro ao processar dados do documento.',
+      );
     }
 
     const file = dto.media?.fileField
@@ -119,7 +139,9 @@ export class DocumentsController {
       : undefined;
 
     if (dto.media?.fileField && !file) {
-      this.logger.warn(`⚠️ Nenhum arquivo encontrado com fieldname: ${dto.media.fileField}`);
+      this.logger.warn(
+        `⚠️ Nenhum arquivo encontrado com fieldname: ${dto.media.fileField}`,
+      );
     }
 
     const result = await this.updateService.execute(id, dto, file);

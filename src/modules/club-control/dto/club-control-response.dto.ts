@@ -1,5 +1,3 @@
-
-
 export class ClubControlWeeklyCheckDto {
   clubId: string;
   clubNumber: number;
@@ -12,9 +10,9 @@ export class ClubControlWeeklyCheckDto {
   };
 
   children: {
-    total: number; 
-    withPagela: number; 
-    missing: number; 
+    total: number;
+    withPagela: number;
+    missing: number;
     missingList: {
       childId: string;
       childName: string;
@@ -22,7 +20,7 @@ export class ClubControlWeeklyCheckDto {
   };
 
   status: 'ok' | 'partial' | 'missing' | 'exception';
-  
+
   alerts: {
     type: 'all_ok' | 'some_missing' | 'no_pagela' | 'exception';
     severity: 'success' | 'warning' | 'critical' | 'info';
@@ -49,7 +47,7 @@ export class ClubControlDashboardDto {
     clubsPartial: number;
     clubsMissing: number;
     clubsException: number;
-    overallCompleteness: number; 
+    overallCompleteness: number;
   };
 
   clubs: ClubControlWeeklyCheckDto[];
@@ -78,7 +76,7 @@ export class ClubControlHistoryDto {
     status: string;
     totalChildren: number;
     childrenWithPagela: number;
-    completeness: number; 
+    completeness: number;
     alerts: string[];
   }[];
 
@@ -115,4 +113,3 @@ export class ClubExceptionResponseDto {
   notes?: string;
   isActive: boolean;
 }
-

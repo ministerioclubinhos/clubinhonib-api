@@ -16,15 +16,21 @@ export class UpdateInformativeService {
     private readonly dataSource: DataSource,
     private readonly informativeRepo: InformativeRepository,
     private readonly routeService: RouteService,
-  ) { }
+  ) {}
 
-  async execute(id: string, dto: UpdateInformativeDto): Promise<InformativeEntity> {
+  async execute(
+    id: string,
+    dto: UpdateInformativeDto,
+  ): Promise<InformativeEntity> {
     this.logger.log(`🛠️ Atualizando banner informativo ID=${id}`);
 
     const existing = await this.informativeRepo.findOneWithRelations(id);
     if (!existing) {
       this.logger.warn(`⚠️ Banner informativo não encontrado: ID=${id}`);
-      throw new AppNotFoundException(ErrorCode.INFORMATIVE_NOT_FOUND, 'Informativo não encontrado.');
+      throw new AppNotFoundException(
+        ErrorCode.INFORMATIVE_NOT_FOUND,
+        'Informativo não encontrado.',
+      );
     }
 
     return await this.dataSource.transaction(async (manager) => {
@@ -55,7 +61,9 @@ export class UpdateInformativeService {
     dto: UpdateInformativeDto,
     informativeId: string,
   ): Promise<RouteEntity> {
-    this.logger.debug(`🔄 Atualizando rota do banner informativo ID: ${routeId}`);
+    this.logger.debug(
+      `🔄 Atualizando rota do banner informativo ID: ${routeId}`,
+    );
 
     const routeData: Partial<RouteEntity> = {
       title: dto.title,

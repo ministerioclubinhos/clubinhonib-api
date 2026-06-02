@@ -28,7 +28,10 @@ export class CommentRepository extends Repository<CommentEntity> {
     return this.findOneBy({ id });
   }
 
-  async updateAndSave(entity: CommentEntity, dto: CreateCommentDto): Promise<CommentEntity> {
+  async updateAndSave(
+    entity: CommentEntity,
+    dto: CreateCommentDto,
+  ): Promise<CommentEntity> {
     Object.assign(entity, dto);
     return this.save(entity);
   }

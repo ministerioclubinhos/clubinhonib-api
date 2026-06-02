@@ -16,7 +16,9 @@ export class AcceptedChristService {
   ) {}
 
   async create(dto: CreateAcceptedChristDto): Promise<AcceptedChristEntity> {
-    const child = await this.childRepository.findOneByOrFail({ id: dto.childId });
+    const child = await this.childRepository.findOneByOrFail({
+      id: dto.childId,
+    });
 
     const accepted = this.acceptedChristRepository.create({
       decision: dto.decision ?? null,

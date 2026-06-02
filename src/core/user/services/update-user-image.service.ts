@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
-import { MediaType, UploadType } from 'src/shared/media/media-item/media-item.entity';
+import {
+  MediaType,
+  PlatformType,
+  UploadType,
+} from 'src/shared/media/media-item/media-item.entity';
 import { GetUsersService } from './get-user.service';
 import { AppValidationException, ErrorCode } from 'src/shared/exceptions';
 
@@ -34,7 +38,7 @@ export class UpdateUserImageService {
 
   async updateUserImage(
     userId: string,
-    body: any,
+    body: Record<string, unknown>,
     files: Express.Multer.File[],
   ) {
     await this.getUsersService.findOne(userId);
@@ -49,17 +53,19 @@ export class UpdateUserImageService {
     };
 
     if (body.imageData) {
-      mediaDto = typeof body.imageData === 'string'
-        ? JSON.parse(body.imageData)
-        : body.imageData;
+      const imageData = body.imageData;
+      mediaDto =
+        typeof imageData === 'string'
+          ? (JSON.parse(imageData) as typeof mediaDto)
+          : (imageData as typeof mediaDto);
     } else if (body.title || body.url) {
       mediaDto = {
-        title: body.title,
-        description: body.description,
-        uploadType: body.uploadType,
-        url: body.url,
-        isLocalFile: body.isLocalFile,
-        fieldKey: body.fieldKey,
+        title: body.title as string | undefined,
+        description: body.description as string | undefined,
+        uploadType: body.uploadType as UploadType | undefined,
+        url: body.url as string | undefined,
+        isLocalFile: body.isLocalFile as boolean | undefined,
+        fieldKey: body.fieldKey as string | undefined,
       };
     } else {
       throw new AppValidationException(
@@ -74,7 +80,8 @@ export class UpdateUserImageService {
     let uploadTypeValue: UploadType;
     if (mediaDto.uploadType) {
       const normalized = String(mediaDto.uploadType).toLowerCase();
-      uploadTypeValue = normalized === 'upload' ? UploadType.UPLOAD : UploadType.LINK;
+      uploadTypeValue =
+        normalized === 'upload' ? UploadType.UPLOAD : UploadType.LINK;
     } else {
       uploadTypeValue = hasFile ? UploadType.UPLOAD : UploadType.LINK;
     }
@@ -90,6 +97,7 @@ export class UpdateUserImageService {
           ...mediaDto,
           mediaType: MediaType.IMAGE,
           uploadType: uploadTypeValue,
+          platformType: PlatformType.ANY,
         },
         userId,
         'UserEntity',
@@ -112,9 +120,14 @@ export class UpdateUserImageService {
         if (hasOldLocalFile) {
           try {
             await this.s3Service.delete(existingMedia.url);
-            this.logger.log(`Arquivo antigo deletado do S3: ${existingMedia.url}`);
-          } catch (error) {
-            this.logger.warn(`Não foi possível deletar o arquivo antigo do S3: ${existingMedia.url}`, error);
+            this.logger.log(
+              `Arquivo antigo deletado do S3: ${existingMedia.url}`,
+            );
+          } catch (error: unknown) {
+            this.logger.warn(
+              `Não foi possível deletar o arquivo antigo do S3: ${existingMedia.url}`,
+              error instanceof Error ? error.stack : error,
+            );
           }
         }
 
@@ -127,9 +140,14 @@ export class UpdateUserImageService {
         if (hasOldLocalFile) {
           try {
             await this.s3Service.delete(existingMedia.url);
-            this.logger.log(`Arquivo antigo deletado do S3 ao mudar para link: ${existingMedia.url}`);
-          } catch (error) {
-            this.logger.warn(`Não foi possível deletar o arquivo antigo do S3: ${existingMedia.url}`, error);
+            this.logger.log(
+              `Arquivo antigo deletado do S3 ao mudar para link: ${existingMedia.url}`,
+            );
+          } catch (error: unknown) {
+            this.logger.warn(
+              `Não foi possível deletar o arquivo antigo do S3: ${existingMedia.url}`,
+              error instanceof Error ? error.stack : error,
+            );
           }
         }
 
@@ -150,6 +168,7 @@ export class UpdateUserImageService {
           ...mediaDto,
           mediaType: MediaType.IMAGE,
           uploadType: uploadTypeValue,
+          platformType: PlatformType.ANY,
           title: mediaDto.title || 'Foto do Usuário',
           description: mediaDto.description || 'Imagem de perfil do usuário',
         },

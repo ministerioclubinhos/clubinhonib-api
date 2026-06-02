@@ -45,7 +45,9 @@ export class VideosPageResponseDto {
     videos: MediaItemEntity[],
   ): VideosPageResponseDto {
     if (!page.route) {
-      throw new Error(`A página de vídeos com id ${page.id} não possui rota associada.`);
+      throw new Error(
+        `A página de vídeos com id ${page.id} não possui rota associada.`,
+      );
     }
 
     return {

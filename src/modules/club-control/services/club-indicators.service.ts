@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ChildEntity } from 'src/modules/children/entities/child.entity';
 import { ClubExceptionEntity } from '../entities/club-exception.entity';
+import { ClubIndicatorDto } from '../dto/club-check-result.dto';
 
 @Injectable()
 export class ClubIndicatorsService {
@@ -15,8 +16,8 @@ export class ClubIndicatorsService {
     inactiveChildren: ChildEntity[],
     completionRate: number,
     missingRate: number,
-  ): any[] {
-    const indicators: any[] = [];
+  ): ClubIndicatorDto[] {
+    const indicators: ClubIndicatorDto[] = [];
 
     if (inactiveChildren.length > 0) {
       indicators.push({
@@ -71,7 +72,6 @@ export class ClubIndicatorsService {
           },
         });
       }
-    } else if (status === 'pending') {
     } else if (status === 'partial') {
       if (hasPassedClubDay) {
         indicators.push({
@@ -86,7 +86,8 @@ export class ClubIndicatorsService {
             missingRate: Math.round(missingRate * 10) / 10,
             isPerfect: false,
             needsAttention: true,
-            urgency: missingRate > 50 ? 'high' : missingRate > 25 ? 'medium' : 'low',
+            urgency:
+              missingRate > 50 ? 'high' : missingRate > 25 ? 'medium' : 'low',
           },
         });
       }
@@ -123,7 +124,8 @@ export class ClubIndicatorsService {
               isPerfect: false,
               needsAttention: false,
               urgency: 'low',
-              possibleIssue: 'Clubinho pode estar inativo ou sem configuração de crianças',
+              possibleIssue:
+                'Clubinho pode estar inativo ou sem configuração de crianças',
             },
           });
         }
@@ -136,7 +138,7 @@ export class ClubIndicatorsService {
   generateInactiveClubIndicators(
     allChildren: ChildEntity[],
     childrenNotAttending: ChildEntity[],
-  ): any[] {
+  ): ClubIndicatorDto[] {
     return [
       {
         type: 'club_inactive',

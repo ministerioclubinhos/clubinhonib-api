@@ -12,8 +12,12 @@ export class PersonalDataRepository extends Repository<PersonalData> {
     return this.findOne({ where: { userId } });
   }
 
-  async createForUser(userId: string, data: Partial<PersonalData>): Promise<PersonalData> {
-    const { userId: _, ...cleanData } = data;
+  async createForUser(
+    userId: string,
+    data: Partial<PersonalData>,
+  ): Promise<PersonalData> {
+    const { userId: _ignoredUserId, ...cleanData } = data;
+    void _ignoredUserId;
     const personalData = this.create({
       ...cleanData,
       userId,
@@ -21,7 +25,10 @@ export class PersonalDataRepository extends Repository<PersonalData> {
     return this.save(personalData);
   }
 
-  async updateByUserId(userId: string, data: Partial<PersonalData>): Promise<PersonalData | null> {
+  async updateByUserId(
+    userId: string,
+    data: Partial<PersonalData>,
+  ): Promise<PersonalData | null> {
     if (!data || Object.keys(data).length === 0) {
       return this.findByUserId(userId);
     }

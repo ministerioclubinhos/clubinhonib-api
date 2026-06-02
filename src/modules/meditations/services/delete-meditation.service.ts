@@ -23,16 +23,24 @@ export class DeleteMeditationService {
     const meditation = await this.meditationRepo.findOneWithRelations(id);
     if (!meditation) {
       this.logger.warn(`⚠️ Meditação não encontrada: ID=${id}`);
-      throw new AppNotFoundException(ErrorCode.MEDITATION_NOT_FOUND, 'Meditação não encontrada');
+      throw new AppNotFoundException(
+        ErrorCode.MEDITATION_NOT_FOUND,
+        'Meditação não encontrada',
+      );
     }
 
-    const media = await this.mediaItemProcessor.findMediaItemsByTarget(id,  MediaTargetType.Meditation);
+    const media = await this.mediaItemProcessor.findMediaItemsByTarget(
+      id,
+      MediaTargetType.Meditation,
+    );
     if (media.length > 0) {
-      await this.mediaItemProcessor.deleteMediaItems(media, this.s3Service.delete.bind(this.s3Service));
+      await this.mediaItemProcessor.deleteMediaItems(media, (url: string) =>
+        this.s3Service.delete(url),
+      );
       this.logger.log(`🎞️ Mídias associadas removidas: ${media.length}`);
     }
 
-    await this.routeService.removeRouteByEntity( MediaTargetType.Meditation, id);
+    await this.routeService.removeRouteByEntity(MediaTargetType.Meditation, id);
     this.logger.log(`🛤️ Rota removida`);
 
     await this.meditationRepo.delete(id);

@@ -24,10 +24,15 @@ export class MediaItemDto {
   @IsString({ message: 'O campo "description" da mídia deve ser uma string.' })
   description?: string;
 
-  @IsEnum(UploadType, { message: 'O campo "type" deve ser "upload" ou "link".' })
+  @IsEnum(UploadType, {
+    message: 'O campo "type" deve ser "upload" ou "link".',
+  })
   uploadType: UploadType;
 
-  @IsEnum(MediaType, { message: 'O campo "mediaType" deve ser  "video",  "document","image" ou "audio"' })
+  @IsEnum(MediaType, {
+    message:
+      'O campo "mediaType" deve ser  "video",  "document","image" ou "audio"',
+  })
   mediaType: MediaType;
 
   @IsBoolean({ message: 'O campo "isLocalFile" deve ser booleano.' })
@@ -38,7 +43,9 @@ export class MediaItemDto {
   url?: string;
 
   @IsOptional()
-  @IsEnum(PlatformType, { message: 'O campo "platformType" deve conter uma plataforma válida.' })
+  @IsEnum(PlatformType, {
+    message: 'O campo "platformType" deve conter uma plataforma válida.',
+  })
   platformType?: PlatformType;
 
   @IsOptional()
@@ -56,5 +63,4 @@ export class MediaItemDto {
   @IsOptional()
   @IsString({ message: 'O campo "fileField" deve ser uma string.' })
   fileField?: string;
-  
 }

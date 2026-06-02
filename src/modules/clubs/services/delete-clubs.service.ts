@@ -25,12 +25,19 @@ export class DeleteClubsService {
   async remove(id: string, req: Request): Promise<{ message: string }> {
     const ctx = await this.getCtx(req);
     if (!ctx.role || ctx.role === 'teacher') {
-      throw new AppForbiddenException(ErrorCode.CLUB_ACCESS_DENIED, 'Acesso negado');
+      throw new AppForbiddenException(
+        ErrorCode.CLUB_ACCESS_DENIED,
+        'Acesso negado',
+      );
     }
 
     if (ctx.role === 'coordinator') {
       const allowed = await this.clubsRepository.userHasAccessToClub(id, ctx);
-      if (!allowed) throw new AppNotFoundException(ErrorCode.CLUB_NOT_FOUND, 'Clubinho não encontrado');
+      if (!allowed)
+        throw new AppNotFoundException(
+          ErrorCode.CLUB_NOT_FOUND,
+          'Clubinho não encontrado',
+        );
     }
 
     await this.clubsRepository.deleteById(id);

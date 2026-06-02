@@ -40,4 +40,3 @@ import { ClubExceptionEntity } from '../club-control/entities/club-exception.ent
   exports: [StatisticsService, StatisticsRepository],
 })
 export class StatisticsModule {}
-

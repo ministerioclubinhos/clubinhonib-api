@@ -2,7 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, SelectQueryBuilder } from 'typeorm';
 import { ChildEntity } from '../entities/child.entity';
-import { QueryChildrenDto, QueryChildrenSimpleDto } from '../dto/query-children.dto';
+import {
+  QueryChildrenDto,
+  QueryChildrenSimpleDto,
+} from '../dto/query-children.dto';
 import { ClubEntity } from 'src/modules/clubs/entities/club.entity/club.entity';
 
 export type PaginatedRows<T> = { items: T[]; total: number };
@@ -15,7 +18,7 @@ export class ChildrenRepository {
     private readonly repo: Repository<ChildEntity>,
     @InjectRepository(ClubEntity)
     private readonly clubRepo: Repository<ClubEntity>,
-  ) { }
+  ) {}
 
   private baseQB(): SelectQueryBuilder<ChildEntity> {
     return this.repo
@@ -41,12 +44,14 @@ export class ChildrenRepository {
     }
   }
 
-  async findAllPaginated(q: QueryChildrenDto, ctx?: RoleCtx): Promise<PaginatedRows<ChildEntity>> {
+  async findAllPaginated(
+    q: QueryChildrenDto,
+    ctx?: RoleCtx,
+  ): Promise<PaginatedRows<ChildEntity>> {
     const page = q.page ?? 1;
     const limit = q.limit ?? 20;
 
     const qb = this.baseQB();
-
 
     if (q.searchString) {
       const s = `%${q.searchString.trim().toLowerCase()}%`;
@@ -62,23 +67,27 @@ export class ChildrenRepository {
       qb.andWhere('club.id = :clubId', { clubId: q.clubId });
     }
 
-    if (q.city) qb.andWhere('LOWER(addr.city) LIKE :city', { city: `%${q.city.toLowerCase()}%` });
-    if (q.state) qb.andWhere('LOWER(addr.state) LIKE :state', { state: `%${q.state.toLowerCase()}%` });
+    if (q.city)
+      qb.andWhere('LOWER(addr.city) LIKE :city', {
+        city: `%${q.city.toLowerCase()}%`,
+      });
+    if (q.state)
+      qb.andWhere('LOWER(addr.state) LIKE :state', {
+        state: `%${q.state.toLowerCase()}%`,
+      });
 
     if (q.birthDate) qb.andWhere('c.birthDate = :b', { b: q.birthDate });
-    if (q.birthDateFrom) qb.andWhere('c.birthDate >= :bf', { bf: q.birthDateFrom });
+    if (q.birthDateFrom)
+      qb.andWhere('c.birthDate >= :bf', { bf: q.birthDateFrom });
     if (q.birthDateTo) qb.andWhere('c.birthDate <= :bt', { bt: q.birthDateTo });
 
     if (q.joinedAt) qb.andWhere('c.joinedAt = :j', { j: q.joinedAt });
     if (q.joinedFrom) qb.andWhere('c.joinedAt >= :jf', { jf: q.joinedFrom });
     if (q.joinedTo) qb.andWhere('c.joinedAt <= :jt', { jt: q.joinedTo });
 
-
-
     if (q.isActive !== undefined) {
       qb.andWhere('c.isActive = :isActive', { isActive: q.isActive });
     } else if (q.clubNumber !== undefined) {
-
       qb.andWhere('c.isActive = :isActive', { isActive: true });
     }
 
@@ -94,13 +103,18 @@ export class ChildrenRepository {
     const order: 'ASC' | 'DESC' =
       (q.order ?? 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
-    qb.orderBy(orderBy, order).skip((page - 1) * limit).take(limit);
+    qb.orderBy(orderBy, order)
+      .skip((page - 1) * limit)
+      .take(limit);
 
     const [items, total] = await qb.getManyAndCount();
     return { items, total };
   }
 
-  async findAllSimple(q: QueryChildrenSimpleDto, ctx?: RoleCtx): Promise<PaginatedRows<ChildEntity>> {
+  async findAllSimple(
+    q: QueryChildrenSimpleDto,
+    ctx?: RoleCtx,
+  ): Promise<PaginatedRows<ChildEntity>> {
     const page = q.page ?? 1;
     const limit = q.limit ?? 20;
 
@@ -131,11 +145,13 @@ export class ChildrenRepository {
     }
 
     if (q.isActive !== undefined) {
-      const isActiveValue = (q.isActive as any) === 'true' || q.isActive === true;
+      const isActiveValue =
+        String(q.isActive) === 'true' || q.isActive === true;
       qb.andWhere('c.isActive = :isActive', { isActive: isActiveValue });
     }
     if (q.acceptedChrist !== undefined) {
-      const acceptedChristValue = (q.acceptedChrist as any) === 'true' || q.acceptedChrist === true;
+      const acceptedChristValue =
+        String(q.acceptedChrist) === 'true' || q.acceptedChrist === true;
 
       if (acceptedChristValue === true) {
         qb.andWhere((qb) => {
@@ -166,10 +182,9 @@ export class ChildrenRepository {
       }
     }
 
-    this.applyRoleFilter(qb as any as SelectQueryBuilder<ChildEntity>, ctx);
+    this.applyRoleFilter(qb as unknown as SelectQueryBuilder<ChildEntity>, ctx);
 
-    qb.orderBy('c.isActive', 'DESC')
-      .addOrderBy('c.name', 'ASC');
+    qb.orderBy('c.isActive', 'DESC').addOrderBy('c.name', 'ASC');
 
     qb.distinct(true);
 
@@ -182,8 +197,10 @@ export class ChildrenRepository {
     return { items, total };
   }
 
-
-  async findOneForResponse(id: string, ctx?: RoleCtx): Promise<ChildEntity | null> {
+  async findOneForResponse(
+    id: string,
+    ctx?: RoleCtx,
+  ): Promise<ChildEntity | null> {
     const qb = this.baseQB().where('c.id = :id', { id });
     this.applyRoleFilter(qb, ctx);
     return qb.getOne();
@@ -195,7 +212,9 @@ export class ChildrenRepository {
     if (!role || role === 'admin') return true;
     if (!userId) return false;
 
-    const qb = this.clubRepo.createQueryBuilder('club').where('club.id = :clubId', { clubId });
+    const qb = this.clubRepo
+      .createQueryBuilder('club')
+      .where('club.id = :clubId', { clubId });
 
     if (role === 'coordinator') {
       qb.leftJoin('club.coordinator', 'coord')
@@ -209,8 +228,13 @@ export class ChildrenRepository {
       return false;
     }
 
-    const hasGetExists = typeof (qb as any).getExists === 'function';
-    return hasGetExists ? !!(await (qb as any).getExists()) : (await qb.getCount()) > 0;
+    const qbWithExists = qb as SelectQueryBuilder<ClubEntity> & {
+      getExists?: () => Promise<boolean>;
+    };
+    const hasGetExists = typeof qbWithExists.getExists === 'function';
+    return hasGetExists
+      ? !!(await qbWithExists.getExists())
+      : (await qb.getCount()) > 0;
   }
 
   create(partial: Partial<ChildEntity>): ChildEntity {

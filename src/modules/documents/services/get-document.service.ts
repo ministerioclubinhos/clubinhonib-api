@@ -26,15 +26,25 @@ export class GetDocumentService {
       if (!documents.length) return [];
 
       const ids = documents.map((d) => d.id);
-      const mediaItems = await this.mediaItemProcessor.findManyMediaItemsByTargets(ids, 'document');
+      const mediaItems =
+        await this.mediaItemProcessor.findManyMediaItemsByTargets(
+          ids,
+          'document',
+        );
 
-      const mediaMap = new Map<string, typeof mediaItems[number]>();
+      const mediaMap = new Map<string, (typeof mediaItems)[number]>();
       mediaItems.forEach((media) => mediaMap.set(media.targetId, media));
 
-      return documents.map((doc) => DocumentDto.fromEntity(doc, mediaMap.get(doc.id)));
-    } catch (error) {
-      this.logger.error('❌ Erro ao buscar documentos', error.stack);
-      throw new AppInternalException(ErrorCode.DATABASE_ERROR, 'Erro ao buscar documentos');
+      return documents.map((doc) =>
+        DocumentDto.fromEntity(doc, mediaMap.get(doc.id)),
+      );
+    } catch (error: unknown) {
+      const errStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error('❌ Erro ao buscar documentos', errStack);
+      throw new AppInternalException(
+        ErrorCode.DATABASE_ERROR,
+        'Erro ao buscar documentos',
+      );
     }
   }
 
@@ -44,10 +54,16 @@ export class GetDocumentService {
     const doc = await this.documentRepo.findOneById(id);
     if (!doc) {
       this.logger.warn(`⚠️ Documento não encontrado: ID=${id}`);
-      throw new AppNotFoundException(ErrorCode.DOCUMENT_NOT_FOUND, 'Documento não encontrado');
+      throw new AppNotFoundException(
+        ErrorCode.DOCUMENT_NOT_FOUND,
+        'Documento não encontrado',
+      );
     }
 
-    const media = await this.mediaItemProcessor.findMediaItemsByTarget(id, 'document');
+    const media = await this.mediaItemProcessor.findMediaItemsByTarget(
+      id,
+      'document',
+    );
     return DocumentDto.fromEntity(doc, media[0]);
   }
 }
