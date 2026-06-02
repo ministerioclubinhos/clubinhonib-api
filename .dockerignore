@@ -1,0 +1,14 @@
+node_modules
+dist
+.git
+.github
+npm-debug.log
+docker-compose*
+DockerFile
+.claude
+.vscode
+env
+docs
+scripts
+tests
+README.md
