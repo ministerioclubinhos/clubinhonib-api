@@ -7,6 +7,7 @@ import { CompleteUserDto } from './dto/complete-register.dto';
 import { AuthService } from './services/auth.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { LinkClubDto } from './dto/link-club.dto';
 
 
 import { PasswordRecoveryService } from './services/password-recovery.service';
@@ -93,5 +94,21 @@ export class AuthController {
   async resetPassword(@Body() dto: ResetPasswordDto) {
     this.logger.log(`Resetting password with token`);
     return this.passwordRecoveryService.resetPassword(dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('link-club')
+  async linkClub(@Request() req: AuthRequest, @Body() dto: LinkClubDto) {
+    this.logger.log(
+      `Teacher ${req.user.userId} solicitou vínculo ao clubinho #${dto.clubNumber}`,
+    );
+    const result = await this.authService.linkTeacherToClub(
+      req.user.userId,
+      dto.clubNumber,
+    );
+    this.logger.log(
+      `Teacher ${req.user.userId} vinculado ao clubinho #${dto.clubNumber}`,
+    );
+    return result;
   }
 }
