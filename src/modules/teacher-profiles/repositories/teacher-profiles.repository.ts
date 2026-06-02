@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   AppNotFoundException,
   AppBusinessException,
@@ -21,6 +21,8 @@ type SortDir = 'ASC' | 'DESC';
 
 @Injectable()
 export class TeacherProfilesRepository {
+  private readonly logger = new Logger(TeacherProfilesRepository.name);
+
   constructor(
     private readonly dataSource: DataSource,
 
@@ -374,6 +376,66 @@ export class TeacherProfilesRepository {
       });
       if (!profile) return;
       await txTeacher.delete(profile.id);
+    });
+  }
+
+  async linkTeacherToClubByNumber(
+    userId: string,
+    clubNumber: number,
+  ): Promise<TeacherProfileEntity> {
+    this.logger.log(
+      `🔗 Vinculando teacher userId=${userId} ao clubinho número=${clubNumber}`,
+    );
+
+    return this.dataSource.transaction(async (manager) => {
+      const txTeacher = manager.withRepository(this.teacherRepo);
+      const txClub = manager.withRepository(this.clubRepo);
+      const txUser = manager.withRepository(this.userRepo);
+
+      const club = await txClub.findOne({
+        where: { number: clubNumber, isActive: true },
+      });
+      if (!club) {
+        throw new AppBusinessException(
+          ErrorCode.CLUB_NOT_FOUND,
+          `Nenhum clubinho ativo encontrado com o número ${clubNumber}.`,
+        );
+      }
+
+      let profile = await txTeacher.findOne({
+        where: { user: { id: userId } },
+        relations: { club: true },
+      });
+
+      if (!profile) {
+        const user = await txUser.findOne({ where: { id: userId } });
+        if (!user) {
+          throw new AppNotFoundException(
+            ErrorCode.USER_NOT_FOUND,
+            'Usuário não encontrado.',
+          );
+        }
+        profile = txTeacher.create({
+          user,
+          active: true,
+          club,
+        });
+      } else {
+        if (profile.club) {
+          throw new AppBusinessException(
+            ErrorCode.PROFILE_INVALID_OPERATION,
+            'Você já está vinculado a um clubinho e não pode alterar essa informação.',
+          );
+        }
+        profile.club = club;
+        profile.active = true;
+      }
+
+      const saved = await txTeacher.save(profile);
+      this.logger.log(
+        `✅ Teacher userId=${userId} vinculado ao clubinho #${club.number} (profileId=${saved.id})`,
+      );
+      return saved;
     });
   }
 

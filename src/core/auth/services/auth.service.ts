@@ -18,6 +18,7 @@ import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 import { PersonalDataRepository } from 'src/core/profile/repositories/personal-data.repository';
 import { UserPreferencesRepository } from 'src/core/profile/repositories/user-preferences.repository';
 import { SesIdentityService } from 'src/shared/providers/aws/ses-identity.service';
+import { TeacherProfilesRepository } from 'src/modules/teacher-profiles/repositories/teacher-profiles.repository';
 import {
   AppUnauthorizedException,
   AppNotFoundException,
@@ -44,6 +45,8 @@ export class AuthService {
     @Inject(forwardRef(() => UserPreferencesRepository))
     private readonly userPreferencesRepository: UserPreferencesRepository,
     private readonly sesIdentityService: SesIdentityService,
+    @Inject(forwardRef(() => TeacherProfilesRepository))
+    private readonly teacherProfilesRepository: TeacherProfilesRepository,
   ) {
     this.googleClient = new OAuth2Client(
       configService.getOrThrow<string>('GOOGLE_CLIENT_ID'),
@@ -535,5 +538,18 @@ export class AuthService {
     token: string | null,
   ): Promise<void> {
     await this.userRepo.updateRefreshToken(userId, token);
+  }
+
+  async linkTeacherToClub(
+    userId: string,
+    clubNumber: number,
+  ): Promise<{ message: string }> {
+    const profile = await this.teacherProfilesRepository.linkTeacherToClubByNumber(
+      userId,
+      clubNumber,
+    );
+    return {
+      message: `Professor vinculado ao clubinho #${profile.club?.number ?? clubNumber} com sucesso.`,
+    };
   }
 }

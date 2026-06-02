@@ -11,8 +11,8 @@ import { AuthContextService } from './services/auth-context.service';
 import { UserModule } from 'src/core/user/user.module';
 import { MediaModule } from 'src/shared/media/media.module';
 import { AwsModule } from 'src/shared/providers/aws/aws.module';
+import { TeacherProfilesModule } from 'src/modules/teacher-profiles/teacher-profiles.module';
 import { ProfileModule } from '../profile/profile.module';
-
 import { PasswordResetTokenRepository } from './repositories/password-reset-token.repository';
 import { PasswordRecoveryService } from './services/password-recovery.service';
 
@@ -34,6 +34,7 @@ import { PasswordRecoveryService } from './services/password-recovery.service';
     MediaModule,
     forwardRef(() => ProfileModule),
     AwsModule,
+    forwardRef(() => TeacherProfilesModule),
   ],
   controllers: [AuthController],
   providers: [
