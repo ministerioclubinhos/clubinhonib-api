@@ -1,37 +1,26 @@
-# Use a imagem base do Node.js
+# Stage 1: Build
 FROM node:22-alpine AS builder
-
-# Defina o diretório de trabalho
 WORKDIR /app
-
-# Copie apenas os arquivos de dependências primeiro para otimizar o cache
 COPY package*.json ./
-
-# Instale as dependências em produção (evita instalar devDependencies)
-RUN npm ci --only=production
-
-# Copie o restante do código da aplicação
+# Instalamos todas as dependências (incluindo devDependencies para o build)
+RUN npm ci
 COPY . .
-
-# Construa a aplicação
 RUN npm run build
 
-# Lista os arquivos no diretório dist para verificação
-RUN ls -la dist
-
-# Use uma imagem mais leve para rodar a aplicação
-FROM node:22-alpine
-
-# Defina o diretório de trabalho
+# Stage 2: Dependencies pruning
+FROM node:22-alpine AS dependencies
 WORKDIR /app
+COPY package*.json ./
+# Instalamos apenas as dependências de produção para a imagem final
+RUN npm ci --only=production
 
-# Copie apenas os arquivos necessários da build anterior
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/node_modules ./node_modules
+# Stage 3: Final Image
+FROM node:22-alpine
+WORKDIR /app
+COPY --from=dependencies /app/package*.json ./
+COPY --from=dependencies /app/node_modules ./node_modules
+COPY --from=dependencies /app/package-lock.json ./package-lock.json
 COPY --from=builder /app/dist ./dist
 
-# Exponha a porta em que a aplicação será executada
 EXPOSE 3000
-
-# Comando para iniciar a aplicação
 CMD ["node", "dist/src/main.js"]
