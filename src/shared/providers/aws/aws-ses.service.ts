@@ -12,17 +12,11 @@ export class AwsSESService {
   constructor(private readonly configService: ConfigService) {
     this.region = this.configService.get<string>('AWS_REGION') || 'us-east-1';
 
-    const accessKeyId =
-      this.configService.get<string>('AWS_ACCESS_KEY_ID') ?? '';
-    const secretAccessKey =
-      this.configService.get<string>('AWS_SECRET_ACCESS_KEY') ?? '';
-
+    // Credenciais resolvidas automaticamente pelo SDK:
+    // - Em produção (ECS): IAM Role da task via instance metadata
+    // - Em desenvolvimento: variáveis de ambiente AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY
     this.sesClient = new SESClient({
       region: this.region,
-      credentials: {
-        accessKeyId,
-        secretAccessKey,
-      },
     });
   }
 

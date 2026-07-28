@@ -41,8 +41,8 @@ jobs:
       - name: Build project
         run: npm run build
 
-      # 🔐 Credenciais de DEPLOY (Conta onde está o ECS/ECR)
-      - name: Configure AWS credentials (Deploy Account)
+      # 🔐 Credenciais de DEPLOY (acesso ao ECR e ECS)
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.ALB_AWS_ACCESS_KEY_ID }}
@@ -59,15 +59,34 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -f DockerFile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+          docker build -f DockerFile \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
+      # Remove campos somente-leitura que o register-task-definition não aceita
       - name: Download task definition
         run: |
-          aws ecs describe-task-definition --task-definition ${{ env.ECS_SERVICE }} --query taskDefinition > task-definition.json
+          aws ecs describe-task-definition \
+            --task-definition ${{ env.ECS_SERVICE }} \
+            --query taskDefinition \
+            --output json \
+          | jq 'del(
+              .taskDefinitionArn,
+              .revision,
+              .status,
+              .requiresAttributes,
+              .compatibilities,
+              .registeredAt,
+              .registeredBy,
+              .deregisteredAt
+            )' > task-definition.json
 
+      # Atualiza a imagem e as variáveis de ambiente da aplicação.
+      # NÃO inclui AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY:
+      # o container usa a IAM Task Role do ECS para acessar S3 e SES.
       - name: Fill in the new image ID in the Amazon ECS task definition
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
@@ -78,21 +97,19 @@ jobs:
           environment-variables: |
             ENVIRONMENT=production
             PORT=${{ env.APP_PORT }}
+            AWS_REGION=${{ env.AWS_REGION }}
+            AWS_S3_BUCKET_NAME=${{ secrets.AWS_S3_BUCKET_NAME }}
             DB_HOST=${{ secrets.DB_HOST }}
             DB_PORT=${{ secrets.DB_PORT }}
             DB_USERNAME=${{ secrets.DB_USERNAME }}
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
             DB_NAME=${{ secrets.DB_NAME }}
-            AWS_REGION=${{ env.AWS_REGION }}
-            AWS_ACCESS_KEY_ID=${{ secrets.APP_AWS_ACCESS_KEY_ID }}
-            AWS_SECRET_ACCESS_KEY=${{ secrets.APP_AWS_SECRET_ACCESS_KEY }}
-            AWS_S3_BUCKET_NAME=${{ secrets.AWS_S3_BUCKET_NAME }}
-            SES_DEFAULT_FROM=${{ secrets.SES_DEFAULT_FROM }}
-            SES_DEFAULT_TO=${{ secrets.SES_DEFAULT_TO }}
             JWT_SECRET=${{ secrets.JWT_SECRET }}
             JWT_EXPIRES_IN=${{ secrets.JWT_EXPIRES_IN }}
             JWT_REFRESH_SECRET=${{ secrets.JWT_REFRESH_SECRET }}
             JWT_REFRESH_EXPIRES_IN=${{ secrets.JWT_REFRESH_EXPIRES_IN }}
+            SES_DEFAULT_FROM=${{ secrets.SES_DEFAULT_FROM }}
+            SES_DEFAULT_TO=${{ secrets.SES_DEFAULT_TO }}
             TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }}
             TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}
             TWILIO_WHATSAPP_FROM=${{ secrets.TWILIO_WHATSAPP_FROM }}
@@ -107,13 +124,8 @@ jobs:
           task-definition: ${{ steps.task-def.outputs.task-definition }}
           service: ${{ env.ECS_SERVICE }}
           cluster: ${{ env.ECS_CLUSTER }}
-          wait-for-steady-state: true
+          wait-for-service-stability: true
           force-new-deployment: true
-
-      - name: Ensure service is running (scale up from 0)
-        run: |
-          aws ecs update-service --cluster ${{ env.ECS_CLUSTER }} --service ${{ env.ECS_SERVICE }} --desired-count 1 > /dev/null
-
 
       - name: Deployment Summary
         run: |
@@ -123,4 +135,4 @@ jobs:
           echo "  Cluster : ${{ env.ECS_CLUSTER }}"
           echo "  Servico : ${{ env.ECS_SERVICE }}"
           echo "  Imagem  : ${{ steps.build-image.outputs.image }}"
-          echo "  URL     : http://clubinho-nib-api.rodolfo-silva.com"
+          echo "  SHA     : ${{ github.sha }}"

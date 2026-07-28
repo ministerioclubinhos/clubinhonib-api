@@ -16,11 +16,6 @@ export class AwsS3Service {
 
   constructor(private readonly configService: ConfigService) {
     this.region = this.configService.get<string>('AWS_REGION') || 'us-east-2';
-
-    const accessKeyId =
-      this.configService.get<string>('AWS_ACCESS_KEY_ID') ?? '';
-    const secretAccessKey =
-      this.configService.get<string>('AWS_SECRET_ACCESS_KEY') ?? '';
     this.environment = this.configService.get<string>('ENVIRONMENT') ?? '';
 
     this.bucketName =
@@ -29,12 +24,11 @@ export class AwsS3Service {
       this.logger.error('AWS_S3_BUCKET_NAME not defined');
     }
 
+    // Credenciais resolvidas automaticamente pelo SDK:
+    // - Em produção (ECS): IAM Role da task via instance metadata
+    // - Em desenvolvimento: variáveis de ambiente AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY
     this.s3Client = new S3Client({
       region: this.region,
-      credentials: {
-        accessKeyId,
-        secretAccessKey,
-      },
     });
   }
 
