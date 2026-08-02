@@ -2,6 +2,7 @@ import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
+import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { CreateUserService } from 'src/core/user/services/create-user.service';
 import { UserEntity } from 'src/core/user/entities/user.entity';
 import { OAuth2Client } from 'google-auth-library';
@@ -23,6 +24,7 @@ import {
   AppUnauthorizedException,
   AppNotFoundException,
   AppConflictException,
+  AppException,
   ErrorCode,
 } from 'src/shared/exceptions';
 
@@ -54,17 +56,60 @@ export class AuthService {
   }
 
   private generateTokens(user: UserEntity) {
-    const payload = { sub: user.id, email: user.email, role: user.role };
+    const basePayload = { sub: user.id, email: user.email, role: user.role };
 
-    const accessToken = this.jwtService.sign(payload);
-    const refreshToken = this.jwtService.sign(payload, {
-      secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
-      expiresIn: this.configService.getOrThrow<string>(
-        'JWT_REFRESH_EXPIRES_IN',
-      ),
+    const accessToken = this.jwtService.sign({
+      ...basePayload,
+      tokenType: 'access',
+      jti: randomUUID(),
     });
+    const refreshToken = this.jwtService.sign(
+      {
+        ...basePayload,
+        tokenType: 'refresh',
+        jti: randomUUID(),
+      },
+      {
+        secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
+        expiresIn: this.configService.getOrThrow<string>(
+          'JWT_REFRESH_EXPIRES_IN',
+        ),
+      },
+    );
 
     return { accessToken, refreshToken };
+  }
+
+  private hashRefreshToken(token: string): string {
+    return `sha256:${createHash('sha256').update(token).digest('hex')}`;
+  }
+
+  private refreshTokenMatches(
+    storedToken: string | null,
+    token: string,
+  ): boolean {
+    if (!storedToken || !token) return false;
+
+    const candidate = storedToken.startsWith('sha256:')
+      ? this.hashRefreshToken(token)
+      : token;
+    const storedBuffer = Buffer.from(storedToken);
+    const candidateBuffer = Buffer.from(candidate);
+
+    return (
+      storedBuffer.length === candidateBuffer.length &&
+      timingSafeEqual(storedBuffer, candidateBuffer)
+    );
+  }
+
+  private async persistRefreshToken(
+    userId: string,
+    token: string,
+  ): Promise<void> {
+    await this.userRepo.updateRefreshToken(
+      userId,
+      this.hashRefreshToken(token),
+    );
   }
 
   async login({ email, password }: LoginDto) {
@@ -96,7 +141,7 @@ export class AuthService {
     }
 
     const tokens = this.generateTokens(user);
-    await this.updateRefreshToken(user.id, tokens.refreshToken);
+    await this.persistRefreshToken(user.id, tokens.refreshToken);
 
     return {
       message: 'Login successful',
@@ -128,7 +173,8 @@ export class AuthService {
         );
       }
 
-      const { email, name } = payload;
+      const email = payload.email.trim().toLowerCase();
+      const { name } = payload;
       let user = await this.getUsersService.findByEmail(email);
 
       if (!user) {
@@ -201,7 +247,7 @@ export class AuthService {
         await this.sesIdentityService.checkAndResendSesVerification(email);
 
       const tokens = this.generateTokens(user);
-      await this.updateRefreshToken(user.id, tokens.refreshToken);
+      await this.persistRefreshToken(user.id, tokens.refreshToken);
 
       return {
         message: 'Login successful',
@@ -220,6 +266,10 @@ export class AuthService {
     } catch (error: any) {
       const err = error as Error;
       this.logger.error(`Error during Google login: ${err.message}`, err.stack);
+
+      if (error instanceof AppException) {
+        throw error;
+      }
 
       if (
         err.message?.includes('Token used too late') ||
@@ -253,33 +303,98 @@ export class AuthService {
       );
     }
 
+    let payload: JwtPayload;
     try {
-      const payload = this.jwtService.verify<JwtPayload>(token, {
+      payload = this.jwtService.verify<JwtPayload>(token, {
         secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
       });
-
-      const user = await this.getUsersService.findOne(payload.sub);
-      if (!user || user.refreshToken !== token) {
-        throw new AppUnauthorizedException(
-          ErrorCode.REFRESH_TOKEN_INVALID,
-          'Refresh token inválido',
-        );
-      }
-
-      const tokens = this.generateTokens(user);
-      await this.updateRefreshToken(user.id, tokens.refreshToken);
-
-      return tokens;
     } catch {
       throw new AppUnauthorizedException(
         ErrorCode.REFRESH_TOKEN_INVALID,
         'Refresh token inválido',
       );
     }
+
+    if (
+      !payload.sub ||
+      (payload.tokenType && payload.tokenType !== 'refresh')
+    ) {
+      throw new AppUnauthorizedException(
+        ErrorCode.REFRESH_TOKEN_INVALID,
+        'Refresh token inválido',
+      );
+    }
+
+    const user = await this.userRepo.findById(payload.sub);
+    const storedRefreshToken = user?.refreshToken ?? null;
+    if (
+      !user ||
+      !user.active ||
+      !this.refreshTokenMatches(storedRefreshToken, token)
+    ) {
+      throw new AppUnauthorizedException(
+        ErrorCode.REFRESH_TOKEN_INVALID,
+        'Refresh token inválido',
+      );
+    }
+
+    const tokens = this.generateTokens(user);
+    const rotated = await this.userRepo.rotateRefreshToken(
+      user.id,
+      storedRefreshToken!,
+      this.hashRefreshToken(tokens.refreshToken),
+    );
+
+    if (!rotated) {
+      throw new AppUnauthorizedException(
+        ErrorCode.REFRESH_TOKEN_INVALID,
+        'Refresh token já utilizado',
+      );
+    }
+
+    return tokens;
   }
 
-  async logout(userId: string) {
-    await this.updateRefreshToken(userId, null);
+  async logout(tokens: { refreshToken?: string; accessToken?: string }) {
+    const { refreshToken, accessToken } = tokens;
+    let revoked = false;
+
+    if (refreshToken) {
+      try {
+        const payload = this.jwtService.verify<JwtPayload>(refreshToken, {
+          secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
+        });
+        if (!payload.tokenType || payload.tokenType === 'refresh') {
+          const user = await this.userRepo.findById(payload.sub);
+          if (
+            user?.refreshToken &&
+            this.refreshTokenMatches(user.refreshToken, refreshToken)
+          ) {
+            revoked = await this.userRepo.rotateRefreshToken(
+              user.id,
+              user.refreshToken,
+              null,
+            );
+          }
+        }
+      } catch {
+        // Logout is intentionally idempotent and does not reveal token state.
+      }
+    }
+
+    if (!revoked && accessToken) {
+      try {
+        const payload = this.jwtService.verify<JwtPayload>(accessToken, {
+          secret: this.configService.getOrThrow<string>('JWT_SECRET'),
+        });
+        if (!payload.tokenType || payload.tokenType === 'access') {
+          await this.userRepo.updateRefreshToken(payload.sub, null);
+        }
+      } catch {
+        // Local logout must still succeed when the access token has expired.
+      }
+    }
+
     return { message: 'User logged out' };
   }
 
@@ -533,21 +648,15 @@ export class AuthService {
     };
   }
 
-  async updateRefreshToken(
-    userId: string,
-    token: string | null,
-  ): Promise<void> {
-    await this.userRepo.updateRefreshToken(userId, token);
-  }
-
   async linkTeacherToClub(
     userId: string,
     clubNumber: number,
   ): Promise<{ message: string }> {
-    const profile = await this.teacherProfilesRepository.linkTeacherToClubByNumber(
-      userId,
-      clubNumber,
-    );
+    const profile =
+      await this.teacherProfilesRepository.linkTeacherToClubByNumber(
+        userId,
+        clubNumber,
+      );
     return {
       message: `Professor vinculado ao clubinho #${profile.club?.number ?? clubNumber} com sucesso.`,
     };

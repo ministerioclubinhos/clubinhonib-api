@@ -60,6 +60,18 @@ export class UserRepository {
     await this.repo.update(id, { refreshToken });
   }
 
+  async rotateRefreshToken(
+    id: string,
+    currentRefreshToken: string,
+    nextRefreshToken: string | null,
+  ): Promise<boolean> {
+    const result = await this.repo.update(
+      { id, refreshToken: currentRefreshToken },
+      { refreshToken: nextRefreshToken },
+    );
+    return result.affected === 1;
+  }
+
   async findAllPaginated(q: GetUsersQueryDto) {
     const {
       page = 1,

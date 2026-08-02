@@ -1,4 +1,4 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsOptional, IsString } from 'class-validator';
 
 export class UpdateCommentDto {
   @IsString({ message: 'name deve ser uma string' })
@@ -14,6 +14,6 @@ export class UpdateCommentDto {
   neighborhood: string;
 
   @IsOptional()
-  @IsString({ message: 'published deve ser uma boolean' })
+  @IsBoolean({ message: 'published deve ser uma boolean' })
   published?: boolean;
 }

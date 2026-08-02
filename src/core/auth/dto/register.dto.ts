@@ -1,6 +1,6 @@
 import {
   IsEmail,
-  IsEnum,
+  IsIn,
   IsNotEmpty,
   IsString,
   MinLength,
@@ -27,6 +27,6 @@ export class RegisterUserDto {
   @MinLength(6)
   password: string;
 
-  @IsEnum(UserRole)
+  @IsIn([UserRole.TEACHER, UserRole.COORDINATOR])
   role: UserRole;
 }

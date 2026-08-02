@@ -1,34 +1,49 @@
-const { randomName, randomEmail, randomPhone } = require('../common/random');
+const { randomName, randomEmail, randomPhone, randomContactMessage } = require('../common/random');
+const { sleep } = require('../common/sleep');
 
-async function run({ http, logger }) {
-  const email = randomEmail('contact');
-  const dto = {
-    name: randomName(),
-    email,
-    phone: randomPhone(),
-    message: 'Mensagem de contato criada pela automação',
-  };
-  logger.info('[contact/create] creating contact (public POST)...');
+async function run({ http, logger, ctx }) {
+  const min = ctx?.minPagesItems ?? 10;
+
+  // Verifica quantos contatos já existem
+  let existing = 0;
   try {
-    const res = await http.request('post', '/contact', { data: dto });
-    logger.info(`[contact/create] OK id=${res.data?.id ?? 'n/a'}`);
-    return { contact: res.data };
-  } catch (e) {
-    const status = e.response?.status;
-    const msg = e.response?.data?.message || e.message;
-    
-    if (status === 500 && String(msg).toLowerCase().includes('e-mail')) {
-      logger.warn(`[contact/create] API returned 500 on email sending; validating persistence via GET /contact...`);
-      const list = await http.request('get', '/contact');
-      const contacts = Array.isArray(list.data) ? list.data : [];
-      const created = contacts.find((c) => c?.email === email) || contacts[0];
-      logger.info(`[contact/create] OK persisted id=${created?.id ?? 'n/a'} (apesar do 500)`);
-      return { contact: created, persistedDespiteEmailError: true };
+    const listRes = await http.request('get', '/contact', { params: { page: 1, limit: 1 } });
+    existing = listRes.data?.total ?? listRes.data?.meta?.totalItems ?? 0;
+  } catch (_) {}
+
+  const toCreate = Math.max(0, min - existing);
+  logger.info(`[contact/create] garantindo mínimo ${min} contatos (atual=${existing}, criando=${toCreate})...`);
+
+  let created = 0;
+  for (let i = 0; i < toCreate; i++) {
+    const email = randomEmail('contato');
+    const dto = {
+      name: randomName(),
+      email,
+      phone: randomPhone(),
+      message: randomContactMessage(),
+    };
+    try {
+      const res = await http.request('post', '/contact', { data: dto });
+      created++;
+      logger.info(`[contact/create] +1 contato de "${dto.name}"`);
+      await sleep(30);
+    } catch (e) {
+      const status = e.response?.status;
+      const msg = e.response?.data?.message || e.message;
+
+      // Às vezes o endpoint retorna 500 por e-mail config mas persiste mesmo assim
+      if (status === 500 && String(msg).toLowerCase().includes('e-mail')) {
+        logger.warn(`[contact/create] API retornou 500 por e-mail (esperado em dev) - dado pode ter sido persistido`);
+        created++;
+      } else {
+        logger.warn(`[contact/create] falhou: ${msg}`);
+      }
     }
-    throw e;
   }
+
+  logger.info(`[contact/create] OK criados=${created}`);
+  return { created };
 }
 
 module.exports = { run };
-
-

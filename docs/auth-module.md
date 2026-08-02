@@ -38,6 +38,7 @@ Authenticates a user and returns a JWT token for session management.
 ```json
 {
   "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "user": {
     "id": "123e4567-e89b-12d3-a456-426614174000",
     "email": "teacher@example.com",
@@ -70,7 +71,7 @@ Registers a new user in the system.
 | `email` | `string` | Yes | `@IsEmail` | Valid email address. |
 | `phone` | `string` | Yes | `@IsString`, `@IsNotEmpty` | Contact phone number. |
 | `password` | `string` | Yes | `@MinLength(6)` | Password (min 6 characters). |
-| `role` | `enum` | Yes | `@IsEnum(UserRole)` | One of: `admin`, `teacher`, `coordinator`. |
+| `role` | `enum` | Yes | `teacher` or `coordinator` | Public registration does not create administrators. |
 
 #### Example Request JSON
 
@@ -127,7 +128,7 @@ Completes the registration for a user who might have been invited or partially c
 | `name` | `string` | Yes | `@IsNotEmpty` | Full Name. |
 | `phone` | `string` | Yes | `@IsNotEmpty` | Phone number. |
 | `password` | `string` | No | `@MinLength(6)` | Password (optional if already set). |
-| `role` | `enum` | No | `@IsEnum` | Role update (optional). |
+| `role` | `enum` | No | `teacher` or `coordinator` | Role selected during Google registration. |
 
 #### Example Request JSON
 
@@ -177,7 +178,7 @@ Authenticates a user via Google OAuth token.
 
 ## 5. Refresh Token
 
-Refreshes an expired access token using a refresh token (if implemented).
+Rotates a valid refresh token and returns a new access/refresh pair. Each refresh token can be used only once.
 
 - **Endpoint**: `POST /auth/refresh`
 - **Access**: Public
@@ -202,13 +203,31 @@ Refreshes an expired access token using a refresh token (if implemented).
 
 ```json
 {
-  "accessToken": "new.jwt.token..."
+  "accessToken": "new.jwt.token...",
+  "refreshToken": "new.refresh.token..."
 }
 ```
 
 ---
 
-## 6. Get Current User (`Me`)
+## 6. Logout
+
+Revokes the current refresh token. The operation is idempotent and works even when the access token has expired.
+
+- **Endpoint**: `POST /auth/logout`
+- **Access**: Public (requires possession of the refresh token)
+
+```json
+{
+  "refreshToken": "current.refresh.token..."
+}
+```
+
+Legacy clients may still send a valid `Authorization: Bearer <accessToken>` header without a body.
+
+---
+
+## 7. Get Current User (`Me`)
 
 Retrieves detailed profile information for the authenticated user.
 
@@ -249,7 +268,7 @@ Retrieves detailed profile information for the authenticated user.
 
 ---
 
-## 7. Forgot Password
+## 8. Forgot Password
 
 Initiates password recovery email.
 
@@ -283,7 +302,7 @@ Initiates password recovery email.
 
 ---
 
-## 8. Validate Reset Token
+## 9. Validate Reset Token
 
 Checks if a password reset token is valid/non-expired.
 
@@ -308,7 +327,7 @@ Checks if a password reset token is valid/non-expired.
 
 ---
 
-## 9. Reset Password
+## 10. Reset Password
 
 Sets a new password using a valid token.
 
