@@ -56,7 +56,7 @@ export class MediaItemProcessor {
     media.description = item.description || '';
     media.mediaType = (item.mediaType as MediaType) || ('image' as MediaType);
     media.uploadType = item.uploadType || UploadType.LINK;
-    media.platformType = item.platformType || ('web' as PlatformType);
+    media.platformType = item.platformType || undefined;
     media.url = item.url || '';
     media.originalName = item.originalName || '';
     media.size = item.size ? Number(item.size) : 0;
