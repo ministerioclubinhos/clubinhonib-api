@@ -18,6 +18,10 @@ import { AuthService } from './services/auth.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { LinkClubDto } from './dto/link-club.dto';
+import { GoogleLoginDto } from './dto/google-login.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { LogoutDto } from './dto/logout.dto';
+import type { Request as ExpressRequest } from 'express';
 
 import { PasswordRecoveryService } from './services/password-recovery.service';
 
@@ -39,7 +43,7 @@ export class AuthController {
   }
 
   @Post('google')
-  async googleLogin(@Body() body: { token: string }) {
+  async googleLogin(@Body() body: GoogleLoginDto) {
     this.logger.log('Google login attempt');
     const result = await this.authService.googleLogin(body.token);
     this.logger.log('Google login successful');
@@ -47,19 +51,24 @@ export class AuthController {
   }
 
   @Post('refresh')
-  async refresh(@Body() body: { refreshToken: string }) {
+  async refresh(@Body() body: RefreshTokenDto) {
     this.logger.log('Token refresh attempt');
     const result = await this.authService.refreshToken(body.refreshToken);
     this.logger.log('Token refreshed successfully');
     return result;
   }
 
-  @UseGuards(JwtAuthGuard)
   @Post('logout')
-  async logout(@Request() req: AuthRequest) {
-    this.logger.log(`User logging out: ${req.user.userId}`);
-    const result = await this.authService.logout(req.user.userId);
-    this.logger.log(`User logged out successfully: ${req.user.userId}`);
+  async logout(@Body() body: LogoutDto, @Request() req: ExpressRequest) {
+    const authorization = req.headers.authorization;
+    const accessToken = authorization?.startsWith('Bearer ')
+      ? authorization.slice(7).trim()
+      : undefined;
+    const result = await this.authService.logout({
+      refreshToken: body?.refreshToken,
+      accessToken,
+    });
+    this.logger.log('User session revoked');
     return result;
   }
 

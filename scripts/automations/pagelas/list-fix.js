@@ -133,7 +133,7 @@ async function run({ http, logger, ctx }) {
             present,
             didMeditation,
             recitedVerse,
-            notes: present ? `Week ${week} - ${present ? 'Present' : 'Absent'}` : null,
+            notes: present ? `Semana ${week} - ${present ? 'Presente' : 'Ausente'}` : null,
           },
         });
         created++;

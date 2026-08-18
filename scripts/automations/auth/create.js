@@ -1,26 +1,19 @@
-const { randomName, randomEmail, randomPhone } = require('../common/random');
+const { SUPERUSER_EMAIL, SUPERUSER_PASSWORD } = require('../common/config');
 
 async function run({ http, logger }) {
-  
-  const dto = {
-    name: randomName(),
-    email: randomEmail('register'),
-    phone: randomPhone(),
-    password: 'Senha123@',
-    role: 'teacher',
-  };
+  logger.info('[auth/create] verificando superusuário e testando login...');
 
-  logger.info(`[auth/create] registering user via /auth/register (${dto.email})...`);
+  // Testa o login do superusuário
   try {
-    const res = await http.request('post', '/auth/register', { data: dto });
-    logger.info(`[auth/create] OK register status=200/201 id=${res.data?.id ?? 'n/a'}`);
+    const token = await http.login(SUPERUSER_EMAIL, SUPERUSER_PASSWORD);
+    if (!token) throw new Error('Token não retornado');
+    logger.info(`[auth/create] OK login superusuário: ${SUPERUSER_EMAIL}`);
   } catch (e) {
-    logger.warn(`[auth/create] register failed: ${e.response?.data?.message || e.message}`);
+    logger.warn(`[auth/create] falha no login: ${e.message}`);
+    throw e;
   }
 
-  return { ok: true };
+  return { ok: true, email: SUPERUSER_EMAIL };
 }
 
 module.exports = { run };
-
-

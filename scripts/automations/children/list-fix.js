@@ -1,29 +1,27 @@
 const { fetchAllPages } = require('../common/pagination');
-const { randomJoinedAt } = require('../common/random');
 
 async function run({ http, logger }) {
-  logger.info('[children/list-fix] listing children (all pages) and fixing missing joinedAt...');
-  const children = await fetchAllPages(http.request, 'get', '/children', {}, { limit: 100 });
+  logger.info('[children/list-fix] listando todas as crianças...');
+  const children = await fetchAllPages(http.request, 'get', '/children', {}, { limit: 100, maxPages: 500 });
+  logger.info(`[children/list-fix] OK total=${children.length}`);
 
-  let fixed = 0;
+  // Resumo por clube
+  const byClub = {};
+  let withoutClub = 0;
+  let inactive = 0;
+
   for (const child of children) {
-    if (!child?.id) continue;
-    if (child.joinedAt && child.joinedAt !== 'null') continue;
-
-    try {
-      await http.request('put', `/children/${child.id}`, {
-        data: { joinedAt: randomJoinedAt() },
-      });
-      fixed++;
-    } catch (e) {
-      logger.warn(`[children/list-fix] update failed child=${child.id}: ${e.response?.data?.message || e.message}`);
+    const clubId = child.clubId || child.club?.id;
+    if (clubId) {
+      byClub[clubId] = (byClub[clubId] || 0) + 1;
+    } else {
+      withoutClub++;
     }
+    if (!child.isActive) inactive++;
   }
 
-  logger.info(`[children/list-fix] OK total=${children.length} fixedJoinedAt=${fixed}`);
-  return { children, fixedJoinedAt: fixed };
+  logger.info(`[children/list-fix] semClube=${withoutClub} inativas=${inactive} clubes=${Object.keys(byClub).length}`);
+  return { children, withoutClub, inactive };
 }
 
 module.exports = { run };
-
-

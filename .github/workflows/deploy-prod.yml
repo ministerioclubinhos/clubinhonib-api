@@ -87,6 +87,35 @@ jobs:
       # Atualiza a imagem e as variáveis de ambiente da aplicação.
       # NÃO inclui AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY:
       # o container usa a IAM Task Role do ECS para acessar S3 e SES.
+      - name: Validate runtime configuration
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_EXPIRES_IN: ${{ secrets.JWT_EXPIRES_IN }}
+          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
+          JWT_REFRESH_EXPIRES_IN: ${{ secrets.JWT_REFRESH_EXPIRES_IN }}
+        run: |
+          required=(
+            DB_HOST
+            DB_PORT
+            DB_USERNAME
+            DB_PASSWORD
+            JWT_SECRET
+            JWT_EXPIRES_IN
+            JWT_REFRESH_SECRET
+            JWT_REFRESH_EXPIRES_IN
+          )
+
+          for key in "${required[@]}"; do
+            if [ -z "${!key}" ]; then
+              echo "::error::$key is required for production deploy"
+              exit 1
+            fi
+          done
+
       - name: Fill in the new image ID in the Amazon ECS task definition
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
@@ -98,12 +127,12 @@ jobs:
             ENVIRONMENT=production
             PORT=${{ env.APP_PORT }}
             AWS_REGION=${{ env.AWS_REGION }}
-            AWS_S3_BUCKET_NAME=${{ secrets.AWS_S3_BUCKET_NAME }}
+            AWS_S3_BUCKET_NAME=clubinho-nib-storage
             DB_HOST=${{ secrets.DB_HOST }}
             DB_PORT=${{ secrets.DB_PORT }}
             DB_USERNAME=${{ secrets.DB_USERNAME }}
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-            DB_NAME=${{ secrets.DB_NAME }}
+            DB_NAME=clubinho-nib-prod
             JWT_SECRET=${{ secrets.JWT_SECRET }}
             JWT_EXPIRES_IN=${{ secrets.JWT_EXPIRES_IN }}
             JWT_REFRESH_SECRET=${{ secrets.JWT_REFRESH_SECRET }}

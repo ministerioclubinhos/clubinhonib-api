@@ -2,7 +2,7 @@ const { randomName, randomEmail, randomPhone } = require('../common/random');
 const { sleep } = require('../common/sleep');
 
 async function run({ http, logger }) {
-  
+  // Cria um professor avulso com perfil completo
   const userDto = {
     name: randomName(),
     email: randomEmail('teacher'),
@@ -13,19 +13,18 @@ async function run({ http, logger }) {
     completed: true,
   };
 
-  logger.info(`[teacher-profiles/create] creating teacher user (${userDto.email})...`);
+  logger.info(`[teacher-profiles/create] criando usuário professor (${userDto.email})...`);
   const userRes = await http.request('post', '/users', { data: userDto });
   await sleep(600);
 
-  
   const page = await http.request('get', '/teacher-profiles', { params: { page: 1, limit: 2000 } });
   const items = page.data?.items || page.data?.data || page.data || [];
   const found = items.find((t) => t.user?.id === userRes.data?.id);
-  logger.info(`[teacher-profiles/create] OK created userId=${userRes.data?.id} teacherProfileId=${found?.id ?? 'n/a'}`);
+  logger.info(
+    `[teacher-profiles/create] OK userId=${userRes.data?.id} teacherProfileId=${found?.id ?? 'n/a'}`,
+  );
 
   return { userId: userRes.data?.id, teacherProfileId: found?.id ?? null };
 }
 
 module.exports = { run };
-
-
