@@ -1,3 +1,4 @@
+import { addDays, toDateOnly } from './utils/date.utils';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -72,6 +73,7 @@ interface WeekAnalysisData {
   expectedDate?: string;
   hasPagela?: boolean;
   isException?: boolean;
+  isPending?: boolean;
   expectedChildren?: number;
   totalPagelas?: number;
   firstDate?: any;
@@ -1371,7 +1373,7 @@ export class StatisticsRepository {
           today.getDate(),
         );
         query.andWhere('child.birthDate >= :minBirthDate', {
-          minBirthDate: minBirthDate.toISOString().split('T')[0],
+          minBirthDate: toDateOnly(minBirthDate),
         });
       }
       if (filters.minAge !== undefined) {
@@ -1381,7 +1383,7 @@ export class StatisticsRepository {
           today.getDate(),
         );
         query.andWhere('child.birthDate <= :maxBirthDate', {
-          maxBirthDate: maxBirthDate.toISOString().split('T')[0],
+          maxBirthDate: toDateOnly(maxBirthDate),
         });
       }
     }
@@ -1407,8 +1409,12 @@ export class StatisticsRepository {
     }
 
     if (filters.joinedBefore) {
-      query.andWhere('child.joinedAt <= :joinedBefore', {
-        joinedBefore: filters.joinedBefore,
+      const joinedBeforeExclusive = new Date(
+        `${filters.joinedBefore}T00:00:00Z`,
+      );
+      joinedBeforeExclusive.setUTCDate(joinedBeforeExclusive.getUTCDate() + 1);
+      query.andWhere('child.joinedAt < :joinedBeforeExclusive', {
+        joinedBeforeExclusive: toDateOnly(joinedBeforeExclusive),
       });
     }
 
@@ -1421,7 +1427,7 @@ export class StatisticsRepository {
     if (filters.isNewcomer) {
       const threeMonthsAgo = new Date();
       threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-      const threeMonthsAgoStr = threeMonthsAgo.toISOString().split('T')[0];
+      const threeMonthsAgoStr = toDateOnly(threeMonthsAgo);
       query.andWhere('child.joinedAt >= :threeMonthsAgo', {
         threeMonthsAgo: threeMonthsAgoStr,
       });
@@ -1430,7 +1436,7 @@ export class StatisticsRepository {
     if (filters.isVeteran) {
       const oneYearAgo = new Date();
       oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-      const oneYearAgoStr = oneYearAgo.toISOString().split('T')[0];
+      const oneYearAgoStr = toDateOnly(oneYearAgo);
       query.andWhere('child.joinedAt <= :oneYearAgo', {
         oneYearAgo: oneYearAgoStr,
       });
@@ -1453,6 +1459,7 @@ export class StatisticsRepository {
     if (childIds.length === 0) {
       return {
         children: [],
+        allFilteredChildren: [],
         pagelasStats: new Map(),
         decisionsMap: new Map(),
         totalCount: 0,
@@ -1480,6 +1487,10 @@ export class StatisticsRepository {
         'verseCount',
       )
       .addSelect('MAX(pagela.referenceDate)', 'lastActivity')
+      .addSelect(
+        "GROUP_CONCAT(DISTINCT CONCAT(pagela.year, '-', LPAD(pagela.week, 3, '0')) ORDER BY pagela.year DESC, pagela.week DESC)",
+        'weekKeys',
+      )
       .where('pagela.child.id IN (:...childIds)', { childIds })
       .groupBy('pagela.child.id');
 
@@ -1492,8 +1503,10 @@ export class StatisticsRepository {
       });
     }
     if (filters.endDate) {
-      pagelasQuery.andWhere('pagela.referenceDate <= :endDate', {
-        endDate: filters.endDate,
+      const endDateExclusive = new Date(`${filters.endDate}T00:00:00Z`);
+      endDateExclusive.setUTCDate(endDateExclusive.getUTCDate() + 1);
+      pagelasQuery.andWhere('pagela.referenceDate < :endDateExclusive', {
+        endDateExclusive: toDateOnly(endDateExclusive),
       });
     }
     if (filters.teacherId) {
@@ -1508,10 +1521,9 @@ export class StatisticsRepository {
     let decisionsMap = new Map<string, ChildDecisionStatsRaw>();
     const decisions = this.acceptedChristsRepository
       .createQueryBuilder('ac')
-      .leftJoinAndSelect('ac.child', 'child')
+      .leftJoin('ac.child', 'child')
       .select('child.id', 'childId')
       .addSelect('COUNT(ac.id)', 'totalDecisions')
-      .addSelect('MAX(ac.decision)', 'lastDecision')
       .addSelect('MAX(ac.createdAt)', 'lastDecisionDate')
       .where('child.id IN (:...childIds)', { childIds })
       .groupBy('child.id');
@@ -1522,10 +1534,48 @@ export class StatisticsRepository {
       });
     }
 
+    if (filters.startDate) {
+      decisions.andWhere('ac.createdAt >= :decisionStartDate', {
+        decisionStartDate: filters.startDate,
+      });
+    }
+    if (filters.endDate) {
+      const decisionEndExclusive = new Date(`${filters.endDate}T00:00:00Z`);
+      decisionEndExclusive.setUTCDate(decisionEndExclusive.getUTCDate() + 1);
+      decisions.andWhere('ac.createdAt < :decisionEndExclusive', {
+        decisionEndExclusive: toDateOnly(decisionEndExclusive),
+      });
+    }
+
     const decisionsResults =
       await decisions.getRawMany<ChildDecisionStatsRaw>();
+
+    if (decisionsResults.length > 0) {
+      const latestDecisions = await this.acceptedChristsRepository
+        .createQueryBuilder('ac')
+        .leftJoin('ac.child', 'child')
+        .select('child.id', 'childId')
+        .addSelect('ac.decision', 'lastDecision')
+        .addSelect('ac.createdAt', 'lastDecisionDate')
+        .where('child.id IN (:...childIds)', { childIds })
+        .orderBy('ac.createdAt', 'DESC')
+        .getRawMany<ChildDecisionStatsRaw>();
+
+      const latestByChild = new Map<string, ChildDecisionStatsRaw>();
+      latestDecisions.forEach((decision) => {
+        if (!latestByChild.has(decision.childId)) {
+          latestByChild.set(decision.childId, decision);
+        }
+      });
+      decisionsResults.forEach((decision) => {
+        const latest = latestByChild.get(decision.childId);
+        decision.lastDecision = latest?.lastDecision ?? null;
+        decision.lastDecisionDate = latest?.lastDecisionDate ?? null;
+      });
+    }
     decisionsMap = new Map(decisionsResults.map((d) => [d.childId, d]));
 
+    const totalCount = children.length;
     let filteredChildren = children;
 
     if (filters.minPagelas !== undefined) {
@@ -1558,7 +1608,7 @@ export class StatisticsRepository {
     if (filters.isActive !== undefined) {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+      const thirtyDaysAgoStr = toDateOnly(thirtyDaysAgo);
 
       filteredChildren = filteredChildren.filter((child) => {
         const stats = pagelasStats.get(child.id);
@@ -1678,15 +1728,16 @@ export class StatisticsRepository {
       });
     }
 
-    const totalCount = filteredChildren.length;
+    const filteredCount = filteredChildren.length;
     const paginatedChildren = filteredChildren.slice(skip, skip + limit);
 
     return {
       children: paginatedChildren,
+      allFilteredChildren: filteredChildren,
       pagelasStats,
       decisionsMap,
       totalCount,
-      filteredCount: totalCount,
+      filteredCount,
       page,
       limit,
     };
@@ -1730,8 +1781,12 @@ export class StatisticsRepository {
       });
     }
     if (filters.joinedBefore) {
-      query.andWhere('child.joinedAt <= :joinedBefore', {
-        joinedBefore: filters.joinedBefore,
+      const joinedBeforeExclusive = new Date(
+        `${filters.joinedBefore}T00:00:00Z`,
+      );
+      joinedBeforeExclusive.setUTCDate(joinedBeforeExclusive.getUTCDate() + 1);
+      query.andWhere('child.joinedAt < :joinedBeforeExclusive', {
+        joinedBeforeExclusive: toDateOnly(joinedBeforeExclusive),
       });
     }
 
@@ -1868,10 +1923,15 @@ export class StatisticsRepository {
     if (clubIds.length === 0) {
       return {
         clubs: [],
+        allFilteredClubs: [],
         childrenResults: [],
+        allChildrenResults: [],
         pagelasResults: [],
+        allPagelasResults: [],
         decisionsResults: [],
+        allDecisionsResults: [],
         teachers: [],
+        allTeachers: [],
         totalCount: 0,
         page,
         limit,
@@ -1886,6 +1946,10 @@ export class StatisticsRepository {
       .select('child.club.id', 'clubId')
       .addSelect('COUNT(child.id)', 'total')
       .addSelect('child.gender', 'gender')
+      .addSelect(
+        'AVG(TIMESTAMPDIFF(YEAR, child.birthDate, CURDATE()))',
+        'avgAge',
+      )
       .where('child.club.id IN (:...clubIds)', { clubIds })
       .andWhere('club.isActive = :clubActive', { clubActive: true })
       .andWhere('child.isActive = :isActive', { isActive: true })
@@ -1929,8 +1993,10 @@ export class StatisticsRepository {
       });
     }
     if (filters.endDate) {
-      pagelasQuery.andWhere('pagela.referenceDate <= :endDate', {
-        endDate: filters.endDate,
+      const endDateExclusive = new Date(`${filters.endDate}T00:00:00Z`);
+      endDateExclusive.setUTCDate(endDateExclusive.getUTCDate() + 1);
+      pagelasQuery.andWhere('pagela.referenceDate < :endDateExclusive', {
+        endDateExclusive: toDateOnly(endDateExclusive),
       });
     }
 
@@ -1941,8 +2007,25 @@ export class StatisticsRepository {
       .leftJoin('ac.child', 'child')
       .leftJoin('child.club', 'club')
       .select('child.club.id', 'clubId')
+      .addSelect('COUNT(ac.id)', 'totalDecisions')
+      .addSelect('COUNT(DISTINCT child.id)', 'childrenWithDecisions')
+      .where('child.club.id IN (:...clubIds)', { clubIds })
+      .andWhere('club.isActive = :clubActive', { clubActive: true })
       .andWhere('child.isActive = :isActive', { isActive: true })
       .groupBy('child.club.id');
+
+    if (filters.startDate) {
+      decisionsQuery.andWhere('ac.createdAt >= :decisionStartDate', {
+        decisionStartDate: filters.startDate,
+      });
+    }
+    if (filters.endDate) {
+      const decisionEndExclusive = new Date(`${filters.endDate}T00:00:00Z`);
+      decisionEndExclusive.setUTCDate(decisionEndExclusive.getUTCDate() + 1);
+      decisionsQuery.andWhere('ac.createdAt < :decisionEndExclusive', {
+        decisionEndExclusive: toDateOnly(decisionEndExclusive),
+      });
+    }
 
     const decisionsResults =
       await decisionsQuery.getRawMany<AcceptedChristsByClubRaw>();
@@ -2154,18 +2237,27 @@ export class StatisticsRepository {
         void stats;
         return originalClub;
       }),
+      allFilteredClubs: clubsWithProcessedStats.map((c) => {
+        const { stats, ...originalClub } = c;
+        void stats;
+        return originalClub;
+      }),
       childrenResults: childrenResults.filter((r) =>
         paginatedClubIds.has(r.clubId),
       ),
+      allChildrenResults: childrenResults,
       pagelasResults: pagelasResults.filter((r) =>
         paginatedClubIds.has(r.clubId),
       ),
+      allPagelasResults: pagelasResults,
       decisionsResults: decisionsResults.filter((r) =>
         paginatedClubIds.has(r.clubId),
       ),
+      allDecisionsResults: decisionsResults,
       teachers: teachers.filter(
         (t) => t.club && paginatedClubIds.has(t.club.id),
       ),
+      allTeachers: teachers,
       totalCount,
       page,
       limit,
@@ -2235,8 +2327,11 @@ export class StatisticsRepository {
     if (teacherIds.length === 0) {
       return {
         teachers: [],
+        allFilteredTeachers: [],
         pagelasResults: [],
+        allPagelasResults: [],
         decisionsResults: [],
+        allDecisionsResults: [],
         totalCount: 0,
         page,
         limit,
@@ -2249,6 +2344,10 @@ export class StatisticsRepository {
       .select('pagela.teacher.id', 'teacherId')
       .addSelect('COUNT(pagela.id)', 'totalPagelas')
       .addSelect('COUNT(DISTINCT child.id)', 'uniqueChildren')
+      .addSelect(
+        'COUNT(DISTINCT CASE WHEN pagela.present = 1 THEN child.id END)',
+        'activeChildren',
+      )
       .addSelect(
         'SUM(CASE WHEN pagela.present = 1 THEN 1 ELSE 0 END)',
         'presenceCount',
@@ -2274,8 +2373,10 @@ export class StatisticsRepository {
       });
     }
     if (filters.endDate) {
-      pagelasQuery.andWhere('pagela.referenceDate <= :endDate', {
-        endDate: filters.endDate,
+      const endDateExclusive = new Date(`${filters.endDate}T00:00:00Z`);
+      endDateExclusive.setUTCDate(endDateExclusive.getUTCDate() + 1);
+      pagelasQuery.andWhere('pagela.referenceDate < :endDateExclusive', {
+        endDateExclusive: toDateOnly(endDateExclusive),
       });
     }
 
@@ -2288,7 +2389,30 @@ export class StatisticsRepository {
       .select('pagela.teacher.id', 'teacherId')
       .addSelect('COUNT(DISTINCT child.id)', 'childrenWithDecisions')
       .where('pagela.teacher.id IN (:...teacherIds)', { teacherIds })
+      .andWhere('child.isActive = :childActive', { childActive: true })
       .groupBy('pagela.teacher.id');
+
+    if (filters.startDate) {
+      decisionsQuery
+        .andWhere('pagela.referenceDate >= :decisionPagelaStartDate', {
+          decisionPagelaStartDate: filters.startDate,
+        })
+        .andWhere('ac.createdAt >= :decisionStartDate', {
+          decisionStartDate: filters.startDate,
+        });
+    }
+    if (filters.endDate) {
+      const decisionEndExclusive = new Date(`${filters.endDate}T00:00:00Z`);
+      decisionEndExclusive.setUTCDate(decisionEndExclusive.getUTCDate() + 1);
+      const endDateExclusive = toDateOnly(decisionEndExclusive);
+      decisionsQuery
+        .andWhere('pagela.referenceDate < :decisionPagelaEndExclusive', {
+          decisionPagelaEndExclusive: endDateExclusive,
+        })
+        .andWhere('ac.createdAt < :decisionEndExclusive', {
+          decisionEndExclusive: endDateExclusive,
+        });
+    }
 
     const decisionsResults =
       await decisionsQuery.getRawMany<TeacherDecisionStatsRaw>();
@@ -2298,7 +2422,7 @@ export class StatisticsRepository {
 
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+    const thirtyDaysAgoStr = toDateOnly(thirtyDaysAgo);
 
     let teachersWithProcessedStats = teachers.map((teacher) => {
       const pagelas = pagelasMap.get(teacher.id);
@@ -2308,11 +2432,14 @@ export class StatisticsRepository {
       const uniqueChildren = pagelas ? parseInt(pagelas.uniqueChildren) : 0;
       const presenceCount = pagelas ? parseInt(pagelas.presenceCount) : 0;
       const meditationCount = pagelas ? parseInt(pagelas.meditationCount) : 0;
+      const verseCount = pagelas ? parseInt(pagelas.verseCount) : 0;
 
       const avgPresenceRate =
         totalPagelas > 0 ? (presenceCount / totalPagelas) * 100 : 0;
       const avgMeditationRate =
         totalPagelas > 0 ? (meditationCount / totalPagelas) * 100 : 0;
+      const avgVerseRate =
+        totalPagelas > 0 ? (verseCount / totalPagelas) * 100 : 0;
 
       const childrenWithDecisions = decisions
         ? parseInt(decisions.childrenWithDecisions)
@@ -2321,7 +2448,10 @@ export class StatisticsRepository {
         uniqueChildren > 0 ? (childrenWithDecisions / uniqueChildren) * 100 : 0;
 
       const effectivenessScore =
-        avgPresenceRate * 0.4 + avgMeditationRate * 0.3 + decisionRate * 0.3;
+        avgPresenceRate * 0.3 +
+        avgMeditationRate * 0.3 +
+        avgVerseRate * 0.2 +
+        decisionRate * 0.2;
 
       const lastActivity = pagelas?.lastActivity;
       const isActive = lastActivity
@@ -2443,12 +2573,19 @@ export class StatisticsRepository {
         void stats;
         return originalTeacher;
       }),
+      allFilteredTeachers: teachersWithProcessedStats.map((t) => {
+        const { stats, ...originalTeacher } = t;
+        void stats;
+        return originalTeacher;
+      }),
       pagelasResults: pagelasResults.filter((r) =>
         paginatedTeacherIds.has(r.teacherId),
       ),
+      allPagelasResults: pagelasResults,
       decisionsResults: decisionsResults.filter((r) =>
         paginatedTeacherIds.has(r.teacherId),
       ),
+      allDecisionsResults: decisionsResults,
       totalCount,
       page,
       limit,
@@ -2482,16 +2619,9 @@ export class StatisticsRepository {
       academicPeriod?.startDate || startDate || `${year}-01-01`;
     const periodEnd = academicPeriod?.endDate || endDate || `${year}-12-31`;
 
-    const exceptions = await this.exceptionsRepository
-      .createQueryBuilder('exception')
-      .where('exception.isActive = :isActive', { isActive: true })
-      .andWhere('exception.exceptionDate >= :startDate', {
-        startDate: periodStart,
-      })
-      .andWhere('exception.exceptionDate <= :endDate', { endDate: periodEnd })
-      .getMany();
-
-    const exceptionDates = new Set(exceptions.map((e) => e.exceptionDate));
+    const exceptions = await this.exceptionsRepository.find({
+      where: { isActive: true },
+    });
 
     const allChildren = await this.childrenRepository.find({
       where: { club: { id: clubId } },
@@ -2595,10 +2725,19 @@ export class StatisticsRepository {
 
     const allWeeks: WeekAnalysisData[] = [];
     const missingWeeks: WeekAnalysisData[] = [];
-    const currentDate = new Date(start);
+    const firstWeekStart = this.getWeekStartDate(start);
+    const currentDate = new Date(
+      this.getExpectedDateForWeekday(firstWeekStart, club.weekday),
+    );
+    const today = new Date();
+    const todayStr = [
+      today.getFullYear(),
+      String(today.getMonth() + 1).padStart(2, '0'),
+      String(today.getDate()).padStart(2, '0'),
+    ].join('-');
 
     while (currentDate <= end) {
-      const currentDateStr = currentDate.toISOString().split('T')[0];
+      const currentDateStr = toDateOnly(currentDate);
 
       let weekData: { year: number; week: number };
       try {
@@ -2619,7 +2758,13 @@ export class StatisticsRepository {
 
       const weekKey = `${weekData.year}-W${weekData.week}`;
 
-      const isException = exceptionDates.has(currentDateStr);
+      const isException = exceptions.some(
+        (exception) =>
+          exception.exceptionDate === currentDateStr ||
+          (exception.isRecurrent &&
+            exception.exceptionDate.slice(5) === currentDateStr.slice(5)),
+      );
+      const isPending = currentDateStr >= todayStr;
 
       const hasPagela = weeksWithPagela.has(weekKey);
 
@@ -2643,6 +2788,7 @@ export class StatisticsRepository {
           date: currentDateStr,
           hasPagela,
           isException,
+          isPending,
           expectedChildren,
           ...weeksWithPagela.get(weekKey),
         });
@@ -2650,6 +2796,7 @@ export class StatisticsRepository {
         if (
           !hasPagela &&
           !isException &&
+          !isPending &&
           expectedChildren > 0 &&
           weekData.week <= maxAcademicWeek
         ) {
@@ -2660,9 +2807,7 @@ export class StatisticsRepository {
             expectedChildren,
             weekRange: {
               start: currentDateStr,
-              end: new Date(currentDate.getTime() + 6 * 24 * 60 * 60 * 1000)
-                .toISOString()
-                .split('T')[0],
+              end: toDateOnly(addDays(currentDate, 6)),
             },
             reason: 'no_pagela',
             severity: 'warning',
@@ -2673,8 +2818,12 @@ export class StatisticsRepository {
       currentDate.setDate(currentDate.getDate() + 7);
     }
 
-    const weeksExpected = allWeeks.filter((w) => !w.isException).length;
-    const weeksWithPagelaCount = Array.from(weeksWithPagela.keys()).length;
+    const weeksExpected = allWeeks.filter(
+      (week) => !week.isException && !week.isPending,
+    ).length;
+    const weeksWithPagelaCount = allWeeks.filter(
+      (week) => !week.isException && !week.isPending && week.hasPagela,
+    ).length;
     const weeksMissingCount = missingWeeks.length;
     const attendanceRate =
       weeksExpected > 0 ? (weeksWithPagelaCount / weeksExpected) * 100 : 0;
@@ -2685,7 +2834,7 @@ export class StatisticsRepository {
     let currentConsecutiveMissing = 0;
 
     allWeeks.forEach((week) => {
-      if (week.isException) {
+      if (week.isException || week.isPending) {
         return;
       }
 
@@ -2887,8 +3036,8 @@ export class StatisticsRepository {
         year,
         week,
         weekRange: {
-          start: weekStart.toISOString().split('T')[0],
-          end: weekEnd.toISOString().split('T')[0],
+          start: toDateOnly(weekStart),
+          end: toDateOnly(weekEnd),
         },
         clubs: [],
         summary: {
@@ -2932,8 +3081,9 @@ export class StatisticsRepository {
       .where('pagela.year = :year', { year })
       .andWhere('pagela.week = :week', { week })
       .andWhere('club.isActive = :clubActive', { clubActive: true })
+      .andWhere('child.isActive = :childActive', { childActive: true })
       .select('club.id', 'clubId')
-      .addSelect('COUNT(pagela.id)', 'totalPagelas')
+      .addSelect('COUNT(DISTINCT child.id)', 'totalPagelas')
       .groupBy('club.id')
       .getRawMany<{ clubId: string; totalPagelas: string }>();
 
@@ -2941,8 +3091,22 @@ export class StatisticsRepository {
       pagelasInWeek.map((p) => [p.clubId, parseInt(p.totalPagelas)]),
     );
 
+    const [activeChildren, exceptions] = await Promise.all([
+      this.childrenRepository.find({
+        where: { isActive: true },
+        relations: ['club'],
+      }),
+      this.exceptionsRepository.find({ where: { isActive: true } }),
+    ]);
+
+    const today = new Date();
+    const todayStr = [
+      today.getFullYear(),
+      String(today.getMonth() + 1).padStart(2, '0'),
+      String(today.getDate()).padStart(2, '0'),
+    ].join('-');
+
     const clubsAnalysis = clubs.map((club) => {
-      const hasPagela = clubsWithPagela.has(club.id);
       const totalPagelas = clubsWithPagela.get(club.id) || 0;
 
       const expectedDate = this.getExpectedDateForWeekday(
@@ -2950,22 +3114,50 @@ export class StatisticsRepository {
         club.weekday,
       );
 
+      const expectedChildren = activeChildren.filter((child) => {
+        if (child.club?.id !== club.id) return false;
+        return (
+          !child.joinedAt ||
+          new Date(child.joinedAt) <= new Date(`${expectedDate}T23:59:59`)
+        );
+      }).length;
+      const exception = exceptions.find(
+        (item) =>
+          item.exceptionDate === expectedDate ||
+          (item.isRecurrent &&
+            item.exceptionDate.slice(5) === expectedDate.slice(5)),
+      );
+      const hasPagela = totalPagelas > 0;
+
+      let status = 'missing';
+      if (exception) status = 'vacation';
+      else if (expectedDate >= todayStr) status = 'pending';
+      else if (expectedChildren === 0) status = 'inactive';
+      else if (totalPagelas >= expectedChildren) status = 'ok';
+      else if (totalPagelas > 0) status = 'partial';
+
       return {
         clubId: club.id,
         clubNumber: club.number,
         weekday: club.weekday,
         hasPagela,
         totalPagelas: hasPagela ? totalPagelas : undefined,
+        expectedChildren,
         expectedDate,
-        status: hasPagela ? 'ok' : 'missing',
+        status,
       };
     });
 
-    const clubsActive = clubs.length;
-    const clubsWithPagelaCount = clubsAnalysis.filter(
+    const expectedClubs = clubsAnalysis.filter((club) =>
+      ['ok', 'partial', 'missing'].includes(club.status),
+    );
+    const clubsActive = expectedClubs.length;
+    const clubsWithPagelaCount = expectedClubs.filter(
       (c) => c.hasPagela,
     ).length;
-    const clubsMissingCount = clubsActive - clubsWithPagelaCount;
+    const clubsMissingCount = expectedClubs.filter(
+      (club) => club.status === 'missing',
+    ).length;
 
     const pageNum = page || 1;
     const limitNum = limit || 50;
@@ -2977,8 +3169,8 @@ export class StatisticsRepository {
       year,
       week,
       weekRange: {
-        start: weekStart.toISOString().split('T')[0],
-        end: weekEnd.toISOString().split('T')[0],
+        start: toDateOnly(weekStart),
+        end: toDateOnly(weekEnd),
       },
       clubs: paginatedClubs,
       pagination: {
@@ -3009,30 +3201,31 @@ export class StatisticsRepository {
 
   private getExpectedDateForWeekday(weekStart: Date, weekday: string): string {
     const weekdayMap = {
-      MONDAY: 1,
-      TUESDAY: 2,
-      WEDNESDAY: 3,
-      THURSDAY: 4,
-      FRIDAY: 5,
-      SATURDAY: 6,
-      SUNDAY: 0,
+      monday: 1,
+      tuesday: 2,
+      wednesday: 3,
+      thursday: 4,
+      friday: 5,
+      saturday: 6,
+      sunday: 0,
     };
 
-    const targetDay = weekdayMap[weekday as keyof typeof weekdayMap] || 1;
+    const normalizedWeekday = weekday.toLowerCase() as keyof typeof weekdayMap;
+    const targetDay = weekdayMap[normalizedWeekday] ?? 1;
     const currentDay = weekStart.getDay();
     const daysToAdd = (targetDay - currentDay + 7) % 7;
 
     const expectedDate = new Date(
       weekStart.getTime() + daysToAdd * 24 * 60 * 60 * 1000,
     );
-    return expectedDate.toISOString().split('T')[0];
+    return toDateOnly(expectedDate);
   }
 
   async getClubsPerformanceMetrics() {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfMonthStr = startOfMonth.toISOString().split('T')[0];
-    const todayStr = now.toISOString().split('T')[0];
+    const startOfMonthStr = toDateOnly(startOfMonth);
+    const todayStr = toDateOnly(now);
 
     const clubsWithLowAttendance = await this.pagelasRepository
       .createQueryBuilder('pagela')
@@ -3095,8 +3288,8 @@ export class StatisticsRepository {
   async getChildrenEngagementMetrics() {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfMonthStr = startOfMonth.toISOString().split('T')[0];
-    const todayStr = now.toISOString().split('T')[0];
+    const startOfMonthStr = toDateOnly(startOfMonth);
+    const todayStr = toDateOnly(now);
 
     const childrenStats = await this.pagelasRepository
       .createQueryBuilder('pagela')
@@ -3250,5 +3443,20 @@ export class StatisticsRepository {
       .getCount();
 
     return count;
+  }
+
+  async getAcceptedChristsCountBetween(
+    startDate: string,
+    endDateExclusive: string,
+  ): Promise<number> {
+    return this.acceptedChristsRepository
+      .createQueryBuilder('ac')
+      .leftJoin('ac.child', 'child')
+      .leftJoin('child.club', 'club')
+      .where('club.isActive = :clubActive', { clubActive: true })
+      .andWhere('child.isActive = :childActive', { childActive: true })
+      .andWhere('ac.createdAt >= :startDate', { startDate })
+      .andWhere('ac.createdAt < :endDateExclusive', { endDateExclusive })
+      .getCount();
   }
 }

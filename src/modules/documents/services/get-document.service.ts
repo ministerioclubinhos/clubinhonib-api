@@ -7,6 +7,7 @@ import {
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { DocumentRepository } from '../document.repository';
 import { DocumentDto } from '../dto/document-response.dto';
+import { DOCUMENT_MEDIA_TARGET_TYPES } from '../constants';
 
 @Injectable()
 export class GetDocumentService {
@@ -27,9 +28,9 @@ export class GetDocumentService {
 
       const ids = documents.map((d) => d.id);
       const mediaItems =
-        await this.mediaItemProcessor.findManyMediaItemsByTargets(
+        await this.mediaItemProcessor.findManyMediaItemsByTargetsAnyType(
           ids,
-          'document',
+          DOCUMENT_MEDIA_TARGET_TYPES,
         );
 
       const mediaMap = new Map<string, (typeof mediaItems)[number]>();
@@ -60,9 +61,9 @@ export class GetDocumentService {
       );
     }
 
-    const media = await this.mediaItemProcessor.findMediaItemsByTarget(
+    const media = await this.mediaItemProcessor.findMediaItemsByTargetAnyType(
       id,
-      'document',
+      DOCUMENT_MEDIA_TARGET_TYPES,
     );
     return DocumentDto.fromEntity(doc, media[0]);
   }

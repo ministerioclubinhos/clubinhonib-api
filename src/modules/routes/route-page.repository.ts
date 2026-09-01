@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { RouteEntity, RouteType } from './route-page.entity';
 
 @Injectable()
@@ -56,11 +56,15 @@ export class RouteRepository extends Repository<RouteEntity> {
   async upsertRoute(
     routeId: string,
     updateData: Partial<RouteEntity>,
+    manager?: EntityManager,
   ): Promise<RouteEntity> {
-    const route = await this.save({
+    const repository = manager
+      ? manager.getRepository(RouteEntity)
+      : (this as Repository<RouteEntity>);
+
+    return repository.save({
       ...updateData,
       id: routeId,
     });
-    return route;
   }
 }

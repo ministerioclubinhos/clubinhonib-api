@@ -10,8 +10,8 @@ export interface PagelaStatsRaw {
 
 export interface ChildDecisionStatsRaw {
   childId: string;
-  lastDecision: string;
-  lastDecisionDate: Date;
+  lastDecision: string | null;
+  lastDecisionDate: Date | null;
   totalDecisions: string;
 }
 
@@ -19,6 +19,7 @@ export interface ChildStatsRaw {
   clubId: string;
   gender: string;
   total: string;
+  avgAge: string;
 }
 
 export interface DecisionStatsRaw {
@@ -31,6 +32,7 @@ export interface TeacherStatsRaw {
   teacherId: string;
   totalPagelas: string;
   uniqueChildren: string;
+  activeChildren: string;
   presenceCount: string;
   meditationCount: string;
   verseCount: string;
@@ -213,6 +215,7 @@ export interface ChildPagelaStatsRaw {
   meditationCount: string;
   verseCount: string;
   lastActivity: string;
+  weekKeys?: string;
 }
 
 export interface TopEngagedChildStatsRaw {
@@ -244,7 +247,8 @@ export interface ClubRankingStatsRaw {
 
 // Result Interfaces
 export interface ChildrenWithStatsResult {
-  children: any[]; // ChildEntity[]
+  children: import('../../children/entities/child.entity').ChildEntity[];
+  allFilteredChildren: import('../../children/entities/child.entity').ChildEntity[];
   pagelasStats: Map<string, ChildPagelaStatsRaw>;
   decisionsMap: Map<string, ChildDecisionStatsRaw>;
   totalCount: number;
@@ -254,11 +258,16 @@ export interface ChildrenWithStatsResult {
 }
 
 export interface ClubsWithStatsResult {
-  clubs: any[]; // ClubEntity[]
+  clubs: import('../../clubs/entities/club.entity/club.entity').ClubEntity[];
+  allFilteredClubs: import('../../clubs/entities/club.entity/club.entity').ClubEntity[];
   childrenResults: ChildStatsRaw[];
+  allChildrenResults: ChildStatsRaw[];
   pagelasResults: PagelasByClubRaw[];
+  allPagelasResults: PagelasByClubRaw[];
   decisionsResults: AcceptedChristsByClubRaw[];
-  teachers: any[]; // TeacherProfileEntity[]
+  allDecisionsResults: AcceptedChristsByClubRaw[];
+  teachers: import('../../teacher-profiles/entities/teacher-profile.entity/teacher-profile.entity').TeacherProfileEntity[];
+  allTeachers: import('../../teacher-profiles/entities/teacher-profile.entity/teacher-profile.entity').TeacherProfileEntity[];
   totalCount: number;
   page: number;
   limit: number;
@@ -275,9 +284,12 @@ export interface ClubsWithStatsResult {
 }
 
 export interface TeachersWithStatsResult {
-  teachers: any[]; // TeacherProfileEntity[]
+  teachers: import('../../teacher-profiles/entities/teacher-profile.entity/teacher-profile.entity').TeacherProfileEntity[];
+  allFilteredTeachers: import('../../teacher-profiles/entities/teacher-profile.entity/teacher-profile.entity').TeacherProfileEntity[];
   pagelasResults: TeacherStatsRaw[];
+  allPagelasResults: TeacherStatsRaw[];
   decisionsResults: TeacherDecisionStatsRaw[];
+  allDecisionsResults: TeacherDecisionStatsRaw[];
   totalCount: number;
   page: number;
   limit: number;

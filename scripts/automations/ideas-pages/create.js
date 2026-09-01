@@ -29,7 +29,7 @@ async function run({ http, logger, ctx }) {
             isLocalFile: false,
             url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
             platformType: 'youtube',
-            size: '0',
+            size: 0,
           },
         ],
       },

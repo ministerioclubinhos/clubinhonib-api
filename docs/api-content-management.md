@@ -22,21 +22,26 @@ Most page controllers follow a standard CRUD pattern.
 
 **Common Base URLs:**
 
-- `/pages/week-material`
+- `/week-material-pages`
 - `/pages/video`
 - `/pages/image` (includes sections)
-- `/pages/ideas` (includes sections)
+- `/ideas-pages` (includes sections)
 - `/pages/event`
 
 ### 1.1 Week Material Page
 
-**Base URL**: `/pages/week-material`
+**Base URL**: `/week-material-pages`
 
-- `GET /` - List all materials (paginated)
-- `GET /:id` - Get specific material
-- `POST /` - Create new material
-- `PUT /:id` - Update material
-- `DELETE /:id` - Remove material
+- `GET /` - List all pages with their media, newest first
+- `GET /current-week` - Page published as the current week material, or `null`
+- `GET /:id` - Get a specific page with its media
+- `POST /` - Create a page (admin, `multipart/form-data`)
+- `PATCH /:id` - Update a page (admin, `multipart/form-data`)
+- `DELETE /:id` - Remove a page, its media and its route (admin)
+- `POST /current-week/:id` - Publish a page as the current week material (admin)
+
+See [`api-week-materials.md`](api-week-materials.md) for the payload, the media
+synchronization rules and the error catalog.
 
 ### 1.2 Video Page
 
@@ -58,13 +63,81 @@ Manages galleries or visual sections.
 
 ### 1.4 Ideas Page & Sections
 
-**Base URL**: `/pages/ideas`
+**Base URL**: `/ideas-pages`
 
-Manages the "Ideas" section for teachers.
+Páginas de ideias de atividades para os professores, organizadas em seções.
 
-- `GET /` - List idea pages
-- `POST /` - Create idea page
-- `POST /section` - Create idea section
+- `GET /` - Lista as páginas com suas seções e mídias. Uma página sem rota é
+  omitida da listagem, com registro em log, para não derrubar a lista inteira
+- `GET /:id` - Página com suas seções e mídias
+- `POST /` - Cria a página (admin, `multipart/form-data`)
+- `PATCH /:id` - Atualiza a página (admin, `multipart/form-data`)
+- `DELETE /:id` - Remove a página, suas seções, mídias e a rota (admin, `204`)
+
+**Corpo multipart**: campo `ideasMaterialsPageData` com o JSON da página, mais
+uma parte por arquivo enviado, referenciada pelo `fieldKey` da mídia.
+
+```jsonc
+{
+  "id": "uuid",            // só na atualização; o serviço usa o id da rota
+  "title": "Ideias de Natal",
+  "subtitle": "opcional",
+  "description": "…",
+  "public": false,          // opcional; preservado quando ausente
+  "sections": [
+    {
+      "id": "uuid",         // ausente quando a seção é nova
+      "title": "Abertura",
+      "description": "…",
+      "public": false,      // opcional; preservado quando ausente
+      "medias": [
+        {
+          "id": "uuid",     // ausente quando a mídia é nova
+          "title": "Vídeo",
+          "description": "",
+          "mediaType": "video",
+          "uploadType": "link",
+          "isLocalFile": false,
+          "url": "https://…",
+          "platformType": "youtube",
+          "fieldKey": "video_0_0.mp4" // só quando um arquivo novo é enviado
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Regras de sincronização**
+
+- As mídias pertencem à seção (`IdeasSection`), nunca à página.
+- Seção que sai do payload é removida com suas mídias e os arquivos no S3.
+- Mídia já gravada que volta sem `fieldKey` preserva o objeto no S3; com um
+  arquivo novo, o anterior é apagado do S3 depois do upload.
+- Um `id` de seção ou de mídia que não pertence ao alvo não sobrescreve o
+  registro apontado: o item entra como novo, com aviso em log.
+- O `path` da rota é recalculado a partir do título garantindo unicidade,
+  ignorando a própria rota.
+- A rota da página de ideias é sempre `public: false`: o acesso acontece pela
+  Área do Professor.
+
+### 1.4.1 Documentos — grafia do `targetType`
+
+A criação gravava as mídias do documento com `targetType = 'Document'` enquanto
+a edição gravava `'document'`. As leituras procuravam apenas por `'document'`,
+então a mídia criada pelo fluxo de criação ficava invisível e o arquivo dela
+permanecia no S3 mesmo depois de o documento ser removido.
+
+Hoje toda escrita usa `DOCUMENT_MEDIA_TARGET_TYPE` (`'Document'`) e as leituras
+aceitam as duas grafias (`DOCUMENT_MEDIA_TARGET_TYPES`), o que faz as linhas
+antigas se normalizarem na próxima gravação. Para normalizar de uma vez:
+
+```sql
+UPDATE media_items SET targetType = 'Document' WHERE targetType = 'document';
+```
+
+Use `npm run s3:audit` depois, para listar os arquivos que ficaram órfãos
+enquanto o problema existia.
 
 ### 1.5 Event Page
 

@@ -1,13 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
-import {
-  AppNotFoundException,
-  AppValidationException,
-  ErrorCode,
-} from 'src/shared/exceptions';
+import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
-import { MeditationRepository } from '../meditation.repository';
-import { WeekMeditationResponseDto } from '../dto/meditation-response-dto';
-import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
+import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
+import { MeditationRepository } from '../repositories/meditation.repository';
+import { MeditationResponseDto } from '../dto/meditation-response.dto';
+import { MeditationEntity } from '../entities/meditation.entity';
+import { toMeditationResponse } from '../mappers';
+import { formatDateOnly, todayAsLocalDate } from '../utils';
+import { MEDITATION_ENTITY_TYPE } from '../constants';
 
 @Injectable()
 export class GetMeditationService {
@@ -18,96 +18,80 @@ export class GetMeditationService {
     private readonly mediaItemProcessor: MediaItemProcessor,
   ) {}
 
-  async findAll(): Promise<WeekMeditationResponseDto[]> {
-    const meditations = await this.meditationRepo.findAllWithRelations();
-    if (!meditations.length) {
-      this.logger.log('📭 Nenhuma meditação encontrada.');
-      return [];
-    }
-
-    const ids = meditations.map((m) => m.id);
-    const mediaItems =
-      await this.mediaItemProcessor.findManyMediaItemsByTargets(
-        ids,
-        MediaTargetType.Meditation,
-      );
-
-    const mediaMap = new Map<string, (typeof mediaItems)[number][]>();
-    mediaItems.forEach((item) => {
-      const list = mediaMap.get(item.targetId) || [];
-      list.push(item);
-      mediaMap.set(item.targetId, list);
-    });
-
-    return meditations.map((meditation) => {
-      const media = mediaMap.get(meditation.id)?.[0] || null;
-      if (!media) {
-        this.logger.warn(`⚠️ Meditação sem mídia: "${meditation.topic}"`);
-      }
-      return WeekMeditationResponseDto.success(meditation, media);
-    });
-  }
-
-  async findOne(id: string): Promise<WeekMeditationResponseDto> {
-    if (!id || typeof id !== 'string') {
-      throw new AppValidationException(
-        ErrorCode.VALIDATION_ERROR,
-        'ID inválido fornecido',
-      );
-    }
-
-    const meditation = await this.meditationRepo.findOneWithRelations(id);
+  /** Carrega a meditação ou falha com o erro documentado. */
+  async findEntityOrFail(id: string): Promise<MeditationEntity> {
+    const meditation = await this.meditationRepo.findOneWithDays(id);
     if (!meditation) {
-      this.logger.warn(`⚠️ Meditação não encontrada: ID=${id}`);
+      this.logger.warn(`Meditação não encontrada. ID=${id}`);
       throw new AppNotFoundException(
         ErrorCode.MEDITATION_NOT_FOUND,
         'Meditação não encontrada',
       );
     }
-    const media = await this.mediaItemProcessor.findMediaItemByTarget(
-      meditation.id,
-      MediaTargetType.Meditation,
-    );
-    return WeekMeditationResponseDto.success(meditation, media);
+    return meditation;
   }
 
-  async getThisWeekMeditation(): Promise<WeekMeditationResponseDto> {
-    const today = new Date();
-    const todayLocal = parseDateAsLocal(
-      `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`,
+  /** Mídia associada à meditação, quando existir. */
+  async findMediaOf(meditationId: string): Promise<MediaItemEntity | null> {
+    return this.mediaItemProcessor.findMediaItemByTarget(
+      meditationId,
+      MEDITATION_ENTITY_TYPE,
     );
+  }
 
-    const all = await this.meditationRepo.findAllWithRelations();
+  async findAll(): Promise<MeditationResponseDto[]> {
+    const meditations = await this.meditationRepo.findAllWithDays();
+    if (meditations.length === 0) return [];
 
-    for (const m of all) {
-      const start = parseDateAsLocal(m.startDate.toString());
-      const end = parseDateAsLocal(m.endDate.toString());
+    const mediaItems =
+      await this.mediaItemProcessor.findManyMediaItemsByTargets(
+        meditations.map((meditation) => meditation.id),
+        MEDITATION_ENTITY_TYPE,
+      );
 
-      if (todayLocal >= start && todayLocal <= end) {
-        this.logger.log(
-          `✅ Meditação da semana encontrada: ${m.topic} (${m.id})`,
-        );
-        const mediaList = await this.mediaItemProcessor.findMediaItemsByTarget(
-          m.id,
-          MediaTargetType.Meditation,
-        );
-        const media = mediaList?.[0];
-
-        if (!media) {
-          this.logger.warn(`⚠️ Nenhuma mídia vinculada à meditação ID=${m.id}`);
-          return WeekMeditationResponseDto.notFound();
-        }
-
-        return WeekMeditationResponseDto.success(m, media);
+    const mediaByMeditation = new Map<string, MediaItemEntity>();
+    for (const item of mediaItems) {
+      if (!mediaByMeditation.has(item.targetId)) {
+        mediaByMeditation.set(item.targetId, item);
       }
     }
 
-    this.logger.log('📭 Nenhuma meditação da semana atual encontrada.');
-    return WeekMeditationResponseDto.notFound();
+    return meditations.map((meditation) =>
+      toMeditationResponse(
+        meditation,
+        mediaByMeditation.get(meditation.id) ?? null,
+      ),
+    );
   }
-}
 
-function parseDateAsLocal(dateStr: string): Date {
-  const [year, month, day] = dateStr.split('-').map(Number);
-  return new Date(year, month - 1, day);
+  async findOne(id: string): Promise<MeditationResponseDto> {
+    const meditation = await this.findEntityOrFail(id);
+    const media = await this.findMediaOf(meditation.id);
+    return toMeditationResponse(meditation, media);
+  }
+
+  /**
+   * Meditação cujo período cobre a data de hoje, ou `null`.
+   *
+   * A ausência de mídia não esconde a meditação: `media` volta `null` e os dias
+   * continuam disponíveis, que é o que alimenta as rotas da semana.
+   */
+  async getThisWeekMeditation(): Promise<MeditationResponseDto | null> {
+    const today = formatDateOnly(todayAsLocalDate());
+    const meditation = await this.meditationRepo.findByDate(today);
+
+    if (!meditation) {
+      this.logger.debug('Nenhuma meditação cobre a data de hoje.');
+      return null;
+    }
+
+    const media = await this.findMediaOf(meditation.id);
+    if (!media) {
+      this.logger.warn(
+        `Meditação da semana sem mídia associada. ID=${meditation.id}`,
+      );
+    }
+
+    return toMeditationResponse(meditation, media);
+  }
 }

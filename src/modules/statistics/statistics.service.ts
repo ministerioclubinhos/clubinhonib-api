@@ -15,7 +15,6 @@ import {
 } from './dto/chart-data-response.dto';
 
 import {
-  PagelaStatsRaw,
   TeacherDecisionStatsRaw,
   TeacherStatsRaw,
   AcceptedChristsByClubRaw,
@@ -27,8 +26,6 @@ import { ClubsStatsQueryDto } from './dto/clubs-stats-query.dto';
 import { ClubsStatsResponseDto } from './dto/clubs-stats-response.dto';
 import { TeachersStatsQueryDto } from './dto/teachers-stats-query.dto';
 import { TeachersStatsResponseDto } from './dto/teachers-stats-response.dto';
-import { ChildEntity } from '../children/entities/child.entity';
-import { ClubEntity } from '../clubs/entities/club.entity/club.entity';
 import { TeacherProfileEntity } from '../teacher-profiles/entities/teacher-profile.entity/teacher-profile.entity';
 
 @Injectable()
@@ -39,6 +36,44 @@ export class StatisticsService {
     private readonly periodService: StatisticsPeriodService,
     private readonly academicWeekService: AcademicWeekService,
   ) {}
+
+  private formatLocalDate(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  private calculateConsecutiveAcademicWeeks(weekKeys?: string): number {
+    if (!weekKeys) return 0;
+
+    const weeks = weekKeys
+      .split(',')
+      .map((key) => {
+        const [year, week] = key.split('-').map(Number);
+        return { year, week };
+      })
+      .filter(
+        ({ year, week }) => Number.isFinite(year) && Number.isFinite(week),
+      );
+
+    if (weeks.length === 0) return 0;
+
+    let consecutive = 1;
+    for (let index = 1; index < weeks.length; index++) {
+      const previous = weeks[index - 1];
+      const current = weeks[index];
+      if (
+        previous.year === current.year &&
+        previous.week - current.week === 1
+      ) {
+        consecutive++;
+        continue;
+      }
+      break;
+    }
+    return consecutive;
+  }
 
   async getPagelasChartData(
     filters: PagelasStatsQueryDto,
@@ -149,31 +184,48 @@ export class StatisticsService {
 
     const currentAcademicWeek =
       await this.academicWeekService.calculateCurrentAcademicWeek();
-    const currentWeek = currentAcademicWeek?.academicWeek || 1;
+    const currentWeekFilters: PagelasStatsQueryDto =
+      currentAcademicWeek?.isWithinPeriod &&
+      currentAcademicWeek.academicYear &&
+      currentAcademicWeek.academicWeek
+        ? {
+            year: currentAcademicWeek.academicYear,
+            week: currentAcademicWeek.academicWeek,
+          }
+        : { startDate: '1970-01-01', endDate: '1970-01-01' };
 
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfMonthStr = startOfMonth.toISOString().split('T')[0];
-    const todayStr = now.toISOString(); // Use full timestamp to include today's data
+    const startOfMonthStr = this.formatLocalDate(startOfMonth);
+    const todayStr = this.formatLocalDate(now);
 
     const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - now.getDay());
-    const startOfWeekStr = startOfWeek.toISOString().split('T')[0];
+    const daysSinceMonday = now.getDay() === 0 ? 6 : now.getDay() - 1;
+    startOfWeek.setDate(now.getDate() - daysSinceMonday);
+    const startOfWeekStr = this.formatLocalDate(startOfWeek);
 
     const sixWeeksAgo = new Date(now);
-    sixWeeksAgo.setDate(now.getDate() - 42);
-    const sixWeeksAgoStr = sixWeeksAgo.toISOString().split('T')[0];
+    sixWeeksAgo.setDate(now.getDate() - 41);
+    const sixWeeksAgoStr = this.formatLocalDate(sixWeeksAgo);
 
     const sixMonthsAgo = new Date(now);
-    sixMonthsAgo.setMonth(now.getMonth() - 6);
-    const sixMonthsAgoStr = sixMonthsAgo.toISOString().split('T')[0];
+    sixMonthsAgo.setMonth(now.getMonth() - 5, 1);
+    const sixMonthsAgoStr = this.formatLocalDate(sixMonthsAgo);
 
     const threeMonthsAgo = new Date(now);
     threeMonthsAgo.setMonth(now.getMonth() - 3);
-    const threeMonthsAgoStr = threeMonthsAgo.toISOString().split('T')[0];
+    const threeMonthsAgoStr = this.formatLocalDate(threeMonthsAgo);
+
+    const sixMonthsGrowthStart = new Date(now);
+    sixMonthsGrowthStart.setMonth(now.getMonth() - 6);
+    const sixMonthsGrowthStartStr = this.formatLocalDate(sixMonthsGrowthStart);
 
     const sevenDaysAgo = new Date(now);
-    sevenDaysAgo.setDate(now.getDate() - 7);
-    const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+    sevenDaysAgo.setDate(now.getDate() - 6);
+    const sevenDaysAgoStr = this.formatLocalDate(sevenDaysAgo);
+
+    const thirtyDaysAgo = new Date(now);
+    thirtyDaysAgo.setDate(now.getDate() - 29);
+    const thirtyDaysAgoStr = this.formatLocalDate(thirtyDaysAgo);
 
     const [
       totalCounts,
@@ -197,12 +249,9 @@ export class StatisticsService {
     ] = await Promise.all([
       this.statisticsRepository.getTotalCounts(),
       this.statisticsRepository.getActiveCountsThisMonth(),
+      this.statisticsRepository.getPagelasOverallStats(currentWeekFilters),
       this.statisticsRepository.getPagelasOverallStats({
-        year: currentYear,
-        week: currentWeek,
-      }),
-      this.statisticsRepository.getPagelasOverallStats({
-        startDate: startOfMonthStr,
+        startDate: thirtyDaysAgoStr,
         endDate: todayStr,
       }),
       this.statisticsRepository.getPagelasWeeklyStats({
@@ -262,7 +311,8 @@ export class StatisticsService {
         : 0;
 
     const threeMonthsAgoAcceptedChrists =
-      await this.statisticsRepository.getAcceptedChristsCountBefore(
+      await this.statisticsRepository.getAcceptedChristsCountBetween(
+        sixMonthsGrowthStartStr,
         threeMonthsAgoStr,
       );
     const decisionsGrowthRate =
@@ -397,89 +447,16 @@ export class StatisticsService {
     };
   }
 
-  getClubDetailedStats(clubId: string, filters: PagelasStatsQueryDto) {
-    return {
-      message: 'Visão detalhada do clube - Em implementação',
-      clubId,
-      filters,
-    };
-  }
-
-  getChildDetailedStats(childId: string) {
-    return {
-      message: 'Visão detalhada da criança - Em implementação',
-      childId,
-    };
-  }
-
-  getCityDetailedStats(city: string, filters: PagelasStatsQueryDto) {
-    return {
-      message: 'Visão detalhada da cidade - Em implementação',
-      city,
-      filters,
-    };
-  }
-
-  getTeacherDetailedStats(teacherId: string, filters: PagelasStatsQueryDto) {
-    return {
-      message: 'Visão detalhada do professor - Em implementação',
-      teacherId,
-      filters,
-    };
-  }
-
-  getComparativeStats(params: Record<string, any>) {
-    return {
-      message: 'Comparação entre entidades - Em implementação',
-      params,
-    };
-  }
-
-  getTrendsAnalysis(filters: Record<string, any>) {
-    return {
-      message: 'Análise de tendências e previsões - Em implementação',
-      filters,
-    };
-  }
-
-  getConsolidatedReport(params: Record<string, any>) {
-    return {
-      message: 'Relatório consolidado - Em implementação',
-      params,
-    };
-  }
-
-  getRankings(type: string, params: Record<string, any>) {
-    return {
-      message: 'Rankings - Em implementação',
-      type,
-      params,
-    };
-  }
-
-  getPersonalizedDashboard(role: string, userId: string) {
-    return {
-      message: 'Dashboard personalizado - Em implementação',
-      role,
-      userId,
-    };
-  }
-
   async getChildrenStats(
     filters: ChildrenStatsQueryDto,
   ): Promise<ChildrenStatsResponseDto> {
     const processedFilters = this.periodService.applyPeriodFilter(filters);
 
-    const [childrenData, distribution] = await Promise.all([
-      this.statisticsRepository.getChildrenWithStats(processedFilters),
-      this.statisticsRepository.getChildrenStatsDistribution(processedFilters),
-    ]);
+    const childrenData =
+      await this.statisticsRepository.getChildrenWithStats(processedFilters);
 
-    const children = childrenData.children as ChildEntity[];
-    const pagelasStats = childrenData.pagelasStats as Map<
-      string,
-      PagelaStatsRaw
-    >;
+    const children = childrenData.allFilteredChildren;
+    const pagelasStats = childrenData.pagelasStats;
     const decisionsMap = childrenData.decisionsMap;
     const totalCount = childrenData.totalCount;
     const filteredCount = childrenData.filteredCount;
@@ -496,7 +473,7 @@ export class StatisticsService {
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
 
-    const childrenWithStats = children.map((child, index) => {
+    const allChildrenWithStats = children.map((child, index) => {
       const age = this.calculationsService.calculateAge(child.birthDate);
       const monthsParticipating =
         this.calculationsService.calculateMonthsParticipating(child.joinedAt);
@@ -534,7 +511,9 @@ export class StatisticsService {
         ? new Date(lastActivity) >= new Date(thirtyDaysAgoStr)
         : false;
 
-      const consecutiveWeeks = 0;
+      const consecutiveWeeks = this.calculateConsecutiveAcademicWeeks(
+        stats?.weekKeys,
+      );
 
       sumAge += age;
       sumEngagement += engagementScore;
@@ -584,9 +563,89 @@ export class StatisticsService {
           totalDecisions,
         },
         isActive,
-        rank: index + 1 + (page - 1) * limit,
+        rank: index + 1,
       };
     });
+
+    const pageStart = (page - 1) * limit;
+    const childrenWithStats = allChildrenWithStats.slice(
+      pageStart,
+      pageStart + limit,
+    );
+
+    const toPercentage = (count: number) =>
+      filteredCount > 0 ? (count / filteredCount) * 100 : 0;
+    const genderCounts = new Map<string, number>();
+    const ageGroupCounts = new Map<string, number>();
+    const clubCounts = new Map<
+      string,
+      { clubId: string; clubNumber: number; count: number }
+    >();
+    const cityCounts = new Map<string, { state: string; count: number }>();
+    const participationCounts = new Map<string, number>();
+
+    allChildrenWithStats.forEach((child) => {
+      genderCounts.set(child.gender, (genderCounts.get(child.gender) || 0) + 1);
+
+      const ageGroup = this.calculationsService.getAgeGroup(child.age);
+      ageGroupCounts.set(ageGroup, (ageGroupCounts.get(ageGroup) || 0) + 1);
+
+      if (child.club) {
+        const current = clubCounts.get(child.club.id) || {
+          clubId: child.club.id,
+          clubNumber: child.club.number,
+          count: 0,
+        };
+        current.count++;
+        clubCounts.set(child.club.id, current);
+      }
+
+      if (child.address?.city) {
+        const current = cityCounts.get(child.address.city) || {
+          state: child.address.state || 'N/A',
+          count: 0,
+        };
+        current.count++;
+        cityCounts.set(child.address.city, current);
+      }
+
+      participationCounts.set(
+        child.participationTimeRange,
+        (participationCounts.get(child.participationTimeRange) || 0) + 1,
+      );
+    });
+
+    const distribution = {
+      byGender: Array.from(genderCounts.entries()).map(([gender, count]) => ({
+        gender,
+        count,
+        percentage: toPercentage(count),
+      })),
+      byAgeGroup: Array.from(ageGroupCounts.entries()).map(
+        ([ageGroup, count]) => ({
+          ageGroup,
+          count,
+          percentage: toPercentage(count),
+        }),
+      ),
+      byClub: Array.from(clubCounts.values()).map((club) => ({
+        ...club,
+        percentage: toPercentage(club.count),
+      })),
+      byCity: Array.from(cityCounts.entries()).map(([city, data]) => ({
+        city,
+        state: data.state,
+        count: data.count,
+        percentage: toPercentage(data.count),
+      })),
+      byParticipationTime: Array.from(participationCounts.entries()).map(
+        ([timeRange, count]) => ({
+          timeRange,
+          count,
+          percentage: toPercentage(count),
+        }),
+      ),
+    };
 
     const totalPages = Math.ceil(filteredCount / limit);
 
@@ -645,27 +704,35 @@ export class StatisticsService {
 
     const clubsData =
       await this.statisticsRepository.getClubsWithStats(processedFilters);
-    const clubs = clubsData.clubs as ClubEntity[];
-    const childrenResults = clubsData.childrenResults;
-    const pagelasResults = clubsData.pagelasResults;
-    const decisionsResults = clubsData.decisionsResults;
-    const teachers = clubsData.teachers as TeacherProfileEntity[];
+    const clubs = clubsData.allFilteredClubs;
+    const childrenResults = clubsData.allChildrenResults;
+    const pagelasResults = clubsData.allPagelasResults;
+    const decisionsResults = clubsData.allDecisionsResults;
+    const teachers = clubsData.allTeachers;
     const totalCount = clubsData.totalCount;
     const page = clubsData.page;
     const limit = clubsData.limit;
     const inactiveClubs = clubsData.inactiveClubs;
     const inactiveChildren = clubsData.inactiveChildren;
 
-    const childrenByClub: Map<string, { total: number; M: number; F: number }> =
-      new Map();
+    const childrenByClub: Map<
+      string,
+      { total: number; M: number; F: number; ageTotal: number }
+    > = new Map();
     childrenResults.forEach((r) => {
       if (!childrenByClub.has(r.clubId)) {
-        childrenByClub.set(r.clubId, { total: 0, M: 0, F: 0 });
+        childrenByClub.set(r.clubId, {
+          total: 0,
+          M: 0,
+          F: 0,
+          ageTotal: 0,
+        });
       }
       const data = childrenByClub.get(r.clubId);
       if (data) {
         const count = parseInt(r.total);
         data.total += count;
+        data.ageTotal += Number(r.avgAge || 0) * count;
         if (r.gender === 'M') data.M = count;
         if (r.gender === 'F') data.F = count;
       }
@@ -688,8 +755,13 @@ export class StatisticsService {
       }
     });
 
-    const clubsWithStats = clubs.map((club, index) => {
-      const children = childrenByClub.get(club.id) || { total: 0, M: 0, F: 0 };
+    const allClubsWithStats = clubs.map((club, index) => {
+      const children = childrenByClub.get(club.id) || {
+        total: 0,
+        M: 0,
+        F: 0,
+        ageTotal: 0,
+      };
       const pagelas = pagelasByClub.get(club.id);
       const decisions = decisionsByClub.get(club.id);
       const clubTeachers = teachersByClub.get(club.id) || [];
@@ -754,7 +826,10 @@ export class StatisticsService {
             M: children.M,
             F: children.F,
           },
-          avgAge: 0,
+          avgAge:
+            children.total > 0
+              ? Math.round((children.ageTotal / children.total) * 10) / 10
+              : 0,
           withDecisions: decisions
             ? parseInt(decisions.childrenWithDecisions || '0')
             : 0,
@@ -783,9 +858,15 @@ export class StatisticsService {
               type: 'pagela',
             }
           : null,
-        rank: index + 1 + (page - 1) * limit,
+        rank: index + 1,
       };
     });
+
+    const pageStart = (page - 1) * limit;
+    const clubsWithStats = allClubsWithStats.slice(
+      pageStart,
+      pageStart + limit,
+    );
 
     const byCity = new Map<string, { state: string; count: number }>();
     const byWeekday = new Map<string, number>();
@@ -797,7 +878,7 @@ export class StatisticsService {
       ['85-100', 0],
     ]);
 
-    clubsWithStats.forEach((club) => {
+    allClubsWithStats.forEach((club) => {
       const cityKey = club.address.city || 'N/A';
       if (!byCity.has(cityKey)) {
         byCity.set(cityKey, { state: club.address.state || 'N/A', count: 0 });
@@ -830,24 +911,24 @@ export class StatisticsService {
       else byPerformance.set('85-100', (byPerformance.get('85-100') || 0) + 1);
     });
 
-    const totalFiltered = clubsWithStats.length;
+    const totalFiltered = allClubsWithStats.length;
     const totalPages = Math.ceil(totalCount / limit);
 
     const summary = {
       totalClubs: totalCount,
       filteredClubs: totalFiltered,
-      totalChildren: clubsWithStats.reduce(
+      totalChildren: allClubsWithStats.reduce(
         (sum, c) => sum + c.children.total,
         0,
       ),
-      totalTeachers: clubsWithStats.reduce(
+      totalTeachers: allClubsWithStats.reduce(
         (sum, c) => sum + c.teachers.total,
         0,
       ),
       avgPerformanceScore:
         totalFiltered > 0
           ? Math.round(
-              (clubsWithStats.reduce(
+              (allClubsWithStats.reduce(
                 (sum, c) => sum + c.performance.performanceScore,
                 0,
               ) /
@@ -858,7 +939,7 @@ export class StatisticsService {
       avgPresenceRate:
         totalFiltered > 0
           ? Math.round(
-              (clubsWithStats.reduce(
+              (allClubsWithStats.reduce(
                 (sum, c) => sum + c.performance.presenceRate,
                 0,
               ) /
@@ -866,7 +947,7 @@ export class StatisticsService {
                 10,
             ) / 10
           : 0,
-      totalDecisions: clubsWithStats.reduce(
+      totalDecisions: allClubsWithStats.reduce(
         (sum, c) => sum + c.performance.totalDecisions,
         0,
       ),
@@ -930,9 +1011,9 @@ export class StatisticsService {
     const teachersData =
       await this.statisticsRepository.getTeachersWithStats(processedFilters);
     const { totalCount, page, limit } = teachersData;
-    const teachers = teachersData.teachers as TeacherProfileEntity[];
-    const pagelasResults = teachersData.pagelasResults;
-    const decisionsResults = teachersData.decisionsResults;
+    const teachers = teachersData.allFilteredTeachers;
+    const pagelasResults = teachersData.allPagelasResults;
+    const decisionsResults = teachersData.allDecisionsResults;
 
     const pagelasByTeacher = new Map<string, TeacherStatsRaw>(
       pagelasResults.map((p) => [p.teacherId, p]),
@@ -945,12 +1026,13 @@ export class StatisticsService {
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
 
-    const teachersWithStats = teachers.map((teacher, index) => {
+    const allTeachersWithStats = teachers.map((teacher, index) => {
       const pagelas = pagelasByTeacher.get(teacher.id);
       const decisions = decisionsByTeacher.get(teacher.id);
 
       const totalPagelas = pagelas ? parseInt(pagelas.totalPagelas) : 0;
       const uniqueChildren = pagelas ? parseInt(pagelas.uniqueChildren) : 0;
+      const activeChildren = pagelas ? parseInt(pagelas.activeChildren) : 0;
       const presenceCount = pagelas ? parseInt(pagelas.presenceCount) : 0;
       const meditationCount = pagelas ? parseInt(pagelas.meditationCount) : 0;
       const verseCount = pagelas ? parseInt(pagelas.verseCount) : 0;
@@ -969,7 +1051,10 @@ export class StatisticsService {
         uniqueChildren > 0 ? (childrenWithDecisions / uniqueChildren) * 100 : 0;
 
       const effectivenessScore =
-        avgPresenceRate * 0.4 + avgMeditationRate * 0.3 + decisionRate * 0.3;
+        avgPresenceRate * 0.3 +
+        avgMeditationRate * 0.3 +
+        avgVerseRate * 0.2 +
+        decisionRate * 0.2;
 
       const lastActivity = pagelas?.lastActivity;
       const isActive = lastActivity
@@ -997,9 +1082,15 @@ export class StatisticsService {
         children: {
           total: uniqueChildren,
           unique: uniqueChildren,
-          active: 0,
+          active: activeChildren,
           withDecisions: childrenWithDecisions,
-          avgEngagement: 0,
+          avgEngagement:
+            Math.round(
+              (avgPresenceRate * 0.3 +
+                avgMeditationRate * 0.35 +
+                avgVerseRate * 0.35) *
+                10,
+            ) / 10,
         },
         performance: {
           totalPagelas,
@@ -1015,9 +1106,15 @@ export class StatisticsService {
             }
           : null,
         isActive,
-        rank: index + 1 + (page - 1) * limit,
+        rank: index + 1,
       };
     });
+
+    const pageStart = (page - 1) * limit;
+    const teachersWithStats = allTeachersWithStats.slice(
+      pageStart,
+      pageStart + limit,
+    );
 
     const byClub = new Map<string, { number: number; count: number }>();
     const byCity = new Map<string, { state: string; count: number }>();
@@ -1028,7 +1125,7 @@ export class StatisticsService {
       ['85-100', 0],
     ]);
 
-    teachersWithStats.forEach((teacher) => {
+    allTeachersWithStats.forEach((teacher) => {
       if (teacher.club) {
         const clubKey = teacher.club.id;
         if (!byClub.has(clubKey)) {
@@ -1056,21 +1153,21 @@ export class StatisticsService {
         byEffectiveness.set('85-100', (byEffectiveness.get('85-100') || 0) + 1);
     });
 
-    const totalFiltered = teachersWithStats.length;
+    const totalFiltered = allTeachersWithStats.length;
     const totalPages = Math.ceil(totalCount / limit);
 
     const summary = {
       totalTeachers: totalCount,
       filteredTeachers: totalFiltered,
-      activeTeachers: teachersWithStats.filter((t) => t.isActive).length,
-      totalChildren: teachersWithStats.reduce(
+      activeTeachers: allTeachersWithStats.filter((t) => t.isActive).length,
+      totalChildren: allTeachersWithStats.reduce(
         (sum, t) => sum + t.children.total,
         0,
       ),
       avgEffectivenessScore:
         totalFiltered > 0
           ? Math.round(
-              (teachersWithStats.reduce(
+              (allTeachersWithStats.reduce(
                 (sum, t) => sum + t.performance.effectivenessScore,
                 0,
               ) /
@@ -1081,7 +1178,7 @@ export class StatisticsService {
       avgPresenceRate:
         totalFiltered > 0
           ? Math.round(
-              (teachersWithStats.reduce(
+              (allTeachersWithStats.reduce(
                 (sum, t) => sum + t.performance.avgPresenceRate,
                 0,
               ) /

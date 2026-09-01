@@ -1,14 +1,15 @@
 import {
-  IsString,
-  IsOptional,
   IsArray,
-  ValidateNested,
   IsBoolean,
+  IsOptional,
+  IsString,
+  ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { MediaItemDto } from 'src/shared/share-dto/media-item-dto';
 
-export class IdeasSectionDto {
+export class UpdateIdeasSectionDto {
+  /** Ausente quando a seção está sendo criada dentro de uma página existente. */
   @IsOptional()
   @IsString({ message: 'O campo "id" da seção deve ser uma string.' })
   id?: string;
@@ -16,14 +17,13 @@ export class IdeasSectionDto {
   @IsString({ message: 'O campo "title" da seção deve ser uma string.' })
   title: string;
 
-  @IsOptional()
-  @IsBoolean({ message: 'O campo "public" da seção deve ser boolean.' })
-  public?: boolean;
-
   @IsString({ message: 'O campo "description" da seção deve ser uma string.' })
   description: string;
 
   @IsOptional()
+  @IsBoolean({ message: 'O campo "public" da seção deve ser booleano.' })
+  public?: boolean;
+
   @IsArray({ message: 'O campo "medias" deve ser um array.' })
   @ValidateNested({ each: true })
   @Type(() => MediaItemDto)
@@ -31,8 +31,13 @@ export class IdeasSectionDto {
 }
 
 export class UpdateIdeasPageDto {
+  /**
+   * O cliente reenvia o id da página no corpo. O caso de uso usa sempre o id da
+   * rota; este campo existe só para não recusar o payload já em uso.
+   */
+  @IsOptional()
   @IsString({ message: 'O campo "id" da página deve ser uma string.' })
-  id: string;
+  id?: string;
 
   @IsString({ message: 'O campo "title" da página deve ser uma string.' })
   title: string;
@@ -44,8 +49,12 @@ export class UpdateIdeasPageDto {
   @IsString({ message: 'O campo "description" da página deve ser uma string.' })
   description: string;
 
+  @IsOptional()
+  @IsBoolean({ message: 'O campo "public" da página deve ser booleano.' })
+  public?: boolean;
+
   @IsArray({ message: 'O campo "sections" deve ser um array.' })
   @ValidateNested({ each: true })
-  @Type(() => IdeasSectionDto)
-  sections: IdeasSectionDto[];
+  @Type(() => UpdateIdeasSectionDto)
+  sections: UpdateIdeasSectionDto[];
 }

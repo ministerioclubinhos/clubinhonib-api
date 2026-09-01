@@ -10,8 +10,9 @@ import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { RouteService } from 'src/modules/routes/route.service';
 import { RouteType } from 'src/modules/routes/route-page.entity';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
+import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
 import { MediaType } from 'src/shared/media/media-item/media-item.entity';
-import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
+import { DOCUMENT_MEDIA_TARGET_TYPE } from '../constants';
 import { CreateDocumentDto } from '../dto/create-document.dto';
 import { DocumentDto } from '../dto/document-response.dto';
 import { DocumentRepository } from '../document.repository';
@@ -40,10 +41,22 @@ export class CreateDocumentService {
     await runner.startTransaction();
     this.logger.debug('▶️  Transaction started');
 
+    // O arquivo sobe antes do commit e sobrevive ao rollback: o rastreador
+    // permite apagá-lo do bucket quando a criação falha.
+    const uploads = new S3UploadTracker((uploaded: Express.Multer.File) =>
+      this.s3Service.upload(uploaded),
+    );
+
     try {
       const savedDoc = await this.persistDocument(runner, dto);
       await this.attachRoute(runner, savedDoc, dto);
-      const media = await this.processMedia(runner, savedDoc.id, dto, file);
+      const media = await this.processMedia(
+        runner,
+        savedDoc.id,
+        dto,
+        uploads,
+        file,
+      );
 
       await runner.commitTransaction();
       this.logger.debug('✅  Transaction committed');
@@ -51,6 +64,11 @@ export class CreateDocumentService {
       return DocumentDto.fromEntity(savedDoc, media);
     } catch (err: unknown) {
       await runner.rollbackTransaction();
+      await this.mediaProcessor.discardUnreferencedUploads(
+        uploads.uploadedUrls,
+        (url: string) => this.s3Service.delete(url),
+      );
+
       const error = err instanceof Error ? err : new Error(String(err));
       this.logger.error('💥  Transaction rolled‑back', error.stack);
       throw new AppBusinessException(
@@ -120,6 +138,7 @@ export class CreateDocumentService {
     runner: QueryRunner,
     documentId: string,
     dto: CreateDocumentDto,
+    uploads: S3UploadTracker,
     file?: Express.Multer.File,
   ) {
     this.logger.debug('🎞️  processMedia()');
@@ -139,7 +158,7 @@ export class CreateDocumentService {
 
       this.logger.log(`⬆️ Upload para S3: ${file.originalname}`);
       try {
-        mediaUrl = await this.s3Service.upload(file);
+        mediaUrl = await uploads.upload(file);
         originalName = file.originalname;
         size = file.size;
       } catch (error: unknown) {
@@ -169,7 +188,7 @@ export class CreateDocumentService {
         size,
       },
       documentId,
-      MediaTargetType.Document,
+      DOCUMENT_MEDIA_TARGET_TYPE,
     );
 
     const savedMedia = await this.mediaProcessor.saveMediaItem(mediaEntity);

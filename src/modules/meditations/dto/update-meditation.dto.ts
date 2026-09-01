@@ -1,43 +1,27 @@
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
-  IsBoolean,
   IsDateString,
-  IsEnum,
   IsOptional,
   IsString,
   ValidateNested,
-  ArrayMinSize,
-  ArrayMaxSize,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { WeekDay } from '../entities/day.entity';
 import { MediaItemDto } from 'src/shared/share-dto/media-item-dto';
+import { CreateMeditationDayDto } from './create-meditation.dto';
+import { MEDITATION_DAYS_COUNT } from '../constants';
 
-class UpdateDayDto {
-  @IsOptional()
-  @IsEnum(WeekDay, {
-    message:
-      'day deve ser um dos valores: Monday, Tuesday, Wednesday, Thursday, Friday',
-  })
-  day?: WeekDay;
-
-  @IsOptional()
-  @IsString({ message: 'verse deve ser uma string' })
-  verse?: string;
-
-  @IsOptional()
-  @IsString({ message: 'topic deve ser uma string' })
-  topic?: string;
-}
-
+/**
+ * Contrato de `PATCH /meditations/:id`.
+ *
+ * `id` é aceito por compatibilidade com o formulário do admin, mas a meditação
+ * alterada é sempre a do parâmetro de rota.
+ */
 export class UpdateMeditationDto {
   @IsOptional()
   @IsString({ message: 'id deve ser uma string' })
   id?: string;
-
-  @IsOptional()
-  @IsString({ message: 'url deve ser uma string' })
-  url?: string;
 
   @IsOptional()
   @IsString({ message: 'topic deve ser uma string' })
@@ -62,19 +46,19 @@ export class UpdateMeditationDto {
   @Type(() => MediaItemDto)
   media?: MediaItemDto;
 
-  @IsOptional()
-  @IsBoolean({
-    message: 'isLocalFile deve ser um valor booleano (true ou false)',
-  })
-  isLocalFile?: boolean;
-
+  /**
+   * Quando enviados, os dias substituem integralmente os atuais, então a
+   * semana precisa vir completa.
+   */
   @IsOptional()
   @IsArray({ message: 'days deve ser um array' })
-  @ArrayMinSize(1, {
-    message: 'days deve conter pelo menos 1 item, se fornecido',
+  @ArrayMinSize(MEDITATION_DAYS_COUNT, {
+    message: `days deve conter exatamente ${MEDITATION_DAYS_COUNT} itens`,
   })
-  @ArrayMaxSize(5, { message: 'days não pode conter mais que 5 itens' })
+  @ArrayMaxSize(MEDITATION_DAYS_COUNT, {
+    message: `days deve conter exatamente ${MEDITATION_DAYS_COUNT} itens`,
+  })
   @ValidateNested({ each: true })
-  @Type(() => UpdateDayDto)
-  days?: UpdateDayDto[];
+  @Type(() => CreateMeditationDayDto)
+  days?: CreateMeditationDayDto[];
 }

@@ -1,52 +1,117 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
+import { EntityManager, In, Repository } from 'typeorm';
 import { IdeasPageEntity } from '../entities/ideas-page.entity';
+import { IdeasSectionEntity } from '../entities/ideas-section.entity';
+import { IDEAS_PAGE_RELATIONS } from '../constants';
+import { IdeasPageContent, IdeasSectionContent } from '../types';
 
 @Injectable()
-export class IdeasPageRepository extends Repository<IdeasPageEntity> {
-  constructor(private readonly dataSource: DataSource) {
-    super(IdeasPageEntity, dataSource.createEntityManager());
+export class IdeasPageRepository {
+  constructor(
+    @InjectRepository(IdeasPageEntity)
+    private readonly pageRepo: Repository<IdeasPageEntity>,
+    @InjectRepository(IdeasSectionEntity)
+    private readonly sectionRepo: Repository<IdeasSectionEntity>,
+  ) {}
+
+  private scoped(manager?: EntityManager): Repository<IdeasPageEntity> {
+    return manager ? manager.getRepository(IdeasPageEntity) : this.pageRepo;
   }
 
-  async findAllPages(): Promise<IdeasPageEntity[]> {
-    return this.find({ relations: ['route'] });
+  private scopedSections(
+    manager?: EntityManager,
+  ): Repository<IdeasSectionEntity> {
+    return manager
+      ? manager.getRepository(IdeasSectionEntity)
+      : this.sectionRepo;
   }
 
-  async findOnePageById(id: string): Promise<IdeasPageEntity | null> {
-    return this.findOne({ where: { id }, relations: ['route', 'sections'] });
+  async findAllWithSections(): Promise<IdeasPageEntity[]> {
+    return this.pageRepo.find({
+      relations: [...IDEAS_PAGE_RELATIONS],
+      order: { createdAt: 'DESC' },
+    });
   }
 
-  async savePage(page: IdeasPageEntity): Promise<IdeasPageEntity> {
-    return this.save(page);
+  async findByIdWithSections(
+    id: string,
+    manager?: EntityManager,
+  ): Promise<IdeasPageEntity | null> {
+    return this.scoped(manager).findOne({
+      where: { id },
+      relations: [...IDEAS_PAGE_RELATIONS],
+    });
   }
 
-  async removePage(page: IdeasPageEntity): Promise<IdeasPageEntity> {
-    return this.remove(page);
-  }
-
-  async upsertPage(
-    id: string | undefined,
-    pageData: Partial<IdeasPageEntity>,
+  async createPage(
+    content: IdeasPageContent,
+    manager?: EntityManager,
   ): Promise<IdeasPageEntity> {
-    if (id) {
-      const existing = await this.findOnePageById(id);
-      if (existing) {
-        Object.assign(existing, pageData);
-        return this.save(existing);
-      }
-    }
-    const created = this.create(pageData);
-    return this.save(created);
+    const repository = this.scoped(manager);
+    return repository.save(repository.create(content));
   }
 
-  async removePageWithManager(
-    manager: EntityManager,
+  async savePage(
     page: IdeasPageEntity,
+    manager?: EntityManager,
   ): Promise<IdeasPageEntity> {
-    return manager.remove(page);
+    return this.scoped(manager).save(page);
   }
 
-  async findAllPagesWithSections(): Promise<IdeasPageEntity[]> {
-    return this.find({ relations: ['route', 'sections'] });
+  /**
+   * Grava apenas as colunas da página. Evita `save()` no caminho de edição, que
+   * arrastaria em cascata as seções carregadas com a entidade.
+   */
+  async updateContent(
+    id: string,
+    content: IdeasPageContent,
+    manager?: EntityManager,
+  ): Promise<void> {
+    await this.scoped(manager).update(id, content);
+  }
+
+  async removePage(
+    page: IdeasPageEntity,
+    manager?: EntityManager,
+  ): Promise<void> {
+    await this.scoped(manager).remove(page);
+  }
+
+  // --- seções -------------------------------------------------------------
+
+  async findSectionsOfPage(
+    pageId: string,
+    manager?: EntityManager,
+  ): Promise<IdeasSectionEntity[]> {
+    return this.scopedSections(manager).find({
+      where: { page: { id: pageId } },
+    });
+  }
+
+  async createSection(
+    page: IdeasPageEntity,
+    section: IdeasSectionContent,
+    manager?: EntityManager,
+  ): Promise<IdeasSectionEntity> {
+    const repository = this.scopedSections(manager);
+    return repository.save(repository.create({ ...section, page }));
+  }
+
+  async saveSection(
+    section: IdeasSectionEntity,
+    manager?: EntityManager,
+  ): Promise<IdeasSectionEntity> {
+    return this.scopedSections(manager).save(section);
+  }
+
+  async removeSectionsByIds(
+    ids: string[],
+    manager?: EntityManager,
+  ): Promise<void> {
+    if (ids.length === 0) return;
+    const repository = this.scopedSections(manager);
+    const sections = await repository.find({ where: { id: In(ids) } });
+    if (sections.length > 0) await repository.remove(sections);
   }
 }

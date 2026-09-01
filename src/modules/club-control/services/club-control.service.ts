@@ -3,11 +3,13 @@ import {
   AppNotFoundException,
   AppConflictException,
   ErrorCode,
+  AppValidationException,
 } from 'src/shared/exceptions';
 import { ClubControlRepository } from '../repositories/club-control.repository';
 import { CreateClubPeriodDto } from '../dto/create-club-period.dto';
 import { UpdateClubPeriodDto } from '../dto/update-club-period.dto';
 import { CreateClubExceptionDto } from '../dto/create-club-exception.dto';
+import { UpdateClubExceptionDto } from '../dto/update-club-exception.dto';
 import { DetailedIndicatorsResultDto } from '../dto/detailed-indicators-result.dto';
 import { AcademicWeekService } from './academic-week.service';
 import { ClubWeekCheckService } from './club-week-check.service';
@@ -20,7 +22,31 @@ export class ClubControlService {
     private readonly clubWeekCheckService: ClubWeekCheckService,
   ) {}
 
+  private validatePeriodDates(
+    year: number,
+    startDate: string,
+    endDate: string,
+  ): void {
+    const start = new Date(`${startDate}T00:00:00Z`);
+    const end = new Date(`${endDate}T00:00:00Z`);
+
+    if (start > end) {
+      throw new AppValidationException(
+        ErrorCode.VALIDATION_ERROR,
+        'A data inicial deve ser anterior ou igual à data final',
+      );
+    }
+
+    if (start.getUTCFullYear() !== year || end.getUTCFullYear() !== year) {
+      throw new AppValidationException(
+        ErrorCode.VALIDATION_ERROR,
+        'As datas do período devem pertencer ao ano informado',
+      );
+    }
+  }
+
   async createPeriod(dto: CreateClubPeriodDto) {
+    this.validatePeriodDates(dto.year, dto.startDate, dto.endDate);
     const existing = await this.clubControlRepository.findAnyPeriodByYear(
       dto.year,
     );
@@ -64,6 +90,10 @@ export class ClubControlService {
       );
     }
 
+    const nextStartDate = dto.startDate ?? existing.startDate;
+    const nextEndDate = dto.endDate ?? existing.endDate;
+    this.validatePeriodDates(existing.year, nextStartDate, nextEndDate);
+
     if (dto.startDate !== undefined) existing.startDate = dto.startDate;
     if (dto.endDate !== undefined) existing.endDate = dto.endDate;
     if (dto.description !== undefined) existing.description = dto.description;
@@ -77,14 +107,66 @@ export class ClubControlService {
   }
 
   async createException(dto: CreateClubExceptionDto) {
+    const existing = await this.clubControlRepository.findAnyExceptionByDate(
+      dto.exceptionDate,
+    );
+
+    if (existing) {
+      if (existing.isActive) {
+        throw new AppConflictException(
+          ErrorCode.RESOURCE_CONFLICT,
+          'Já existe uma exceção cadastrada para esta data',
+        );
+      }
+
+      existing.reason = dto.reason;
+      existing.type = dto.type || 'other';
+      existing.notes = dto.notes;
+      existing.isActive = dto.isActive ?? true;
+      existing.isRecurrent = dto.isRecurrent ?? true;
+      return this.clubControlRepository.saveException(existing);
+    }
+
     return this.clubControlRepository.createException({
       exceptionDate: dto.exceptionDate,
       reason: dto.reason,
       type: dto.type || 'other',
       notes: dto.notes,
       isActive: dto.isActive ?? true,
-      isRecurrent: dto.isRecurrent ?? false,
+      isRecurrent: dto.isRecurrent ?? true,
     });
+  }
+
+  async updateException(id: string, dto: UpdateClubExceptionDto) {
+    const existing = await this.clubControlRepository.findExceptionById(id);
+    if (!existing) {
+      throw new AppNotFoundException(
+        ErrorCode.RESOURCE_NOT_FOUND,
+        'Exceção não encontrada',
+      );
+    }
+
+    if (dto.exceptionDate && dto.exceptionDate !== existing.exceptionDate) {
+      const duplicate = await this.clubControlRepository.findAnyExceptionByDate(
+        dto.exceptionDate,
+        id,
+      );
+      if (duplicate) {
+        throw new AppConflictException(
+          ErrorCode.RESOURCE_CONFLICT,
+          'Já existe uma exceção cadastrada para esta data',
+        );
+      }
+      existing.exceptionDate = dto.exceptionDate;
+    }
+
+    if (dto.reason !== undefined) existing.reason = dto.reason;
+    if (dto.type !== undefined) existing.type = dto.type;
+    if (dto.notes !== undefined) existing.notes = dto.notes;
+    if (dto.isActive !== undefined) existing.isActive = dto.isActive;
+    if (dto.isRecurrent !== undefined) existing.isRecurrent = dto.isRecurrent;
+
+    return this.clubControlRepository.saveException(existing);
   }
 
   async getExceptionByDate(date: string) {
@@ -413,8 +495,13 @@ export class ClubControlService {
     };
   }
 
-  async getCurrentWeekDashboard() {
-    const result = await this.checkAllClubsWeek();
+  async getCurrentWeekDashboard(page: number = 1, limit: number = 20) {
+    const result = await this.checkAllClubsWeek(
+      undefined,
+      undefined,
+      page,
+      limit,
+    );
     const currentAcademicWeek = await this.getCurrentAcademicWeek();
 
     return {

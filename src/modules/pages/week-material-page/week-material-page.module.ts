@@ -1,15 +1,17 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { WeekMaterialsPageRepository } from './week-material.repository';
-import { WeekMaterialsPageEntity } from './entities/week-material-page.entity';
 import { RouteModule } from 'src/modules/routes/route.module';
 import { MediaModule } from 'src/shared/media/media.module';
+
+import { WeekMaterialsPageEntity } from './entities/week-material-page.entity';
+import { WeekMaterialsPageRepository } from './repositories/week-material-page.repository';
 import { WeekMaterialsPageController } from './week-material-page.controller';
-import { WeekMaterialsPageCreateService } from './services/WeekMaterialsPageCreateService';
-import { WeekMaterialsPageUpdateService } from './services/WeekMaterialsPageUpdateService';
-import { WeekMaterialsPageRemoveService } from './services/WeekMaterialsPageRemoveService';
-import { WeekMaterialsPageGetService } from './services/WeekMaterialsPageGetService';
+import { WeekMaterialsPageCreateService } from './services/create-week-material.service';
+import { WeekMaterialsPageGetService } from './services/get-week-material.service';
+import { WeekMaterialsPageUpdateService } from './services/update-week-material.service';
+import { WeekMaterialsPageRemoveService } from './services/delete-week-material.service';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([WeekMaterialsPageEntity]),
@@ -20,10 +22,10 @@ import { WeekMaterialsPageGetService } from './services/WeekMaterialsPageGetServ
   providers: [
     WeekMaterialsPageRepository,
     WeekMaterialsPageCreateService,
+    WeekMaterialsPageGetService,
     WeekMaterialsPageUpdateService,
     WeekMaterialsPageRemoveService,
-    WeekMaterialsPageGetService,
   ],
-  exports: [TypeOrmModule],
+  exports: [TypeOrmModule, WeekMaterialsPageGetService],
 })
 export class WeekMaterialsPageModule {}

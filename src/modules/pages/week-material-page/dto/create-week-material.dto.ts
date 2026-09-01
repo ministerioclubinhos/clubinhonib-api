@@ -1,8 +1,8 @@
-import { IsArray, IsOptional, IsString, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
-import { MediaItemDto } from 'src/shared/share-dto/media-item-dto';
+import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { WeekMaterialsPageMediaDto } from './week-material-media.dto';
 
-export class CreateWeekMaterialsPageDto {
+/** Request contract of `POST /week-material-pages`. */
+export class CreateWeekMaterialsPageDto extends WeekMaterialsPageMediaDto {
   @IsString({ message: 'O campo "pageTitle" deve ser uma string.' })
   pageTitle: string;
 
@@ -12,27 +12,11 @@ export class CreateWeekMaterialsPageDto {
   @IsString({ message: 'O campo "pageDescription" deve ser uma string.' })
   pageDescription: string;
 
+  /**
+   * Accepted for compatibility with the admin form, but never applied: a page
+   * is published only through `POST /week-material-pages/current-week/:id`.
+   */
   @IsOptional()
-  @IsArray({ message: 'O campo "videos" deve ser um array.' })
-  @ValidateNested({ each: true })
-  @Type(() => MediaItemDto)
-  videos?: MediaItemDto[];
-
-  @IsOptional()
-  @IsArray({ message: 'O campo "documents" deve ser um array.' })
-  @ValidateNested({ each: true })
-  @Type(() => MediaItemDto)
-  documents?: MediaItemDto[];
-
-  @IsOptional()
-  @IsArray({ message: 'O campo "images" deve ser um array.' })
-  @ValidateNested({ each: true })
-  @Type(() => MediaItemDto)
-  images?: MediaItemDto[];
-
-  @IsOptional()
-  @IsArray({ message: 'O campo "audios" deve ser um array.' })
-  @ValidateNested({ each: true })
-  @Type(() => MediaItemDto)
-  audios?: MediaItemDto[];
+  @IsBoolean({ message: 'O campo "currentWeek" deve ser um boolean.' })
+  currentWeek?: boolean;
 }

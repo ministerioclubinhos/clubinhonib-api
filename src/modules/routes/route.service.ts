@@ -33,15 +33,23 @@ export class RouteService {
     return route;
   }
 
+  /**
+   * Gera um path livre para o título informado. `excludeRouteId` permite que uma
+   * rota mantenha o próprio path ao ser atualizada, em vez de colidir consigo
+   * mesma e ganhar um sufixo desnecessário.
+   */
   async generateAvailablePath(
     baseName: string,
     prefix: string,
+    excludeRouteId?: string,
   ): Promise<string> {
     const basePath = this.generateRoute(baseName, prefix);
     let candidate = basePath;
     let count = 1;
 
-    while (await this.routeRepo.findByPath(candidate)) {
+    for (;;) {
+      const existing = await this.routeRepo.findByPath(candidate);
+      if (!existing || existing.id === excludeRouteId) break;
       candidate = `${basePath}_${count++}`;
     }
 
@@ -119,10 +127,10 @@ export class RouteService {
   async findAllRoutes(): Promise<RouteEntity[]> {
     this.logger.debug(`📄 Buscando todas as rotas`);
 
-    const meditation = await this.getMeditationService.getThisWeekMeditation();
+    const meditationData =
+      await this.getMeditationService.getThisWeekMeditation();
     const routes = await this.routeRepo.find();
 
-    const meditationData = meditation.meditation;
     if (!meditationData) return routes;
 
     const dayRoutes = meditationData.days.map(
@@ -219,6 +227,7 @@ export class RouteService {
   async upsertRoute(
     routeId: string,
     updateData: Partial<RouteEntity>,
+    manager?: EntityManager,
   ): Promise<RouteEntity> {
     const path = this.generateRoute(
       updateData.title || '',
@@ -227,6 +236,33 @@ export class RouteService {
     updateData.path = path;
 
     this.logger.debug(`🛠️ Upsert da rota ID=${routeId}, path="${path}"`);
-    return this.routeRepo.upsertRoute(routeId, updateData);
+    return this.routeRepo.upsertRoute(routeId, updateData, manager);
+  }
+
+  /**
+   * Igual a `upsertRoute`, mas resolve um path livre antes de gravar. `path` é
+   * único no banco: regenerá-lo a partir do título sem checar disponibilidade
+   * quebra a atualização quando duas páginas passam a ter o mesmo título.
+   */
+  async upsertRouteWithAvailablePath(
+    routeId: string,
+    updateData: Partial<RouteEntity>,
+    prefix: string,
+    manager?: EntityManager,
+  ): Promise<RouteEntity> {
+    const path = await this.generateAvailablePath(
+      updateData.title || '',
+      prefix,
+      routeId,
+    );
+
+    this.logger.debug(
+      `🛠️ Upsert da rota ID=${routeId} com path disponível="${path}"`,
+    );
+    return this.routeRepo.upsertRoute(
+      routeId,
+      { ...updateData, path },
+      manager,
+    );
   }
 }

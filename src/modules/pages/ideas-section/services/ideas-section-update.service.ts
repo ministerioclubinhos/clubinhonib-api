@@ -9,6 +9,7 @@ import {
 import { DataSource, QueryRunner } from 'typeorm';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
+import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
 import { UploadType } from 'src/shared/media/media-item/media-item.entity';
 import { IdeasSectionMediaType } from '../enums/ideas-section-media-type.enum';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
@@ -45,6 +46,12 @@ export class IdeasSectionUpdateService {
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
+    // Os arquivos sobem fora da transação: o rastreador permite apagá-los do
+    // bucket quando a atualização falha depois do upload.
+    const uploads = new S3UploadTracker((file: Express.Multer.File) =>
+      this.awsS3Service.upload(file),
+    );
+
     try {
       const existingSection = await this.validateSection(id, queryRunner);
 
@@ -76,6 +83,7 @@ export class IdeasSectionUpdateService {
         existingMedia,
         filesDict,
         queryRunner,
+        uploads,
       );
 
       await queryRunner.commitTransaction();
@@ -83,6 +91,11 @@ export class IdeasSectionUpdateService {
       return IdeasSectionResponseDto.fromEntity(savedSection, processedMedia);
     } catch (error: unknown) {
       await queryRunner.rollbackTransaction();
+      await this.mediaItemProcessor.discardUnreferencedUploads(
+        uploads.uploadedUrls,
+        (url: string) => this.awsS3Service.delete(url),
+      );
+
       const errStack = error instanceof Error ? error.stack : undefined;
       this.logger.error('Erro ao atualizar seção', errStack);
       const hasCode = error && typeof error === 'object' && 'code' in error;
@@ -110,6 +123,12 @@ export class IdeasSectionUpdateService {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
+
+    // Os arquivos sobem fora da transação: o rastreador permite apagá-los do
+    // bucket quando a operação falha depois do upload.
+    const uploads = new S3UploadTracker((file: Express.Multer.File) =>
+      this.awsS3Service.upload(file),
+    );
 
     try {
       const existingSection = await queryRunner.manager.findOne(
@@ -173,6 +192,7 @@ export class IdeasSectionUpdateService {
         existingMedia,
         filesDict,
         queryRunner,
+        uploads,
       );
 
       ideasPage.sections = [...(ideasPage.sections || []), savedSection];
@@ -183,6 +203,11 @@ export class IdeasSectionUpdateService {
       return IdeasSectionResponseDto.fromEntity(savedSection, processedMedia);
     } catch (error: unknown) {
       await queryRunner.rollbackTransaction();
+      await this.mediaItemProcessor.discardUnreferencedUploads(
+        uploads.uploadedUrls,
+        (url: string) => this.awsS3Service.delete(url),
+      );
+
       const errStack = error instanceof Error ? error.stack : undefined;
       this.logger.error('Erro ao editar e vincular seção', errStack);
       const hasCode = error && typeof error === 'object' && 'code' in error;
@@ -291,20 +316,9 @@ export class IdeasSectionUpdateService {
       }
 
       if (media.isLocalFile && media.url) {
-        try {
-          await this.awsS3Service.delete(media.url);
-        } catch (error: unknown) {
-          const errStack = error instanceof Error ? error.stack : undefined;
-          this.logger.error(
-            `Falha ao remover arquivo do S3: ${media.url}`,
-            errStack,
-          );
-          throw new AppInternalException(
-            ErrorCode.S3_DELETE_ERROR,
-            `Falha ao remover arquivo do S3: ${media.url}`,
-            error as Error,
-          );
-        }
+        // A falha na remoção é registrada, não interrompe: abortar a edição
+        // por causa do S3 deixaria a seção pela metade.
+        await this.awsS3Service.delete(media.url);
       }
 
       await queryRunner.manager.delete(MediaItemEntity, { id: media.id });
@@ -317,7 +331,10 @@ export class IdeasSectionUpdateService {
     oldMedia: MediaItemEntity[],
     filesDict: Record<string, Express.Multer.File>,
     queryRunner: QueryRunner,
+    uploads: S3UploadTracker,
   ): Promise<MediaItemEntity[]> {
+    const oldById = new Map(oldMedia.map((item) => [item.id, item]));
+
     const processedMedia: MediaItemEntity[] = [];
 
     for (const mediaInput of mediaItems) {
@@ -327,6 +344,8 @@ export class IdeasSectionUpdateService {
           sectionId,
           filesDict,
           queryRunner,
+          uploads,
+          oldById.get(mediaInput.id),
         );
         processedMedia.push(savedMedia);
       } else {
@@ -334,6 +353,7 @@ export class IdeasSectionUpdateService {
           mediaInput,
           sectionId,
           filesDict,
+          uploads,
         );
         processedMedia.push(savedMedia);
       }
@@ -345,7 +365,7 @@ export class IdeasSectionUpdateService {
     mediaInput: IdeasSectionMediaItemDto,
     targetId: string,
     filesDict: Record<string, Express.Multer.File>,
-    // _queryRunner: QueryRunner,
+    uploads: S3UploadTracker,
   ): Promise<MediaItemEntity> {
     const media = this.mediaItemProcessor.buildBaseMediaItem(
       {
@@ -380,7 +400,7 @@ export class IdeasSectionUpdateService {
           `Arquivo ausente para mídia "${mediaInput.title}"`,
         );
       }
-      media.url = await this.awsS3Service.upload(file);
+      media.url = await uploads.upload(file);
       media.isLocalFile = mediaInput.isLocalFile;
       media.originalName = file.originalname;
       media.size = file.size;
@@ -406,6 +426,8 @@ export class IdeasSectionUpdateService {
     targetId: string,
     filesDict: Record<string, Express.Multer.File>,
     queryRunner: QueryRunner,
+    uploads: S3UploadTracker,
+    previous?: MediaItemEntity,
   ): Promise<MediaItemEntity> {
     const media = this.mediaItemProcessor.buildBaseMediaItem(
       {
@@ -416,50 +438,58 @@ export class IdeasSectionUpdateService {
       MediaTargetType.IdeasSection,
     );
 
-    if (
-      mediaInput.isLocalFile &&
-      !mediaInput.id &&
-      mediaInput.uploadType === UploadType.UPLOAD
-    ) {
-      const key = mediaInput.fieldKey ?? mediaInput.url;
-      if (!key) {
-        this.logger.error(
-          `Arquivo ausente para upload: nenhum fieldKey ou url fornecido`,
-        );
-        throw new AppValidationException(
-          ErrorCode.MEDIA_FIELD_MISSING,
-          `Arquivo ausente para upload: nenhum fieldKey ou url fornecido`,
-        );
-      }
-      const file = filesDict[key];
-      if (!file) {
-        this.logger.error(`Arquivo não encontrado para chave: ${key}`);
-        throw new AppValidationException(
-          ErrorCode.MEDIA_FILE_NOT_FOUND,
-          `Arquivo não encontrado para upload: ${key}`,
-        );
-      }
-      media.url = await this.awsS3Service.upload(file);
+    const isUpload =
+      mediaInput.uploadType === UploadType.UPLOAD ||
+      mediaInput.isLocalFile === true;
+    const fileKey = mediaInput.fieldKey ?? mediaInput.url;
+    const file = fileKey ? filesDict[fileKey] : undefined;
+
+    if (isUpload && file) {
+      // Troca de arquivo em uma mídia já gravada: o novo sobe primeiro e o
+      // antigo só sai depois que o registro passa a apontar para ele.
+      media.url = await uploads.upload(file);
       media.originalName = file.originalname;
-      media.isLocalFile = mediaInput.isLocalFile;
+      media.isLocalFile = true;
       media.size = file.size;
+      media.platformType = undefined;
+    } else if (isUpload && !previous?.url) {
+      // Upload sem arquivo e sem nada guardado para reaproveitar.
+      this.logger.error(
+        `Arquivo ausente para a mídia "${mediaInput.title ?? ''}"`,
+      );
+      throw new AppValidationException(
+        ErrorCode.MEDIA_FILE_NOT_FOUND,
+        `Arquivo ausente para a mídia "${mediaInput.title ?? ''}"`,
+      );
     } else {
+      // Sem arquivo novo, o objeto que já está no S3 é preservado.
       media.title = mediaInput.title || media.title;
       media.description = mediaInput.description || media.description;
       media.uploadType = mediaInput.uploadType || media.uploadType;
       media.platformType = mediaInput.platformType || media.platformType;
       media.mediaType =
         (mediaInput.mediaType as unknown as MediaType) || media.mediaType;
-      media.url = mediaInput.url?.trim() || media.url;
-      media.originalName = mediaInput.originalName || media.originalName;
-      media.isLocalFile = mediaInput.isLocalFile || media.isLocalFile;
-      media.size = mediaInput.size || media.size;
+      media.url = mediaInput.url?.trim() || previous?.url || media.url;
+      media.originalName =
+        mediaInput.originalName || previous?.originalName || media.originalName;
+      media.isLocalFile =
+        mediaInput.isLocalFile ?? previous?.isLocalFile ?? media.isLocalFile;
+      media.size = mediaInput.size || previous?.size || media.size;
     }
 
     const savedMedia = await queryRunner.manager.save(MediaItemEntity, {
       ...media,
       id: mediaInput.id,
     });
+
+    if (
+      previous?.isLocalFile &&
+      previous.url &&
+      previous.url !== savedMedia.url
+    ) {
+      await this.awsS3Service.delete(previous.url);
+    }
+
     return savedMedia;
   }
 }

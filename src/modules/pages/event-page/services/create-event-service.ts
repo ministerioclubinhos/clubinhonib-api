@@ -7,6 +7,7 @@ import {
 import { EventRepository } from '../event.repository';
 import { EventEntity } from '../entities/event.entity';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
+import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
 import { MediaType } from 'src/shared/media/media-item/media-item.entity';
@@ -26,6 +27,12 @@ export class CreateEventService {
     dto: CreateEventDto,
     file?: Express.Multer.File,
   ): Promise<EventEntity> {
+    // O arquivo sobe antes da mídia ser gravada: o rastreador permite apagá-lo
+    // do bucket quando a criação falha depois do upload.
+    const uploads = new S3UploadTracker((uploaded: Express.Multer.File) =>
+      this.s3Service.upload(uploaded),
+    );
+
     try {
       const event = this.eventRepo.create({
         title: dto.title,
@@ -47,7 +54,7 @@ export class CreateEventService {
             ErrorCode.FILE_REQUIRED,
             'Arquivo não enviado.',
           );
-        mediaUrl = await this.s3Service.upload(file);
+        mediaUrl = await uploads.upload(file);
         originalName = file.originalname;
         size = file.size;
         this.logger.log(`⬆️ Upload de mídia concluído: ${mediaUrl}`);
@@ -75,6 +82,11 @@ export class CreateEventService {
 
       return savedEvent;
     } catch (error: unknown) {
+      await this.mediaItemProcessor.discardUnreferencedUploads(
+        uploads.uploadedUrls,
+        (url: string) => this.s3Service.delete(url),
+      );
+
       const errStack = error instanceof Error ? error.stack : undefined;
       const errMsg = error instanceof Error ? error.message : String(error);
       this.logger.error('❌ Erro ao criar evento', errStack);

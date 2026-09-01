@@ -113,10 +113,47 @@ export class ClubControlRepository {
     return this.exceptionsRepository.save(exception);
   }
 
+  async findAnyExceptionByDate(
+    date: string,
+    excludedId?: string,
+  ): Promise<ClubExceptionEntity | null> {
+    const query = this.exceptionsRepository
+      .createQueryBuilder('exception')
+      .where('exception.exceptionDate = :date', { date });
+
+    if (excludedId) {
+      query.andWhere('exception.id != :excludedId', { excludedId });
+    }
+
+    return query.getOne();
+  }
+
+  async findExceptionById(id: string): Promise<ClubExceptionEntity | null> {
+    return this.exceptionsRepository.findOne({ where: { id } });
+  }
+
+  async saveException(
+    exception: ClubExceptionEntity,
+  ): Promise<ClubExceptionEntity> {
+    return this.exceptionsRepository.save(exception);
+  }
+
   async findExceptionByDate(date: string): Promise<ClubExceptionEntity | null> {
-    return this.exceptionsRepository.findOne({
+    const exact = await this.exceptionsRepository.findOne({
       where: { exceptionDate: date, isActive: true },
     });
+    if (exact) return exact;
+
+    const monthDay = date.slice(5);
+    return this.exceptionsRepository
+      .createQueryBuilder('exception')
+      .where('exception.isActive = :isActive', { isActive: true })
+      .andWhere('exception.isRecurrent = :isRecurrent', { isRecurrent: true })
+      .andWhere("DATE_FORMAT(exception.exceptionDate, '%m-%d') = :monthDay", {
+        monthDay,
+      })
+      .orderBy('exception.exceptionDate', 'DESC')
+      .getOne();
   }
 
   async findExceptionsByPeriod(

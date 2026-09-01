@@ -9,13 +9,14 @@ import { ConfigService } from '@nestjs/config';
 import { DataSource, QueryRunner } from 'typeorm';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
+import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
 import {
   UploadType,
   MediaItemEntity,
 } from 'src/shared/media/media-item/media-item.entity';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
 import { ImageSectionRepository } from '../repository/image-section.repository';
-import { ImagePageRepository } from 'src/modules/pages/image-page/repository/image-page.repository';
+import { ImagePageRepository } from 'src/modules/pages/image-page/repositories/image-page.repository';
 import { UpdateImageSectionDto } from '../dto/update-image-section.dto';
 import { MediaItemDto } from 'src/shared/share-dto/media-item-dto';
 import { ImageSectionResponseDto } from '../dto/image-section-response.dto';
@@ -43,6 +44,12 @@ export class ImageSectionUpdateService {
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
+    // Os arquivos sobem fora da transação: o rastreador permite apagá-los do
+    // bucket quando a atualização falha depois do upload.
+    const uploads = new S3UploadTracker((file: Express.Multer.File) =>
+      this.awsS3Service.upload(file),
+    );
+
     try {
       const section = await this.sectionRepo.findOneBy({ id });
       if (!section) {
@@ -55,7 +62,16 @@ export class ImageSectionUpdateService {
       const pageIdFromEnv = this.configService.get<string>(
         'FEED_CLUBINHO_PAGE_ID',
       );
-      const page = await this.pageRepo.findOneBy({ id: pageIdFromEnv });
+      if (!pageIdFromEnv) {
+        // Sem a variável, a consulta ia com `undefined` e falhava de forma
+        // obscura mais adiante.
+        throw new AppInternalException(
+          ErrorCode.INTERNAL_ERROR,
+          'FEED_CLUBINHO_PAGE_ID não está configurado.',
+        );
+      }
+
+      const page = await this.pageRepo.findById(pageIdFromEnv);
       if (!page) {
         throw new AppNotFoundException(
           ErrorCode.RESOURCE_NOT_FOUND,
@@ -75,6 +91,7 @@ export class ImageSectionUpdateService {
         section.id,
         filesDict,
         queryRunner,
+        uploads,
       );
       section.caption = dto.caption;
       section.description = dto.description;
@@ -86,6 +103,11 @@ export class ImageSectionUpdateService {
       return ImageSectionResponseDto.fromEntity(savedSection, processedMedia);
     } catch (error: unknown) {
       await queryRunner.rollbackTransaction();
+      await this.mediaItemProcessor.discardUnreferencedUploads(
+        uploads.uploadedUrls,
+        (url: string) => this.awsS3Service.delete(url),
+      );
+
       const errStack = error instanceof Error ? error.stack : undefined;
       this.logger.error('Erro ao atualizar a seção', errStack);
       const hasCode = error && typeof error === 'object' && 'code' in error;
@@ -122,6 +144,7 @@ export class ImageSectionUpdateService {
     sectionId: string,
     filesDict: Record<string, Express.Multer.File>,
     queryRunner: QueryRunner,
+    uploads: S3UploadTracker,
   ): Promise<MediaItemEntity[]> {
     const processed: MediaItemEntity[] = [];
 
@@ -132,10 +155,16 @@ export class ImageSectionUpdateService {
           sectionId,
           filesDict,
           queryRunner,
+          uploads,
         );
         processed.push(updated);
       } else {
-        const created = await this.addMedia(mediaInput, sectionId, filesDict);
+        const created = await this.addMedia(
+          mediaInput,
+          sectionId,
+          filesDict,
+          uploads,
+        );
         processed.push(created);
       }
     }
@@ -146,7 +175,7 @@ export class ImageSectionUpdateService {
     mediaInput: MediaItemDto,
     sectionId: string,
     filesDict: Record<string, Express.Multer.File>,
-    // _queryRunner: QueryRunner,
+    uploads: S3UploadTracker,
   ): Promise<MediaItemEntity> {
     const media = this.mediaItemProcessor.buildBaseMediaItem(
       mediaInput,
@@ -162,7 +191,7 @@ export class ImageSectionUpdateService {
           'Arquivo não encontrado para upload',
         );
       }
-      media.url = await this.awsS3Service.upload(file);
+      media.url = await uploads.upload(file);
       media.isLocalFile = true;
       media.originalName = file.originalname;
       media.size = file.size;
@@ -179,6 +208,7 @@ export class ImageSectionUpdateService {
     sectionId: string,
     filesDict: Record<string, Express.Multer.File>,
     queryRunner: QueryRunner,
+    uploads: S3UploadTracker,
   ): Promise<MediaItemEntity> {
     const existingMedia = await queryRunner.manager.findOneBy(MediaItemEntity, {
       id: mediaInput.id,
@@ -200,7 +230,7 @@ export class ImageSectionUpdateService {
     if (mediaInput.uploadType === UploadType.UPLOAD && mediaInput.isLocalFile) {
       const file = filesDict[mediaInput.fieldKey ?? ''];
       if (file) {
-        updatedMedia.url = await this.awsS3Service.upload(file);
+        updatedMedia.url = await uploads.upload(file);
         updatedMedia.isLocalFile = true;
         updatedMedia.originalName = file.originalname;
         updatedMedia.size = file.size;
@@ -215,9 +245,21 @@ export class ImageSectionUpdateService {
       updatedMedia.isLocalFile = false;
     }
 
-    return await this.mediaItemProcessor.upsertMediaItem(
+    const saved = await this.mediaItemProcessor.upsertMediaItem(
       mediaInput.id,
       updatedMedia,
     );
+
+    // O arquivo antigo só sai depois que o registro aponta para o novo. Antes
+    // ele simplesmente ficava no bucket sem ninguém referenciando.
+    if (
+      existingMedia.isLocalFile &&
+      existingMedia.url &&
+      existingMedia.url !== saved.url
+    ) {
+      await this.awsS3Service.delete(existingMedia.url);
+    }
+
+    return saved;
   }
 }

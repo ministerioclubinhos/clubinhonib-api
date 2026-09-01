@@ -3,7 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { ImagePageEntity } from '../image-page/entity/Image-page.entity';
 import { ImageSectionRepository } from './repository/image-section.repository';
-import { ImagePageRepository } from '../image-page/repository/image-page.repository';
+import { ImagePageRepository } from '../image-page/repositories/image-page.repository';
 import { MediaModule } from 'src/shared/media/media.module';
 import { ImageSectionEntity } from '../image-page/entity/Image-section.entity';
 import { AwsModule } from 'src/shared/providers/aws/aws.module';

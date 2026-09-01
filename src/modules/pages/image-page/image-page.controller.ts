@@ -1,38 +1,39 @@
 import {
-  Controller,
-  Get,
-  Post,
-  Delete,
-  Patch,
-  Param,
-  UploadedFiles,
   Body,
-  UseInterceptors,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
   Logger,
-  UseGuards,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
   Query,
   Req,
+  UploadedFiles,
+  UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
-import {
-  AppNotFoundException,
-  AppValidationException,
-  AppInternalException,
-  ErrorCode,
-} from 'src/shared/exceptions';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
+import { Request } from 'express';
+
 import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
-import { ImagePageResponseDto } from './dto/image-page-response.dto';
+import { AdminRoleGuard } from 'src/core/auth/guards/role-guard';
+import { AuthContextService } from 'src/core/auth/services/auth-context.service';
+
 import { CreateImagePageDto } from './dto/create-image.dto';
 import { UpdateImagePageDto } from './dto/update-image.dto';
-import { ImagePageCreateService } from './services/ImagePageCreateService';
-import { ImagePageDeleteService } from './services/ImagePageDeleteService';
-import { ImagePageGetService } from './services/ImagePageGetService';
-import { ImagePageUpdateService } from './services/ImagePageUpdateService';
-import { plainToInstance } from 'class-transformer';
-import { validate } from 'class-validator';
-import { AdminRoleGuard } from 'src/core/auth/guards/role-guard';
+import { ImagePageResponseDto } from './dto/image-page-response.dto';
 import { PaginatedImageSectionResponseDto } from './dto/paginated-image-section.dto';
-import { Request } from 'express';
+import { QueryImageSectionsDto } from './dto/query-image-sections.dto';
+import { ImagePageCreateService } from './services/create-image-page.service';
+import { ImagePageGetService } from './services/get-image-page.service';
+import { ImagePageUpdateService } from './services/update-image-page.service';
+import { ImagePageDeleteService } from './services/delete-image-page.service';
+import { buildFilesDict, parseAndValidatePayload } from './utils';
+import { IMAGE_PAGE_PAYLOAD_FIELD } from './constants';
 
 @Controller('image-pages')
 export class ImageController {
@@ -43,6 +44,7 @@ export class ImageController {
     private readonly deleteService: ImagePageDeleteService,
     private readonly getService: ImagePageGetService,
     private readonly updateService: ImagePageUpdateService,
+    private readonly authContext: AuthContextService,
   ) {}
 
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
@@ -50,149 +52,64 @@ export class ImageController {
   @UseInterceptors(AnyFilesInterceptor())
   async create(
     @UploadedFiles() files: Express.Multer.File[],
-    @Body('imageData') raw: string,
+    @Body(IMAGE_PAGE_PAYLOAD_FIELD) raw: string,
   ): Promise<ImagePageResponseDto> {
-    this.logger.debug('🚀 Criando nova galeria');
+    this.logger.debug('POST /image-pages');
 
-    try {
-      const dto = plainToInstance(CreateImagePageDto, JSON.parse(raw));
-      await this.validateDto(dto);
+    const dto = await parseAndValidatePayload(raw, CreateImagePageDto);
 
-      const filesDict = this.mapFiles(files);
-
-      const result = await this.createService.createImagePage(dto, filesDict);
-      this.logger.log(`✅ Galeria criada: ID=${result.id}`);
-
-      return result;
-    } catch (error: unknown) {
-      this.logger.error(
-        '❌ Erro ao criar galeria',
-        error instanceof Error ? error.stack : error,
-      );
-      throw new AppInternalException(
-        ErrorCode.INTERNAL_ERROR,
-        'Erro ao criar a galeria.',
-      );
-    }
+    return this.createService.createImagePage(dto, buildFilesDict(files));
   }
 
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Patch(':id')
   @UseInterceptors(AnyFilesInterceptor())
   async update(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @UploadedFiles() files: Express.Multer.File[],
-    @Body('imageData') raw: string,
+    @Body(IMAGE_PAGE_PAYLOAD_FIELD) raw: string,
   ): Promise<ImagePageResponseDto> {
-    this.logger.debug(`🚀 Atualizando galeria ID=${id}`);
+    this.logger.debug(`PATCH /image-pages/${id}`);
 
-    try {
-      const rawObject = JSON.parse(raw) as Record<string, unknown>;
-      this.cleanMediaFiles(rawObject);
+    const dto = await parseAndValidatePayload(raw, UpdateImagePageDto);
 
-      const dto = plainToInstance(UpdateImagePageDto, rawObject);
-      await this.validateDto(dto);
-
-      const filesDict = this.mapFiles(files);
-
-      return await this.updateService.updateImagePage(id, dto, filesDict);
-    } catch (error: unknown) {
-      this.logger.error(
-        '❌ Erro ao atualizar galeria',
-        error instanceof Error ? error.stack : error,
-      );
-      throw new AppInternalException(
-        ErrorCode.INTERNAL_ERROR,
-        'Erro ao atualizar a galeria.',
-      );
-    }
+    return this.updateService.updateImagePage(id, dto, buildFilesDict(files));
   }
 
   @Get()
   async findAll(): Promise<ImagePageResponseDto[]> {
+    this.logger.debug('GET /image-pages');
     return this.getService.findAll();
   }
 
   @Get(':id/sections')
   async getPaginatedSections(
-    @Param('id') pageId: string,
-    @Query('page') page: string = '1',
-    @Query('limit') limit: string = '2',
-    @Req() req: Request,
+    @Param('id', ParseUUIDPipe) pageId: string,
+    @Query() query: QueryImageSectionsDto,
+    @Req() request: Request,
   ): Promise<PaginatedImageSectionResponseDto> {
-    const pageNumber = Number(page);
-    const limitNumber = Number(limit);
+    this.logger.debug(`GET /image-pages/${pageId}/sections`);
 
-    this.logger.debug(
-      `📥 Requisição recebida para seções paginadas — pageId=${pageId}, page=${pageNumber}, limit=${limitNumber}`,
-    );
+    // Ler a sessão é transporte; a regra de visibilidade fica no caso de uso,
+    // que recebe apenas o booleano.
+    const includePrivate = await this.authContext.isLoggedIn(request);
 
-    return this.getService.findSectionsPaginated(
-      pageId,
-      pageNumber,
-      limitNumber,
-      req,
-    );
+    return this.getService.findSectionsPaginated(pageId, query, includePrivate);
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string): Promise<ImagePageResponseDto> {
-    try {
-      return await this.getService.findOne(id);
-    } catch (error: unknown) {
-      if (error instanceof AppNotFoundException) throw error;
-      throw new AppInternalException(
-        ErrorCode.INTERNAL_ERROR,
-        'Erro ao buscar galeria.',
-      );
-    }
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<ImagePageResponseDto> {
+    this.logger.debug(`GET /image-pages/${id}`);
+    return this.getService.findOne(id);
   }
 
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Delete(':id')
-  async remove(@Param('id') id: string) {
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    this.logger.debug(`DELETE /image-pages/${id}`);
     await this.deleteService.removePage(id);
-    return { message: 'Página de galeria removida com sucesso' };
-  }
-
-  private async validateDto(dto: object) {
-    const errors = await validate(dto, {
-      whitelist: true,
-      forbidNonWhitelisted: true,
-    });
-    if (errors.length > 0) {
-      this.logger.error(
-        '❌ Erros de validação:',
-        JSON.stringify(errors, null, 2),
-      );
-      throw new AppValidationException(
-        ErrorCode.VALIDATION_ERROR,
-        'Dados inválidos na requisição',
-      );
-    }
-  }
-
-  private mapFiles(
-    files: Express.Multer.File[],
-  ): Record<string, Express.Multer.File> {
-    return files.reduce(
-      (acc, file) => {
-        acc[file.fieldname] = file;
-        return acc;
-      },
-      {} as Record<string, Express.Multer.File>,
-    );
-  }
-
-  private cleanMediaFiles(
-    rawObject: Partial<{
-      sections: { mediaItems?: { file?: unknown }[] }[];
-    }>,
-  ) {
-    rawObject.sections?.forEach((section) =>
-      section.mediaItems?.forEach((media) => {
-        delete media.file;
-      }),
-    );
   }
 }

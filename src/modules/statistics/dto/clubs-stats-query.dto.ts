@@ -1,6 +1,16 @@
-import { IsOptional, IsInt, Min, Max, IsString, IsEnum } from 'class-validator';
+import {
+  IsOptional,
+  IsInt,
+  Min,
+  Max,
+  IsString,
+  IsEnum,
+  IsDateString,
+  IsUUID,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { PeriodShortcut } from './period-filter.dto';
+import { Weekday } from 'src/modules/clubs/enums/weekday.enum/weekday.enum';
 
 export class ClubsStatsQueryDto {
   @IsOptional()
@@ -15,20 +25,20 @@ export class ClubsStatsQueryDto {
   year?: number;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   startDate?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   endDate?: string;
 
   @IsOptional()
-  @IsString()
+  @IsUUID()
   coordinatorId?: string;
 
   @IsOptional()
-  @IsString()
-  weekday?: string;
+  @IsEnum(Weekday)
+  weekday?: Weekday;
 
   @IsOptional()
   @IsString()
@@ -77,11 +87,22 @@ export class ClubsStatsQueryDto {
   maxPerformanceScore?: number;
 
   @IsOptional()
-  @IsString()
-  sortBy?: string;
+  @IsEnum([
+    'clubNumber',
+    'performanceScore',
+    'presenceRate',
+    'totalChildren',
+    'totalDecisions',
+  ])
+  sortBy?:
+    | 'clubNumber'
+    | 'performanceScore'
+    | 'presenceRate'
+    | 'totalChildren'
+    | 'totalDecisions';
 
   @IsOptional()
-  @IsString()
+  @IsEnum(['ASC', 'DESC'])
   sortOrder?: 'ASC' | 'DESC';
 
   @IsOptional()

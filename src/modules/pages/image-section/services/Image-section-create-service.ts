@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
+import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
 import { UploadType } from 'src/shared/media/media-item/media-item.entity';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
 import { ImageSectionRepository } from '../repository/image-section.repository';
@@ -38,6 +39,12 @@ export class ImageSectionCreateService {
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
+    // Os arquivos sobem antes do commit e sobrevivem ao rollback: o rastreador
+    // permite apagá-los do bucket quando a criação falha.
+    const uploads = new S3UploadTracker((file: Express.Multer.File) =>
+      this.awsS3Service.upload(file),
+    );
+
     try {
       const section = queryRunner.manager.create(ImageSectionEntity, {
         caption: dto.caption,
@@ -61,7 +68,7 @@ export class ImageSectionCreateService {
           savedSection.id,
           MediaTargetType.ImagesPage,
           filesDict,
-          (file: Express.Multer.File) => this.awsS3Service.upload(file),
+          uploads.upload,
         );
 
       await queryRunner.commitTransaction();
@@ -69,6 +76,11 @@ export class ImageSectionCreateService {
       return ImageSectionResponseDto.fromEntity(savedSection, mediaItems);
     } catch (error: unknown) {
       await queryRunner.rollbackTransaction();
+      await this.mediaItemProcessor.discardUnreferencedUploads(
+        uploads.uploadedUrls,
+        (url: string) => this.awsS3Service.delete(url),
+      );
+
       const errStack = error instanceof Error ? error.stack : undefined;
       this.logger.error('Erro ao criar seção', errStack);
       const hasCode = error && typeof error === 'object' && 'code' in error;

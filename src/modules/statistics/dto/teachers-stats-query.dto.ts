@@ -6,10 +6,13 @@ import {
   IsString,
   IsBoolean,
   IsEnum,
+  IsDateString,
+  IsUUID,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { Transform } from 'class-transformer';
 import { PeriodShortcut } from './period-filter.dto';
+import { parseStrictBoolean } from './query-transformers';
 
 export class TeachersStatsQueryDto {
   @IsOptional()
@@ -24,19 +27,19 @@ export class TeachersStatsQueryDto {
   year?: number;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   startDate?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   endDate?: string;
 
   @IsOptional()
-  @IsString()
+  @IsUUID()
   clubId?: string;
 
   @IsOptional()
-  @IsString()
+  @IsUUID()
   coordinatorId?: string;
 
   @IsOptional()
@@ -94,16 +97,16 @@ export class TeachersStatsQueryDto {
   minDecisions?: number;
 
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
+  @Transform(parseStrictBoolean)
   @IsBoolean()
   isActive?: boolean;
 
   @IsOptional()
-  @IsString()
-  sortBy?: string;
+  @IsEnum(['name', 'effectivenessScore', 'presenceRate', 'totalChildren'])
+  sortBy?: 'name' | 'effectivenessScore' | 'presenceRate' | 'totalChildren';
 
   @IsOptional()
-  @IsString()
+  @IsEnum(['ASC', 'DESC'])
   sortOrder?: 'ASC' | 'DESC';
 
   @IsOptional()

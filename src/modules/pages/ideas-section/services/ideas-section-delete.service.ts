@@ -60,20 +60,11 @@ export class IdeasSectionDeleteService {
         },
       });
 
-      for (const media of mediaItems) {
-        if (media.isLocalFile && media.url) {
-          this.logger.debug(`🗑️ Removendo arquivo do S3: ${media.url}`);
-          try {
-            await this.awsS3Service.delete(media.url);
-            this.logger.debug(`✅ Arquivo removido do S3: ${media.url}`);
-          } catch (error: unknown) {
-            this.logger.warn(
-              `⚠️ Erro ao remover arquivo do S3: ${media.url}`,
-              error instanceof Error ? error.stack : error,
-            );
-          }
-        }
-      }
+      // Os arquivos só saem depois do commit: apagá-los antes deixaria as
+      // mídias apontando para objetos inexistentes se a transação falhasse.
+      const filesToDelete = mediaItems
+        .filter((media) => media.isLocalFile && media.url)
+        .map((media) => media.url);
 
       if (mediaItems.length > 0) {
         await queryRunner.manager.delete(MediaItemEntity, {
@@ -87,6 +78,10 @@ export class IdeasSectionDeleteService {
       this.logger.debug(`✅ Seção de ideias ID=${id} removida do banco`);
 
       await queryRunner.commitTransaction();
+
+      for (const url of filesToDelete) {
+        await this.awsS3Service.delete(url);
+      }
       this.logger.log(`✅ Seção de ideias ID=${id} excluída com sucesso`);
     } catch (error: unknown) {
       await queryRunner.rollbackTransaction();

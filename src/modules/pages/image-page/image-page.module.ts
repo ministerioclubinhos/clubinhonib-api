@@ -1,54 +1,39 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+
 import { RouteModule } from 'src/modules/routes/route.module';
+import { MediaModule } from 'src/shared/media/media.module';
+import { AuthModule } from 'src/core/auth/auth.module';
+
 import { ImagePageEntity } from './entity/Image-page.entity';
 import { ImageSectionEntity } from './entity/Image-section.entity';
 import { ImageController } from './image-page.controller';
-import { ImagePageRepository } from './repository/image-page.repository';
-import { ImageSectionRepository } from '../image-section/repository/image-section.repository';
-import { MediaModule } from 'src/shared/media/media.module';
-import { ImagePageCreateService } from './services/ImagePageCreateService';
-import { ImagePageGetService } from './services/ImagePageGetService';
-import { ImagePageDeleteService } from './services/ImagePageDeleteService';
-import { ImagePageUpdateService } from './services/ImagePageUpdateService';
-import { AuthModule } from 'src/core/auth/auth.module';
+import { ImagePageRepository } from './repositories/image-page.repository';
+import { ImagePageCreateService } from './services/create-image-page.service';
+import { ImagePageGetService } from './services/get-image-page.service';
+import { ImagePageUpdateService } from './services/update-image-page.service';
+import { ImagePageDeleteService } from './services/delete-image-page.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      ImagePageEntity,
-      ImageSectionEntity,
-      ImagePageEntity,
-    ]),
+    TypeOrmModule.forFeature([ImagePageEntity, ImageSectionEntity]),
     RouteModule,
     MediaModule,
     AuthModule,
   ],
   controllers: [ImageController],
   providers: [
+    ImagePageRepository,
     ImagePageCreateService,
     ImagePageGetService,
-    ImagePageDeleteService,
     ImagePageUpdateService,
-    {
-      provide: ImagePageRepository,
-      useFactory: (dataSource: DataSource) =>
-        new ImagePageRepository(dataSource),
-      inject: [DataSource],
-    },
-    {
-      provide: ImageSectionRepository,
-      useFactory: (dataSource: DataSource) =>
-        new ImageSectionRepository(dataSource),
-      inject: [DataSource],
-    },
+    ImagePageDeleteService,
   ],
   exports: [
     ImagePageCreateService,
     ImagePageGetService,
-    ImagePageDeleteService,
     ImagePageUpdateService,
+    ImagePageDeleteService,
   ],
 })
 export class ImageModule {}

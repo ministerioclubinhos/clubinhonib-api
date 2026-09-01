@@ -22,7 +22,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "test:api": "node scripts/test-api-real.js",
     "test:all": "node scripts/run-all-testes.js",
-    "populate": "node scripts/populate-mass.js"
+    "populate": "node scripts/populate-mass.js",
+    "s3:audit": "node scripts/s3/audit-orphans.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.758.0",
@@ -86,6 +87,9 @@
       "json",
       "ts"
     ],
+    "moduleNameMapper": {
+      "^src/(.*)$": "<rootDir>/$1"
+    },
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {

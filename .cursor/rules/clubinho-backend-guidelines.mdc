@@ -1,0 +1,10 @@
+---
+description: Mandatory Clubinho NIB NestJS backend architecture and quality rules
+alwaysApply: true
+---
+
+# Clubinho NIB Backend Rules
+
+Before editing, read [`AGENTS.md`](../../AGENTS.md), [`docs/CLUBINHO_BACKEND_BEST_PRACTICES.md`](../../docs/CLUBINHO_BACKEND_BEST_PRACTICES.md), [`AI_DATABASE_CHANGE_REQUIREMENTS.md`](../../AI_DATABASE_CHANGE_REQUIREMENTS.md) for database work, and applicable error/domain docs.
+
+This is NestJS 11 with TypeORM/MySQL. Keep controllers, services, repositories, DTOs/entities, and providers separated. Services MUST NEVER manipulate the database directly — they MUST ALWAYS delegate persistence to repositories. A service in module A MUST NEVER call a repository from module B; cross-module interaction MUST ALWAYS consume module B's service contract. When creating or editing any module, services MUST ALWAYS be split into separate operation files: `create`, `get`, `update`, and `delete`. Require explicit input DTOs and output DTOs for everything (no raw entity exposure). ALWAYS create dedicated files for `types` and `constants`, ALWAYS use domain enums for finite sets (no magic strings), ALWAYS create dedicated `utils` files for pure functions/logic, and NEVER use `any` under any circumstances. Enforce role and club scope, standardized exceptions, privacy-safe logs, scoped statistics, transaction integrity, Jest coverage, and updated docs. Every schema migration must be generated automatically by the official TypeORM CLI/core with `migration:generate`; never use `migration:create` or create/edit it manually. Keep the diff scoped.

@@ -7,6 +7,7 @@ import {
 import { DataSource, QueryRunner } from 'typeorm';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
+import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
 import { UploadType } from 'src/shared/media/media-item/media-item.entity';
 import { IdeasSectionMediaType } from '../enums/ideas-section-media-type.enum';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
@@ -38,9 +39,15 @@ export class IdeasSectionCreateService {
     await queryRunner.startTransaction();
     this.logger.debug('▶️  Transaction started');
 
+    // Os arquivos sobem antes do commit e sobrevivem ao rollback: o rastreador
+    // permite apagá-los do bucket quando a criação falha.
+    const uploads = new S3UploadTracker((file: Express.Multer.File) =>
+      this.awsS3Service.upload(file),
+    );
+
     try {
       const section = await this.persistOrphanSection(queryRunner, dto);
-      await this.processOrphanSectionMedia(section, dto, filesDict);
+      await this.processOrphanSectionMedia(section, dto, filesDict, uploads);
 
       await queryRunner.commitTransaction();
       this.logger.debug('✅  Transaction committed');
@@ -55,6 +62,11 @@ export class IdeasSectionCreateService {
       return IdeasSectionResponseDto.fromEntity(section, mediaItems);
     } catch (error: unknown) {
       await queryRunner.rollbackTransaction();
+      await this.mediaItemProcessor.discardUnreferencedUploads(
+        uploads.uploadedUrls,
+        (url: string) => this.awsS3Service.delete(url),
+      );
+
       const errStack = error instanceof Error ? error.stack : undefined;
       const errMsg = error instanceof Error ? error.message : String(error);
       this.logger.error('Transaction rolled-back', errStack);
@@ -98,6 +110,7 @@ export class IdeasSectionCreateService {
     section: IdeasSectionEntity,
     dto: CreateIdeasSectionDto,
     filesDict: Record<string, Express.Multer.File>,
+    uploads: S3UploadTracker,
   ): Promise<void> {
     this.logger.debug(
       '🎞️ processOrphanSectionMedia() - Extraído do IdeasPageCreateService',
@@ -136,7 +149,7 @@ export class IdeasSectionCreateService {
       section.id,
       MediaTargetType.IdeasSection,
       filesDict,
-      (file: Express.Multer.File) => this.awsS3Service.upload(file),
+      uploads.upload,
     );
 
     this.logger.debug(`       • ${saved.length} mídias processadas`);

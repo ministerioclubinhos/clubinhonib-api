@@ -544,10 +544,11 @@ export class AuthService {
     userId: string,
     clubNumber: number,
   ): Promise<{ message: string }> {
-    const profile = await this.teacherProfilesRepository.linkTeacherToClubByNumber(
-      userId,
-      clubNumber,
-    );
+    const profile =
+      await this.teacherProfilesRepository.linkTeacherToClubByNumber(
+        userId,
+        clubNumber,
+      );
     return {
       message: `Professor vinculado ao clubinho #${profile.club?.number ?? clubNumber} com sucesso.`,
     };

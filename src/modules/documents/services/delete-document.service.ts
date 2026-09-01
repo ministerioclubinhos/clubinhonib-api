@@ -9,6 +9,7 @@ import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { DocumentRepository } from '../document.repository';
 import { RouteService } from 'src/modules/routes/route.service';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
+import { DOCUMENT_MEDIA_TARGET_TYPES } from '../constants';
 
 @Injectable()
 export class DeleteDocumentService {
@@ -36,9 +37,9 @@ export class DeleteDocumentService {
     }
 
     try {
-      const media = await this.mediaItemProcessor.findMediaItemsByTarget(
+      const media = await this.mediaItemProcessor.findMediaItemsByTargetAnyType(
         id,
-        'document',
+        DOCUMENT_MEDIA_TARGET_TYPES,
       );
       if (media.length > 0) {
         await this.mediaItemProcessor.deleteMediaItems(media, (url: string) =>

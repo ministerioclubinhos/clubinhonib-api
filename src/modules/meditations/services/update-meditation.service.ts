@@ -1,152 +1,182 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { DataSource, EntityManager } from 'typeorm';
 import {
-  AppNotFoundException,
   AppConflictException,
-  AppValidationException,
+  AppException,
+  AppInternalException,
   ErrorCode,
 } from 'src/shared/exceptions';
-import { DataSource } from 'typeorm';
-import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
-import { MeditationRepository } from '../meditation.repository';
+import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
+import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
+import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
+import { MediaItemDto } from 'src/shared/share-dto/media-item-dto';
+import { MeditationRepository } from '../repositories/meditation.repository';
 import { UpdateMeditationDto } from '../dto/update-meditation.dto';
-import { MeditationEntity } from '../entities/meditation.entity';
-import { DayEntity } from '../entities/day.entity';
-import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
+import { MeditationResponseDto } from '../dto/meditation-response.dto';
+import { GetMeditationService } from './get-meditation.service';
+import { toMeditationResponse } from '../mappers';
+import {
+  assertMeditationPeriod,
+  formatDateOnly,
+  parseDateAsLocal,
+} from '../utils';
+import { MEDITATION_ENTITY_TYPE, MEDITATION_FILE_FIELD } from '../constants';
 
 @Injectable()
 export class UpdateMeditationService {
   private readonly logger = new Logger(UpdateMeditationService.name);
 
   constructor(
-    private readonly meditationRepo: MeditationRepository,
     private readonly dataSource: DataSource,
-    private readonly mediaItemProcessor: MediaItemProcessor,
+    private readonly meditationRepo: MeditationRepository,
+    private readonly getService: GetMeditationService,
     private readonly s3Service: AwsS3Service,
+    private readonly mediaItemProcessor: MediaItemProcessor,
   ) {}
 
   async update(
     id: string,
-    dto: UpdateMeditationDto & { isLocalFile?: boolean },
+    dto: UpdateMeditationDto,
     file?: Express.Multer.File,
-  ): Promise<MeditationEntity> {
-    this.logger.log(`🛠️ Atualizando meditação ID=${id}`);
+  ): Promise<MeditationResponseDto> {
+    const existing = await this.getService.findEntityOrFail(id);
 
-    const existing = await this.meditationRepo.findOneWithRelations(id);
-    if (!existing)
-      throw new AppNotFoundException(
-        ErrorCode.MEDITATION_NOT_FOUND,
-        'Meditação não encontrada',
-      );
+    const startDate = formatDateOnly(
+      parseDateAsLocal(dto.startDate ?? existing.startDate),
+    );
+    const endDate = formatDateOnly(
+      parseDateAsLocal(dto.endDate ?? existing.endDate),
+    );
 
-    const startDate = dto.startDate
-      ? parseDateAsLocal(dto.startDate)
-      : existing.startDate;
-    const endDate = dto.endDate
-      ? parseDateAsLocal(dto.endDate)
-      : existing.endDate;
-
-    if (dto.startDate && startDate.getDay() !== 1) {
-      throw new AppValidationException(
-        ErrorCode.INVALID_DATE_RANGE,
-        'startDate deve ser uma segunda-feira (Monday)',
-      );
-    }
-
-    if (dto.endDate && endDate.getDay() !== 5) {
-      throw new AppValidationException(
-        ErrorCode.INVALID_DATE_RANGE,
-        'endDate deve ser uma sexta-feira (Friday)',
-      );
-    }
-
-    const all = await this.meditationRepo.findAllWithRelations();
-    const hasConflict = all.some((m) => {
-      if (m.id === id) return false;
-      const s = new Date(m.startDate);
-      const e = new Date(m.endDate);
-      return (
-        (startDate >= s && startDate <= e) ||
-        (endDate >= s && endDate <= e) ||
-        (startDate <= s && endDate >= e)
-      );
+    assertMeditationPeriod({
+      startDate: parseDateAsLocal(startDate),
+      endDate: parseDateAsLocal(endDate),
     });
 
-    if (hasConflict) {
+    await this.assertNoOverlap(startDate, endDate, id);
+
+    // O upload acontece fora da transação: o rastreador permite apagar do S3 o
+    // arquivo enviado caso a atualização falhe depois dele.
+    const uploads = new S3UploadTracker((file: Express.Multer.File) =>
+      this.s3Service.upload(file),
+    );
+
+    try {
+      const updated = await this.dataSource.transaction(
+        async (manager: EntityManager) => {
+          // Só os campos de conteúdo são copiados: um merge do DTO inteiro
+          // deixaria `id` e `media` sobrescreverem a entidade.
+          existing.topic = dto.topic ?? existing.topic;
+          existing.startDate = startDate;
+          existing.endDate = endDate;
+
+          const saved = await this.meditationRepo.saveMeditation(
+            existing,
+            manager,
+          );
+
+          if (dto.days) {
+            await this.meditationRepo.removeDays(existing.days ?? [], manager);
+            saved.days = await this.meditationRepo.saveDays(
+              saved,
+              dto.days,
+              manager,
+            );
+          }
+
+          return saved;
+        },
+      );
+
+      if (dto.media) {
+        await this.syncMedia(dto.media, updated.id, uploads, file);
+      }
+
+      this.logger.log(`Meditação atualizada. ID=${updated.id}`);
+
+      const media = await this.getService.findMediaOf(updated.id);
+      return toMeditationResponse(updated, media);
+    } catch (error: unknown) {
+      await this.mediaItemProcessor.discardUnreferencedUploads(
+        uploads.uploadedUrls,
+        (url: string) => this.s3Service.delete(url),
+      );
+
+      this.logger.error(
+        `Erro ao atualizar meditação. ID=${id}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+
+      if (error instanceof AppException) throw error;
+      throw new AppInternalException(
+        ErrorCode.INTERNAL_ERROR,
+        'Erro inesperado ao atualizar meditação.',
+        error as Error,
+      );
+    }
+  }
+
+  private async assertNoOverlap(
+    startDate: string,
+    endDate: string,
+    excludeId: string,
+  ): Promise<void> {
+    const conflict = await this.meditationRepo.findOverlapping(
+      startDate,
+      endDate,
+      excludeId,
+    );
+
+    if (conflict) {
       throw new AppConflictException(
         ErrorCode.RESOURCE_CONFLICT,
         'Conflito com outra meditação existente.',
       );
     }
-
-    return await this.dataSource.transaction(async (manager) => {
-      const updatedMeditation = manager.merge(MeditationEntity, existing, {
-        ...dto,
-        startDate,
-        endDate,
-      });
-
-      const savedMeditation = await manager.save(
-        MeditationEntity,
-        updatedMeditation,
-      );
-      this.logger.log(`✅ Meditação atualizada: ${savedMeditation.id}`);
-
-      if (dto.days) {
-        await manager.remove(DayEntity, existing.days);
-        const newDays = dto.days.map((day) =>
-          manager.create(DayEntity, { ...day, meditation: savedMeditation }),
-        );
-        await manager.save(DayEntity, newDays);
-      }
-
-      if (dto.media) {
-        const mediaItemsInput = [
-          {
-            id: dto.media.id,
-            title: dto.media.title ?? savedMeditation.topic,
-            description:
-              dto.media.description ??
-              `Material da meditação: ${savedMeditation.topic}`,
-            mediaType: dto.media.mediaType,
-            uploadType: dto.media.uploadType,
-            platformType: dto.media.isLocalFile ? null : dto.media.platformType,
-            url: dto.media.url,
-            originalName: dto.media.originalName,
-            size: dto.media.size,
-            isLocalFile: dto.media.isLocalFile,
-            fileField: dto.media.fieldKey ?? 'file',
-            public: false,
-          },
-        ];
-
-        const filesDict = file ? { [dto.media.fieldKey ?? 'file']: file } : {};
-        const existingMedia =
-          await this.mediaItemProcessor.findMediaItemsByTarget(
-            savedMeditation.id,
-            MediaTargetType.Meditation,
-          );
-
-        const [mediaEntity] =
-          await this.mediaItemProcessor.cleanAndReplaceMediaItems(
-            mediaItemsInput,
-            savedMeditation.id,
-            MediaTargetType.Meditation,
-            filesDict,
-            existingMedia,
-            (url) => this.s3Service.delete(url),
-            (file) => this.s3Service.upload(file),
-          );
-
-        this.logger.log(`📎 Mídia atualizada: ${mediaEntity.title}`);
-      }
-
-      return savedMeditation;
-    });
   }
-}
 
-function parseDateAsLocal(dateStr: string): Date {
-  const [year, month, day] = dateStr.split('-').map(Number);
-  return new Date(year, month - 1, day);
+  /** Substitui a mídia da meditação, preservando o arquivo quando não muda. */
+  private async syncMedia(
+    media: MediaItemDto,
+    meditationId: string,
+    uploads: S3UploadTracker,
+    file?: Express.Multer.File,
+  ): Promise<MediaItemEntity | undefined> {
+    const fieldKey = media.fieldKey ?? MEDITATION_FILE_FIELD;
+    const filesDict = file ? { [fieldKey]: file } : {};
+
+    const existingMedia = await this.mediaItemProcessor.findMediaItemsByTarget(
+      meditationId,
+      MEDITATION_ENTITY_TYPE,
+    );
+
+    const [saved] = await this.mediaItemProcessor.cleanAndReplaceMediaItems(
+      [
+        {
+          // Sem o id no payload, a mídia atual do alvo é o item a atualizar:
+          // tratá-la como desconhecida faria a substituição apagar o arquivo.
+          id: media.id ?? existingMedia[0]?.id,
+          title: media.title,
+          description: media.description,
+          mediaType: media.mediaType,
+          uploadType: media.uploadType,
+          platformType: media.isLocalFile ? null : media.platformType,
+          url: media.url,
+          originalName: media.originalName,
+          size: media.size,
+          isLocalFile: media.isLocalFile,
+          fileField: fieldKey,
+        },
+      ],
+      meditationId,
+      MEDITATION_ENTITY_TYPE,
+      filesDict,
+      existingMedia,
+      (url: string) => this.s3Service.delete(url),
+      uploads.upload,
+    );
+
+    return saved;
+  }
 }

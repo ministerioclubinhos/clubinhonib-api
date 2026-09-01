@@ -1,22 +1,32 @@
-import { IsOptional, IsString, IsEnum, IsInt, Min, Max } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsEnum,
+  IsInt,
+  Min,
+  Max,
+  IsDateString,
+  IsUUID,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { DecisionType } from 'src/modules/accepted-christs/enums/decision-type.enum';
+import { PeriodShortcut } from './period-filter.dto';
 
 export class AcceptedChristsStatsQueryDto {
   @IsOptional()
-  @IsString()
+  @IsDateString()
   startDate?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   endDate?: string;
 
   @IsOptional()
-  @IsString()
+  @IsUUID()
   clubId?: string;
 
   @IsOptional()
-  @IsString()
+  @IsUUID()
   coordinatorId?: string;
 
   @IsOptional()
@@ -24,8 +34,8 @@ export class AcceptedChristsStatsQueryDto {
   decision?: DecisionType;
 
   @IsOptional()
-  @IsString()
-  gender?: string;
+  @IsEnum(['M', 'F'])
+  gender?: 'M' | 'F';
 
   @IsOptional()
   @Type(() => Number)
@@ -66,8 +76,8 @@ export class AcceptedChristsStatsQueryDto {
   groupBy?: 'day' | 'week' | 'month' | 'year';
 
   @IsOptional()
-  @IsString()
-  period?: string;
+  @IsEnum(PeriodShortcut)
+  period?: PeriodShortcut;
 
   @IsOptional()
   @Type(() => Number)

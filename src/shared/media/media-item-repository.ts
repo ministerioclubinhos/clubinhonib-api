@@ -22,6 +22,28 @@ export class MediaItemRepository {
     return this.mediaRepo.find({ where: { targetId, targetType } });
   }
 
+  /** Mídias de um alvo em qualquer um dos tipos informados. */
+  async findByTargetAnyType(
+    targetId: string,
+    targetTypes: string[],
+  ): Promise<MediaItemEntity[]> {
+    if (targetTypes.length === 0) return [];
+    return this.mediaRepo.find({
+      where: { targetId, targetType: In(targetTypes) },
+    });
+  }
+
+  /** Mídias de vários alvos em qualquer um dos tipos informados. */
+  async findManyByTargetsAnyType(
+    targetIds: string[],
+    targetTypes: string[],
+  ): Promise<MediaItemEntity[]> {
+    if (targetIds.length === 0 || targetTypes.length === 0) return [];
+    return this.mediaRepo.find({
+      where: { targetId: In(targetIds), targetType: In(targetTypes) },
+    });
+  }
+
   async findManyByTargets(
     targetIds: string[],
     targetType: string,
@@ -35,6 +57,12 @@ export class MediaItemRepository {
         targetId: In(targetIds),
       },
     });
+  }
+
+  /** Mídias que apontam para alguma das URLs informadas. */
+  async findByUrls(urls: string[]): Promise<MediaItemEntity[]> {
+    if (urls.length === 0) return [];
+    return this.mediaRepo.find({ where: { url: In(urls) } });
   }
 
   async save(media: MediaItemEntity): Promise<MediaItemEntity> {
