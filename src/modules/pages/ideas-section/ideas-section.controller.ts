@@ -10,6 +10,7 @@ import {
   UseInterceptors,
   UseGuards,
   Logger,
+  Request,
 } from '@nestjs/common';
 import {
   AppNotFoundException,
@@ -20,6 +21,7 @@ import {
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 import { AdminRoleGuard } from 'src/core/auth/guards/role-guard';
+import { AuthRequest } from 'src/core/auth/auth.types';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { IdeasSectionUpdateService } from './services/ideas-section-update.service';
@@ -29,6 +31,7 @@ import { IdeasSectionResponseDto } from './dto/ideas-section-response.dto';
 import { CreateIdeasSectionDto } from './dto/create-ideas-section.dto';
 import { UpdateIdeasSectionDto } from './dto/update-ideas-section.dto';
 import { IdeasSectionCreateService } from './services/ideas-section-create.service';
+import { NotificationService } from 'src/shared/providers/notification/notification.service';
 
 @Controller('ideas-sections')
 export class IdeasSectionController {
@@ -39,12 +42,14 @@ export class IdeasSectionController {
     private readonly updateService: IdeasSectionUpdateService,
     private readonly getService: IdeasSectionGetService,
     private readonly deleteService: IdeasSectionDeleteService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   @UseGuards(JwtAuthGuard)
   @Post()
   @UseInterceptors(AnyFilesInterceptor())
   async create(
+    @Request() req: AuthRequest,
     @UploadedFiles() files: Express.Multer.File[],
     @Body('sectionData') raw: string | Buffer,
   ): Promise<IdeasSectionResponseDto> {
@@ -86,6 +91,11 @@ export class IdeasSectionController {
     const result = await this.createService.createSection(dto, filesDict);
 
     this.logger.log(`✅ Seção de ideias criada com ID=${result.id}`);
+
+    await this.notificationService.notifyNewIdeaShared(result, {
+      email: req.user?.email,
+    });
+
     return result;
   }
 

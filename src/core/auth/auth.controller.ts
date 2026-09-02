@@ -13,6 +13,9 @@ import { AuthRequest } from './auth.types';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RegisterUserDto } from './dto/register.dto';
+import { EmailVerificationService } from './services/email-verification.service';
+import { VerifyEmailDto } from './dto/verify-email.dto';
+import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { CompleteUserDto } from './dto/complete-register.dto';
 import { AuthService } from './services/auth.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -28,6 +31,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly passwordRecoveryService: PasswordRecoveryService,
+    private readonly emailVerificationService: EmailVerificationService,
   ) {}
 
   @Post('login')
@@ -87,10 +91,28 @@ export class AuthController {
 
   @Post('forgot-password')
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
-    this.logger.log(`Password reset requested for: ${dto.email}`);
-    const result = await this.passwordRecoveryService.forgotPassword(dto);
-    this.logger.log(`Password reset processed for: ${dto.email}`);
-    return result;
+    // O endereço não entra no log: é dado pessoal e a rota é pública.
+    this.logger.log('Recuperação de senha solicitada.');
+    return this.passwordRecoveryService.forgotPassword(dto);
+  }
+
+  @Post('verify-email')
+  async verifyEmail(@Body() dto: VerifyEmailDto) {
+    this.logger.log('Confirmação de e-mail recebida.');
+    const result = await this.emailVerificationService.verify(dto.token);
+    return {
+      message: 'E-mail confirmado com sucesso. Sua conta está ativa.',
+      email: result.email,
+    };
+  }
+
+  @Post('resend-verification')
+  async resendVerification(@Body() dto: ResendVerificationDto) {
+    this.logger.log('Reenvio de confirmação de e-mail solicitado.');
+    const emailVerification = await this.emailVerificationService.resend(
+      dto.email,
+    );
+    return { emailVerification };
   }
 
   @Get('reset-password/validate')

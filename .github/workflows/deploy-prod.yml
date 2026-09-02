@@ -86,7 +86,8 @@ jobs:
 
       # Atualiza a imagem e as variáveis de ambiente da aplicação.
       # NÃO inclui AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY:
-      # o container usa a IAM Task Role do ECS para acessar S3 e SES.
+      # o container usa a IAM Task Role do ECS para acessar o S3.
+      # O e-mail sai por SMTP do Gmail, não mais pelo SES.
       - name: Fill in the new image ID in the Amazon ECS task definition
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
@@ -108,8 +109,13 @@ jobs:
             JWT_EXPIRES_IN=${{ secrets.JWT_EXPIRES_IN }}
             JWT_REFRESH_SECRET=${{ secrets.JWT_REFRESH_SECRET }}
             JWT_REFRESH_EXPIRES_IN=${{ secrets.JWT_REFRESH_EXPIRES_IN }}
-            SES_DEFAULT_FROM=${{ secrets.SES_DEFAULT_FROM }}
-            SES_DEFAULT_TO=${{ secrets.SES_DEFAULT_TO }}
+            SITE_BASE_URL=${{ secrets.SITE_BASE_URL }}
+            SMTP_HOST=${{ secrets.SMTP_HOST }}
+            SMTP_PORT=${{ secrets.SMTP_PORT }}
+            SMTP_USER=${{ secrets.SMTP_USER }}
+            SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}
+            MAIL_FROM_NAME=${{ secrets.MAIL_FROM_NAME }}
+            MAIL_FROM_ADDRESS=${{ secrets.MAIL_FROM_ADDRESS }}
             TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }}
             TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}
             TWILIO_WHATSAPP_FROM=${{ secrets.TWILIO_WHATSAPP_FROM }}

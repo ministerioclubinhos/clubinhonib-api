@@ -9,6 +9,8 @@ import {
   UploadedFiles,
   UseInterceptors,
   Logger,
+  UseGuards,
+  Request,
 } from '@nestjs/common';
 import {
   AppNotFoundException,
@@ -16,6 +18,8 @@ import {
   ErrorCode,
 } from 'src/shared/exceptions';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
+import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
+import { AuthRequest } from 'src/core/auth/auth.types';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { ImageSectionUpdateService } from './services/image-section-update-service';
@@ -25,6 +29,7 @@ import { ImageSectionResponseDto } from './dto/image-section-response.dto';
 import { CreateImageSectionDto } from './dto/create-image-section.dto';
 import { UpdateImageSectionDto } from './dto/update-image-section.dto';
 import { ImageSectionCreateService } from './services/Image-section-create-service';
+import { NotificationService } from 'src/shared/providers/notification/notification.service';
 
 @Controller('image-sections')
 export class ImageSectionController {
@@ -35,11 +40,14 @@ export class ImageSectionController {
     private readonly updateService: ImageSectionUpdateService,
     private readonly getService: ImageSectionGetService,
     private readonly deleteService: ImageSectionDeleteService,
+    private readonly notificationService: NotificationService,
   ) {}
 
+  @UseGuards(JwtAuthGuard)
   @Post()
   @UseInterceptors(AnyFilesInterceptor())
   async create(
+    @Request() req: AuthRequest,
     @UploadedFiles() files: Express.Multer.File[],
     @Body('sectionData') raw: string,
   ): Promise<ImageSectionResponseDto> {
@@ -55,6 +63,11 @@ export class ImageSectionController {
     const result = await this.createService.createSection(dto, filesDict);
 
     this.logger.log(`✅ Section criada com ID=${result.id}`);
+
+    await this.notificationService.notifyNewImageShared(result, {
+      email: req.user?.email,
+    });
+
     return result;
   }
 

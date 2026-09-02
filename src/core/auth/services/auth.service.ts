@@ -17,8 +17,9 @@ import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 import { PersonalDataRepository } from 'src/core/profile/repositories/personal-data.repository';
 import { UserPreferencesRepository } from 'src/core/profile/repositories/user-preferences.repository';
-import { SesIdentityService } from 'src/shared/providers/aws/ses-identity.service';
+import { EmailVerificationService } from './email-verification.service';
 import { TeacherProfilesRepository } from 'src/modules/teacher-profiles/repositories/teacher-profiles.repository';
+import { NotificationService } from 'src/shared/providers/notification/notification.service';
 import {
   AppUnauthorizedException,
   AppNotFoundException,
@@ -44,9 +45,10 @@ export class AuthService {
     private readonly personalDataRepository: PersonalDataRepository,
     @Inject(forwardRef(() => UserPreferencesRepository))
     private readonly userPreferencesRepository: UserPreferencesRepository,
-    private readonly sesIdentityService: SesIdentityService,
+    private readonly emailVerificationService: EmailVerificationService,
     @Inject(forwardRef(() => TeacherProfilesRepository))
     private readonly teacherProfilesRepository: TeacherProfilesRepository,
+    private readonly notificationService: NotificationService,
   ) {
     this.googleClient = new OAuth2Client(
       configService.getOrThrow<string>('GOOGLE_CLIENT_ID'),
@@ -76,22 +78,15 @@ export class AuthService {
       );
     }
 
-    const sesVerification =
-      await this.sesIdentityService.checkAndResendSesVerification(email);
+    const emailVerification =
+      await this.emailVerificationService.sendIfPending(user);
 
     if (!user.active) {
       return {
         message:
           'User is inactive. Please verify your email to activate your account.',
         user: this.buildUserResponse(user),
-        emailVerification: {
-          verificationEmailSent: sesVerification.verificationEmailSent,
-          message: sesVerification.verificationEmailSent
-            ? 'Um email de verificação foi enviado para o seu endereço. Por favor, verifique sua caixa de entrada.'
-            : sesVerification.alreadyVerified
-              ? 'Email já verificado.'
-              : undefined,
-        },
+        emailVerification,
       };
     }
 
@@ -102,14 +97,7 @@ export class AuthService {
       message: 'Login successful',
       user: this.buildUserResponse(user),
       ...tokens,
-      emailVerification: {
-        verificationEmailSent: sesVerification.verificationEmailSent,
-        message: sesVerification.verificationEmailSent
-          ? 'Um email de verificação foi enviado para o seu endereço. Por favor, verifique sua caixa de entrada.'
-          : sesVerification.alreadyVerified
-            ? 'Email já verificado.'
-            : undefined,
-      },
+      emailVerification,
     };
   }
 
@@ -143,8 +131,10 @@ export class AuthService {
           role: UserRole.COORDINATOR,
         });
 
-        const sesVerification =
-          await this.sesIdentityService.verifyEmailIdentitySES(email);
+        const emailVerification =
+          await this.emailVerificationService.sendIfPending(user);
+
+        await this.notificationService.notifyNewUserRegistration(user, 'google');
 
         return {
           email,
@@ -152,53 +142,38 @@ export class AuthService {
           completed: user.completed,
           commonUser: user.commonUser,
           newUser: true,
-          emailVerification: {
-            verificationEmailSent: sesVerification.verificationEmailSent,
-            message: sesVerification.verificationEmailSent
-              ? 'Um email de verificação foi enviado para o seu endereço. Por favor, verifique sua caixa de entrada.'
-              : undefined,
-          },
+          emailVerification,
         };
       }
 
       if (!user.completed) {
-        const sesVerification =
-          await this.sesIdentityService.checkAndResendSesVerification(email);
+        const emailVerification =
+          await this.emailVerificationService.sendIfPending(user);
         return {
           email,
           name,
           completed: false,
           commonUser: user.commonUser,
           newUser: true,
-          emailVerification: {
-            verificationEmailSent: sesVerification.verificationEmailSent,
-            message: sesVerification.verificationEmailSent
-              ? 'Um email de verificação foi enviado para o seu endereço. Por favor, verifique sua caixa de entrada.'
-              : undefined,
-          },
+          emailVerification,
         };
       }
 
       if (!user.active) {
-        const sesVerification =
-          await this.sesIdentityService.checkAndResendSesVerification(email);
+        const emailVerification =
+          await this.emailVerificationService.sendIfPending(user);
         return {
           message: 'User is inactive',
           active: false,
           completed: user.completed,
           commonUser: user.commonUser,
           newUser: false,
-          emailVerification: {
-            verificationEmailSent: sesVerification.verificationEmailSent,
-            message: sesVerification.verificationEmailSent
-              ? 'Um email de verificação foi enviado para o seu endereço. Por favor, verifique sua caixa de entrada.'
-              : undefined,
-          },
+          emailVerification,
         };
       }
 
-      const sesVerification =
-        await this.sesIdentityService.checkAndResendSesVerification(email);
+      const emailVerification =
+        await this.emailVerificationService.sendIfPending(user);
 
       const tokens = this.generateTokens(user);
       await this.updateRefreshToken(user.id, tokens.refreshToken);
@@ -208,14 +183,7 @@ export class AuthService {
         isNewUser: false,
         user: this.buildUserResponse(user),
         ...tokens,
-        emailVerification: {
-          verificationEmailSent: sesVerification.verificationEmailSent,
-          message: sesVerification.verificationEmailSent
-            ? 'Um email de verificação foi enviado para o seu endereço. Por favor, verifique sua caixa de entrada.'
-            : sesVerification.alreadyVerified
-              ? 'Email já verificado.'
-              : undefined,
-        },
+        emailVerification,
       };
     } catch (error: any) {
       const err = error as Error;
@@ -469,17 +437,12 @@ export class AuthService {
       role: data.role,
     });
 
-    const sesVerification =
-      await this.sesIdentityService.verifyEmailIdentitySES(data.email);
+    const emailVerification =
+      await this.emailVerificationService.sendIfPending(user);
 
     return {
       message: 'Registration completed successfully',
-      emailVerification: {
-        verificationEmailSent: sesVerification.verificationEmailSent,
-        message: sesVerification.verificationEmailSent
-          ? 'Um email de verificação foi enviado para o seu endereço. Por favor, verifique sua caixa de entrada.'
-          : undefined,
-      },
+      emailVerification,
     };
   }
 
@@ -503,18 +466,15 @@ export class AuthService {
       role: data.role,
     });
 
-    const sesVerification =
-      await this.sesIdentityService.verifyEmailIdentitySES(data.email);
+    const emailVerification =
+      await this.emailVerificationService.sendIfPending(user);
+
+    await this.notificationService.notifyNewUserRegistration(user, 'normal');
 
     return {
       message: 'Registration successful',
       user: this.buildUserResponse(user),
-      emailVerification: {
-        verificationEmailSent: sesVerification.verificationEmailSent,
-        message: sesVerification.verificationEmailSent
-          ? 'Um email de verificação foi enviado para o seu endereço. Por favor, verifique sua caixa de entrada para completar o cadastro.'
-          : undefined,
-      },
+      emailVerification,
     };
   }
 

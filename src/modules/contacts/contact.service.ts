@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ContactRepository } from './contact.repository';
 import { ContactEntity } from './contact.entity';
+import { CreateContactDto } from './dto/create-contact.dto';
 import { NotificationService } from 'src/shared/providers/notification/notification.service';
 import {
   AppNotFoundException,
@@ -17,8 +18,8 @@ export class ContactService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  async createContact(data: Partial<ContactEntity>): Promise<ContactEntity> {
-    this.logger.debug(`Creating contact for: ${data.email}`);
+  async createContact(data: CreateContactDto): Promise<ContactEntity> {
+    this.logger.debug('Criando contato.');
 
     let contact: ContactEntity;
     try {

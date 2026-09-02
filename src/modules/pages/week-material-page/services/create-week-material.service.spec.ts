@@ -18,6 +18,7 @@ import { WeekMaterialsPageRepository } from '../repositories/week-material-page.
 import { WeekMaterialsPageEntity } from '../entities/week-material-page.entity';
 import { CreateWeekMaterialsPageDto } from '../dto/create-week-material.dto';
 import { WeekMaterialsPageCreateService } from './create-week-material.service';
+import { AnnounceWeekMaterialService } from './announce-week-material.service';
 import { WEEK_MATERIAL_ROUTE_PATH_PREFIX } from '../constants';
 
 const validDto = (
@@ -56,6 +57,7 @@ describe('WeekMaterialsPageCreateService', () => {
     generateAvailablePath: jest.fn(),
     createRouteWithManager: jest.fn(),
   };
+  const announceService = { announceInBackground: jest.fn() };
   const mediaItemProcessor = {
     processMediaItemsPolymorphic: jest.fn(),
     findMediaItemsByTarget: jest.fn(),
@@ -107,6 +109,10 @@ describe('WeekMaterialsPageCreateService', () => {
         { provide: AwsS3Service, useValue: s3 },
         { provide: RouteService, useValue: routeService },
         { provide: MediaItemProcessor, useValue: mediaItemProcessor },
+        {
+          provide: AnnounceWeekMaterialService,
+          useValue: announceService,
+        },
       ],
     }).compile();
 

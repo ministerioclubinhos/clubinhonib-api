@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Request } from 'express';
 import { ClubsRepository } from '../repositories/clubs.repository';
 import { AuthContextService } from 'src/core/auth/services/auth-context.service';
+import { SyncClubEventService } from 'src/modules/pages/event-page/services/sync-club-event.service';
 import {
   AppNotFoundException,
   AppForbiddenException,
@@ -15,6 +16,7 @@ export class DeleteClubsService {
   constructor(
     private readonly clubsRepository: ClubsRepository,
     private readonly authCtx: AuthContextService,
+    private readonly syncClubEvent: SyncClubEventService,
   ) {}
 
   private async getCtx(req: Request): Promise<Ctx> {
@@ -40,7 +42,9 @@ export class DeleteClubsService {
         );
     }
 
+    await this.syncClubEvent.removeForClub(id);
     await this.clubsRepository.deleteById(id);
+
     return { message: 'Clubinho removido com sucesso' };
   }
 }

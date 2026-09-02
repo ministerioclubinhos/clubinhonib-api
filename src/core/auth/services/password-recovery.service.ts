@@ -1,54 +1,56 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, Logger } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { GetUsersService } from '../../user/services/get-user.service';
 import { UpdateUserService } from '../../user/services/update-user.service';
-import { EmailService } from '../../../shared/providers/aws/email.service';
-import { SesIdentityService } from '../../../shared/providers/aws/ses-identity.service';
-import { EmailTemplateGenerator } from '../../../shared/email-template-generator';
+import { EmailService } from 'src/shared/email';
 import { ForgotPasswordDto } from '../dto/forgot-password.dto';
 import { ResetPasswordDto } from '../dto/reset-password.dto';
 import { PasswordResetTokenRepository } from '../repositories/password-reset-token.repository';
+import { SiteUrlService } from 'src/shared/site-url';
 import {
-  AppNotFoundException,
-  AppBusinessException,
-  ErrorCode,
-} from 'src/shared/exceptions';
+  AUTH_EMAIL_PATHS,
+  AUTH_TOKEN_BYTES,
+  PASSWORD_RESET_TTL_MINUTES,
+} from '../constants';
+import { AppBusinessException, ErrorCode } from 'src/shared/exceptions';
+
+/**
+ * A recuperação responde sempre isto, com ou sem conta correspondente.
+ */
+const GENERIC_FORGOT_PASSWORD_RESPONSE = {
+  status: 'RESET_LINK_SENT',
+  message:
+    'Se houver uma conta com esse e-mail, as instruções de recuperação foram enviadas.',
+} as const;
 
 @Injectable()
 export class PasswordRecoveryService {
+  private readonly logger = new Logger(PasswordRecoveryService.name);
+
   constructor(
-    private getUsersService: GetUsersService,
-    private updateUserService: UpdateUserService,
-    private emailService: EmailService,
-    private passwordResetTokenRepo: PasswordResetTokenRepository,
-    private sesIdentityService: SesIdentityService,
-    private configService: ConfigService,
+    private readonly getUsersService: GetUsersService,
+    private readonly updateUserService: UpdateUserService,
+    private readonly emailService: EmailService,
+    private readonly passwordResetTokenRepo: PasswordResetTokenRepository,
+    private readonly siteUrlService: SiteUrlService,
   ) {}
 
+  /**
+   * Sempre responde a mesma coisa, exista ou não a conta: uma resposta
+   * diferente por e-mail inexistente entrega ao atacante quais endereços estão
+   * cadastrados.
+   */
   async forgotPassword(data: ForgotPasswordDto) {
     const user = await this.getUsersService.findByEmail(data.email);
+
     if (!user) {
-      throw new AppNotFoundException(
-        ErrorCode.USER_NOT_FOUND,
-        'Email não encontrado',
-      );
+      this.logger.warn('Recuperação pedida para e-mail sem cadastro.');
+      return GENERIC_FORGOT_PASSWORD_RESPONSE;
     }
 
-    const sesCheck =
-      await this.sesIdentityService.checkAndResendSesVerification(user.email);
-
-    if (sesCheck.verificationEmailSent || !sesCheck.alreadyVerified) {
-      return {
-        status: 'VERIFICATION_EMAIL_SENT',
-        message:
-          'Seu email ainda não foi verificado. Um novo email de verificação foi enviado.',
-      };
-    }
-
-    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetToken = crypto.randomBytes(AUTH_TOKEN_BYTES).toString('hex');
     const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + 30);
+    expiresAt.setMinutes(expiresAt.getMinutes() + PASSWORD_RESET_TTL_MINUTES);
 
     await this.passwordResetTokenRepo.invalidateTokensForUser(user.id);
     await this.passwordResetTokenRepo.createToken(
@@ -57,25 +59,15 @@ export class PasswordRecoveryService {
       expiresAt,
     );
 
-    const baseUrl = this.getBaseUrl();
-    const resetLink = `${baseUrl}/recuperar-senha/${resetToken}`;
+    await this.emailService.sendPasswordRecovery(user.email, {
+      recipientName: user.name,
+      resetLink: this.siteUrlService.buildUrl(
+        AUTH_EMAIL_PATHS.passwordReset,
+        resetToken,
+      ),
+    });
 
-    const emailHtml = EmailTemplateGenerator.generatePasswordRecovery(
-      user.name,
-      resetLink,
-    );
-
-    await this.emailService.sendEmailViaSES(
-      user.email,
-      'Recuperação de Senha - Clubinhos NIB',
-      `Olá ${user.name},\n\nRecebemos uma solicitação para redefinir sua senha.\nClique no link abaixo: \n${resetLink}`,
-      emailHtml,
-    );
-
-    return {
-      status: 'RESET_LINK_SENT',
-      message: 'As instruções de recuperação foram enviadas para o seu email.',
-    };
+    return GENERIC_FORGOT_PASSWORD_RESPONSE;
   }
 
   async validateResetToken(token: string) {
@@ -108,34 +100,11 @@ export class PasswordRecoveryService {
 
     await this.passwordResetTokenRepo.deleteToken(dto.token);
 
-    const baseUrl = this.getBaseUrl();
-    const emailHtml = EmailTemplateGenerator.generatePasswordChanged(
-      user.name,
-      baseUrl,
-    );
-
-    await this.emailService.sendEmailViaSES(
-      user.email,
-      'Senha Alterada com Sucesso - Clubinhos NIB',
-      `Olá ${user.name},\n\nSua senha foi alterada com sucesso.`,
-      emailHtml,
-    );
+    await this.emailService.sendPasswordChanged(user.email, {
+      recipientName: user.name,
+      loginLink: this.siteUrlService.baseUrl,
+    });
 
     return { message: 'Senha alterada com sucesso.' };
-  }
-
-  private getBaseUrl(): string {
-    const environment = this.configService.get<string>('ENVIRONMENT');
-
-    switch (environment) {
-      case 'local':
-        return 'http://localhost:5173';
-      case 'staging':
-        return 'https://staging.clubinhonib.com';
-      case 'production':
-        return 'https://clubinhonib.com';
-      default:
-        return 'http://localhost:5173';
-    }
   }
 }

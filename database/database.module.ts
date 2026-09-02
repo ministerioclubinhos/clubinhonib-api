@@ -9,6 +9,7 @@ import { ImageSectionEntity } from '../src/modules/pages/image-page/entity/Image
 import { RouteEntity } from '../src/modules/routes/route-page.entity';
 import { UserEntity } from 'src/core/user/entities/user.entity';
 import { PasswordResetTokenEntity } from 'src/core/auth/entities/password-reset-token.entity';
+import { EmailVerificationTokenEntity } from 'src/core/auth/entities/email-verification-token.entity';
 import { FeatureFlagEntity } from 'src/core/feature-flags/entities/feature-flag.entity';
 import { PersonalData } from 'src/core/profile/entities/personal-data.entity';
 import { UserPreferences } from 'src/core/profile/entities/user-preferences.entity';
@@ -60,6 +61,7 @@ import { ClubControlLogEntity } from 'src/modules/club-control/entities/club-con
             RouteEntity,
             UserEntity,
             PasswordResetTokenEntity,
+            EmailVerificationTokenEntity,
             FeatureFlagEntity,
             PersonalData,
             UserPreferences,

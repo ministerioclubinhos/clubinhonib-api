@@ -6,10 +6,9 @@ import {
   Param,
   Put,
   Delete,
-  UsePipes,
-  ValidationPipe,
   Logger,
   Patch,
+  Request,
   UseGuards,
 } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
@@ -19,6 +18,7 @@ import { SiteFeedbackResponseDto } from './dto/site-feedback-response.dto';
 import { UpdateSiteFeedbackDto } from './dto/update-site-feedback.dto';
 import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 import { AdminRoleGuard } from 'src/core/auth/guards/role-guard';
+import { AuthRequest } from 'src/core/auth/auth.types';
 
 @Controller('site-feedbacks')
 export class SiteFeedbackController {
@@ -28,13 +28,14 @@ export class SiteFeedbackController {
 
   @Post()
   @UseGuards(JwtAuthGuard)
-  @UsePipes(new ValidationPipe({ whitelist: true }))
   async create(
     @Body() dto: CreateSiteFeedbackDto,
+    @Request() req: AuthRequest,
   ): Promise<SiteFeedbackResponseDto> {
-    this.logger.debug('📝 Recebendo requisição para criar feedback do site');
-    const created = await this.siteFeedbackService.create(dto);
-    this.logger.log(`✅ Feedback do site criado com ID: ${created.id}`);
+    this.logger.debug('Recebendo nova avaliação do site');
+    // O autor vem do token: o nome não é aceito no corpo.
+    const created = await this.siteFeedbackService.create(dto, req.user.userId);
+    this.logger.log(`Avaliação do site criada. ID=${created.id}`);
     return plainToInstance(SiteFeedbackResponseDto, created);
   }
 

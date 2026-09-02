@@ -4,6 +4,7 @@ import { ClubsRepository } from '../repositories/clubs.repository';
 import { CreateClubDto } from '../dto/create-club.dto';
 import { AuthContextService } from 'src/core/auth/services/auth-context.service';
 import { AppForbiddenException, ErrorCode } from 'src/shared/exceptions';
+import { SyncClubEventService } from 'src/modules/pages/event-page/services/sync-club-event.service';
 
 type Ctx = { role?: string; userId?: string | null };
 
@@ -12,6 +13,7 @@ export class CreateClubsService {
   constructor(
     private readonly clubsRepository: ClubsRepository,
     private readonly authCtx: AuthContextService,
+    private readonly syncClubEvent: SyncClubEventService,
   ) {}
 
   private async getCtx(req: Request): Promise<Ctx> {
@@ -46,6 +48,11 @@ export class CreateClubsService {
       dto.coordinatorProfileId = myCoordId;
     }
 
-    return this.clubsRepository.createClub(dto);
+    const club = await this.clubsRepository.createClub(dto);
+
+    // O encontro semanal entra no calendário junto com o clubinho.
+    await this.syncClubEvent.syncFromClub(club);
+
+    return club;
   }
 }

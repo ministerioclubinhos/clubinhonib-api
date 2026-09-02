@@ -141,13 +141,70 @@ enquanto o problema existia.
 
 ### 1.5 Event Page
 
-**Base URL**: `/pages/event`
+**Base URL**: `/events`
 
-Manages upcoming events.
+Agenda de eventos. O evento não tem página própria: o site lista tudo em
+`/eventos`.
 
-- `GET /` - List events
-- `POST /` - Create event
-- `PUT /:id` - Update event details
+- `GET /` - Lista os eventos, do mais antigo para o mais novo. Sem sessão, só
+  os públicos
+- `GET /upcoming` - Eventos de hoje em diante, mais os encontros semanais, que
+  sempre valem. Sem sessão, só os públicos
+- `GET /:id` - Um evento
+- `POST /` - Cria (admin, `multipart/form-data`)
+- `PATCH /:id` - Atualiza (admin, `multipart/form-data`)
+- `DELETE /:id` - Remove o evento e a mídia dele (admin, `204`)
+
+**Corpo multipart**: campo `eventData` com o JSON e campo `file` com a imagem.
+
+```jsonc
+{
+  "title": "Festa da Família",
+  "date": "2026-04-12",
+  "location": "Salão da igreja",
+  "description": "…",
+  "audience": "all",          // all | teachers | coordinators
+  "eventType": "custom",      // visit | meeting | custom
+  "media": {
+    "id": "uuid",             // ausente quando a imagem é nova
+    "mediaType": "image",
+    "uploadType": "upload",
+    "isLocalFile": true,
+    "url": "https://…"        // a URL guardada, quando não há arquivo novo
+  }
+}
+```
+
+**Encontro semanal do clubinho**
+
+Cadastrar um clubinho — ou mudar dia, horário, endereço ou situação dele — cria
+e mantém **um** evento no calendário:
+
+- `isRecurring: true`, com `weekday` e `time` do clubinho; `date` guarda a
+  primeira ocorrência e é preservada nas edições. Quem exibe o calendário repete
+  o encontro nas semanas seguintes, então não existe uma linha por semana;
+- `public: false` — dia, horário e endereço **não** aparecem no site aberto. Só
+  quem está autenticado recebe esses eventos em `GET /events` e
+  `GET /events/upcoming`;
+- `clubId` liga o evento ao clubinho: a edição atualiza a mesma linha, nunca
+  cria outra. Clubinho desativado ou removido perde o encontro;
+- `location` é o endereço em uma linha, ou "Endereço não informado";
+- **nenhum e-mail é disparado** por esses eventos. O encontro é operacional e
+  nasce de cadastro administrativo; avisar toda a base a cada clubinho seria
+  só ruído.
+
+**Regras**
+
+- `date` é gravada como texto ISO. Toda comparação e formatação lê os
+  componentes da string: `new Date('2026-04-12')` seria meia-noite UTC e viraria
+  o dia anterior em qualquer fuso negativo.
+- Uma edição sem arquivo novo reenvia a `url` guardada, e a API reaproveita o
+  objeto que já está no S3.
+- Criar, editar e excluir um evento **da agenda** disparam avisos por e-mail
+  para toda a base — veja [`email.md`](email.md). Encontros de clubinho estão
+  fora disso.
+- A resposta usa `uploadType` na mídia. O contrato antigo chamava esse campo de
+  `typeUpload`, diferente de todos os outros módulos; nenhum cliente o lia.
 
 ---
 

@@ -3,6 +3,8 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 
+import { TypeOrmModule } from '@nestjs/typeorm';
+
 import { AuthController } from './auth.controller';
 import { AuthRepository } from './auth.repository';
 import { JwtStrategy } from './strategies/jwt.strategy';
@@ -15,6 +17,11 @@ import { TeacherProfilesModule } from 'src/modules/teacher-profiles/teacher-prof
 import { ProfileModule } from '../profile/profile.module';
 import { PasswordResetTokenRepository } from './repositories/password-reset-token.repository';
 import { PasswordRecoveryService } from './services/password-recovery.service';
+import { EmailVerificationTokenEntity } from './entities/email-verification-token.entity';
+import { EmailVerificationTokenRepository } from './repositories/email-verification-token.repository';
+import { EmailVerificationService } from './services/email-verification.service';
+import { SiteUrlModule } from 'src/shared/site-url';
+import { EmailModule } from 'src/shared/email';
 
 @Module({
   imports: [
@@ -34,6 +41,9 @@ import { PasswordRecoveryService } from './services/password-recovery.service';
     MediaModule,
     forwardRef(() => ProfileModule),
     AwsModule,
+    EmailModule,
+    SiteUrlModule,
+    TypeOrmModule.forFeature([EmailVerificationTokenEntity]),
     forwardRef(() => TeacherProfilesModule),
   ],
   controllers: [AuthController],
@@ -44,6 +54,8 @@ import { PasswordRecoveryService } from './services/password-recovery.service';
     JwtStrategy,
     PasswordResetTokenRepository,
     PasswordRecoveryService,
+    EmailVerificationTokenRepository,
+    EmailVerificationService,
   ],
   exports: [
     AuthService,
@@ -52,6 +64,7 @@ import { PasswordRecoveryService } from './services/password-recovery.service';
     PassportModule,
     JwtStrategy,
     PasswordRecoveryService,
+    EmailVerificationService,
   ],
 })
 export class AuthModule {}

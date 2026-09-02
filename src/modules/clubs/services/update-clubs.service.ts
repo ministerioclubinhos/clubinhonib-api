@@ -3,6 +3,7 @@ import { Request } from 'express';
 import { ClubsRepository } from '../repositories/clubs.repository';
 import { UpdateClubDto } from '../dto/update-club.dto';
 import { AuthContextService } from 'src/core/auth/services/auth-context.service';
+import { SyncClubEventService } from 'src/modules/pages/event-page/services/sync-club-event.service';
 import {
   AppNotFoundException,
   AppForbiddenException,
@@ -16,6 +17,7 @@ export class UpdateClubsService {
   constructor(
     private readonly clubsRepository: ClubsRepository,
     private readonly authCtx: AuthContextService,
+    private readonly syncClubEvent: SyncClubEventService,
   ) {}
 
   private async getCtx(req: Request): Promise<Ctx> {
@@ -64,6 +66,12 @@ export class UpdateClubsService {
       }
     }
 
-    return this.clubsRepository.updateClub(id, dto);
+    const club = await this.clubsRepository.updateClub(id, dto);
+
+    // Dia, horário, endereço e situação do clubinho definem o encontro; a
+    // sincronização roda sempre e mantém a mesma linha do calendário.
+    await this.syncClubEvent.syncFromClub(club);
+
+    return club;
   }
 }

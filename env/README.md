@@ -1,106 +1,86 @@
-# Environment Variables
+# Variáveis de ambiente
 
-Este diretório contém os arquivos de configuração de ambiente para a aplicação Clubinho NIB API.
+Arquivos de configuração da Clubinho NIB API.
 
-## 📁 Estrutura
+## Estrutura
 
 ```
 env/
-├── local.env              # Configurações para desenvolvimento local
-├── local.env.example      # Template para configurações locais
-├── staging.env            # Configurações para ambiente de staging (AWS)
-├── staging.env.example    # Template para configurações de staging
-├── prod.env              # Configurações para ambiente de produção (AWS)
-└── prod.env.example      # Template para configurações de produção
+├── local.env / local.env.example        # desenvolvimento local
+├── dev.env                              # ambiente de desenvolvimento
+├── staging.env.example                  # template de staging
+└── prod.env.example                     # template de produção
 ```
 
-## 🚀 Uso
+Os arquivos com valores reais (`local.env`, `dev.env`, `prod.env`) **não vão
+para o Git**. Os `.example` são o contrato: toda variável que a aplicação lê
+está neles.
 
-### Desenvolvimento Local
+## Uso
 
 ```bash
-npm run start:local
+npm run start:local     # usa env/local.env
+npm run start:staging   # usa env/staging.env
+npm run start:prod      # usa env/prod.env
 ```
 
-Usa o arquivo `env/local.env` para rodar a aplicação localmente.
+O caminho vem de `ENV_FILE`, definido pelo próprio script — **não** coloque
+`ENV_FILE` dentro do arquivo de ambiente.
 
-### Staging
+Para começar:
 
 ```bash
-npm run start:staging
+cp env/local.env.example env/local.env
 ```
 
-Usa o arquivo `env/staging.env` (conecta ao banco staging na AWS).
+## Variáveis lidas pela aplicação
 
-### Production
+| Variável | Para quê | Sem ela |
+|---|---|---|
+| `ENVIRONMENT` | prefixo das chaves no S3 e site padrão dos links | uploads sem prefixo e links para localhost |
+| `PORT` | porta HTTP | 3000 |
+| `SITE_BASE_URL` | base dos links enviados por e-mail | cai no mapa por `ENVIRONMENT` |
+| `DB_HOST` `DB_PORT` `DB_USERNAME` `DB_PASSWORD` `DB_NAME` | conexão MySQL | usa os padrões e não conecta |
+| `AWS_REGION` `AWS_S3_BUCKET_NAME` | bucket dos uploads | upload e remoção falham |
+| `JWT_SECRET` `JWT_EXPIRES_IN` `JWT_REFRESH_SECRET` `JWT_REFRESH_EXPIRES_IN` | tokens de acesso e refresh | a aplicação não sobe |
+| `SMTP_HOST` `SMTP_PORT` `SMTP_USER` `SMTP_PASSWORD` | envio de e-mail | sobe com aviso e recusa cada envio |
+| `MAIL_FROM_NAME` `MAIL_FROM_ADDRESS` | remetente exibido | usa o nome padrão e a conta autenticada |
+| `GOOGLE_CLIENT_ID` | login com Google | login com Google falha |
+| `TWILIO_ACCOUNT_SID` `TWILIO_AUTH_TOKEN` `TWILIO_WHATSAPP_FROM` `TWILIO_WHATSAPP_TO` | aviso de contato por WhatsApp | o aviso por WhatsApp é ignorado |
+| `FEED_CLUBINHO_PAGE_ID` | página de imagens usada como feed | a atualização de seção do feed falha |
 
-```bash
-npm run start:prod
-```
+### Não lidas pelo código, mas necessárias
 
-Usa o arquivo `env/prod.env` (conecta ao banco production na AWS).
+- `AWS_ACCESS_KEY_ID` e `AWS_SECRET_ACCESS_KEY`: o SDK da AWS lê direto do
+  ambiente. Em desenvolvimento são obrigatórias; **em produção não devem
+  existir**, porque o container usa a IAM Task Role do ECS.
+- `DOMAIN_NAME`: usada só pelo workflow de deploy, não pela aplicação.
 
-## 🔧 Configuração Inicial
+### Removidas
 
-1. Copie os arquivos `.example` e remova o sufixo `.example`:
-   ```bash
-   cp env/local.env.example env/local.env
-   ```
+- `SES_DEFAULT_FROM`, `SES_DEFAULT_TO`: o envio saiu do AWS SES e passou a ser
+  SMTP do Gmail.
+- `MAIL_CONTACT_TO`: os avisos de contato vão para os administradores
+  cadastrados no banco.
 
-2. Edite o arquivo copiado com suas credenciais locais:
-   - Configurações do banco de dados MySQL
-   - Credenciais AWS (S3, SES)
-   - Secrets JWT
-   - API keys (Twilio, Google OAuth, etc.)
+## E-mail com Gmail
 
-## 📋 Variáveis Obrigatórias
+`SMTP_PASSWORD` é uma **Senha de App** do Google (16 dígitos), não a senha da
+conta — com verificação em duas etapas ativa, a senha normal é recusada.
+`MAIL_FROM_ADDRESS` precisa ser a conta autenticada ou um alias verificado
+nela; qualquer outro remetente é reescrito pelo Gmail.
 
-### Database
-- `DB_HOST` - Host do banco MySQL
-- `DB_PORT` - Porta do banco (padrão: 3306)
-- `DB_USERNAME` - Usuário do banco
-- `DB_PASSWORD` - Senha do banco
-- `DB_NAME` - Nome do banco
+Detalhes do módulo de e-mail em [`../docs/email.md`](../docs/email.md).
 
-### AWS
-- `AWS_REGION` - Região AWS (padrão: us-east-1)
-- `AWS_ACCESS_KEY_ID` - Access Key da AWS
-- `AWS_SECRET_ACCESS_KEY` - Secret Key da AWS
-- `AWS_S3_BUCKET_NAME` - Nome do bucket S3
+## Deploy
 
-### JWT
-- `JWT_SECRET` - Secret para geração de tokens de acesso
-- `JWT_REFRESH_SECRET` - Secret para geração de refresh tokens
-- `JWT_EXPIRES_IN` - Tempo de expiração do access token (ex: 1h, 7d)
-- `JWT_REFRESH_EXPIRES_IN` - Tempo de expiração do refresh token (ex: 7d, 14d)
+O que vale em produção e staging são as variáveis do workflow
+(`.github/workflows/deploy-prod.yml` e `deploy-staging.yml`), que preenchem a
+task definition do ECS a partir dos secrets do repositório. Uma variável nova
+precisa entrar **nos dois lugares**: no `.example` e no workflow.
 
-### Email (SES)
-- `SES_DEFAULT_FROM` - Email remetente padrão
-- `SES_DEFAULT_TO` - Email(s) destinatário(s) padrão
+## Segurança
 
-## 🔒 Segurança
-
-⚠️ **IMPORTANTE:**
-- Nunca commite os arquivos `.env` no Git
-- Use senhas fortes e únicas para cada ambiente
-- Rotacione as credenciais regularmente
-- Os arquivos `.env` já estão no `.gitignore`
-
-## 🚀 Deploy AWS
-
-Os arquivos `staging.env` e `prod.env` são usados pelo script de deploy:
-
-```bash
-# Deploy staging
-cd cloudformation/ec2
-AWS_PROFILE=clubinho-aws bash deploy-complete.sh staging
-
-# Deploy production
-cd cloudformation/ec2
-AWS_PROFILE=clubinho-aws bash deploy-complete.sh production
-```
-
-O script automaticamente:
-1. Faz build da imagem Docker
-2. Envia para o ECR
-3. Faz deploy na EC2 com as variáveis de ambiente corretas
+- Nunca commite arquivos com valores reais.
+- Rotacione credenciais periodicamente.
+- Uma senha por ambiente, nunca a mesma.

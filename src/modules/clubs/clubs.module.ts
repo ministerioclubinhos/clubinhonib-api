@@ -16,6 +16,7 @@ import { CoordinatorProfilesModule } from '../coordinator-profiles/coordinator-p
 import { AddressEntity } from '../addresses/entities/address.entity/address.entity';
 import { ChildrenModule } from '../children/children.module';
 import { AuthModule } from 'src/core/auth/auth.module';
+import { EventModule } from 'src/modules/pages/event-page/event.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { AuthModule } from 'src/core/auth/auth.module';
     forwardRef(() => CoordinatorProfilesModule),
     forwardRef(() => ChildrenModule),
     forwardRef(() => AuthModule),
+    forwardRef(() => EventModule),
   ],
   controllers: [ClubsController],
   providers: [

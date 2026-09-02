@@ -23,11 +23,11 @@
     "test:api": "node scripts/test-api-real.js",
     "test:all": "node scripts/run-all-testes.js",
     "populate": "node scripts/populate-mass.js",
-    "s3:audit": "node scripts/s3/audit-orphans.js"
+    "s3:audit": "node scripts/s3/audit-orphans.js",
+    "email:preview": "ts-node -r tsconfig-paths/register scripts/email/preview.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.758.0",
-    "@aws-sdk/client-ses": "^3.782.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.1",
     "@nestjs/core": "^11.0.1",
@@ -43,6 +43,7 @@
     "google-auth-library": "^10.2.0",
     "multer": "^1.4.5-lts.1",
     "mysql2": "^3.12.0",
+    "nodemailer": "^9.1.1",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.2.2",
@@ -63,6 +64,7 @@
     "@types/jest": "^29.5.14",
     "@types/multer": "^1.4.12",
     "@types/node": "^22.10.7",
+    "@types/nodemailer": "^8.0.1",
     "@types/passport-jwt": "^4.0.1",
     "@types/supertest": "^6.0.2",
     "cross-env": "^10.1.0",

@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserEntity } from './entities/user.entity';
 import { GetUsersQueryDto } from './dto/get-users-query.dto';
+import { UserRole } from 'src/core/auth/auth.types';
 
 @Injectable()
 export class UserRepository {
@@ -22,6 +23,31 @@ export class UserRepository {
 
   async findById(id: string): Promise<UserEntity | null> {
     return this.repo.findOne({ where: { id } });
+  }
+
+  /**
+   * E-mails dos usuários já validados, para os avisos enviados a toda a base.
+   * Só o endereço e o nome são carregados: nenhum aviso precisa do resto.
+   */
+  async findActiveRecipients(): Promise<{ name: string; email: string }[]> {
+    return this.repo.find({
+      where: { active: true },
+      select: { name: true, email: true },
+      order: { email: 'ASC' },
+    });
+  }
+
+  /**
+   * E-mails de todos os administradores cadastrados no banco de dados.
+   */
+  async findAdminEmails(): Promise<string[]> {
+    const admins = await this.repo.find({
+      where: { role: UserRole.ADMIN },
+      select: { email: true },
+    });
+    return admins
+      .map((admin) => admin.email)
+      .filter((email) => Boolean(email && email.trim()));
   }
 
   async findByEmail(email: string): Promise<UserEntity | null> {

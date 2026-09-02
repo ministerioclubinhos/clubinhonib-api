@@ -10,6 +10,7 @@ import { RouteService } from 'src/modules/routes/route.service';
 import { RouteType } from 'src/modules/routes/route-page.entity';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
+import { AnnounceWeekMaterialService } from './announce-week-material.service';
 import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 import { WeekMaterialsPageRepository } from '../repositories/week-material-page.repository';
 import { CreateWeekMaterialsPageDto } from '../dto/create-week-material.dto';
@@ -34,6 +35,7 @@ export class WeekMaterialsPageCreateService {
     private readonly s3: AwsS3Service,
     private readonly routeService: RouteService,
     private readonly mediaItemProcessor: MediaItemProcessor,
+    private readonly announceService: AnnounceWeekMaterialService,
   ) {}
 
   async createWeekMaterialsPage(
@@ -69,6 +71,10 @@ export class WeekMaterialsPageCreateService {
 
       await queryRunner.commitTransaction();
       this.logger.log(`Página de materiais criada. ID=${savedPage.id}`);
+
+      // O aviso sai depois do commit e fora da requisição: são muitos
+      // destinatários, e uma falha no e-mail não pode desfazer a página.
+      this.announceService.announceInBackground(savedPage);
 
       return toWeekMaterialsPageResponse(savedPage, mediaItems);
     } catch (error: unknown) {

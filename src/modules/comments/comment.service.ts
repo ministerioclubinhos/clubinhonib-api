@@ -4,18 +4,25 @@ import { CreateCommentDto } from './dto/create-comment.dto';
 import { CommentEntity } from './entity/comment.entity';
 import { CommentRepository } from './repository/comment.repository';
 import { UpdateCommentDto } from './dto/update-comment.dto';
+import { NotificationService } from 'src/shared/providers/notification/notification.service';
 
 @Injectable()
 export class CommentService {
   private readonly logger = new Logger(CommentService.name);
 
-  constructor(private readonly commentRepo: CommentRepository) {}
+  constructor(
+    private readonly commentRepo: CommentRepository,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   async create(dto: CreateCommentDto): Promise<CommentEntity> {
     this.logger.debug(`📝 Criando novo comentário`);
     const comment = this.commentRepo.create(dto);
     const saved = await this.commentRepo.save(comment);
     this.logger.log(`✅ Comentário salvo com ID: ${saved.id}`);
+
+    await this.notificationService.notifyNewComment(saved);
+
     return saved;
   }
 

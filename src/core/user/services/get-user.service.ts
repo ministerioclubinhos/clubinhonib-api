@@ -40,6 +40,14 @@ export class GetUsersService {
     return user;
   }
 
+  /**
+   * Destinatários dos avisos enviados a toda a base: só usuários já validados.
+   * Outros módulos chegam aqui pelo serviço, nunca pelo repositório de usuário.
+   */
+  async findActiveRecipients(): Promise<{ name: string; email: string }[]> {
+    return this.userRepo.findActiveRecipients();
+  }
+
   async findByEmail(email: string): Promise<UserEntity | null> {
     return this.userRepo.findByEmail(email);
   }

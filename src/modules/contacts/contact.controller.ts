@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ContactService } from './contact.service';
 import { ContactEntity } from './contact.entity';
+import { CreateContactDto } from './dto/create-contact.dto';
 import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 import { AdminRoleGuard } from 'src/core/auth/guards/role-guard';
 
@@ -21,20 +22,11 @@ export class ContactController {
   constructor(private readonly contactService: ContactService) {}
 
   @Post()
-  async create(
-    @Body()
-    body: {
-      name: string;
-      email: string;
-      phone: string;
-      message: string;
-    },
-  ): Promise<ContactEntity> {
-    this.logger.debug(
-      `📩 Recebendo nova mensagem de contato de: ${body.name} <${body.email}>`,
-    );
-    const result = await this.contactService.createContact(body);
-    this.logger.log(`✅ Contato criado com sucesso para: ${body.email}`);
+  async create(@Body() dto: CreateContactDto): Promise<ContactEntity> {
+    // O endereço não entra no log: a rota é pública e o dado é pessoal.
+    this.logger.debug('Nova mensagem de contato recebida.');
+    const result = await this.contactService.createContact(dto);
+    this.logger.log(`Contato criado. ID=${result.id}`);
     return result;
   }
 
