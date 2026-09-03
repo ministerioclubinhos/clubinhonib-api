@@ -1,3 +1,5 @@
+import { VIDEO_PAGE_SORT_FIELDS } from './constants';
+
 import { MediaItemDto } from 'src/shared/share-dto/media-item-dto';
 import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 
@@ -17,3 +19,9 @@ export interface VideoSyncPlan {
   toUpdate: MediaItemDto[];
   toCreate: MediaItemDto[];
 }
+
+/** Campo pelo qual a listagem de páginas de vídeos pode ser ordenada. */
+export type VideoPageSortField = (typeof VIDEO_PAGE_SORT_FIELDS)[number];
+
+/** Direção da ordenação. */
+export type VideoPageSortOrder = 'ASC' | 'DESC';

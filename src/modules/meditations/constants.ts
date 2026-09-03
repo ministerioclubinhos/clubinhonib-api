@@ -37,3 +37,35 @@ export const MEDITATION_START_WEEKDAY = 1;
 
 /** Dia da semana em que a meditação precisa terminar (sexta-feira). */
 export const MEDITATION_END_WEEKDAY = 5;
+
+/** Paginação padrão da listagem de meditações. */
+export const MEDITATIONS_DEFAULT_PAGE = 1;
+export const MEDITATIONS_DEFAULT_LIMIT = 12;
+export const MEDITATIONS_MAX_LIMIT = 100;
+
+/** Campos aceitos na ordenação, e o padrão. */
+export const MEDITATION_SORT_FIELDS = [
+  'startDate',
+  'topic',
+  'createdAt',
+] as const;
+
+export const MEDITATION_DEFAULT_SORT = 'startDate';
+export const MEDITATION_DEFAULT_ORDER = 'DESC';
+
+/** Coluna correspondente a cada campo de ordenação aceito. */
+export const MEDITATION_SORT_COLUMNS = {
+  startDate: 'meditation.startDate',
+  topic: 'meditation.topic',
+  createdAt: 'meditation.createdAt',
+} as const satisfies Record<(typeof MEDITATION_SORT_FIELDS)[number], string>;
+
+/** Recortes de período aceitos na listagem. */
+export const MEDITATION_PERIOD_FILTERS = [
+  'current',
+  'upcoming',
+  'past',
+] as const;
+
+/** Tamanho máximo do texto de busca. */
+export const MEDITATION_SEARCH_MAX_LENGTH = 200;

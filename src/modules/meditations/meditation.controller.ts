@@ -10,6 +10,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -27,6 +28,8 @@ import { GetMeditationService } from './services/get-meditation.service';
 import { CreateMeditationDto } from './dto/create-meditation.dto';
 import { UpdateMeditationDto } from './dto/update-meditation.dto';
 import { MeditationResponseDto } from './dto/meditation-response.dto';
+import { QueryMeditationsDto } from './dto/query-meditations.dto';
+import { Paginated } from 'src/shared/dto/paginated.dto';
 import { parseAndValidatePayload } from './utils';
 import { MEDITATION_FILE_FIELD, MEDITATION_PAYLOAD_FIELD } from './constants';
 
@@ -57,9 +60,11 @@ export class MeditationController {
   }
 
   @Get()
-  async findAll(): Promise<MeditationResponseDto[]> {
+  async findAll(
+    @Query() query: QueryMeditationsDto,
+  ): Promise<Paginated<MeditationResponseDto>> {
     this.logger.debug('GET /meditations');
-    return this.getService.findAll();
+    return this.getService.findAllPaginated(query);
   }
 
   @Get('this-week')

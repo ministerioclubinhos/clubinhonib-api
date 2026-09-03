@@ -18,6 +18,9 @@ export function commentNotificationEmail(
       { label: 'Bairro', value: data.neighborhood },
       { label: 'Data', value: formatBrazilianDateTime(data.createdAt) },
     ],
+    action: data.panelUrl
+      ? { label: 'Ver comentários', url: data.panelUrl }
+      : null,
     sections: [{ heading: 'Comentário', text: data.comment }],
   });
 }

@@ -46,7 +46,7 @@ const buildMedia = (id: string, targetId: string): MediaItemEntity =>
 
 describe('WeekMaterialsPageGetService', () => {
   const pageRepo = {
-    findAllPages: jest.fn(),
+    findAllPaginated: jest.fn(),
     findOnePageById: jest.fn(),
     findCurrentWeek: jest.fn(),
   };
@@ -102,65 +102,81 @@ describe('WeekMaterialsPageGetService', () => {
     });
   });
 
-  describe('findAllPagesWithMedia', () => {
-    it('loads media in a single query and groups it per page', async () => {
-      pageRepo.findAllPages.mockResolvedValue([buildPage('a'), buildPage('b')]);
+  describe('findAllPaginated', () => {
+    it('conta as mídias de toda a página em uma consulta', async () => {
+      pageRepo.findAllPaginated.mockResolvedValue({
+        items: [buildPage('a'), buildPage('b')],
+        total: 2,
+      });
       mediaItemProcessor.findManyMediaItemsByTargets.mockResolvedValue([
         buildMedia('v1', 'a'),
         buildMedia('v2', 'b'),
         buildMedia('v3', 'a'),
       ]);
 
-      const result = await service.findAllPagesWithMedia();
+      const result = await service.findAllPaginated({ page: 1, limit: 12 });
 
       expect(
         mediaItemProcessor.findManyMediaItemsByTargets,
       ).toHaveBeenCalledTimes(1);
-      expect(result[0].videos.map((i) => i.id)).toEqual(['v1', 'v3']);
-      expect(result[1].videos.map((i) => i.id)).toEqual(['v2']);
+      expect(result.data[0].videoCount).toBe(2);
+      expect(result.data[1].videoCount).toBe(1);
     });
 
-    it('omite página sem rota em vez de derrubar a listagem', async () => {
+    it('mantém a página sem rota na listagem, com routePath nulo', async () => {
       const orphan = buildPage('sem-rota');
       orphan.route = undefined as never;
-      pageRepo.findAllPages.mockResolvedValue([buildPage('a'), orphan]);
+      pageRepo.findAllPaginated.mockResolvedValue({
+        items: [buildPage('a'), orphan],
+        total: 2,
+      });
       mediaItemProcessor.findManyMediaItemsByTargets.mockResolvedValue([]);
 
-      const result = await service.findAllPagesWithMedia();
+      const result = await service.findAllPaginated({});
 
-      expect(result.map((page) => page.id)).toEqual(['a']);
-      expect(
-        mediaItemProcessor.findManyMediaItemsByTargets,
-      ).toHaveBeenCalledWith(['a'], 'WeekMaterialsPage');
+      expect(result.data.map((page) => page.id)).toEqual(['a', 'sem-rota']);
+      expect(result.data[1].routePath).toBeNull();
     });
 
-    it('retorna vazio quando todas as páginas estão sem rota', async () => {
-      const orphan = buildPage('sem-rota');
-      orphan.route = undefined as never;
-      pageRepo.findAllPages.mockResolvedValue([orphan]);
+    it('devolve o envelope paginado com o total do banco', async () => {
+      pageRepo.findAllPaginated.mockResolvedValue({ items: [], total: 25 });
 
-      await expect(service.findAllPagesWithMedia()).resolves.toEqual([]);
+      const result = await service.findAllPaginated({ page: 2, limit: 12 });
+
+      expect(result).toEqual({
+        data: [],
+        total: 25,
+        page: 2,
+        limit: 12,
+        pageCount: 3,
+      });
+    });
+
+    it('não consulta mídia quando a página está vazia', async () => {
+      pageRepo.findAllPaginated.mockResolvedValue({ items: [], total: 0 });
+
+      await service.findAllPaginated({});
+
       expect(
         mediaItemProcessor.findManyMediaItemsByTargets,
       ).not.toHaveBeenCalled();
     });
 
-    it('does not query media when there is no page', async () => {
-      pageRepo.findAllPages.mockResolvedValue([]);
-
-      await expect(service.findAllPagesWithMedia()).resolves.toEqual([]);
-      expect(
-        mediaItemProcessor.findManyMediaItemsByTargets,
-      ).not.toHaveBeenCalled();
-    });
-
-    it('returns empty media groups for a page without media', async () => {
-      pageRepo.findAllPages.mockResolvedValue([buildPage('a')]);
+    it('zera as contagens de uma página sem mídia', async () => {
+      pageRepo.findAllPaginated.mockResolvedValue({
+        items: [buildPage('a')],
+        total: 1,
+      });
       mediaItemProcessor.findManyMediaItemsByTargets.mockResolvedValue([]);
 
-      const [result] = await service.findAllPagesWithMedia();
+      const { data } = await service.findAllPaginated({});
 
-      expect(result.videos).toEqual([]);
+      expect(data[0]).toMatchObject({
+        videoCount: 0,
+        documentCount: 0,
+        imageCount: 0,
+        audioCount: 0,
+      });
     });
   });
 

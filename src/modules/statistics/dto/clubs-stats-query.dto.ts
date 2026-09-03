@@ -10,7 +10,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PeriodShortcut } from './period-filter.dto';
-import { Weekday } from 'src/modules/clubs/enums/weekday.enum/weekday.enum';
+import { Weekday } from 'src/modules/clubs/entities/weekday.enum';
 
 export class ClubsStatsQueryDto {
   @IsOptional()

@@ -1,6 +1,14 @@
 import { EmailContent } from '../types';
 import { joinTextLines } from '../utils';
-import { composeBody, DataRow, dataTable, heading, quoteBlock } from './blocks';
+import {
+  button,
+  composeBody,
+  DataRow,
+  dataTable,
+  heading,
+  linkFallback,
+  quoteBlock,
+} from './blocks';
 import { renderEmailLayout } from './layout';
 
 /** Bloco de texto longo do aviso, como uma mensagem ou uma descrição. */
@@ -22,6 +30,8 @@ export interface InternalNoticeParams {
   detailsHeading: string;
   rows: Optional<DataRow>[];
   sections?: Optional<NoticeSection>[];
+  /** Para onde ir para resolver o aviso; some quando não há URL. */
+  action?: Optional<{ label: string; url: string }>;
 }
 
 const isPresent = <T>(value: Optional<T>): value is T => Boolean(value);
@@ -49,9 +59,11 @@ export function internalNoticeEmail({
   detailsHeading,
   rows,
   sections = [],
+  action,
 }: InternalNoticeParams): EmailContent {
   const visibleRows = rows.filter(isPresent).filter(hasValue);
   const visibleSections = sections.filter(isPresent).filter(hasText);
+  const visibleAction = isPresent(action) && action.url.trim() ? action : null;
 
   const html = renderEmailLayout({
     title,
@@ -62,6 +74,12 @@ export function internalNoticeEmail({
         heading(section.heading),
         quoteBlock(section.text as string),
       ]),
+      ...(visibleAction
+        ? [
+            button(visibleAction.label, visibleAction.url),
+            linkFallback(visibleAction.url),
+          ]
+        : []),
     ]),
   });
 
@@ -74,6 +92,9 @@ export function internalNoticeEmail({
       `${section.heading}:`,
       section.text as string,
     ]),
+    ...(visibleAction
+      ? ['', `${visibleAction.label}: ${visibleAction.url}`]
+      : []),
   ]);
 
   return { subject, html, text };

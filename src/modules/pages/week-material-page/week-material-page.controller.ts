@@ -8,6 +8,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -18,6 +19,9 @@ import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 import { AdminRoleGuard } from 'src/core/auth/guards/role-guard';
 
 import { WeekMaterialsPageResponseDTO } from './dto/week-material-response.dto';
+import { WeekMaterialSummaryDTO } from './dto/week-material-summary.dto';
+import { QueryWeekMaterialsDto } from './dto/query-week-materials.dto';
+import { Paginated } from 'src/shared/dto/paginated.dto';
 import { CreateWeekMaterialsPageDto } from './dto/create-week-material.dto';
 import { UpdateWeekMaterialsPageDto } from './dto/update-week-material.dto';
 import { WeekMaterialsPageCreateService } from './services/create-week-material.service';
@@ -83,9 +87,11 @@ export class WeekMaterialsPageController {
   }
 
   @Get()
-  async findAll(): Promise<WeekMaterialsPageResponseDTO[]> {
+  async findAll(
+    @Query() query: QueryWeekMaterialsDto,
+  ): Promise<Paginated<WeekMaterialSummaryDTO>> {
     this.logger.debug('GET /week-material-pages');
-    return this.getService.findAllPagesWithMedia();
+    return this.getService.findAllPaginated(query);
   }
 
   @Get('current-week')

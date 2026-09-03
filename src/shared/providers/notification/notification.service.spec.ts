@@ -4,13 +4,44 @@ import { NotificationService } from './notification.service';
 import { EmailService } from 'src/shared/email';
 import { TwilioService } from '../twilio/twilio.service';
 import { UserRepository } from 'src/core/user/user.repository';
-import { ContactEntity } from 'src/modules/contacts/contact.entity';
+import { FeedbackCategory } from 'src/modules/feedbacks/entities/feedback-category.enum';
+import { SiteUrlService } from 'src/shared/site-url/site-url.service';
+import { ContactEntity } from 'src/modules/contacts/entities/contact.entity';
+
+/**
+ * Dublês declarados como objetos simples, e não como `jest.Mocked<Classe>`.
+ *
+ * Com o tipo da classe, `expect(servico.metodo)` é uma referência a método sem
+ * vínculo — o que o `unbound-method` acusa, com razão, porque `this` se perde.
+ * Aqui os métodos são propriedades de um objeto literal, que é o que eles são.
+ */
+const createEmailServiceMock = () => ({
+  sendContactNotification: jest.fn().mockResolvedValue(undefined),
+  sendIdeaSharedNotification: jest.fn().mockResolvedValue(undefined),
+  sendImageSharedNotification: jest.fn().mockResolvedValue(undefined),
+  sendNewUserRegistrationNotification: jest.fn().mockResolvedValue(undefined),
+  sendCommentNotification: jest.fn().mockResolvedValue(undefined),
+  sendSiteFeedbackNotification: jest.fn().mockResolvedValue(undefined),
+});
+
+const createTwilioServiceMock = () => ({
+  sendWhatsApp: jest.fn().mockResolvedValue(undefined),
+});
+
+const createUserRepositoryMock = () => ({
+  findAdminEmails: jest
+    .fn()
+    .mockResolvedValue(['admin1@nib.com', 'admin2@nib.com']),
+  findByEmail: jest
+    .fn()
+    .mockResolvedValue({ name: 'Maria Silva', email: 'maria@exemplo.com' }),
+});
 
 describe('NotificationService', () => {
   let service: NotificationService;
-  let emailService: jest.Mocked<EmailService>;
-  let twilioService: jest.Mocked<TwilioService>;
-  let userRepository: jest.Mocked<UserRepository>;
+  let emailService: ReturnType<typeof createEmailServiceMock>;
+  let twilioService: ReturnType<typeof createTwilioServiceMock>;
+  let userRepository: ReturnType<typeof createUserRepositoryMock>;
 
   const mockContact: ContactEntity = {
     id: 'contact-1',
@@ -24,26 +55,9 @@ describe('NotificationService', () => {
   };
 
   beforeEach(async () => {
-    emailService = {
-      sendContactNotification: jest.fn().mockResolvedValue(undefined),
-      sendIdeaSharedNotification: jest.fn().mockResolvedValue(undefined),
-      sendImageSharedNotification: jest.fn().mockResolvedValue(undefined),
-      sendNewUserRegistrationNotification: jest.fn().mockResolvedValue(undefined),
-      sendCommentNotification: jest.fn().mockResolvedValue(undefined),
-    } as unknown as jest.Mocked<EmailService>;
-
-    twilioService = {
-      sendWhatsApp: jest.fn().mockResolvedValue(undefined),
-    } as unknown as jest.Mocked<TwilioService>;
-
-    userRepository = {
-      findAdminEmails: jest
-        .fn()
-        .mockResolvedValue(['admin1@nib.com', 'admin2@nib.com']),
-      findByEmail: jest
-        .fn()
-        .mockResolvedValue({ name: 'Maria Silva', email: 'maria@exemplo.com' }),
-    } as unknown as jest.Mocked<UserRepository>;
+    emailService = createEmailServiceMock();
+    twilioService = createTwilioServiceMock();
+    userRepository = createUserRepositoryMock();
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -54,6 +68,13 @@ describe('NotificationService', () => {
           provide: ConfigService,
           useValue: {
             get: jest.fn().mockReturnValue('whatsapp:+5511999999999'),
+          },
+        },
+        {
+          provide: SiteUrlService,
+          useValue: {
+            buildUrl: (...segments: string[]) =>
+              `https://clubinhonib.com/${segments.join('/')}`,
           },
         },
         { provide: UserRepository, useValue: userRepository },
@@ -90,7 +111,9 @@ describe('NotificationService', () => {
     );
 
     expect(userRepository.findAdminEmails).toHaveBeenCalled();
-    expect(userRepository.findByEmail).toHaveBeenCalledWith('maria@exemplo.com');
+    expect(userRepository.findByEmail).toHaveBeenCalledWith(
+      'maria@exemplo.com',
+    );
     expect(emailService.sendIdeaSharedNotification).toHaveBeenCalledWith(
       ['admin1@nib.com', 'admin2@nib.com'],
       expect.objectContaining({
@@ -113,7 +136,9 @@ describe('NotificationService', () => {
     );
 
     expect(userRepository.findAdminEmails).toHaveBeenCalled();
-    expect(userRepository.findByEmail).toHaveBeenCalledWith('maria@exemplo.com');
+    expect(userRepository.findByEmail).toHaveBeenCalledWith(
+      'maria@exemplo.com',
+    );
     expect(emailService.sendImageSharedNotification).toHaveBeenCalledWith(
       ['admin1@nib.com', 'admin2@nib.com'],
       expect.objectContaining({
@@ -136,7 +161,9 @@ describe('NotificationService', () => {
     );
 
     expect(userRepository.findAdminEmails).toHaveBeenCalled();
-    expect(emailService.sendNewUserRegistrationNotification).toHaveBeenCalledWith(
+    expect(
+      emailService.sendNewUserRegistrationNotification,
+    ).toHaveBeenCalledWith(
       ['admin1@nib.com', 'admin2@nib.com'],
       expect.objectContaining({
         name: 'Carlos Oliveira',
@@ -166,5 +193,50 @@ describe('NotificationService', () => {
         neighborhood: 'Centro',
       }),
     );
+  });
+
+  describe('link para o painel', () => {
+    it('leva cada aviso à tela onde ele se resolve', async () => {
+      await service.notifyNewContact({
+        id: 'contact-1',
+        name: 'Maria',
+        email: 'maria@exemplo.com',
+        phone: '92999990000',
+        message: 'Olá',
+      } as never);
+      await service.notifyNewComment({
+        id: 'comment-1',
+        name: 'João',
+        comment: 'Ótimo',
+        clubinho: '12',
+        neighborhood: 'Centro',
+      });
+      await service.notifyNewSiteFeedback({
+        name: 'Ana',
+        rating: 4,
+        category: FeedbackCategory.USABILITY,
+        comment: 'Bom',
+      });
+
+      // O aviso conta o que chegou; o botão diz para onde ir.
+      expect(emailService.sendContactNotification).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          panelUrl: 'https://clubinhonib.com/adm/contatos',
+        }),
+      );
+      expect(emailService.sendCommentNotification).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          panelUrl: 'https://clubinhonib.com/adm/comentarios',
+        }),
+      );
+      expect(emailService.sendSiteFeedbackNotification).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          panelUrl: 'https://clubinhonib.com/adm/feedbacks',
+        }),
+      );
+    });
   });
 });

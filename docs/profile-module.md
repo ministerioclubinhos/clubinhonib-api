@@ -1,8 +1,22 @@
 # Profile Module Documentation
 
-The **Profile Module** handles the extended profile information, specifically **Personal Data** (demographics) and **User Preferences** (traits, favorites).
+The **Profile Module** handles the extended profile information, specifically
+**Personal Data** (demographics) and **User Preferences** (traits, favorites).
 
 **Base URL**: `/profiles`
+
+There are two profile surfaces, and they are not the same thing:
+
+| Route | Owner | What it is |
+| --- | --- | --- |
+| `/profile` (singular) | `src/core/user/` | The signed-in user's **account**: name, e-mail, phone, CPF, password and photo. Answers `MyProfileResponseDto`, the same contract as `GET /auth/me`. |
+| `/profiles` (plural) | `src/core/profile/` | The **extended** profile: personal data and preferences. Answers `CompleteProfileResponseDto`. |
+
+Every response in both surfaces is built by a single mapper —
+`toMyProfileResponse` and `toCompleteProfileResponse`. Five services used to
+build these payloads by hand, and they had already drifted apart: `/auth/me`
+omitted `active`, `completed`, `createdAt` and `updatedAt`, and `PUT /profiles/me`
+answered without the photo that `GET /profiles/me` returned.
 
 ---
 
@@ -136,7 +150,10 @@ Retrieves the authenticated user's complete profile.
 Updates the authenticated user's extended profile data.
 
 - **Endpoint**: `PUT /profiles/me`
-- **Access**: Protected (`JwtAuthGuard`)
+- **Access**: Protected (`JwtAuthGuard`) — **any** signed-in user edits their
+  own profile. The previous version allowed only admin, coordinator and
+  teacher, so a plain user got `403` when saving their own data on
+  `/meu-perfil`.
 
 ### Request Body (`UpdateCompleteProfileDto`)
 
@@ -164,7 +181,8 @@ Updates the authenticated user's extended profile data.
 ## 5. Get Profile by ID (Admin)
 
 - **Endpoint**: `GET /profiles/:id`
-- **Access**: Admin only
+- **Access**: Admin only (`AppForbiddenException` / `PERM_3001` otherwise)
+- `:id` must be a UUID.
 
 ### Response
 
@@ -177,6 +195,7 @@ Updates the authenticated user's extended profile data.
 
 - **Endpoint**: `PUT /profiles/:id`
 - **Access**: Admin only
+- `:id` must be a UUID.
 
 ### Request Body
 
@@ -185,6 +204,64 @@ Updates the authenticated user's extended profile data.
 ### Response
 
 - **Status**: `200 OK`
+
+---
+
+## 7. Delete Profile (Admin)
+
+- **Endpoint**: `DELETE /profiles/:id`
+- **Access**: Admin only
+
+### Response
+
+```json
+{ "message": "Perfil removido com sucesso" }
+```
+
+---
+
+## CompleteProfileResponseDto
+
+```typescript
+{
+  id: string;
+  email: string;
+  phone: string;
+  name: string;
+  role: string;
+  image: {                      // null when the user has no photo
+    id: string;
+    title: string | null;
+    description: string | null;
+    url: string;
+    uploadType: string;
+    mediaType: string;
+    isLocalFile: boolean;
+    platformType: string | null;
+    originalName: string | null;
+    size: number | null;
+  } | null;
+  personalData?: {              // absent until the user fills it in
+    birthDate?: string;         // YYYY-MM-DD
+    gender?: string;
+    gaLeaderName?: string;
+    gaLeaderContact?: string;
+  };
+  preferences?: {               // absent until the user fills it in
+    loveLanguages?: string;
+    temperaments?: string;
+    favoriteColor?: string;
+    favoriteFood?: string;
+    favoriteMusic?: string;
+    whatMakesYouSmile?: string;
+    skillsAndTalents?: string;
+  };
+}
+```
+
+`image` is this narrow shape, not the `MediaItemEntity` the contract used to
+expose. The frontend mirrors it in `src/features/profile/types.ts`, and
+`mappers.spec.ts` locks the exact key set on this side.
 
 ---
 ⬅️ [Back to Documentation Hub](README.md)

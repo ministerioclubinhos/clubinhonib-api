@@ -1,8 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
+import { EntityManager, Repository, SelectQueryBuilder } from 'typeorm';
 import { VideosPage } from '../entities/video-page.entity';
-import { VIDEO_PAGE_RELATIONS } from '../constants';
+import {
+  VIDEO_PAGES_DEFAULT_LIMIT,
+  VIDEO_PAGES_DEFAULT_PAGE,
+  VIDEO_PAGE_DEFAULT_ORDER,
+  VIDEO_PAGE_DEFAULT_SORT,
+  VIDEO_PAGE_RELATIONS,
+  VIDEO_PAGE_SORT_COLUMNS,
+} from '../constants';
+import { QueryVideoPagesDto } from '../dto/query-video-pages.dto';
 import { VideoPageContent } from '../types';
 
 @Injectable()
@@ -16,11 +24,51 @@ export class VideosPageRepository {
     return manager ? manager.getRepository(VideosPage) : this.pageRepo;
   }
 
-  async findAll(): Promise<VideosPage[]> {
-    return this.pageRepo.find({
-      relations: [...VIDEO_PAGE_RELATIONS],
-      order: { createdAt: 'DESC' },
-    });
+  /** Busca e visibilidade resolvidas no banco. */
+  private applyFilters(
+    qb: SelectQueryBuilder<VideosPage>,
+    query: QueryVideoPagesDto,
+  ): void {
+    const search = query.searchString?.trim();
+
+    if (search) {
+      qb.andWhere(
+        `(
+          LOWER(page.name) LIKE LOWER(:search) OR
+          LOWER(page.description) LIKE LOWER(:search)
+        )`,
+        { search: `%${search}%` },
+      );
+    }
+
+    if (query.public !== undefined) {
+      qb.andWhere('page.public = :public', { public: query.public });
+    }
+  }
+
+  async findAllPaginated(
+    query: QueryVideoPagesDto,
+  ): Promise<{ items: VideosPage[]; total: number }> {
+    const {
+      page = VIDEO_PAGES_DEFAULT_PAGE,
+      limit = VIDEO_PAGES_DEFAULT_LIMIT,
+      sort = VIDEO_PAGE_DEFAULT_SORT,
+      order = VIDEO_PAGE_DEFAULT_ORDER,
+    } = query;
+
+    const qb = this.pageRepo
+      .createQueryBuilder('page')
+      .leftJoinAndSelect('page.route', 'route');
+
+    this.applyFilters(qb, query);
+
+    qb.orderBy(VIDEO_PAGE_SORT_COLUMNS[sort], order)
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    const [items, total] = await qb.getManyAndCount();
+
+    return { items, total };
   }
 
   async findById(

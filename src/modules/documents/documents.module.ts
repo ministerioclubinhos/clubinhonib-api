@@ -8,8 +8,7 @@ import { CreateDocumentService } from './services/create-document.service';
 import { UpdateDocumentService } from './services/update-document.service';
 import { GetDocumentService } from './services/get-document.service';
 import { DeleteDocumentService } from './services/delete-document.service';
-import { DocumentRepository } from './document.repository';
-import { DataSource } from 'typeorm';
+import { DocumentsRepository } from './repositories/documents.repository';
 import { RouteService } from 'src/modules/routes/route.service';
 import { RouteRepository } from 'src/modules/routes/route-page.repository';
 import { MeditationModule } from 'src/modules/meditations/meditation.module';
@@ -27,12 +26,7 @@ import { MeditationModule } from 'src/modules/meditations/meditation.module';
     GetDocumentService,
     RouteService,
     DeleteDocumentService,
-    {
-      provide: DocumentRepository,
-      useFactory: (dataSource: DataSource) =>
-        new DocumentRepository(dataSource),
-      inject: [DataSource],
-    },
+    DocumentsRepository,
     RouteRepository,
   ],
   exports: [

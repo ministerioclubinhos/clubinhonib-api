@@ -8,8 +8,10 @@ import { DataSource, QueryRunner } from 'typeorm';
 import { RouteService } from 'src/modules/routes/route.service';
 import { RouteType } from 'src/modules/routes/route-page.entity';
 import { CreateInformativeDto } from '../dto/create-informative.dto';
-import { InformativeRepository } from '../informative.repository';
+import { InformativeResponseDto } from '../dto/informative-response.dto';
 import { InformativeEntity } from '../entities/informative.entity';
+import { toInformativeResponse } from '../mappers';
+import { INFORMATIVE_ROUTE_PREFIX } from '../constants';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
 
 @Injectable()
@@ -18,13 +20,12 @@ export class CreateInformativeService {
 
   constructor(
     private readonly dataSource: DataSource,
-    private readonly informativeRepo: InformativeRepository,
     private readonly routeService: RouteService,
   ) {}
 
   async createInformative(
     dto: CreateInformativeDto,
-  ): Promise<InformativeEntity> {
+  ): Promise<InformativeResponseDto> {
     this.logger.verbose(`→ createInformative | title="${dto.title}"`);
 
     const runner = this.dataSource.createQueryRunner();
@@ -39,7 +40,7 @@ export class CreateInformativeService {
       await runner.commitTransaction();
       this.logger.debug('✅  Transaction committed');
 
-      return informative;
+      return toInformativeResponse(informative);
     } catch (err: unknown) {
       await runner.rollbackTransaction();
       const error = err instanceof Error ? err : new Error(String(err));
@@ -84,7 +85,7 @@ export class CreateInformativeService {
 
     const path = await this.routeService.generateAvailablePath(
       dto.title,
-      'informativo_',
+      INFORMATIVE_ROUTE_PREFIX,
     );
     this.logger.debug(`   ↳ availablePath="${path}"`);
 

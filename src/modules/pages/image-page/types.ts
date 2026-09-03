@@ -1,3 +1,5 @@
+import { IMAGE_PAGE_SORT_FIELDS } from './constants';
+
 import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 
 /** Arquivos enviados, indexados pelo nome do campo multipart. */
@@ -19,3 +21,9 @@ export interface SectionSyncPlan<TSection> {
   toUpdate: TSection[];
   toCreate: TSection[];
 }
+
+/** Campo pelo qual a listagem de galerias pode ser ordenada. */
+export type ImagePageSortField = (typeof IMAGE_PAGE_SORT_FIELDS)[number];
+
+/** Direção da ordenação. */
+export type ImagePageSortOrder = 'ASC' | 'DESC';

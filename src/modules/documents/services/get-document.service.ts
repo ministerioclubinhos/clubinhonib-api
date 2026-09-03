@@ -1,70 +1,75 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
-import {
-  AppNotFoundException,
-  AppInternalException,
-  ErrorCode,
-} from 'src/shared/exceptions';
+import { Injectable } from '@nestjs/common';
+
+import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
+import { Paginated } from 'src/shared/dto/paginated.dto';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
-import { DocumentRepository } from '../document.repository';
-import { DocumentDto } from '../dto/document-response.dto';
-import { DOCUMENT_MEDIA_TARGET_TYPES } from '../constants';
+
+import { DocumentsRepository } from '../repositories/documents.repository';
+import { QueryDocumentsDto } from '../dto/query-documents.dto';
+import { DocumentResponseDto } from '../dto/document-response.dto';
+import { DocumentEntity } from '../entities/document.entity';
+import { toDocumentResponse } from '../mappers';
+import {
+  DOCUMENTS_DEFAULT_LIMIT,
+  DOCUMENTS_DEFAULT_PAGE,
+  DOCUMENT_MEDIA_TARGET_TYPES,
+} from '../constants';
 
 @Injectable()
 export class GetDocumentService {
-  private readonly logger = new Logger(GetDocumentService.name);
-
   constructor(
-    @Inject(DocumentRepository)
-    private readonly documentRepo: DocumentRepository,
+    private readonly documentsRepository: DocumentsRepository,
     private readonly mediaItemProcessor: MediaItemProcessor,
   ) {}
 
-  async findAll(): Promise<DocumentDto[]> {
-    this.logger.log('📄 Buscando todos os documentos com mídias');
+  async findEntityOrFail(id: string): Promise<DocumentEntity> {
+    const document = await this.documentsRepository.findById(id);
 
-    try {
-      const documents = await this.documentRepo.findAllSorted();
-      if (!documents.length) return [];
-
-      const ids = documents.map((d) => d.id);
-      const mediaItems =
-        await this.mediaItemProcessor.findManyMediaItemsByTargetsAnyType(
-          ids,
-          DOCUMENT_MEDIA_TARGET_TYPES,
-        );
-
-      const mediaMap = new Map<string, (typeof mediaItems)[number]>();
-      mediaItems.forEach((media) => mediaMap.set(media.targetId, media));
-
-      return documents.map((doc) =>
-        DocumentDto.fromEntity(doc, mediaMap.get(doc.id)),
-      );
-    } catch (error: unknown) {
-      const errStack = error instanceof Error ? error.stack : undefined;
-      this.logger.error('❌ Erro ao buscar documentos', errStack);
-      throw new AppInternalException(
-        ErrorCode.DATABASE_ERROR,
-        'Erro ao buscar documentos',
-      );
-    }
-  }
-
-  async findOne(id: string): Promise<DocumentDto> {
-    this.logger.log(`🔍 Buscando documento por ID=${id}`);
-
-    const doc = await this.documentRepo.findOneById(id);
-    if (!doc) {
-      this.logger.warn(`⚠️ Documento não encontrado: ID=${id}`);
+    if (!document) {
       throw new AppNotFoundException(
         ErrorCode.DOCUMENT_NOT_FOUND,
         'Documento não encontrado',
       );
     }
 
-    const media = await this.mediaItemProcessor.findMediaItemsByTargetAnyType(
+    return document;
+  }
+
+  async findAllPaginated(
+    query: QueryDocumentsDto,
+  ): Promise<Paginated<DocumentResponseDto>> {
+    const page = query.page ?? DOCUMENTS_DEFAULT_PAGE;
+    const limit = query.limit ?? DOCUMENTS_DEFAULT_LIMIT;
+
+    const { items, total } =
+      await this.documentsRepository.findAllPaginated(query);
+
+    // Uma consulta de mídias para a página inteira, e não uma por documento.
+    const medias =
+      await this.mediaItemProcessor.findManyMediaItemsByTargetsAnyType(
+        items.map((document) => document.id),
+        DOCUMENT_MEDIA_TARGET_TYPES,
+      );
+
+    const porDocumento = new Map(
+      medias.map((media) => [media.targetId, media]),
+    );
+
+    const data = items.map((document) =>
+      toDocumentResponse(document, porDocumento.get(document.id)),
+    );
+
+    return new Paginated(data, total, page, limit);
+  }
+
+  async findOne(id: string): Promise<DocumentResponseDto> {
+    const document = await this.findEntityOrFail(id);
+
+    const medias = await this.mediaItemProcessor.findMediaItemsByTargetAnyType(
       id,
       DOCUMENT_MEDIA_TARGET_TYPES,
     );
-    return DocumentDto.fromEntity(doc, media[0]);
+
+    return toDocumentResponse(document, medias[0]);
   }
 }

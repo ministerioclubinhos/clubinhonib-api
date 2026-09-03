@@ -1,6 +1,6 @@
 import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
-import { ClubEntity } from 'src/modules/clubs/entities/club.entity/club.entity';
+import { ClubEntity } from 'src/modules/clubs/entities/club.entity';
 import { ChildEntity } from 'src/modules/children/entities/child.entity';
 import { ClubPeriodEntity } from '../entities/club-period.entity';
 import { ClubControlRepository } from '../repositories/club-control.repository';

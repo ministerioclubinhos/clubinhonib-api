@@ -12,6 +12,7 @@ import {
   IdeasRouteDto,
   IdeasSectionResponseDto,
 } from './dto/ideas-page-response.dto';
+import { IdeasPageSummaryDto } from './dto/ideas-page-summary.dto';
 import { MediaBySection } from './types';
 
 /** Mapeia uma mídia da seção para o contrato público. */
@@ -102,5 +103,31 @@ export function toIdeasPageResponse(
     sections: (page.sections ?? []).map((section) =>
       toSectionResponse(section, mediaBySection.get(section.id) ?? []),
     ),
+  };
+}
+
+/** Carimbo de data em ISO, venha ele como `Date` ou já como texto. */
+function toIsoString(value: Date | string): string {
+  return value instanceof Date ? value.toISOString() : String(value);
+}
+
+/**
+ * Mapeia a página para o resumo da listagem.
+ *
+ * Diferente de `toIdeasPageResponse`, uma página sem rota não derruba a
+ * listagem: `routePath` volta `null` e o administrador consegue ver — e
+ * corrigir — o registro inconsistente.
+ */
+export function toIdeasPageSummary(page: IdeasPageEntity): IdeasPageSummaryDto {
+  return {
+    id: page.id,
+    title: page.title,
+    subtitle: page.subtitle ?? '',
+    description: page.description,
+    public: page.public,
+    routePath: page.route?.path ?? null,
+    sectionCount: page.sectionCount ?? page.sections?.length ?? 0,
+    createdAt: toIsoString(page.createdAt),
+    updatedAt: toIsoString(page.updatedAt),
   };
 }

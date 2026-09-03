@@ -10,6 +10,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -22,6 +23,9 @@ import { AdminRoleGuard } from 'src/core/auth/guards/role-guard';
 import { CreateVideosPageDto } from './dto/create-videos-page.dto';
 import { UpdateVideosPageDto } from './dto/update-videos-page.dto';
 import { VideosPageResponseDto } from './dto/videos-page-response.dto';
+import { VideoPageSummaryDto } from './dto/video-page-summary.dto';
+import { QueryVideoPagesDto } from './dto/query-video-pages.dto';
+import { Paginated } from 'src/shared/dto/paginated.dto';
 import { CreateVideosPageService } from './services/create-video-page.service';
 import { UpdateVideosPageService } from './services/update-video-page.service';
 import { GetVideosPageService } from './services/get-video-page.service';
@@ -69,10 +73,17 @@ export class VideosPageController {
     return this.updateService.execute(id, dto, buildFilesDict(files));
   }
 
+  /**
+   * Listagem do painel. Exige sessão: é o inventário administrativo das
+   * páginas, inclusive das que não estão publicadas.
+   */
+  @UseGuards(JwtAuthGuard)
   @Get()
-  async findAll(): Promise<VideosPageResponseDto[]> {
+  async findAll(
+    @Query() query: QueryVideoPagesDto,
+  ): Promise<Paginated<VideoPageSummaryDto>> {
     this.logger.debug('GET /video-pages');
-    return this.getService.findAll();
+    return this.getService.findAllPaginated(query);
   }
 
   @Get(':id')

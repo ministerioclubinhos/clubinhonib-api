@@ -4,7 +4,7 @@ import { Repository } from 'typeorm';
 import { ClubPeriodEntity } from '../entities/club-period.entity';
 import { ClubExceptionEntity } from '../entities/club-exception.entity';
 import { ClubControlLogEntity } from '../entities/club-control-log.entity';
-import { ClubEntity } from 'src/modules/clubs/entities/club.entity/club.entity';
+import { ClubEntity } from 'src/modules/clubs/entities/club.entity';
 import { ChildEntity } from 'src/modules/children/entities/child.entity';
 import { PagelaEntity } from 'src/modules/pagelas/entities/pagela.entity';
 import { ClubWeekCheckService } from '../services/club-week-check.service';

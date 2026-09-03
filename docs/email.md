@@ -115,10 +115,37 @@ login não vire um e-mail; o link vale
 
 ## Avisos internos
 
-Contato, avaliação do site e conteúdo compartilhado avisam **os administradores
-cadastrados** (`UserRepository.findAdminEmails`), não uma lista fixa em variável
-de ambiente. Vão no `to`, não em cópia oculta: é um grupo pequeno e interno, e
-todos verem quem mais recebeu ajuda a combinar quem responde.
+Contato, avaliação do site, comentário e conteúdo compartilhado avisam **os
+administradores cadastrados** (`UserRepository.findAdminEmails`), não uma lista
+fixa em variável de ambiente. Vão no `to`, não em cópia oculta: é um grupo
+pequeno e interno, e todos verem quem mais recebeu ajuda a combinar quem
+responde.
+
+### As três entradas do site
+
+Toda mensagem que chega pelo site avisa os administradores no momento em que é
+gravada:
+
+| Entrada | Serviço | Aviso |
+| --- | --- | --- |
+| `POST /contact` | `CreateContactService` | `notifyNewContact` — e-mail **e** WhatsApp |
+| `POST /site-feedbacks` | `CreateFeedbackService` | `notifyNewSiteFeedback` |
+| `POST /comments` | `CreateCommentService` | `notifyNewComment` |
+
+O aviso de comentário existia e **nunca era chamado**: postar um comentário não
+avisava ninguém, e ele ficava parado no painel esperando publicação. Cada um dos
+três serviços tem hoje um teste que exige a chamada, e que ela venha **depois**
+de salvar.
+
+### O botão do aviso
+
+Cada aviso interno termina com um botão para a tela onde o item se resolve —
+`adm/contatos`, `adm/feedbacks`, `adm/comentarios` — montado por
+`SiteUrlService` e declarado em `ADMIN_PANEL_PATHS`. O caminho fica ali, e não
+solto nos templates, para o link do e-mail e a rota do site não divergirem.
+
+Sem URL, o botão simplesmente não aparece: `internalNoticeEmail` descarta a ação
+vazia como já descarta linha sem valor.
 
 O `Reply-To` aponta para quem escreveu, quando a pessoa deixou o e-mail — no
 caso da avaliação do site, o campo é opcional no formulário.

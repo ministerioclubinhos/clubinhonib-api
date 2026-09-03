@@ -46,7 +46,7 @@ describe('ImageController', () => {
   const updateService = { updateImagePage: jest.fn() };
   const deleteService = { removePage: jest.fn() };
   const getService = {
-    findAll: jest.fn(),
+    findAllPaginated: jest.fn(),
     findOne: jest.fn(),
     findSectionsPaginated: jest.fn(),
   };
@@ -145,11 +145,21 @@ describe('ImageController', () => {
     );
   });
 
-  it('lista e busca galerias', async () => {
-    getService.findAll.mockResolvedValue([{ id: ID }]);
+  it('lista galerias repassando os filtros da query', async () => {
+    const pagina = {
+      data: [{ id: ID }],
+      total: 1,
+      page: 1,
+      limit: 12,
+      pageCount: 1,
+    };
+    getService.findAllPaginated.mockResolvedValue(pagina);
     getService.findOne.mockResolvedValue({ id: ID });
 
-    await expect(controller.findAll()).resolves.toEqual([{ id: ID }]);
+    const query = { page: 1, limit: 12, searchString: 'festa' };
+
+    await expect(controller.findAll(query)).resolves.toEqual(pagina);
+    expect(getService.findAllPaginated).toHaveBeenCalledWith(query);
     await expect(controller.findOne(ID)).resolves.toEqual({ id: ID });
   });
 

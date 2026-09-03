@@ -1,5 +1,5 @@
 import { IsString, IsInt, IsEnum, Max, Min } from 'class-validator';
-import { FeedbackCategory } from '../entity/feedback-category.enum';
+import { FeedbackCategory } from '../entities/feedback-category.enum';
 import { FEEDBACK_MAX_RATING } from '../constants';
 
 /**

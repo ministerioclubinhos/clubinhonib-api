@@ -2,13 +2,15 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EmailService } from 'src/shared/email';
 import { TwilioService } from '../twilio/twilio.service';
-import { ContactEntity } from 'src/modules/contacts/contact.entity';
-import { FeedbackCategory } from 'src/modules/feedbacks/entity/feedback-category.enum';
+import { ContactEntity } from 'src/modules/contacts/entities/contact.entity';
+import { FeedbackCategory } from 'src/modules/feedbacks/entities/feedback-category.enum';
 import {
   FEEDBACK_CATEGORY_LABELS,
   FEEDBACK_MAX_RATING,
 } from 'src/modules/feedbacks/constants';
 import { UserRepository } from 'src/core/user/user.repository';
+import { SiteUrlService } from 'src/shared/site-url/site-url.service';
+import { ADMIN_PANEL_PATHS } from './constants';
 
 /**
  * Avisa a equipe sobre um contato recebido pelo site, por e-mail e por
@@ -24,6 +26,7 @@ export class NotificationService {
     private readonly twilioService: TwilioService,
     private readonly configService: ConfigService,
     private readonly userRepository: UserRepository,
+    private readonly siteUrlService: SiteUrlService,
   ) {}
 
   async notifyNewContact(contact: ContactEntity): Promise<void> {
@@ -68,6 +71,7 @@ export class NotificationService {
         category: FEEDBACK_CATEGORY_LABELS[feedback.category],
         comment: feedback.comment,
         receivedAt: feedback.createdAt ?? new Date(),
+        panelUrl: this.siteUrlService.buildUrl(ADMIN_PANEL_PATHS.feedbacks),
       });
     } catch (error: unknown) {
       this.logger.error(
@@ -174,6 +178,7 @@ export class NotificationService {
         clubinho: comment.clubinho,
         neighborhood: comment.neighborhood,
         createdAt: comment.createdAt ?? new Date(),
+        panelUrl: this.siteUrlService.buildUrl(ADMIN_PANEL_PATHS.comments),
       });
     } catch (error: unknown) {
       this.logger.error(
@@ -191,6 +196,7 @@ export class NotificationService {
       phone: contact.phone,
       message: contact.message,
       receivedAt: contact.createdAt ?? new Date(),
+      panelUrl: this.siteUrlService.buildUrl(ADMIN_PANEL_PATHS.contacts),
     });
   }
 

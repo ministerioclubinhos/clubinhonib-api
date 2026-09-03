@@ -1,58 +1,61 @@
-import { Injectable } from '@nestjs/common';
-import { Request } from 'express';
-import { ClubsRepository } from '../repositories/clubs.repository';
-import { CreateClubDto } from '../dto/create-club.dto';
-import { AuthContextService } from 'src/core/auth/services/auth-context.service';
+import { Injectable, Logger } from '@nestjs/common';
 import { AppForbiddenException, ErrorCode } from 'src/shared/exceptions';
 import { SyncClubEventService } from 'src/modules/pages/event-page/services/sync-club-event.service';
-
-type Ctx = { role?: string; userId?: string | null };
+import { ClubsRepository } from '../repositories/clubs.repository';
+import { CreateClubDto } from '../dto/create-club.dto';
+import { ClubResponseDto } from '../dto/club.response.dto';
+import { ClubAccessContext } from '../types';
+import { toClubResponse } from '../mappers';
+import { assertCanManageClubs, normalizedRole } from '../utils';
 
 @Injectable()
 export class CreateClubsService {
+  private readonly logger = new Logger(CreateClubsService.name);
+
   constructor(
     private readonly clubsRepository: ClubsRepository,
-    private readonly authCtx: AuthContextService,
     private readonly syncClubEvent: SyncClubEventService,
   ) {}
 
-  private async getCtx(req: Request): Promise<Ctx> {
-    const p = await this.authCtx.tryGetPayload(req);
-    return { role: p?.role?.toLowerCase(), userId: p?.sub ?? null };
+  async create(
+    dto: CreateClubDto,
+    context: ClubAccessContext,
+  ): Promise<ClubResponseDto> {
+    assertCanManageClubs(context);
+
+    // Coordenador só cria clubinho sob a própria coordenação.
+    if (normalizedRole(context) === 'coordinator') {
+      dto.coordinatorProfileId = await this.ownCoordinatorProfileId(context);
+    }
+
+    const club = await this.clubsRepository.createClub(dto);
+    this.logger.log(`Clubinho criado. ID=${club.id} número=${club.number}`);
+
+    // O encontro semanal entra no calendário junto com o clubinho.
+    await this.syncClubEvent.syncFromClub(club);
+
+    return toClubResponse(club);
   }
 
-  async create(dto: CreateClubDto, req: Request) {
-    const ctx = await this.getCtx(req);
-    if (!ctx.role || ctx.role === 'teacher') {
+  /**
+   * Perfil de coordenação de quem está criando. Um coordenador não atribui o
+   * clubinho a outra pessoa.
+   */
+  private async ownCoordinatorProfileId(
+    context: ClubAccessContext,
+  ): Promise<string> {
+    const profileId =
+      await this.clubsRepository.getCoordinatorProfileIdByUserId(
+        context.userId as string,
+      );
+
+    if (!profileId) {
       throw new AppForbiddenException(
         ErrorCode.CLUB_ACCESS_DENIED,
         'Acesso negado',
       );
     }
 
-    if (ctx.role === 'coordinator') {
-      const myCoordId =
-        await this.clubsRepository.getCoordinatorProfileIdByUserId(ctx.userId!);
-      if (!myCoordId)
-        throw new AppForbiddenException(
-          ErrorCode.CLUB_ACCESS_DENIED,
-          'Acesso negado',
-        );
-
-      if (dto.coordinatorProfileId && dto.coordinatorProfileId !== myCoordId) {
-        throw new AppForbiddenException(
-          ErrorCode.CLUB_ACCESS_DENIED,
-          'Não é permitido atribuir outro coordenador',
-        );
-      }
-      dto.coordinatorProfileId = myCoordId;
-    }
-
-    const club = await this.clubsRepository.createClub(dto);
-
-    // O encontro semanal entra no calendário junto com o clubinho.
-    await this.syncClubEvent.syncFromClub(club);
-
-    return club;
+    return profileId;
   }
 }

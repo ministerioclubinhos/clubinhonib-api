@@ -5,7 +5,7 @@ import { Repository } from 'typeorm';
 import { PagelaEntity } from '../pagelas/entities/pagela.entity';
 import { AcceptedChristEntity } from '../accepted-christs/entities/accepted-christ.entity';
 import { ChildEntity } from '../children/entities/child.entity';
-import { ClubEntity } from '../clubs/entities/club.entity/club.entity';
+import { ClubEntity } from '../clubs/entities/club.entity';
 import { TeacherProfileEntity } from '../teacher-profiles/entities/teacher-profile.entity/teacher-profile.entity';
 import { ClubPeriodEntity } from '../club-control/entities/club-period.entity';
 import { ClubExceptionEntity } from '../club-control/entities/club-exception.entity';
@@ -16,7 +16,7 @@ import { ClubsStatsQueryDto } from './dto/clubs-stats-query.dto';
 import { TeachersStatsQueryDto } from './dto/teachers-stats-query.dto';
 import { StatisticsFiltersService } from './services/statistics-filters.service';
 import { StatisticsCalculationsService } from './services/statistics-calculations.service';
-import { getAcademicWeekYear } from '../pagelas/week.util';
+import { getAcademicWeek } from 'src/shared/academic-week/academic-week.util';
 import {
   PagelasWeeklyStatsRaw,
   PagelasOverallStatsRaw,
@@ -2739,19 +2739,13 @@ export class StatisticsRepository {
     while (currentDate <= end) {
       const currentDateStr = toDateOnly(currentDate);
 
-      let weekData: { year: number; week: number };
-      try {
-        if (hasPeriod && academicPeriod) {
-          weekData = getAcademicWeekYear(
-            currentDateStr,
-            academicPeriod.startDate,
-            academicPeriod.endDate,
-            academicPeriod.year,
-          );
-        } else {
-          weekData = this.getISOWeekYear(currentDateStr);
-        }
-      } catch {
+      // Fora do período letivo não há semana a contar; o dia é pulado.
+      const weekData =
+        hasPeriod && academicPeriod
+          ? getAcademicWeek(currentDateStr, academicPeriod)
+          : this.getISOWeekYear(currentDateStr);
+
+      if (!weekData) {
         currentDate.setDate(currentDate.getDate() + 7);
         continue;
       }

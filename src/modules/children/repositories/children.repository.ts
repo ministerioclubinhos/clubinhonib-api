@@ -6,7 +6,7 @@ import {
   QueryChildrenDto,
   QueryChildrenSimpleDto,
 } from '../dto/query-children.dto';
-import { ClubEntity } from 'src/modules/clubs/entities/club.entity/club.entity';
+import { ClubEntity } from 'src/modules/clubs/entities/club.entity';
 
 export type PaginatedRows<T> = { items: T[]; total: number };
 type RoleCtx = { role?: string; userId?: string | null };

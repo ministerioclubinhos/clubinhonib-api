@@ -258,8 +258,8 @@ export interface ChildrenWithStatsResult {
 }
 
 export interface ClubsWithStatsResult {
-  clubs: import('../../clubs/entities/club.entity/club.entity').ClubEntity[];
-  allFilteredClubs: import('../../clubs/entities/club.entity/club.entity').ClubEntity[];
+  clubs: import('../../clubs/entities/club.entity').ClubEntity[];
+  allFilteredClubs: import('../../clubs/entities/club.entity').ClubEntity[];
   childrenResults: ChildStatsRaw[];
   allChildrenResults: ChildStatsRaw[];
   pagelasResults: PagelasByClubRaw[];

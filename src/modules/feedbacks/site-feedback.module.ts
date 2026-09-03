@@ -1,10 +1,15 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { SiteFeedbackService } from './site-feedback.service';
-import { SiteFeedbackController } from './site-feedback.controller';
-import { SiteFeedbackEntity } from './entity/site-feedback.entity';
-import { SiteFeedbackRepository } from './repository/site-feedback.repository';
+
 import { UserModule } from 'src/core/user/user.module';
+
+import { SiteFeedbackEntity } from './entities/site-feedback.entity';
+import { SiteFeedbackController } from './site-feedback.controller';
+import { SiteFeedbacksRepository } from './repositories/site-feedbacks.repository';
+import { CreateFeedbackService } from './services/create-feedback.service';
+import { GetFeedbacksService } from './services/get-feedbacks.service';
+import { UpdateFeedbackService } from './services/update-feedback.service';
+import { DeleteFeedbackService } from './services/delete-feedback.service';
 
 @Module({
   imports: [
@@ -12,6 +17,13 @@ import { UserModule } from 'src/core/user/user.module';
     forwardRef(() => UserModule),
   ],
   controllers: [SiteFeedbackController],
-  providers: [SiteFeedbackService, SiteFeedbackRepository],
+  providers: [
+    SiteFeedbacksRepository,
+    CreateFeedbackService,
+    GetFeedbacksService,
+    UpdateFeedbackService,
+    DeleteFeedbackService,
+  ],
+  exports: [GetFeedbacksService],
 })
 export class SiteFeedbackModule {}

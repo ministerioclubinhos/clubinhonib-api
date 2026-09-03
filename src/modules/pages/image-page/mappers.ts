@@ -9,6 +9,7 @@ import {
   ImageRouteDto,
   ImageSectionDto,
 } from './dto/image-page-response.dto';
+import { ImagePageSummaryDto } from './dto/image-page-summary.dto';
 import { PaginatedImageSectionResponseDto } from './dto/paginated-image-section.dto';
 import { MediaBySection } from './types';
 
@@ -118,5 +119,30 @@ export function toPaginatedSectionsResponse(
     page: pageNumber,
     limit,
     total,
+  };
+}
+
+/** Carimbo de data em ISO, venha ele como `Date` ou já como texto. */
+function toIsoString(value: Date | string): string {
+  return value instanceof Date ? value.toISOString() : String(value);
+}
+
+/**
+ * Mapeia a galeria para o resumo da listagem.
+ *
+ * Diferente de `toImagePageResponse`, uma galeria sem rota não derruba a
+ * listagem: `routePath` volta `null` e o administrador consegue ver — e
+ * corrigir — o registro inconsistente.
+ */
+export function toImagePageSummary(page: ImagePageEntity): ImagePageSummaryDto {
+  return {
+    id: page.id,
+    title: page.name,
+    description: page.description,
+    public: page.public,
+    routePath: page.route?.path ?? null,
+    sectionCount: page.sectionCount ?? page.sections?.length ?? 0,
+    createdAt: toIsoString(page.createdAt),
+    updatedAt: toIsoString(page.updatedAt),
   };
 }

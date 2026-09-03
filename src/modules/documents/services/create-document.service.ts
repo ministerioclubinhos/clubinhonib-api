@@ -12,10 +12,14 @@ import { RouteType } from 'src/modules/routes/route-page.entity';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
 import { MediaType } from 'src/shared/media/media-item/media-item.entity';
-import { DOCUMENT_MEDIA_TARGET_TYPE } from '../constants';
+import {
+  DOCUMENT_MEDIA_TARGET_TYPE,
+  DOCUMENT_ROUTE_PREFIX,
+} from '../constants';
 import { CreateDocumentDto } from '../dto/create-document.dto';
-import { DocumentDto } from '../dto/document-response.dto';
-import { DocumentRepository } from '../document.repository';
+import { DocumentResponseDto } from '../dto/document-response.dto';
+import { toDocumentResponse } from '../mappers';
+
 import { DocumentEntity } from '../entities/document.entity';
 
 @Injectable()
@@ -24,7 +28,6 @@ export class CreateDocumentService {
 
   constructor(
     private readonly dataSource: DataSource,
-    private readonly documentRepo: DocumentRepository,
     private readonly s3Service: AwsS3Service,
     private readonly routeService: RouteService,
     private readonly mediaProcessor: MediaItemProcessor,
@@ -33,7 +36,7 @@ export class CreateDocumentService {
   async createDocument(
     dto: CreateDocumentDto,
     file?: Express.Multer.File,
-  ): Promise<DocumentDto> {
+  ): Promise<DocumentResponseDto> {
     this.logger.verbose(`→ createDocument | name="${dto.name}"`);
 
     const runner = this.dataSource.createQueryRunner();
@@ -61,7 +64,7 @@ export class CreateDocumentService {
       await runner.commitTransaction();
       this.logger.debug('✅  Transaction committed');
 
-      return DocumentDto.fromEntity(savedDoc, media);
+      return toDocumentResponse(savedDoc, media);
     } catch (err: unknown) {
       await runner.rollbackTransaction();
       await this.mediaProcessor.discardUnreferencedUploads(
@@ -108,7 +111,7 @@ export class CreateDocumentService {
 
     const path = await this.routeService.generateAvailablePath(
       dto.name,
-      'documento_',
+      DOCUMENT_ROUTE_PREFIX,
     );
     this.logger.debug(`   ↳ availablePath="${path}"`);
 

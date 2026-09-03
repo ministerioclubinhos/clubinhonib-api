@@ -22,7 +22,7 @@ import {
   ChildListItemDto,
 } from './dto/child-response.dto';
 import { toChildListItemDto, toChildResponseDto } from './mappers/child.mapper';
-import { ClubEntity } from '../clubs/entities/club.entity/club.entity';
+import { ClubEntity } from '../clubs/entities/club.entity';
 import { AuthContextService } from 'src/core/auth/services/auth-context.service';
 
 const toDateOnlyStr = (v: string | Date | undefined | null): string | null => {
@@ -142,7 +142,7 @@ export class ChildrenService {
     });
 
     if (dto.clubId) {
-      await this.getClubsService.findOne(dto.clubId, request);
+      await this.getClubsService.findOne(dto.clubId, ctx);
       child.club = { id: dto.clubId } as ClubEntity;
     }
 
@@ -185,7 +185,7 @@ export class ChildrenService {
       if (dto.clubId === null) {
         entity.club = null;
       } else {
-        await this.getClubsService.findOne(dto.clubId, request);
+        await this.getClubsService.findOne(dto.clubId, ctx);
         if (ctx.role && ctx.role !== 'admin') {
           const allowed = await this.childrenRepo.userHasAccessToClub(
             dto.clubId,

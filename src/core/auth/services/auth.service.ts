@@ -6,6 +6,7 @@ import { CreateUserService } from 'src/core/user/services/create-user.service';
 import { UserEntity } from 'src/core/user/entities/user.entity';
 import { OAuth2Client } from 'google-auth-library';
 import { UserRepository } from 'src/core/user/user.repository';
+import { MyProfileResponseDto } from 'src/core/user/dto/my-profile-response.dto';
 import { GetUsersService } from 'src/core/user/services/get-user.service';
 import { UpdateUserService } from 'src/core/user/services/update-user.service';
 import { AuthRepository } from '../auth.repository';
@@ -13,10 +14,7 @@ import { CompleteUserDto } from '../dto/complete-register.dto';
 import { RegisterUserDto } from '../dto/register.dto';
 import { LoginDto } from '../dto/login.dto';
 import { UserRole, JwtPayload } from '../auth.types';
-import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
-import { PersonalDataRepository } from 'src/core/profile/repositories/personal-data.repository';
-import { UserPreferencesRepository } from 'src/core/profile/repositories/user-preferences.repository';
 import { EmailVerificationService } from './email-verification.service';
 import { TeacherProfilesRepository } from 'src/modules/teacher-profiles/repositories/teacher-profiles.repository';
 import { NotificationService } from 'src/shared/providers/notification/notification.service';
@@ -40,11 +38,6 @@ export class AuthService {
     private readonly updateUserService: UpdateUserService,
     private readonly getUsersService: GetUsersService,
     private readonly userRepo: UserRepository,
-    private readonly mediaItemProcessor: MediaItemProcessor,
-    @Inject(forwardRef(() => PersonalDataRepository))
-    private readonly personalDataRepository: PersonalDataRepository,
-    @Inject(forwardRef(() => UserPreferencesRepository))
-    private readonly userPreferencesRepository: UserPreferencesRepository,
     private readonly emailVerificationService: EmailVerificationService,
     @Inject(forwardRef(() => TeacherProfilesRepository))
     private readonly teacherProfilesRepository: TeacherProfilesRepository,
@@ -134,7 +127,10 @@ export class AuthService {
         const emailVerification =
           await this.emailVerificationService.sendIfPending(user);
 
-        await this.notificationService.notifyNewUserRegistration(user, 'google');
+        await this.notificationService.notifyNewUserRegistration(
+          user,
+          'google',
+        );
 
         return {
           email,
@@ -315,102 +311,15 @@ export class AuthService {
     };
   }
 
-  async getMe(userId: string) {
-    const user = await this.userRepo.findByIdWithProfiles(userId);
-    if (!user) {
-      throw new AppUnauthorizedException(
-        ErrorCode.USER_NOT_FOUND,
-        'Usuário não encontrado',
-      );
-    }
-
-    const imageMedia = await this.mediaItemProcessor.findMediaItemByTarget(
-      userId,
-      'UserEntity',
-    );
-
-    const personalData = await this.personalDataRepository.findByUserId(userId);
-    const preferences =
-      await this.userPreferencesRepository.findByUserId(userId);
-
-    return {
-      id: user.id,
-      email: user.email,
-      phone: user.phone,
-      name: user.name,
-      role: user.role,
-      commonUser: user.commonUser,
-      cpf: user.cpf,
-      image: imageMedia
-        ? {
-            id: imageMedia.id,
-            title: imageMedia.title,
-            description: imageMedia.description,
-            url: imageMedia.url,
-            uploadType: imageMedia.uploadType,
-            mediaType: imageMedia.mediaType,
-            isLocalFile: imageMedia.isLocalFile,
-            platformType: imageMedia.platformType,
-            originalName: imageMedia.originalName,
-            size: imageMedia.size,
-            createdAt: imageMedia.createdAt,
-            updatedAt: imageMedia.updatedAt,
-          }
-        : null,
-      personalData: personalData
-        ? {
-            birthDate: personalData.birthDate
-              ? personalData.birthDate instanceof Date
-                ? personalData.birthDate.toISOString().split('T')[0]
-                : String(personalData.birthDate).split('T')[0]
-              : undefined,
-            gender: personalData.gender,
-            gaLeaderName: personalData.gaLeaderName,
-            gaLeaderContact: personalData.gaLeaderContact,
-          }
-        : undefined,
-      preferences: preferences
-        ? {
-            loveLanguages: preferences.loveLanguages,
-            temperaments: preferences.temperaments,
-            favoriteColor: preferences.favoriteColor,
-            favoriteFood: preferences.favoriteFood,
-            favoriteMusic: preferences.favoriteMusic,
-            whatMakesYouSmile: preferences.whatMakesYouSmile,
-            skillsAndTalents: preferences.skillsAndTalents,
-          }
-        : undefined,
-      teacherProfile: user.teacherProfile
-        ? {
-            id: user.teacherProfile.id,
-            active: user.teacherProfile.active,
-            club: user.teacherProfile.club
-              ? {
-                  id: user.teacherProfile.club.id,
-                  number: user.teacherProfile.club.number,
-                  weekday: user.teacherProfile.club.weekday,
-                  time: user.teacherProfile.club.time,
-                  isActive: user.teacherProfile.club.isActive,
-                }
-              : null,
-          }
-        : null,
-      coordinatorProfile: user.coordinatorProfile
-        ? {
-            id: user.coordinatorProfile.id,
-            active: user.coordinatorProfile.active,
-            clubs: user.coordinatorProfile.clubs
-              ? user.coordinatorProfile.clubs.map((club) => ({
-                  id: club.id,
-                  number: club.number,
-                  weekday: club.weekday,
-                  time: club.time,
-                  isActive: club.isActive,
-                }))
-              : [],
-          }
-        : null,
-    };
+  /**
+   * Perfil de quem está logado.
+   *
+   * Delega ao dono do contrato: `/auth/me` e `GET /profile` respondem a mesma
+   * coisa, e antes cada um montava a sua versão — `/auth/me` esquecia
+   * `active`, `completed`, `createdAt` e `updatedAt`.
+   */
+  async getMe(userId: string): Promise<MyProfileResponseDto> {
+    return this.getUsersService.findOneForProfile(userId);
   }
 
   async completeRegister(data: CompleteUserDto) {

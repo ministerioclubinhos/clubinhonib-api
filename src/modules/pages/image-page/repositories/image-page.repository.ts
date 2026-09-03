@@ -1,9 +1,23 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, FindOptionsWhere, In, Repository } from 'typeorm';
+import {
+  EntityManager,
+  FindOptionsWhere,
+  In,
+  Repository,
+  SelectQueryBuilder,
+} from 'typeorm';
 import { ImagePageEntity } from '../entity/Image-page.entity';
 import { ImageSectionEntity } from '../entity/Image-section.entity';
-import { IMAGE_PAGE_RELATIONS } from '../constants';
+import {
+  IMAGE_PAGES_DEFAULT_LIMIT,
+  IMAGE_PAGES_DEFAULT_PAGE,
+  IMAGE_PAGE_DEFAULT_ORDER,
+  IMAGE_PAGE_DEFAULT_SORT,
+  IMAGE_PAGE_RELATIONS,
+  IMAGE_PAGE_SORT_COLUMNS,
+} from '../constants';
+import { QueryImagePagesDto } from '../dto/query-image-pages.dto';
 import { ImagePageContent } from '../types';
 
 @Injectable()
@@ -27,11 +41,59 @@ export class ImagePageRepository {
       : this.sectionRepo;
   }
 
-  async findAllWithSections(): Promise<ImagePageEntity[]> {
-    return this.pageRepo.find({
-      relations: [...IMAGE_PAGE_RELATIONS],
-      order: { createdAt: 'DESC' },
-    });
+  /** Busca e visibilidade resolvidas no banco. */
+  private applyFilters(
+    qb: SelectQueryBuilder<ImagePageEntity>,
+    query: QueryImagePagesDto,
+  ): void {
+    const search = query.searchString?.trim();
+
+    if (search) {
+      qb.andWhere(
+        `(
+          LOWER(page.name) LIKE LOWER(:search) OR
+          LOWER(page.description) LIKE LOWER(:search)
+        )`,
+        { search: `%${search}%` },
+      );
+    }
+
+    if (query.public !== undefined) {
+      qb.andWhere('page.public = :public', { public: query.public });
+    }
+  }
+
+  /**
+   * Página da listagem de galerias, com a contagem de seções.
+   *
+   * As seções em si não são carregadas: a listagem do painel mostra apenas o
+   * resumo, e trazer o conteúdo inteiro de cada galeria é o que tornava a tela
+   * lenta à medida que o acervo crescia.
+   */
+  async findAllPaginated(
+    query: QueryImagePagesDto,
+  ): Promise<{ items: ImagePageEntity[]; total: number }> {
+    const {
+      page = IMAGE_PAGES_DEFAULT_PAGE,
+      limit = IMAGE_PAGES_DEFAULT_LIMIT,
+      sort = IMAGE_PAGE_DEFAULT_SORT,
+      order = IMAGE_PAGE_DEFAULT_ORDER,
+    } = query;
+
+    const qb = this.pageRepo
+      .createQueryBuilder('page')
+      .leftJoinAndSelect('page.route', 'route')
+      .loadRelationCountAndMap('page.sectionCount', 'page.sections');
+
+    this.applyFilters(qb, query);
+
+    qb.orderBy(IMAGE_PAGE_SORT_COLUMNS[sort], order)
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    const [items, total] = await qb.getManyAndCount();
+
+    return { items, total };
   }
 
   async findByIdWithSections(

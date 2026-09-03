@@ -8,6 +8,9 @@ import { QueryProfilesDto } from '../../dto/query-profiles.dto';
 import { PaginatedProfilesResponseDto } from '../../dto/paginated-profiles-response.dto';
 import { MediaItemRepository } from 'src/shared/media/media-item-repository';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
+import { toCompleteProfileResponse } from '../../mappers';
+import { ProfileAccessContext } from '../../types';
+import { assertCanListProfiles, normalizedRole } from '../../utils';
 
 interface UserQueryResult {
   id: string;
@@ -32,10 +35,14 @@ export class GetAllProfilesService {
   ) {}
 
   async execute(
-    requestingUserId: string,
-    requestingUserRole: UserRole,
+    context: ProfileAccessContext,
     queryDto: QueryProfilesDto,
   ): Promise<PaginatedProfilesResponseDto> {
+    assertCanListProfiles(context);
+
+    const requestingUserId = context.userId ?? '';
+    const requestingUserRole = normalizedRole(context) as UserRole;
+
     const { page = 1, limit = 10 } = queryDto;
 
     // Ensure page and limit are numbers
@@ -67,37 +74,12 @@ export class GetAllProfilesService {
           user.id,
         );
 
-        return {
-          id: user.id,
-          email: user.email,
-          phone: user.phone,
-          name: user.name,
-          role: user.role,
+        return toCompleteProfileResponse({
+          user,
           image: mediaMap.get(user.id),
-          personalData: personalData
-            ? {
-                birthDate: personalData.birthDate
-                  ? personalData.birthDate instanceof Date
-                    ? personalData.birthDate.toISOString().split('T')[0]
-                    : String(personalData.birthDate).split('T')[0]
-                  : undefined,
-                gender: personalData.gender,
-                gaLeaderName: personalData.gaLeaderName,
-                gaLeaderContact: personalData.gaLeaderContact,
-              }
-            : undefined,
-          preferences: preferences
-            ? {
-                loveLanguages: preferences.loveLanguages,
-                temperaments: preferences.temperaments,
-                favoriteColor: preferences.favoriteColor,
-                favoriteFood: preferences.favoriteFood,
-                favoriteMusic: preferences.favoriteMusic,
-                whatMakesYouSmile: preferences.whatMakesYouSmile,
-                skillsAndTalents: preferences.skillsAndTalents,
-              }
-            : undefined,
-        };
+          personalData,
+          preferences,
+        });
       }),
     );
 

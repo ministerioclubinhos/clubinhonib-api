@@ -6,6 +6,7 @@ import {
   WeekMaterialRouteResponseDTO,
   WeekMaterialsPageResponseDTO,
 } from './dto/week-material-response.dto';
+import { WeekMaterialSummaryDTO } from './dto/week-material-summary.dto';
 import { groupMediaByType } from './utils';
 
 /** Maps a persisted media item to its public contract. */
@@ -76,5 +77,39 @@ export function toWeekMaterialsPageResponse(
     audios: grouped.audios.map(toMediaItemResponse),
     createdAt: page.createdAt,
     updatedAt: page.updatedAt,
+  };
+}
+
+/** Carimbo de data em ISO, venha ele como `Date` ou já como texto. */
+function toIsoString(value: Date | string): string {
+  return value instanceof Date ? value.toISOString() : String(value);
+}
+
+/**
+ * Mapeia a página para o resumo da listagem.
+ *
+ * Diferente de `toWeekMaterialsPageResponse`, uma página sem rota não derruba
+ * a listagem: `routePath` volta `null` e o administrador consegue ver — e
+ * corrigir — o registro inconsistente.
+ */
+export function toWeekMaterialSummary(
+  page: WeekMaterialsPageEntity,
+  media: MediaItemEntity[],
+): WeekMaterialSummaryDTO {
+  const groups = groupMediaByType(media);
+
+  return {
+    id: page.id,
+    title: page.title,
+    subtitle: page.subtitle,
+    description: page.description,
+    currentWeek: page.currentWeek,
+    routePath: page.route?.path ?? null,
+    videoCount: groups.videos.length,
+    documentCount: groups.documents.length,
+    imageCount: groups.images.length,
+    audioCount: groups.audios.length,
+    createdAt: toIsoString(page.createdAt),
+    updatedAt: toIsoString(page.updatedAt),
   };
 }

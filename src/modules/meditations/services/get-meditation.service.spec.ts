@@ -44,7 +44,7 @@ const buildMedia = (targetId: string): MediaItemEntity =>
 
 describe('GetMeditationService', () => {
   const meditationRepo = {
-    findAllWithDays: jest.fn(),
+    findAllPaginated: jest.fn(),
     findOneWithDays: jest.fn(),
     findByDate: jest.fn(),
   };
@@ -80,29 +80,68 @@ describe('GetMeditationService', () => {
     });
   });
 
-  describe('findAll', () => {
-    it('carrega a mídia de todas as meditações em uma consulta', async () => {
-      meditationRepo.findAllWithDays.mockResolvedValue([
-        buildMeditation('a'),
-        buildMeditation('b'),
-      ]);
+  describe('findAllPaginated', () => {
+    it('carrega a mídia de toda a página em uma consulta', async () => {
+      meditationRepo.findAllPaginated.mockResolvedValue({
+        items: [buildMeditation('a'), buildMeditation('b')],
+        total: 2,
+      });
       mediaItemProcessor.findManyMediaItemsByTargets.mockResolvedValue([
         buildMedia('a'),
       ]);
 
-      const result = await service.findAll();
+      const result = await service.findAllPaginated({ page: 1, limit: 12 });
 
       expect(
         mediaItemProcessor.findManyMediaItemsByTargets,
       ).toHaveBeenCalledTimes(1);
-      expect(result[0].media?.id).toBe('media-a');
-      expect(result[1].media).toBeNull();
+      expect(result.data[0].media?.id).toBe('media-a');
+      expect(result.data[1].media).toBeNull();
     });
 
-    it('não consulta mídia quando não há meditação', async () => {
-      meditationRepo.findAllWithDays.mockResolvedValue([]);
+    it('devolve o envelope paginado com o total do banco', async () => {
+      meditationRepo.findAllPaginated.mockResolvedValue({
+        items: [buildMeditation('a')],
+        total: 25,
+      });
+      mediaItemProcessor.findManyMediaItemsByTargets.mockResolvedValue([]);
 
-      await expect(service.findAll()).resolves.toEqual([]);
+      const result = await service.findAllPaginated({ page: 2, limit: 12 });
+
+      expect(result.total).toBe(25);
+      expect(result.page).toBe(2);
+      expect(result.limit).toBe(12);
+      expect(result.pageCount).toBe(3);
+    });
+
+    it('repassa a data de hoje para o filtro de período', async () => {
+      meditationRepo.findAllPaginated.mockResolvedValue({
+        items: [],
+        total: 0,
+      });
+
+      await service.findAllPaginated({ period: 'current' });
+
+      const [, today] = meditationRepo.findAllPaginated.mock.calls[0] as [
+        unknown,
+        string,
+      ];
+      expect(today).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    });
+
+    it('não consulta mídia quando a página está vazia', async () => {
+      meditationRepo.findAllPaginated.mockResolvedValue({
+        items: [],
+        total: 0,
+      });
+
+      await expect(service.findAllPaginated({})).resolves.toEqual({
+        data: [],
+        total: 0,
+        page: 1,
+        limit: 12,
+        pageCount: 0,
+      });
       expect(
         mediaItemProcessor.findManyMediaItemsByTargets,
       ).not.toHaveBeenCalled();
@@ -121,7 +160,7 @@ describe('GetMeditationService', () => {
       expect(meditationRepo.findByDate).toHaveBeenCalledWith(
         expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
       );
-      expect(meditationRepo.findAllWithDays).not.toHaveBeenCalled();
+      expect(meditationRepo.findAllPaginated).not.toHaveBeenCalled();
       expect(result?.id).toBe('a');
     });
 

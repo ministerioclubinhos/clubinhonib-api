@@ -8,7 +8,7 @@ import { GetClubsService } from './services/get-clubs.service';
 import { CreateClubsService } from './services/create-clubs.service';
 
 import { ClubsRepository } from './repositories/clubs.repository';
-import { ClubEntity } from './entities/club.entity/club.entity';
+import { ClubEntity } from './entities/club.entity';
 
 import { TeacherProfilesModule } from '../teacher-profiles/teacher-profiles.module';
 import { AddressesModule } from '../addresses/addresses.module';

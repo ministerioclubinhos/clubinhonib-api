@@ -31,6 +31,9 @@ export function siteFeedbackNotificationEmail(
       { label: 'E-mail', value: data.email ?? '', as: 'email' },
       { label: 'Data', value: formatBrazilianDateTime(data.receivedAt) },
     ],
+    action: data.panelUrl
+      ? { label: 'Ver avaliações', url: data.panelUrl }
+      : null,
     sections: [{ heading: 'Comentário', text: data.comment }],
   });
 }

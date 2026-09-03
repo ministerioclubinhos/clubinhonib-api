@@ -43,7 +43,7 @@ describe('MeditationController', () => {
   const updateService = { update: jest.fn() };
   const deleteService = { remove: jest.fn() };
   const getService = {
-    findAll: jest.fn(),
+    findAllPaginated: jest.fn(),
     findOne: jest.fn(),
     getThisWeekMeditation: jest.fn(),
   };
@@ -106,10 +106,20 @@ describe('MeditationController', () => {
     expect(dto).toBeInstanceOf(UpdateMeditationDto);
   });
 
-  it('lista as meditações', async () => {
-    getService.findAll.mockResolvedValue([{ id: ID }]);
+  it('lista as meditações repassando os filtros da query', async () => {
+    const pagina = {
+      data: [{ id: ID }],
+      total: 1,
+      page: 1,
+      limit: 12,
+      pageCount: 1,
+    };
+    getService.findAllPaginated.mockResolvedValue(pagina);
 
-    await expect(controller.findAll()).resolves.toEqual([{ id: ID }]);
+    const query = { page: 1, limit: 12, searchText: undefined };
+
+    await expect(controller.findAll(query)).resolves.toEqual(pagina);
+    expect(getService.findAllPaginated).toHaveBeenCalledWith(query);
   });
 
   it('devolve null quando não há meditação da semana', async () => {

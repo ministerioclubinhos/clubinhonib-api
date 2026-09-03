@@ -1,3 +1,4 @@
+import { WEEK_MATERIAL_SORT_FIELDS } from './constants';
 import { MediaItemDto } from 'src/shared/share-dto/media-item-dto';
 import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 
@@ -34,3 +35,9 @@ export interface WeekMaterialPageContent {
   description: string;
   currentWeek: boolean;
 }
+
+/** Campo pelo qual a listagem pode ser ordenada. */
+export type WeekMaterialSortField = (typeof WEEK_MATERIAL_SORT_FIELDS)[number];
+
+/** Direção da ordenação. */
+export type WeekMaterialSortOrder = 'ASC' | 'DESC';

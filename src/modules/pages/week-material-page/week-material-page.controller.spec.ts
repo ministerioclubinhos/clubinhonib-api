@@ -40,7 +40,7 @@ describe('WeekMaterialsPageController', () => {
   };
   const removeService = { removeWeekMaterial: jest.fn() };
   const getService = {
-    findAllPagesWithMedia: jest.fn(),
+    findAllPaginated: jest.fn(),
     findPageWithMedia: jest.fn(),
     getCurrentWeek: jest.fn(),
   };
@@ -114,10 +114,20 @@ describe('WeekMaterialsPageController', () => {
   });
 
   describe('read endpoints', () => {
-    it('lists every page', async () => {
-      getService.findAllPagesWithMedia.mockResolvedValue([{ id: PAGE_ID }]);
+    it('lists pages passing the query filters through', async () => {
+      const pagina = {
+        data: [{ id: PAGE_ID }],
+        total: 1,
+        page: 1,
+        limit: 12,
+        pageCount: 1,
+      };
+      getService.findAllPaginated.mockResolvedValue(pagina);
 
-      await expect(controller.findAll()).resolves.toEqual([{ id: PAGE_ID }]);
+      const query = { page: 1, limit: 12, currentWeek: true };
+
+      await expect(controller.findAll(query)).resolves.toEqual(pagina);
+      expect(getService.findAllPaginated).toHaveBeenCalledWith(query);
     });
 
     it('returns a single page', async () => {

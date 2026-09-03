@@ -1,12 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
-import { DataSource } from 'typeorm';
-import { InformativeRepository } from '../informative.repository';
-import { UpdateInformativeDto } from '../dto/update-informative.dto';
-import { InformativeEntity } from '../entities/informative.entity';
+import { DataSource, EntityManager } from 'typeorm';
+
 import { RouteService } from 'src/modules/routes/route.service';
 import { RouteEntity, RouteType } from 'src/modules/routes/route-page.entity';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
+
+import { INFORMATIVE_ROUTE_PREFIX } from '../constants';
+import { UpdateInformativeDto } from '../dto/update-informative.dto';
+import { InformativeResponseDto } from '../dto/informative-response.dto';
+import { InformativeEntity } from '../entities/informative.entity';
+import { toInformativeResponse } from '../mappers';
+import { GetInformativeService } from './get-informative.service';
 
 @Injectable()
 export class UpdateInformativeService {
@@ -14,58 +18,47 @@ export class UpdateInformativeService {
 
   constructor(
     private readonly dataSource: DataSource,
-    private readonly informativeRepo: InformativeRepository,
+    private readonly getService: GetInformativeService,
     private readonly routeService: RouteService,
   ) {}
 
   async execute(
     id: string,
     dto: UpdateInformativeDto,
-  ): Promise<InformativeEntity> {
+  ): Promise<InformativeResponseDto> {
     this.logger.log(`🛠️ Atualizando banner informativo ID=${id}`);
 
-    const existing = await this.informativeRepo.findOneWithRelations(id);
-    if (!existing) {
-      this.logger.warn(`⚠️ Banner informativo não encontrado: ID=${id}`);
-      throw new AppNotFoundException(
-        ErrorCode.INFORMATIVE_NOT_FOUND,
-        'Informativo não encontrado.',
-      );
-    }
+    const existing = await this.getService.findEntityOrFail(id);
 
-    return await this.dataSource.transaction(async (manager) => {
+    const saved = await this.dataSource.transaction(async (manager) => {
       const updated = manager.merge(InformativeEntity, existing, {
         title: dto.title,
         description: dto.description,
         public: dto.public,
       });
 
-      const saved = await manager.save(InformativeEntity, updated);
-      this.logger.log(`✅ Informativo atualizado: ${saved.id}`);
+      const informative = await manager.save(InformativeEntity, updated);
 
-      if (saved.route) {
-        const updatedRoute = await this.updateRoute(
-          saved.route.id,
-          dto,
-          saved.id,
-        );
-        saved.route = updatedRoute;
-      }
+      informative.route = informative.route
+        ? await this.updateRoute(informative.route.id, dto, informative.id)
+        : await this.createRoute(manager, informative, dto);
 
-      return saved;
+      // A rota nova precisa ficar gravada no informativo; sem isto o banner
+      // continuaria sem endereço público depois do save.
+      await manager.save(InformativeEntity, informative);
+
+      return informative;
     });
+
+    this.logger.log(`✅ Informativo atualizado: ${saved.id}`);
+    return toInformativeResponse(saved);
   }
 
-  private async updateRoute(
-    routeId: string,
+  private routeData(
     dto: UpdateInformativeDto,
     informativeId: string,
-  ): Promise<RouteEntity> {
-    this.logger.debug(
-      `🔄 Atualizando rota do banner informativo ID: ${routeId}`,
-    );
-
-    const routeData: Partial<RouteEntity> = {
+  ): Partial<RouteEntity> {
+    return {
       title: dto.title,
       subtitle: dto.description,
       description: dto.description,
@@ -73,13 +66,50 @@ export class UpdateInformativeService {
       entityType: MediaTargetType.Informative,
       entityId: informativeId,
       public: dto.public,
-      type: RouteType.PAGE,
-      path: 'informativo_',
+      type: RouteType.OTHER,
       image: '',
     };
+  }
 
-    const route = await this.routeService.upsertRoute(routeId, routeData);
+  private async updateRoute(
+    routeId: string,
+    dto: UpdateInformativeDto,
+    informativeId: string,
+  ): Promise<RouteEntity> {
+    // `path` é único: resolver um endereço livre evita o conflito quando dois
+    // informativos passam a ter o mesmo título.
+    const route = await this.routeService.upsertRouteWithAvailablePath(
+      routeId,
+      this.routeData(dto, informativeId),
+      INFORMATIVE_ROUTE_PREFIX,
+    );
+
     this.logger.debug(`✅ Rota atualizada: ${route.id}, path: ${route.path}`);
     return route;
+  }
+
+  /** Informativos antigos podem não ter rota; a edição cria uma. */
+  private async createRoute(
+    manager: EntityManager,
+    informative: InformativeEntity,
+    dto: UpdateInformativeDto,
+  ): Promise<RouteEntity> {
+    const path = await this.routeService.generateAvailablePath(
+      dto.title,
+      INFORMATIVE_ROUTE_PREFIX,
+    );
+
+    return this.routeService.createRouteWithManager(manager, {
+      title: dto.title,
+      subtitle: dto.description,
+      description: dto.description,
+      idToFetch: informative.id,
+      entityType: MediaTargetType.Informative,
+      entityId: informative.id,
+      public: dto.public,
+      type: RouteType.OTHER,
+      image: '',
+      path,
+    });
   }
 }

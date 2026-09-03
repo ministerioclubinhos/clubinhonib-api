@@ -3,17 +3,24 @@ import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { ImagePageRepository } from '../repositories/image-page.repository';
 import { ImagePageEntity } from '../entity/Image-page.entity';
+import { Paginated } from 'src/shared/dto/paginated.dto';
 import { ImagePageResponseDto } from '../dto/image-page-response.dto';
+import { ImagePageSummaryDto } from '../dto/image-page-summary.dto';
+import { QueryImagePagesDto } from '../dto/query-image-pages.dto';
 import { PaginatedImageSectionResponseDto } from '../dto/paginated-image-section.dto';
 import { QueryImageSectionsDto } from '../dto/query-image-sections.dto';
 import {
-  hasRoute,
   toImagePageResponse,
+  toImagePageSummary,
   toPaginatedSectionsResponse,
 } from '../mappers';
 import { collectSectionIds, groupMediaBySection } from '../utils';
 import { MediaBySection } from '../types';
-import { IMAGE_PAGE_ENTITY_TYPE } from '../constants';
+import {
+  IMAGE_PAGES_DEFAULT_LIMIT,
+  IMAGE_PAGES_DEFAULT_PAGE,
+  IMAGE_PAGE_ENTITY_TYPE,
+} from '../constants';
 
 @Injectable()
 export class ImagePageGetService {
@@ -50,27 +57,29 @@ export class ImagePageGetService {
     return groupMediaBySection(mediaItems);
   }
 
-  async findAll(): Promise<ImagePageResponseDto[]> {
-    const allPages = await this.imagePageRepository.findAllWithSections();
+  /**
+   * Listagem paginada do painel: só o resumo de cada galeria.
+   *
+   * Uma galeria sem rota continua aparecendo, com `routePath` nulo — antes ela
+   * era silenciosamente omitida, e o administrador não tinha como descobrir o
+   * registro inconsistente para corrigi-lo.
+   */
+  async findAllPaginated(
+    query: QueryImagePagesDto,
+  ): Promise<Paginated<ImagePageSummaryDto>> {
+    const page = query.page ?? IMAGE_PAGES_DEFAULT_PAGE;
+    const limit = query.limit ?? IMAGE_PAGES_DEFAULT_LIMIT;
 
-    // Uma galeria sem rota não pode ser representada no contrato. Ela é omitida
-    // da listagem, com registro, para que um dado inconsistente não derrube a
-    // lista inteira do administrador.
-    const pages = allPages.filter((page) => {
-      if (hasRoute(page)) return true;
-      this.logger.warn(
-        `Galeria sem rota associada, omitida da listagem. ID=${page.id}`,
-      );
-      return false;
-    });
+    const { items, total } =
+      await this.imagePageRepository.findAllPaginated(query);
 
-    if (pages.length === 0) return [];
-
-    const mediaBySection = await this.findMediaOfSections(
-      collectSectionIds(pages),
-    );
-
-    return pages.map((page) => toImagePageResponse(page, mediaBySection));
+    return {
+      data: items.map(toImagePageSummary),
+      total,
+      page,
+      limit,
+      pageCount: Math.ceil(total / limit),
+    };
   }
 
   async findOne(id: string): Promise<ImagePageResponseDto> {

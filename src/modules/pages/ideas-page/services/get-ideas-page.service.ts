@@ -3,11 +3,18 @@ import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { IdeasPageRepository } from '../repositories/ideas-page.repository';
 import { IdeasPageEntity } from '../entities/ideas-page.entity';
+import { Paginated } from 'src/shared/dto/paginated.dto';
 import { IdeasPageResponseDto } from '../dto/ideas-page-response.dto';
-import { hasRoute, toIdeasPageResponse } from '../mappers';
+import { IdeasPageSummaryDto } from '../dto/ideas-page-summary.dto';
+import { QueryIdeasPagesDto } from '../dto/query-ideas-pages.dto';
+import { toIdeasPageResponse, toIdeasPageSummary } from '../mappers';
 import { collectSectionIds, groupMediaBySection } from '../utils';
 import { MediaBySection } from '../types';
-import { IDEAS_SECTION_MEDIA_TARGET_TYPE } from '../constants';
+import {
+  IDEAS_PAGES_DEFAULT_LIMIT,
+  IDEAS_PAGES_DEFAULT_PAGE,
+  IDEAS_SECTION_MEDIA_TARGET_TYPE,
+} from '../constants';
 
 @Injectable()
 export class IdeasPageGetService {
@@ -47,27 +54,29 @@ export class IdeasPageGetService {
     return groupMediaBySection(mediaItems);
   }
 
-  async findAll(): Promise<IdeasPageResponseDto[]> {
-    const allPages = await this.ideasPageRepository.findAllWithSections();
+  /**
+   * Listagem paginada do painel: só o resumo de cada página.
+   *
+   * Uma página sem rota continua aparecendo, com `routePath` nulo — antes ela
+   * era silenciosamente omitida, e o administrador não tinha como descobrir o
+   * registro inconsistente para corrigi-lo.
+   */
+  async findAllPaginated(
+    query: QueryIdeasPagesDto,
+  ): Promise<Paginated<IdeasPageSummaryDto>> {
+    const page = query.page ?? IDEAS_PAGES_DEFAULT_PAGE;
+    const limit = query.limit ?? IDEAS_PAGES_DEFAULT_LIMIT;
 
-    // Uma página sem rota não pode ser representada no contrato. Ela é omitida
-    // da listagem, com registro, para que um dado inconsistente não derrube a
-    // lista inteira do administrador.
-    const pages = allPages.filter((page) => {
-      if (hasRoute(page)) return true;
-      this.logger.warn(
-        `Página de ideias sem rota associada, omitida da listagem. ID=${page.id}`,
-      );
-      return false;
-    });
+    const { items, total } =
+      await this.ideasPageRepository.findAllPaginated(query);
 
-    if (pages.length === 0) return [];
-
-    const mediaBySection = await this.findMediaOfSections(
-      collectSectionIds(pages),
-    );
-
-    return pages.map((page) => toIdeasPageResponse(page, mediaBySection));
+    return {
+      data: items.map(toIdeasPageSummary),
+      total,
+      page,
+      limit,
+      pageCount: Math.ceil(total / limit),
+    };
   }
 
   async findOne(id: string): Promise<IdeasPageResponseDto> {

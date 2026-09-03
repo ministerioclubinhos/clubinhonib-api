@@ -3,12 +3,11 @@ import { UserEntity } from '../entities/user.entity';
 import { GetUsersQueryDto } from '../dto/get-users-query.dto';
 import { UserRepository } from '../user.repository';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
-import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 import { PersonalDataRepository } from 'src/core/profile/repositories/personal-data.repository';
-import { PersonalData } from 'src/core/profile/entities/personal-data.entity';
 import { UserPreferencesRepository } from 'src/core/profile/repositories/user-preferences.repository';
-import { UserPreferences } from 'src/core/profile/entities/user-preferences.entity';
 import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
+import { MyProfileResponseDto } from '../dto/my-profile-response.dto';
+import { toMyProfileResponse } from '../mappers';
 
 @Injectable()
 export class GetUsersService {
@@ -52,7 +51,10 @@ export class GetUsersService {
     return this.userRepo.findByEmail(email);
   }
 
-  async findOneForProfile(id: string) {
+  /**
+   * Perfil de quem está logado, no contrato único de `MyProfileResponseDto`.
+   */
+  async findOneForProfile(id: string): Promise<MyProfileResponseDto> {
     const user = await this.userRepo.findByIdWithProfiles(id);
     if (!user) {
       throw new AppNotFoundException(
@@ -61,109 +63,12 @@ export class GetUsersService {
       );
     }
 
-    const imageMedia = await this.mediaItemProcessor.findMediaItemByTarget(
-      id,
-      'UserEntity',
-    );
+    const [image, personalData, preferences] = await Promise.all([
+      this.mediaItemProcessor.findMediaItemByTarget(id, 'UserEntity'),
+      this.personalDataRepository.findByUserId(id),
+      this.userPreferencesRepository.findByUserId(id),
+    ]);
 
-    const personalData = await this.personalDataRepository.findByUserId(id);
-    const preferences = await this.userPreferencesRepository.findByUserId(id);
-
-    return this.buildProfileResponse(
-      user,
-      imageMedia || undefined,
-      personalData,
-      preferences,
-    );
-  }
-
-  private buildProfileResponse(
-    user: UserEntity,
-    imageMedia?: MediaItemEntity,
-    personalData?: PersonalData | null,
-    preferences?: UserPreferences | null,
-  ) {
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      active: user.active,
-      completed: user.completed,
-      commonUser: user.commonUser,
-      phone: user.phone,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-      role: user.role,
-      cpf: user.cpf,
-      image: imageMedia
-        ? {
-            id: imageMedia.id,
-            title: imageMedia.title,
-            description: imageMedia.description,
-            url: imageMedia.url,
-            uploadType: imageMedia.uploadType,
-            mediaType: imageMedia.mediaType,
-            isLocalFile: imageMedia.isLocalFile,
-            platformType: imageMedia.platformType,
-            originalName: imageMedia.originalName,
-            size: imageMedia.size,
-            createdAt: imageMedia.createdAt,
-            updatedAt: imageMedia.updatedAt,
-          }
-        : null,
-      personalData: personalData
-        ? {
-            birthDate: personalData.birthDate
-              ? personalData.birthDate instanceof Date
-                ? personalData.birthDate.toISOString().split('T')[0]
-                : String(personalData.birthDate).split('T')[0]
-              : undefined,
-            gender: personalData.gender,
-            gaLeaderName: personalData.gaLeaderName,
-            gaLeaderContact: personalData.gaLeaderContact,
-          }
-        : undefined,
-      preferences: preferences
-        ? {
-            loveLanguages: preferences.loveLanguages,
-            temperaments: preferences.temperaments,
-            favoriteColor: preferences.favoriteColor,
-            favoriteFood: preferences.favoriteFood,
-            favoriteMusic: preferences.favoriteMusic,
-            whatMakesYouSmile: preferences.whatMakesYouSmile,
-            skillsAndTalents: preferences.skillsAndTalents,
-          }
-        : undefined,
-      teacherProfile: user.teacherProfile
-        ? {
-            id: user.teacherProfile.id,
-            active: user.teacherProfile.active,
-            club: user.teacherProfile.club
-              ? {
-                  id: user.teacherProfile.club.id,
-                  number: user.teacherProfile.club.number,
-                  weekday: user.teacherProfile.club.weekday,
-                  time: user.teacherProfile.club.time,
-                  isActive: user.teacherProfile.club.isActive,
-                }
-              : null,
-          }
-        : null,
-      coordinatorProfile: user.coordinatorProfile
-        ? {
-            id: user.coordinatorProfile.id,
-            active: user.coordinatorProfile.active,
-            clubs: user.coordinatorProfile.clubs
-              ? user.coordinatorProfile.clubs.map((club) => ({
-                  id: club.id,
-                  number: club.number,
-                  weekday: club.weekday,
-                  time: club.time,
-                  isActive: club.isActive,
-                }))
-              : [],
-          }
-        : null,
-    };
+    return toMyProfileResponse({ user, image, personalData, preferences });
   }
 }

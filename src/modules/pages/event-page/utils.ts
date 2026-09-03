@@ -1,7 +1,7 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { AppValidationException, ErrorCode } from 'src/shared/exceptions';
-import { Weekday } from 'src/modules/clubs/enums/weekday.enum/weekday.enum';
+import { Weekday } from 'src/modules/clubs/entities/weekday.enum';
 import {
   CLUB_MEETING_LOCATION_FALLBACK,
   EVENT_PAYLOAD_FIELD,

@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ClubPeriodEntity } from '../entities/club-period.entity';
-import { getAcademicWeekYear } from 'src/modules/pagelas/week.util';
+import { getAcademicWeek } from 'src/shared/academic-week/academic-week.util';
 
 @Injectable()
 export class AcademicWeekService {
@@ -49,22 +49,9 @@ export class AcademicWeekService {
       };
     }
 
-    try {
-      const weekData = getAcademicWeekYear(
-        nowDateStr,
-        period.startDate,
-        period.endDate,
-        period.year,
-      );
+    const weekData = getAcademicWeek(nowDateStr, period);
 
-      return {
-        academicYear: weekData.year,
-        academicWeek: weekData.week,
-        isWithinPeriod: true,
-        periodStartDate: period.startDate,
-        periodEndDate: period.endDate,
-      };
-    } catch {
+    if (!weekData) {
       return {
         academicYear: period.year,
         academicWeek: 0,
@@ -73,6 +60,14 @@ export class AcademicWeekService {
         periodEndDate: period.endDate,
       };
     }
+
+    return {
+      academicYear: weekData.year,
+      academicWeek: weekData.week,
+      isWithinPeriod: true,
+      periodStartDate: period.startDate,
+      periodEndDate: period.endDate,
+    };
   }
 
   getExpectedDateForAcademicWeek(

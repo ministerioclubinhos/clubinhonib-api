@@ -3,10 +3,17 @@ import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 import { WeekMaterialsPageRepository } from '../repositories/week-material-page.repository';
+import { Paginated } from 'src/shared/dto/paginated.dto';
 import { WeekMaterialsPageResponseDTO } from '../dto/week-material-response.dto';
+import { WeekMaterialSummaryDTO } from '../dto/week-material-summary.dto';
+import { QueryWeekMaterialsDto } from '../dto/query-week-materials.dto';
 import { WeekMaterialsPageEntity } from '../entities/week-material-page.entity';
-import { hasRoute, toWeekMaterialsPageResponse } from '../mappers';
-import { WEEK_MATERIAL_ENTITY_TYPE } from '../constants';
+import { toWeekMaterialSummary, toWeekMaterialsPageResponse } from '../mappers';
+import {
+  WEEK_MATERIALS_DEFAULT_LIMIT,
+  WEEK_MATERIALS_DEFAULT_PAGE,
+  WEEK_MATERIAL_ENTITY_TYPE,
+} from '../constants';
 
 @Injectable()
 export class WeekMaterialsPageGetService {
@@ -44,20 +51,35 @@ export class WeekMaterialsPageGetService {
     return toWeekMaterialsPageResponse(page, mediaItems);
   }
 
-  async findAllPagesWithMedia(): Promise<WeekMaterialsPageResponseDTO[]> {
-    const allPages = await this.pageRepo.findAllPages();
+  /**
+   * Listagem paginada do painel: resumo de cada página, com a contagem de
+   * mídias por tipo.
+   *
+   * Uma página sem rota continua aparecendo, com `routePath` nulo — antes ela
+   * era silenciosamente omitida, e o administrador não tinha como descobrir o
+   * registro inconsistente para corrigi-lo.
+   */
+  async findAllPaginated(
+    query: QueryWeekMaterialsDto,
+  ): Promise<Paginated<WeekMaterialSummaryDTO>> {
+    const page = query.page ?? WEEK_MATERIALS_DEFAULT_PAGE;
+    const limit = query.limit ?? WEEK_MATERIALS_DEFAULT_LIMIT;
 
-    // Uma página sem rota não pode ser representada no contrato. Ela é omitida
-    // da listagem, com registro, para que um dado inconsistente não derrube a
-    // lista inteira do administrador.
-    const pages = allPages.filter((page) => {
-      if (hasRoute(page)) return true;
-      this.logger.warn(
-        `Página de materiais sem rota associada, omitida da listagem. ID=${page.id}`,
-      );
-      return false;
-    });
+    const { items, total } = await this.pageRepo.findAllPaginated(query);
 
+    return {
+      data: await this.summarize(items),
+      total,
+      page,
+      limit,
+      pageCount: Math.ceil(total / limit),
+    };
+  }
+
+  /** Resolve as mídias de uma página inteira em uma consulta só. */
+  private async summarize(
+    pages: WeekMaterialsPageEntity[],
+  ): Promise<WeekMaterialSummaryDTO[]> {
     if (pages.length === 0) return [];
 
     const allMedia = await this.mediaItemProcessor.findManyMediaItemsByTargets(
@@ -76,7 +98,7 @@ export class WeekMaterialsPageGetService {
     }
 
     return pages.map((page) =>
-      toWeekMaterialsPageResponse(page, mediaByPage.get(page.id) ?? []),
+      toWeekMaterialSummary(page, mediaByPage.get(page.id) ?? []),
     );
   }
 

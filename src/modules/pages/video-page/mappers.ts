@@ -7,6 +7,7 @@ import {
   VideoRouteDto,
   VideosPageResponseDto,
 } from './dto/videos-page-response.dto';
+import { VideoPageSummaryDto } from './dto/video-page-summary.dto';
 
 /**
  * Mapeia o vídeo para o contrato público.
@@ -74,5 +75,33 @@ export function toVideosPageResponse(
     updatedAt: page.updatedAt,
     route: toRouteResponse(page.route),
     videos: videos.map(toVideoResponse),
+  };
+}
+
+/** Carimbo de data em ISO, venha ele como `Date` ou já como texto. */
+function toIsoString(value: Date | string): string {
+  return value instanceof Date ? value.toISOString() : String(value);
+}
+
+/**
+ * Mapeia a página para o resumo da listagem.
+ *
+ * Diferente de `toVideosPageResponse`, uma página sem rota não derruba a
+ * listagem: `routePath` volta `null` e o administrador consegue ver — e
+ * corrigir — o registro inconsistente.
+ */
+export function toVideoPageSummary(
+  page: VideosPage,
+  videoCount: number,
+): VideoPageSummaryDto {
+  return {
+    id: page.id,
+    title: page.name,
+    description: page.description,
+    public: page.public,
+    routePath: page.route?.path ?? null,
+    videoCount,
+    createdAt: toIsoString(page.createdAt),
+    updatedAt: toIsoString(page.updatedAt),
   };
 }

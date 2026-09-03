@@ -2,12 +2,18 @@ import { Injectable, Logger } from '@nestjs/common';
 import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
+import { Paginated } from 'src/shared/dto/paginated.dto';
 import { MeditationRepository } from '../repositories/meditation.repository';
 import { MeditationResponseDto } from '../dto/meditation-response.dto';
+import { QueryMeditationsDto } from '../dto/query-meditations.dto';
 import { MeditationEntity } from '../entities/meditation.entity';
 import { toMeditationResponse } from '../mappers';
 import { formatDateOnly, todayAsLocalDate } from '../utils';
-import { MEDITATION_ENTITY_TYPE } from '../constants';
+import {
+  MEDITATIONS_DEFAULT_LIMIT,
+  MEDITATIONS_DEFAULT_PAGE,
+  MEDITATION_ENTITY_TYPE,
+} from '../constants';
 
 @Injectable()
 export class GetMeditationService {
@@ -39,8 +45,29 @@ export class GetMeditationService {
     );
   }
 
-  async findAll(): Promise<MeditationResponseDto[]> {
-    const meditations = await this.meditationRepo.findAllWithDays();
+  async findAllPaginated(
+    query: QueryMeditationsDto,
+  ): Promise<Paginated<MeditationResponseDto>> {
+    const page = query.page ?? MEDITATIONS_DEFAULT_PAGE;
+    const limit = query.limit ?? MEDITATIONS_DEFAULT_LIMIT;
+    const today = formatDateOnly(todayAsLocalDate());
+
+    const { items: meditations, total } =
+      await this.meditationRepo.findAllPaginated(query, today);
+
+    return {
+      data: await this.withMedia(meditations),
+      total,
+      page,
+      limit,
+      pageCount: Math.ceil(total / limit),
+    };
+  }
+
+  /** Resolve a mídia de uma página inteira em uma consulta só. */
+  private async withMedia(
+    meditations: MeditationEntity[],
+  ): Promise<MeditationResponseDto[]> {
     if (meditations.length === 0) return [];
 
     const mediaItems =

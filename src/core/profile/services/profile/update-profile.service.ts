@@ -1,17 +1,29 @@
-import { Injectable } from '@nestjs/common';
-import { UserRepository } from '../../../user/user.repository';
+import { Injectable, Logger } from '@nestjs/common';
+
+import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
+import { MediaItemRepository } from 'src/shared/media/media-item-repository';
+import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
+import { UserRepository } from 'src/core/user/user.repository';
+
 import { PersonalDataRepository } from '../../repositories/personal-data.repository';
 import { UserPreferencesRepository } from '../../repositories/user-preferences.repository';
 import { UpdateCompleteProfileDto } from '../../dto/update-complete-profile.dto';
 import { CompleteProfileResponseDto } from '../../dto/complete-profile-response.dto';
-import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
+import { toCompleteProfileResponse } from '../../mappers';
+import { PersonalData } from '../../entities/personal-data.entity';
+import { UserPreferences } from '../../entities/user-preferences.entity';
+import { UpdatePersonalDataDto } from '../../dto/update-personal-data.dto';
+import { UpdateUserPreferencesDto } from '../../dto/update-user-preferences.dto';
 
 @Injectable()
 export class UpdateProfileService {
+  private readonly logger = new Logger(UpdateProfileService.name);
+
   constructor(
     private readonly userRepository: UserRepository,
     private readonly personalDataRepository: PersonalDataRepository,
     private readonly userPreferencesRepository: UserPreferencesRepository,
+    private readonly mediaItemRepository: MediaItemRepository,
   ) {}
 
   async execute(
@@ -26,77 +38,52 @@ export class UpdateProfileService {
       );
     }
 
-    let personalData: Awaited<
-      ReturnType<typeof this.personalDataRepository.findByUserId>
-    > = null;
-    let preferences: Awaited<
-      ReturnType<typeof this.userPreferencesRepository.findByUserId>
-    > = null;
+    const personalData = await this.savePersonalData(userId, dto.personalData);
+    const preferences = await this.savePreferences(userId, dto.preferences);
+    const [image] = await this.mediaItemRepository.findByTarget(
+      userId,
+      MediaTargetType.User,
+    );
 
-    if (dto.personalData) {
-      const existing = await this.personalDataRepository.findByUserId(userId);
-      if (existing) {
-        personalData = await this.personalDataRepository.updateByUserId(
-          userId,
-          dto.personalData,
-        );
-      } else {
-        personalData = await this.personalDataRepository.createForUser(
-          userId,
-          dto.personalData,
-        );
-      }
-    } else {
-      personalData = await this.personalDataRepository.findByUserId(userId);
-    }
+    this.logger.log(`Perfil atualizado para o usuário: ${userId}`);
 
-    if (dto.preferences) {
-      const existing =
-        await this.userPreferencesRepository.findByUserId(userId);
-      if (existing) {
-        preferences = await this.userPreferencesRepository.updateByUserId(
-          userId,
-          dto.preferences,
-        );
-      } else {
-        preferences = await this.userPreferencesRepository.createForUser(
-          userId,
-          dto.preferences,
-        );
-      }
-    } else {
-      preferences = await this.userPreferencesRepository.findByUserId(userId);
-    }
+    return toCompleteProfileResponse({
+      user,
+      image,
+      personalData,
+      preferences,
+    });
+  }
 
-    return {
-      id: user.id,
-      email: user.email,
-      phone: user.phone,
-      name: user.name,
-      role: user.role,
-      personalData: personalData
-        ? {
-            birthDate: personalData.birthDate
-              ? personalData.birthDate instanceof Date
-                ? personalData.birthDate.toISOString().split('T')[0]
-                : String(personalData.birthDate).split('T')[0]
-              : undefined,
-            gender: personalData.gender,
-            gaLeaderName: personalData.gaLeaderName,
-            gaLeaderContact: personalData.gaLeaderContact,
-          }
-        : undefined,
-      preferences: preferences
-        ? {
-            loveLanguages: preferences.loveLanguages,
-            temperaments: preferences.temperaments,
-            favoriteColor: preferences.favoriteColor,
-            favoriteFood: preferences.favoriteFood,
-            favoriteMusic: preferences.favoriteMusic,
-            whatMakesYouSmile: preferences.whatMakesYouSmile,
-            skillsAndTalents: preferences.skillsAndTalents,
-          }
-        : undefined,
-    };
+  /**
+   * Grava os dados pessoais, criando o registro na primeira vez.
+   *
+   * Sem `personalData` no corpo, devolve o que já está gravado: a resposta
+   * mostra o perfil inteiro, mesmo quando a edição mexeu só nas preferências.
+   */
+  private async savePersonalData(
+    userId: string,
+    dto?: UpdatePersonalDataDto,
+  ): Promise<PersonalData | null> {
+    if (!dto) return this.personalDataRepository.findByUserId(userId);
+
+    const existing = await this.personalDataRepository.findByUserId(userId);
+
+    return existing
+      ? this.personalDataRepository.updateByUserId(userId, dto)
+      : this.personalDataRepository.createForUser(userId, dto);
+  }
+
+  private async savePreferences(
+    userId: string,
+    dto?: UpdateUserPreferencesDto,
+  ): Promise<UserPreferences | null> {
+    if (!dto) return this.userPreferencesRepository.findByUserId(userId);
+
+    const existing = await this.userPreferencesRepository.findByUserId(userId);
+
+    return existing
+      ? this.userPreferencesRepository.updateByUserId(userId, dto)
+      : this.userPreferencesRepository.createForUser(userId, dto);
   }
 }

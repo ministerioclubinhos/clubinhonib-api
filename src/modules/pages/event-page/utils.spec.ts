@@ -1,6 +1,6 @@
 import { AppValidationException } from 'src/shared/exceptions';
 import { CreateEventDto } from './dto/create-event.dto';
-import { Weekday } from 'src/modules/clubs/enums/weekday.enum/weekday.enum';
+import { Weekday } from 'src/modules/clubs/entities/weekday.enum';
 import {
   formatClubLocation,
   nextOccurrence,

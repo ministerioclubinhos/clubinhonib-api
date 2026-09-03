@@ -8,7 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository, SelectQueryBuilder } from 'typeorm';
 
 import { TeacherProfileEntity } from '../entities/teacher-profile.entity/teacher-profile.entity';
-import { ClubEntity } from 'src/modules/clubs/entities/club.entity/club.entity';
+import { ClubEntity } from 'src/modules/clubs/entities/club.entity';
 import { UserEntity } from 'src/core/user/entities/user.entity';
 import {
   TeacherSimpleListDto,

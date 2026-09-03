@@ -41,7 +41,7 @@ describe('IdeasPageController', () => {
   const createService = { createIdeasPage: jest.fn() };
   const updateService = { updateIdeasPage: jest.fn() };
   const deleteService = { removePage: jest.fn() };
-  const getService = { findAll: jest.fn(), findOne: jest.fn() };
+  const getService = { findAllPaginated: jest.fn(), findOne: jest.fn() };
 
   let controller: IdeasPageController;
   const file = { fieldname: 'video_0_0.mp4' } as Express.Multer.File;
@@ -134,11 +134,21 @@ describe('IdeasPageController', () => {
     expect(updateService.updateIdeasPage).toHaveBeenCalledTimes(1);
   });
 
-  it('lista e busca páginas de ideias', async () => {
-    getService.findAll.mockResolvedValue([{ id: ID }]);
+  it('lista páginas de ideias repassando os filtros da query', async () => {
+    const pagina = {
+      data: [{ id: ID }],
+      total: 1,
+      page: 1,
+      limit: 12,
+      pageCount: 1,
+    };
+    getService.findAllPaginated.mockResolvedValue(pagina);
     getService.findOne.mockResolvedValue({ id: ID });
 
-    await expect(controller.findAll()).resolves.toEqual([{ id: ID }]);
+    const query = { page: 1, limit: 12, searchString: 'brincadeira' };
+
+    await expect(controller.findAll(query)).resolves.toEqual(pagina);
+    expect(getService.findAllPaginated).toHaveBeenCalledWith(query);
     await expect(controller.findOne(ID)).resolves.toEqual({ id: ID });
   });
 

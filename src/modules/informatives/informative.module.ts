@@ -1,9 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
-
 import { InformativeEntity } from './entities/informative.entity';
-import { InformativeRepository } from './informative.repository';
+import { InformativesRepository } from './repositories/informatives.repository';
 import { InformativeController } from './informative.controller';
 
 import { CreateInformativeService } from './services/create-informative.service';
@@ -24,12 +22,7 @@ import { MeditationModule } from 'src/modules/meditations/meditation.module';
     UpdateInformativeService,
     DeleteInformativeService,
     RouteService,
-    {
-      provide: InformativeRepository,
-      useFactory: (dataSource: DataSource) =>
-        new InformativeRepository(dataSource),
-      inject: [DataSource],
-    },
+    InformativesRepository,
     RouteRepository,
   ],
   exports: [

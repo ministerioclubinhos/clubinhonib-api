@@ -35,7 +35,7 @@ const payload = (extra: Record<string, unknown> = {}) =>
 describe('VideosPageController', () => {
   const createService = { execute: jest.fn() };
   const updateService = { execute: jest.fn() };
-  const getService = { findAll: jest.fn(), findOne: jest.fn() };
+  const getService = { findAllPaginated: jest.fn(), findOne: jest.fn() };
   const deleteService = { execute: jest.fn() };
 
   let controller: VideosPageController;
@@ -98,11 +98,21 @@ describe('VideosPageController', () => {
     expect(dto).toBeInstanceOf(UpdateVideosPageDto);
   });
 
-  it('lista e busca páginas', async () => {
-    getService.findAll.mockResolvedValue([{ id: ID }]);
+  it('lista páginas repassando os filtros da query', async () => {
+    const pagina = {
+      data: [{ id: ID }],
+      total: 1,
+      page: 1,
+      limit: 12,
+      pageCount: 1,
+    };
+    getService.findAllPaginated.mockResolvedValue(pagina);
     getService.findOne.mockResolvedValue({ id: ID });
 
-    await expect(controller.findAll()).resolves.toEqual([{ id: ID }]);
+    const query = { page: 1, limit: 12, searchString: 'louvor' };
+
+    await expect(controller.findAll(query)).resolves.toEqual(pagina);
+    expect(getService.findAllPaginated).toHaveBeenCalledWith(query);
     await expect(controller.findOne(ID)).resolves.toEqual({ id: ID });
   });
 

@@ -24,3 +24,23 @@ export const IDEAS_PAGE_PAYLOAD_FIELD = 'ideasMaterialsPageData';
 
 /** Relações sempre carregadas junto da página. */
 export const IDEAS_PAGE_RELATIONS = ['route', 'sections'] as const;
+
+/** Paginação da listagem de páginas de ideias. */
+export const IDEAS_PAGES_DEFAULT_PAGE = 1;
+export const IDEAS_PAGES_DEFAULT_LIMIT = 12;
+export const IDEAS_PAGES_MAX_LIMIT = 100;
+
+/** Campos aceitos na ordenação da listagem, e o padrão. */
+export const IDEAS_PAGE_SORT_FIELDS = ['createdAt', 'title'] as const;
+
+export const IDEAS_PAGE_DEFAULT_SORT = 'createdAt';
+export const IDEAS_PAGE_DEFAULT_ORDER = 'DESC';
+
+/** Coluna correspondente a cada campo de ordenação aceito. */
+export const IDEAS_PAGE_SORT_COLUMNS = {
+  createdAt: 'page.createdAt',
+  title: 'page.title',
+} as const satisfies Record<(typeof IDEAS_PAGE_SORT_FIELDS)[number], string>;
+
+/** Tamanho máximo do texto de busca. */
+export const IDEAS_PAGE_SEARCH_MAX_LENGTH = 200;

@@ -23,43 +23,176 @@ Most page controllers follow a standard CRUD pattern.
 **Common Base URLs:**
 
 - `/week-material-pages`
-- `/pages/video`
-- `/pages/image` (includes sections)
+- `/video-pages`
+- `/image-pages` (includes sections)
 - `/ideas-pages` (includes sections)
-- `/pages/event`
+- `/events`
 
 ### 1.1 Week Material Page
 
 **Base URL**: `/week-material-pages`
 
-- `GET /` - List all pages with their media, newest first
-- `GET /current-week` - Page published as the current week material, or `null`
-- `GET /:id` - Get a specific page with its media
-- `POST /` - Create a page (admin, `multipart/form-data`)
-- `PATCH /:id` - Update a page (admin, `multipart/form-data`)
-- `DELETE /:id` - Remove a page, its media and its route (admin)
-- `POST /current-week/:id` - Publish a page as the current week material (admin)
+Todas as rotas exigem sessão.
+
+- `GET /` - Lista paginada, em resumo
+- `GET /current-week` - Página publicada como material da semana, ou `null`
+- `GET /:id` - Página com todas as suas mídias
+- `POST /` - Cria a página (admin, `multipart/form-data`)
+- `PATCH /:id` - Atualiza a página (admin, `multipart/form-data`)
+- `DELETE /:id` - Remove a página, suas mídias e a rota (admin)
+- `POST /current-week/:id` - Publica a página como material da semana (admin)
+
+A listagem devolve `Paginated<WeekMaterialSummaryDTO>`: `id`, `title`,
+`subtitle`, `description`, `currentWeek`, `routePath`, `videoCount`,
+`documentCount`, `imageCount`, `audioCount`, `createdAt` e `updatedAt`. As
+mídias em si só vêm em `GET /:id`.
+
+**Query de `GET /`:** `page`, `limit` (máx. 100), `searchString` (título,
+subtítulo ou descrição), `currentWeek`, `sort` (`createdAt` | `title`) e
+`order` (`ASC` | `DESC`). Tudo é resolvido no banco.
+
+Uma página sem rota continua aparecendo na listagem, com `routePath: null`:
+antes ela era omitida em silêncio e o registro inconsistente ficava invisível
+para a administração.
 
 See [`api-week-materials.md`](api-week-materials.md) for the payload, the media
 synchronization rules and the error catalog.
 
 ### 1.2 Video Page
 
-**Base URL**: `/pages/video`
+**Base URL**: `/video-pages`
 
-- `GET /` - List videos
-- `POST /` - Register new video (YouTube/Vimeo links)
+| Rota | Quem acessa | O que faz |
+| --- | --- | --- |
+| `GET /` | autenticado | Lista paginada, em resumo |
+| `GET /:id` | público | Página com todos os seus vídeos |
+| `POST /` | admin | Cria a página (multipart, `videosPageData`) |
+| `PATCH /:id` | admin | Atualiza a página (multipart) |
+| `DELETE /:id` | admin | Remove página, vídeos e rota (204) |
+
+A listagem devolve o envelope `Paginated<VideoPageSummaryDto>`. O resumo tem
+`id`, `title`, `description`, `public`, `routePath`, `videoCount`, `createdAt`
+e `updatedAt` — os vídeos em si só vêm em `GET /:id`.
+
+**Query de `GET /`:** `page`, `limit` (máx. 100), `searchString` (título ou
+descrição), `public`, `sort` (`createdAt` | `title`) e `order` (`ASC` | `DESC`).
+Tudo é resolvido no banco.
+
+Uma página sem rota continua aparecendo na listagem, com `routePath: null`:
+antes ela era omitida em silêncio e o registro inconsistente ficava invisível
+para a administração.
 
 ### 1.3 Image Page & Sections
 
-**Base URL**: `/pages/image`
+**Base URL**: `/image-pages`
 
 Manages galleries or visual sections.
 
-- `GET /` - List image pages
-- `GET /:id/sections` - List sections within an image page
-- `POST /` - Create image page
-- `POST /section` - Add section to a page
+| Rota | Quem acessa | O que faz |
+| --- | --- | --- |
+| `GET /` | autenticado | Lista paginada de galerias, em resumo |
+| `GET /:id` | público | Galeria com suas seções e imagens |
+| `GET /:id/sections` | público | Seções paginadas; as privadas só com sessão |
+| `POST /` | admin | Cria a galeria (multipart, `imageData`) |
+| `PATCH /:id` | admin | Atualiza a galeria (multipart) |
+| `DELETE /:id` | admin | Remove galeria, seções, imagens e rota (204) |
+
+A listagem devolve `Paginated<ImagePageSummaryDto>`: `id`, `title`,
+`description`, `public`, `routePath`, `sectionCount`, `createdAt` e
+`updatedAt`.
+
+**Query de `GET /`:** `page`, `limit` (máx. 100), `searchString` (título ou
+descrição), `public`, `sort` (`createdAt` | `title`) e `order`.
+
+### 1.3.1 Fotos dos clubinhos (`/image-sections`)
+
+Fotos enviadas por um clubinho. Elas **não** entram no feed direto: ficam numa
+fila e a administração revisa e aprova.
+
+| Rota | Quem acessa | O que faz |
+| --- | --- | --- |
+| `POST /image-sections` | autenticado | Envia as fotos. Nascem sem página e fora do ar. |
+| `GET /image-sections` | admin | A fila de revisão. Paginada, com busca e filtros. |
+| `GET /image-sections/pending-count` | admin | `{ "pending": number }` para o aviso do painel. |
+| `GET /image-sections/:id` | admin | Uma publicação. |
+| `PATCH /image-sections/:id` | admin | Revisa e aprova: leva ao feed do clubinho. |
+| `DELETE /image-sections/:id` | admin | Recusa: sai da fila e os arquivos saem do S3. |
+
+`PATCH` e `DELETE` **não tinham guarda nenhuma**: qualquer pessoa, autenticada
+ou não, editava ou apagava as fotos de qualquer clubinho. `GET` e `GET /:id`
+eram públicos e sem paginação.
+
+**Query da fila**
+
+```typescript
+{
+  page?: number;          // padrão 1
+  limit?: number;         // padrão 12, máximo 100
+  searchString?: string;  // legenda ou descrição, filtrado no banco
+  approved?: boolean;     // false = fila; true = já no feed
+  hasMedia?: boolean;     // separa as publicações que ficaram sem foto
+  sort?: 'createdAt' | 'caption';
+  order?: 'ASC' | 'DESC';
+}
+```
+
+Responde o envelope compartilhado (`data`, `total`, `page`, `limit`,
+`pageCount`).
+
+**Corpo multipart**: campo `sectionData` com o JSON, mais uma parte por arquivo,
+endereçada pelo `fieldKey` da mídia correspondente.
+
+```jsonc
+{
+  "caption": "Páscoa no Clubinho 12",
+  "description": "…",
+  "public": false,     // só na revisão; a criação não aceita este campo
+  "mediaItems": [
+    {
+      "id": "uuid",    // ausente quando a mídia é nova
+      "title": "Foto",
+      "mediaType": "image",
+      "uploadType": "upload",
+      "isLocalFile": true,
+      "originalName": "foto.jpg",
+      "fieldKey": "file_0",
+      "size": 2048
+    }
+  ]
+}
+```
+
+`public` **não é aceito na criação**: quem envia não publica.
+
+**ImageSectionResponseDto**
+
+```typescript
+{
+  id: string;
+  caption: string;
+  description: string;
+  public: boolean;
+  pageId: string | null;   // null enquanto aguarda aprovação
+  mediaItems: Array<{
+    id: string;
+    title: string | null;
+    description: string | null;
+    uploadType: string;
+    mediaType: string;
+    isLocalFile: boolean;
+    url: string;
+    platformType: string | null;
+    originalName: string | null;
+    size: number | null;
+  }>;
+  createdAt: string;       // ISO
+  updatedAt: string;       // ISO
+}
+```
+
+`pageId` distingue a publicação pendente da já aprovada. O front espelha este
+contrato em `src/features/image-sections/types.ts`, e `mappers.spec.ts` trava o
+conjunto exato de chaves deste lado.
 
 ### 1.4 Ideas Page & Sections
 
@@ -67,12 +200,19 @@ Manages galleries or visual sections.
 
 Páginas de ideias de atividades para os professores, organizadas em seções.
 
-- `GET /` - Lista as páginas com suas seções e mídias. Uma página sem rota é
-  omitida da listagem, com registro em log, para não derrubar a lista inteira
+- `GET /` - Lista paginada, em resumo (exige sessão)
 - `GET /:id` - Página com suas seções e mídias
 - `POST /` - Cria a página (admin, `multipart/form-data`)
 - `PATCH /:id` - Atualiza a página (admin, `multipart/form-data`)
 - `DELETE /:id` - Remove a página, suas seções, mídias e a rota (admin, `204`)
+
+A listagem devolve `Paginated<IdeasPageSummaryDto>`: `id`, `title`,
+`subtitle`, `description`, `public`, `routePath`, `sectionCount`, `createdAt`
+e `updatedAt`. Uma página sem rota continua aparecendo, com `routePath: null`,
+em vez de ser omitida em silêncio.
+
+**Query de `GET /`:** `page`, `limit` (máx. 100), `searchString` (título,
+subtítulo ou descrição), `public`, `sort` (`createdAt` | `title`) e `order`.
 
 **Corpo multipart**: campo `ideasMaterialsPageData` com o JSON da página, mais
 uma parte por arquivo enviado, referenciada pelo `fieldKey` da mídia.
@@ -121,7 +261,115 @@ uma parte por arquivo enviado, referenciada pelo `fieldKey` da mídia.
 - A rota da página de ideias é sempre `public: false`: o acesso acontece pela
   Área do Professor.
 
-### 1.4.1 Documentos — grafia do `targetType`
+### 1.4.1 Ideias compartilhadas (`/ideas-sections`)
+
+Uma ideia enviada por alguém da base. Ela **não** nasce numa página: entra numa
+fila e a administração decide se e onde publicar.
+
+| Rota | Quem acessa | O que faz |
+| --- | --- | --- |
+| `POST /ideas-sections` | autenticado | Envia a ideia. Ela nasce sem página e fora do ar. |
+| `GET /ideas-sections` | admin | A fila: ideias que ainda aguardam decisão. Paginada, com busca. |
+| `GET /ideas-sections/pending-count` | admin | `{ "pending": number }` para o aviso do painel. |
+| `GET /ideas-sections/:id` | admin | Uma ideia. |
+| `PATCH /ideas-sections/:id` | admin | Edita sem mexer em onde está publicada. |
+| `PATCH /ideas-sections/:id/attach/:pageId` | admin | **Aceita**: revisa e publica na página escolhida. |
+| `DELETE /ideas-sections/:id` | admin | Recusa: sai da fila e os arquivos saem do S3. |
+
+`GET /ideas-sections` e `GET /ideas-sections/:id` **eram públicos e sem
+paginação**: qualquer pessoa listava todas as ideias, inclusive as que ainda
+não tinham sido aprovadas.
+
+**Query da fila**
+
+```typescript
+{
+  page?: number;        // padrão 1
+  limit?: number;       // padrão 12, máximo 100
+  searchString?: string; // título ou descrição, filtrado no banco
+  sort?: 'createdAt' | 'title';
+  order?: 'ASC' | 'DESC';
+}
+```
+
+Responde o envelope compartilhado (`data`, `total`, `page`, `limit`,
+`pageCount`).
+
+**Corpo multipart**: campo `sectionData` com o JSON, mais uma parte por arquivo,
+endereçada pelo `fieldKey` da mídia correspondente.
+
+```jsonc
+{
+  "title": "Brincadeira dos balões",
+  "description": "…",
+  "public": false,        // só na edição; a criação não aceita este campo
+  "medias": [
+    {
+      "id": "uuid",       // ausente quando a mídia é nova
+      "title": "Foto",
+      "description": "",
+      "mediaType": "image",   // image | video | document
+      "uploadType": "upload", // upload | link
+      "isLocalFile": true,
+      "url": "https://…",     // nas mídias de link
+      "platformType": "youtube",
+      "originalName": "foto.jpg",
+      "fieldKey": "image_upload", // liga esta mídia ao arquivo do multipart
+      "size": 2048
+    }
+  ]
+}
+```
+
+`public` **não é aceito na criação**: a ideia nasce fora do ar e publicar é ato
+da administração. Aceitá-lo deixava quem enviava publicar a própria ideia.
+
+`fileField` também saiu do contrato: é o nome interno que o processador de
+mídias usa, derivado do `fieldKey`, e nunca deveria vir na requisição.
+
+**IdeasSectionResponseDto**
+
+```typescript
+{
+  id: string;
+  title: string;
+  description: string;
+  public: boolean;
+  pageId: string | null;   // null enquanto aguarda decisão
+  medias: Array<{
+    id: string;
+    title: string | null;
+    description: string | null;
+    uploadType: string;
+    mediaType: string;
+    isLocalFile: boolean;
+    url: string;
+    platformType: string | null;
+    originalName: string | null;
+    size: number | null;
+  }>;
+  createdAt: string;       // ISO
+  updatedAt: string;       // ISO
+}
+```
+
+`pageId` é o que distingue a ideia pendente da já publicada. O front espelha
+este contrato em `src/features/ideas-sections/types.ts`, e `mappers.spec.ts`
+trava o conjunto exato de chaves deste lado.
+
+**Correções de comportamento**
+
+- Editar ou publicar uma ideia **inseria uma linha nova**: o `save` era chamado
+  sem o `id`. Aceitar uma ideia criava uma cópia ligada à página e deixava a
+  original parada na fila para sempre.
+- A rota de publicar envolvia tudo em `try/catch` e devolvia **500** para
+  qualquer falha — "página não encontrada" e erro de validação incluídos.
+- A checagem de "upload declarado sem arquivo" existia e **nunca era chamada**:
+  a mídia era gravada apontando para lugar nenhum.
+- A guarda que impedia excluir uma ideia já publicada **nunca disparava**: a
+  consulta não carregava a relação `page`.
+
+### 1.4.2 Documentos — grafia do `targetType`
 
 A criação gravava as mídias do documento com `targetType = 'Document'` enquanto
 a edição gravava `'document'`. As leituras procuravam apenas por `'document'`,
@@ -212,22 +460,31 @@ e mantém **um** evento no calendário:
 
 **Base URL**: `/meditations`
 
-Manages daily or weekly meditations content.
+Meditação semanal, de segunda a sexta. Todas as rotas exigem sessão.
 
-### Endpoints
+| Rota | Quem acessa | O que faz |
+| --- | --- | --- |
+| `GET /` | autenticado | Lista paginada, com os dias e a mídia |
+| `GET /this-week` | autenticado | Meditação que cobre a data de hoje, ou `null` |
+| `GET /:id` | autenticado | Detalhe da meditação |
+| `POST /` | admin | Cria (multipart, `meditationData` + `file`) |
+| `PATCH /:id` | admin | Atualiza (multipart) |
+| `DELETE /:id` | admin | Remove meditação, mídia e rota (204) |
 
-- `GET /` - List meditations (paginated)
-- `GET /:id` - Get details
-- `POST /` - Create meditation
-- `PUT /:id` - Update meditation
-- `DELETE /:id` - Delete
+**Query de `GET /`:** `page`, `limit` (máx. 100), `searchString` (tema da
+semana, ou tema/versículo de algum dia), `period` (`current` | `upcoming` |
+`past`), `sort` (`startDate` | `topic` | `createdAt`) e `order`.
 
-**DTO Fields (Create):**
+O recorte de período compara com a data de hoje resolvida no fuso da
+aplicação, não no do servidor de banco.
 
-- `title` (string)
-- `content` (text/html)
-- `date` (ISO date)
-- `active` (boolean)
+**Campos de `meditationData`:**
+
+- `topic` (string)
+- `startDate` (`YYYY-MM-DD`, segunda-feira)
+- `endDate` (`YYYY-MM-DD`, sexta-feira)
+- `days` (5 itens: `day`, `topic`, `verse`)
+- `media` (documento anexado à semana)
 
 ---
 
@@ -237,12 +494,23 @@ Manages daily or weekly meditations content.
 
 News and announcements for the clubinho community.
 
-### Endpoints
+| Rota | Quem acessa | O que faz |
+| --- | --- | --- |
+| `GET /` | autenticado | Lista paginada |
+| `GET /:id` | autenticado | Detalhe do informativo |
+| `POST /` | admin | Cria o informativo e sua rota |
+| `PATCH /:id` | admin | Atualiza informativo e rota |
+| `DELETE /:id` | admin | Remove informativo e rota |
 
-- `GET /` - List informatives
-- `POST /` - Create informative
-- `PUT /:id` - Update
-- `DELETE /:id` - Delete
+**Contrato (`InformativeResponseDto`):** `id`, `title`, `description`,
+`public`, `routePath` (`null` quando não há rota), `createdAt`, `updatedAt`.
+
+**Query de `GET /`:** `page`, `limit` (máx. 100), `searchString` (título ou
+descrição), `public`, `sort` (`createdAt` | `title`) e `order`.
+
+**Corpo de criação e edição:** `title`, `description`, `public` — e nada além
+disso. O `id` vai apenas na URL: exigi-lo também no corpo fazia toda edição
+responder 400, porque o formulário nunca o enviava.
 
 ---
 
@@ -252,11 +520,24 @@ News and announcements for the clubinho community.
 
 Repository for official documents (PDFs, guidelines).
 
-### Endpoints
+| Rota | Quem acessa | O que faz |
+| --- | --- | --- |
+| `GET /` | autenticado | Lista paginada |
+| `GET /:id` | público | Detalhe do documento, com a mídia |
+| `POST /` | admin | Cria (multipart, `documentData` + `file`) |
+| `PATCH /:id` | admin | Atualiza (multipart) |
+| `DELETE /:id` | admin | Remove documento, mídia e rota (204) |
 
-- `GET /` - List available documents
-- `POST /` - Upload/Register document
-- `DELETE /:id` - Remove from registry
+**Contrato (`DocumentResponseDto`):** `id`, `name`, `description` (`null`
+quando vazia), `media` (`null` quando não há arquivo nem link), `createdAt`,
+`updatedAt`.
+
+**Query de `GET /`:** `page`, `limit` (máx. 100), `searchString` (nome ou
+descrição), `hasMedia`, `sort` (`createdAt` | `name`) e `order`.
+
+O filtro `hasMedia` considera as duas grafias históricas de `targetType`
+(`Document` e `document`): procurar só por uma escondia a mídia de registros
+antigos.
 
 ---
 

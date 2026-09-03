@@ -26,7 +26,10 @@ import { AuthContextService } from 'src/core/auth/services/auth-context.service'
 import { CreateImagePageDto } from './dto/create-image.dto';
 import { UpdateImagePageDto } from './dto/update-image.dto';
 import { ImagePageResponseDto } from './dto/image-page-response.dto';
+import { ImagePageSummaryDto } from './dto/image-page-summary.dto';
 import { PaginatedImageSectionResponseDto } from './dto/paginated-image-section.dto';
+import { QueryImagePagesDto } from './dto/query-image-pages.dto';
+import { Paginated } from 'src/shared/dto/paginated.dto';
 import { QueryImageSectionsDto } from './dto/query-image-sections.dto';
 import { ImagePageCreateService } from './services/create-image-page.service';
 import { ImagePageGetService } from './services/get-image-page.service';
@@ -76,10 +79,17 @@ export class ImageController {
     return this.updateService.updateImagePage(id, dto, buildFilesDict(files));
   }
 
+  /**
+   * Listagem do painel. Exige sessão: é o inventário administrativo das
+   * galerias, inclusive das que não estão publicadas.
+   */
+  @UseGuards(JwtAuthGuard)
   @Get()
-  async findAll(): Promise<ImagePageResponseDto[]> {
+  async findAll(
+    @Query() query: QueryImagePagesDto,
+  ): Promise<Paginated<ImagePageSummaryDto>> {
     this.logger.debug('GET /image-pages');
-    return this.getService.findAll();
+    return this.getService.findAllPaginated(query);
   }
 
   @Get(':id/sections')

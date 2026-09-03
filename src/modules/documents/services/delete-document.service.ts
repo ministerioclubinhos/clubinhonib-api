@@ -1,4 +1,4 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   AppNotFoundException,
   AppInternalException,
@@ -6,7 +6,7 @@ import {
 } from 'src/shared/exceptions';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
-import { DocumentRepository } from '../document.repository';
+import { DocumentsRepository } from '../repositories/documents.repository';
 import { RouteService } from 'src/modules/routes/route.service';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
 import { DOCUMENT_MEDIA_TARGET_TYPES } from '../constants';
@@ -16,8 +16,7 @@ export class DeleteDocumentService {
   private readonly logger = new Logger(DeleteDocumentService.name);
 
   constructor(
-    @Inject(DocumentRepository)
-    private readonly documentRepo: DocumentRepository,
+    private readonly documentRepo: DocumentsRepository,
     private readonly s3Service: AwsS3Service,
     private readonly routeService: RouteService,
 
@@ -27,7 +26,7 @@ export class DeleteDocumentService {
   async execute(id: string): Promise<void> {
     this.logger.log(`🗑️ [DELETE] Iniciando remoção do documento ID=${id}`);
 
-    const document = await this.documentRepo.findOneById(id);
+    const document = await this.documentRepo.findById(id);
     if (!document) {
       this.logger.warn(`⚠️ Documento não encontrado: ID=${id}`);
       throw new AppNotFoundException(

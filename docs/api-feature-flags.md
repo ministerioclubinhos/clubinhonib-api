@@ -1,101 +1,124 @@
-# Feature Flags API Documentation
-
-The **Feature Flags** module allows for dynamic toggling of system features without deploying new code. This is useful for phased rollouts, A/B testing, or emergency kill switches.
+# Feature Flags
 
 **Base URL**: `/feature-flags`
 
-## 📋 Index
+Cada flag liga ou desliga um recurso do produto sem novo deploy, e declara
+**quem a enxerga**. A decisão de mostrar ou esconder acontece na aplicação: o
+back apenas informa, por `/feature-flags/map`, o que vale para a sessão de quem
+perguntou.
 
-1. [List Flags](#1-list-flags)
-2. [Get Flag](#2-get-flag)
-3. [Create Flag](#3-create-flag)
-4. [Update Flag](#4-update-flag)
-5. [Delete Flag](#5-delete-flag)
+## Uma flag por recurso
 
----
+A chave nomeia o **recurso**, nunca o perfil. Quem enxerga cada recurso é
+decidido por `targetRoles`, no painel.
 
-## 1. List Flags
+Houve um tempo em que a Área das Crianças tinha duas flags, uma por perfil:
+dois interruptores para a mesma tela, e a mesma pergunta respondida em dois
+lugares. Hoje é uma só, `children_area`, e o perfil sai da audiência.
 
-Retrieve all feature flags configured in the system.
+| Chave | Recurso |
+| --- | --- |
+| `children_area` | Consulta das crianças e das pagelas |
+| `club_photo_upload` | Envio de fotos do clubinho |
+| `weekly_materials` | Lista de materiais da visita semanal |
+| `site_feedback` | Formulário de avaliação do site |
+| `idea_submission` | Envio de uma ideia para a fila |
+| `ideas_sharing` | Galeria das ideias já publicadas |
+| `events_section` | Página de eventos e seus atalhos |
+| `clubinho_feed` | Feed de fotos dos clubinhos |
+| `statistics` | Painel de estatísticas |
+| `club_control` | Controle operacional dos clubinhos |
+| `pagelas` | Gestão das pagelas no painel |
 
-- **Endpoint**: `GET /feature-flags`
-- **Access**: Admin / Authenticated (depending on configuration)
+### Chaves aposentadas
 
-### Response
+As chaves que nomeavam o perfil (`teacher_*`, `coordinator_*`, `admin_*`) e as
+`shelter-*` foram aposentadas: elas são removidas do banco no boot e não devem
+voltar. Recriar uma delas no painel não adianta — o próximo boot a remove de
+novo. Flags criadas pela administração com outros nomes não são tocadas.
 
-```json
-[
-  {
-    "id": "uuid...",
-    "key": "ENABLE_NEW_DASHBOARD",
-    "description": "Enables the new React-based dashboard",
-    "isEnabled": true,
-    "createdAt": "2025-01-01T10:00:00Z"
-  }
-]
-```
+A chave aceita apenas minúsculas, números e `_`; o hífen fica de fora para que
+a mesma flag não circule escrita de dois jeitos. Ela **pode ser renomeada**, e
+a API recusa uma chave já usada — mas renomear uma flag que o código consulta
+desliga o recurso na tela até o código apontar para a chave nova.
 
----
+## Público de uma flag
 
-## 2. Get Flag
+`targetRoles` é a fonte da verdade; `audience` é o nome da combinação, devolvido
+junto para que as duas pontas falem a mesma língua.
 
-Check the status of a specific flag by its key.
+| `audience` | `targetRoles` | Quem enxerga |
+| --- | --- | --- |
+| `EVERYONE` | `[]` | Qualquer pessoa, inclusive sem login |
+| `ALL_ROLES` | `admin`, `coordinator`, `teacher` | Qualquer perfil logado |
+| `ADMIN` | `admin` | Só administradores |
+| `COORDINATOR` | `coordinator` | Só coordenadores |
+| `TEACHER` | `teacher` | Só professores |
+| `ADMIN_COORDINATOR` | `admin`, `coordinator` | Administradores e coordenadores |
+| `ADMIN_TEACHER` | `admin`, `teacher` | Administradores e professores |
+| `COORDINATOR_TEACHER` | `coordinator`, `teacher` | Coordenadores e professores |
 
-- **Endpoint**: `GET /feature-flags/:key`
-- **Params**: `key` (string, e.g., `ENABLE_NEW_DASHBOARD`)
+`EVERYONE` e `ALL_ROLES` **não** são a mesma coisa: sem perfil alvo a flag vale
+para o visitante; com os três perfis, ela exige uma sessão.
 
-### Response
+Uma flag desligada (`enabled: false`) não vale para ninguém, nem para o perfil
+alvo.
 
-```json
+Os perfis são gravados normalizados — sem espaços, em minúsculas, sem
+repetições e sempre na mesma ordem. É isso que permite comparar duas
+combinações; flags antigas guardavam a lista em `metadata`, e a leitura ainda
+cai para lá quando a coluna está vazia.
+
+## Rotas
+
+| Rota | Quem acessa | O que faz |
+| --- | --- | --- |
+| `GET /feature-flags` | admin | Listagem paginada do painel |
+| `GET /feature-flags/stats` | admin | Resumo: total, ligadas, desligadas e a distribuição por público |
+| `GET /feature-flags/map` | qualquer um | `{ chave: vale }` para a sessão de quem pediu |
+| `GET /feature-flags/check/:key` | qualquer um | O mesmo, para uma chave só |
+| `GET /feature-flags/:key` | admin | Uma flag |
+| `POST /feature-flags` | admin | Cria |
+| `POST /feature-flags/seed` | admin | Confere o catálogo: cria as de fábrica que faltam e apaga as aposentadas |
+| `PATCH /feature-flags/:key` | admin | Edita (parcial) |
+| `PATCH /feature-flags/:key/toggle` | admin | Liga/desliga sem mexer no resto |
+| `DELETE /feature-flags/:key` | admin | Remove (`204`) |
+
+**Query de `GET /`:** `page`, `limit` (máx. 100), `searchString` (chave, nome
+ou descrição), `enabled`, `audience`, `sort` (`name` | `key` | `createdAt` |
+`updatedAt`) e `order`.
+
+O recorte por `audience` é aplicado sobre os perfis já normalizados, e não em
+SQL: a coluna é JSON e guarda listas fora de ordem e com grafias antigas.
+
+## Contrato (`FeatureFlagResponseDto`)
+
+```jsonc
 {
-  "key": "ENABLE_NEW_DASHBOARD",
-  "isEnabled": true
+  "id": "uuid",
+  "key": "statistics",
+  "name": "Estatísticas",
+  "description": "Painel de métricas",
+  "enabled": true,
+  "targetRoles": ["admin", "coordinator"],
+  "audience": "ADMIN_COORDINATOR",
+  "metadata": null,
+  "createdAt": "2026-01-10T12:00:00.000Z",
+  "updatedAt": "2026-01-11T12:00:00.000Z"
 }
 ```
 
----
+A chave só aceita minúsculas, números, `_` e `-`, e não muda depois de criada:
+é por ela que a aplicação pergunta pela flag, e trocá-la criaria outra.
 
-## 3. Create Flag (Admin)
+## Decisões
 
-Register a new feature flag.
-
-- **Endpoint**: `POST /feature-flags`
-- **Access**: Admin only
-
-### Body
-
-```json
-{
-  "key": "NEW_FEATURE_KEY",
-  "description": "Description of what this flag controls",
-  "isEnabled": false
-}
-```
-
----
-
-## 4. Update Flag (Admin)
-
-Toggle a flag on or off.
-
-- **Endpoint**: `PATCH /feature-flags/:id`
-- **Access**: Admin only
-
-### Body
-
-```json
-{
-  "isEnabled": true
-}
-```
-
----
-
-## 5. Delete Flag (Admin)
-
-Remove a feature flag constant.
-
-- **Endpoint**: `DELETE /feature-flags/:id`
-
----
-⬅️ [Back to Documentation Hub](README.md)
+- **O perfil vem da sessão, nunca da query.** `map` e `check` liam `?role=`, o
+  que deixava qualquer pessoa pedir o mapa de um administrador.
+- **A listagem completa é do administrador.** Ela descreve a configuração
+  inteira do produto, inclusive o que está desligado e para quem.
+- **Não há guarda de rota por flag no servidor.** A condição é aplicada no
+  front; o back informa e não bloqueia.
+- **Uma flag por recurso, nunca uma por perfil.** O perfil já é uma dimensão
+  da própria flag.
+- **Sem campo de ambiente.** Uma flag vale para a instalação inteira.

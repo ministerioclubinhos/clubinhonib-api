@@ -2,11 +2,6 @@ import { Test } from '@nestjs/testing';
 import { AppNotFoundException } from 'src/shared/exceptions';
 import { RouteType } from 'src/modules/routes/route-page.entity';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
-import {
-  MediaItemEntity,
-  MediaType,
-  UploadType,
-} from 'src/shared/media/media-item/media-item.entity';
 import { ImagePageRepository } from '../repositories/image-page.repository';
 import { ImagePageEntity } from '../entity/Image-page.entity';
 import { ImageSectionEntity } from '../entity/Image-section.entity';
@@ -51,22 +46,9 @@ const buildPage = (
     ...overrides,
   });
 
-const buildMedia = (id: string, targetId: string): MediaItemEntity =>
-  Object.assign(new MediaItemEntity(), {
-    id,
-    title: id,
-    description: '',
-    mediaType: MediaType.IMAGE,
-    uploadType: UploadType.LINK,
-    url: 'https://example.com/a.png',
-    isLocalFile: false,
-    targetId,
-    targetType: 'ImagesPage',
-  });
-
 describe('ImagePageGetService', () => {
   const imagePageRepository = {
-    findAllWithSections: jest.fn(),
+    findAllPaginated: jest.fn(),
     findByIdWithSections: jest.fn(),
     findById: jest.fn(),
     findSectionsPaginated: jest.fn(),
@@ -90,44 +72,60 @@ describe('ImagePageGetService', () => {
     service = moduleRef.get(ImagePageGetService);
   });
 
-  describe('findAll', () => {
-    it('carrega as mídias de todas as seções em uma consulta', async () => {
-      imagePageRepository.findAllWithSections.mockResolvedValue([
-        buildPage('a'),
-        buildPage('b'),
-      ]);
-      mediaItemProcessor.findManyMediaItemsByTargets.mockResolvedValue([
-        buildMedia('m1', 'a-s1'),
-      ]);
+  describe('findAllPaginated', () => {
+    it('resume a galeria sem carregar seções nem mídias', async () => {
+      const page = buildPage('a');
+      page.sectionCount = 3;
+      imagePageRepository.findAllPaginated.mockResolvedValue({
+        items: [page],
+        total: 1,
+      });
 
-      const result = await service.findAll();
+      const result = await service.findAllPaginated({ page: 1, limit: 12 });
 
-      expect(
-        mediaItemProcessor.findManyMediaItemsByTargets,
-      ).toHaveBeenCalledTimes(1);
-      expect(result[0].sections[0].mediaItems).toHaveLength(1);
-      expect(result[1].sections[0].mediaItems).toHaveLength(0);
-    });
-
-    it('omite galeria sem rota em vez de derrubar a listagem', async () => {
-      const orphan = buildPage('sem-rota', { route: undefined as never });
-      imagePageRepository.findAllWithSections.mockResolvedValue([
-        buildPage('a'),
-        orphan,
-      ]);
-
-      const result = await service.findAll();
-
-      expect(result.map((page) => page.id)).toEqual(['a']);
-    });
-
-    it('não consulta mídia quando não há galeria', async () => {
-      imagePageRepository.findAllWithSections.mockResolvedValue([]);
-
-      await expect(service.findAll()).resolves.toEqual([]);
+      expect(result.data[0]).toEqual({
+        id: 'a',
+        title: page.name,
+        description: page.description,
+        public: page.public,
+        routePath: page.route.path,
+        sectionCount: 3,
+        createdAt: page.createdAt.toISOString(),
+        updatedAt: page.updatedAt.toISOString(),
+      });
       expect(
         mediaItemProcessor.findManyMediaItemsByTargets,
       ).not.toHaveBeenCalled();
+    });
+
+    it('mantém a galeria sem rota na listagem, com routePath nulo', async () => {
+      const orphan = buildPage('sem-rota', { route: undefined as never });
+      imagePageRepository.findAllPaginated.mockResolvedValue({
+        items: [buildPage('a'), orphan],
+        total: 2,
+      });
+
+      const result = await service.findAllPaginated({});
+
+      expect(result.data.map((item) => item.id)).toEqual(['a', 'sem-rota']);
+      expect(result.data[1].routePath).toBeNull();
+    });
+
+    it('devolve o envelope paginado com o total do banco', async () => {
+      imagePageRepository.findAllPaginated.mockResolvedValue({
+        items: [],
+        total: 30,
+      });
+
+      const result = await service.findAllPaginated({ page: 3, limit: 12 });
+
+      expect(result).toEqual({
+        data: [],
+        total: 30,
+        page: 3,
+        limit: 12,
+        pageCount: 3,
+      });
     });
   });
 

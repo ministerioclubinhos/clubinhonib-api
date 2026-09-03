@@ -1,4 +1,4 @@
-import { Weekday } from 'src/modules/clubs/enums/weekday.enum/weekday.enum';
+import { Weekday } from 'src/modules/clubs/entities/weekday.enum';
 import { EventAudience, EventType } from './entities/event.entity';
 
 /** Campos do evento persistidos pelos casos de uso. */

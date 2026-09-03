@@ -12,13 +12,16 @@ import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
 import { RouteService } from 'src/modules/routes/route.service';
 import { RouteType, RouteEntity } from 'src/modules/routes/route-page.entity';
-import { DocumentRepository } from '../document.repository';
+import { DocumentsRepository } from '../repositories/documents.repository';
 import { UpdateDocumentDto } from '../dto/update-document.dto';
 import { DocumentEntity } from '../entities/document.entity';
 import {
   DOCUMENT_MEDIA_TARGET_TYPE,
   DOCUMENT_MEDIA_TARGET_TYPES,
+  DOCUMENT_ROUTE_PREFIX,
 } from '../constants';
+import { DocumentResponseDto } from '../dto/document-response.dto';
+import { toDocumentResponse } from '../mappers';
 
 @Injectable()
 export class UpdateDocumentService {
@@ -26,7 +29,7 @@ export class UpdateDocumentService {
 
   constructor(
     private readonly dataSource: DataSource,
-    private readonly documentRepo: DocumentRepository,
+    private readonly documentRepo: DocumentsRepository,
     private readonly s3Service: AwsS3Service,
     private readonly mediaProcessor: MediaItemProcessor,
     private readonly routeService: RouteService,
@@ -36,10 +39,10 @@ export class UpdateDocumentService {
     id: string,
     dto: UpdateDocumentDto & { isLocalFile?: boolean },
     file?: Express.Multer.File,
-  ): Promise<DocumentEntity> {
+  ): Promise<DocumentResponseDto> {
     this.logger.log(`🛠️ Atualizando documento ID=${id}`);
 
-    const existingDocument = await this.documentRepo.findOneWithRelations(id);
+    const existingDocument = await this.documentRepo.findByIdWithRoute(id);
     if (!existingDocument) {
       this.logger.warn(`⚠️ Documento não encontrado: ID=${id}`);
       throw new AppNotFoundException(
@@ -95,7 +98,14 @@ export class UpdateDocumentService {
       await this.syncMedia(savedDocument, dto, uploads, file);
       this.logger.log('📎 Mídia atualizada com sucesso.');
 
-      return savedDocument;
+      // A resposta é lida depois da sincronização: antes a rota devolvia a
+      // entidade crua, sem a mídia que o formulário acabara de gravar.
+      const [media] = await this.mediaProcessor.findMediaItemsByTargetAnyType(
+        savedDocument.id,
+        DOCUMENT_MEDIA_TARGET_TYPES,
+      );
+
+      return toDocumentResponse(savedDocument, media ?? null);
     } catch (error: unknown) {
       await this.mediaProcessor.discardUnreferencedUploads(
         uploads.uploadedUrls,
@@ -186,12 +196,18 @@ export class UpdateDocumentService {
       entityId: documentId,
       public: false,
       type: RouteType.PAGE,
-      path: 'documento_',
       image:
         'https://bucket-clubinho-galeria.s3.us-east-2.amazonaws.com/uploads/img_card.jpg',
     };
 
-    const savedRoute = await this.routeService.upsertRoute(routeId, routeData);
+    // `path` é único no banco: gerá-lo a partir do título sem checar a
+    // disponibilidade quebrava a edição quando dois documentos passavam a ter
+    // o mesmo nome.
+    const savedRoute = await this.routeService.upsertRouteWithAvailablePath(
+      routeId,
+      routeData,
+      DOCUMENT_ROUTE_PREFIX,
+    );
     this.logger.debug(
       `✅ Rota do documento upsertada: ${savedRoute.id}, path: ${savedRoute.path}`,
     );

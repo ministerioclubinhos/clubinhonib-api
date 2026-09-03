@@ -3,7 +3,7 @@ import {
   PlatformType,
   UploadType,
 } from 'src/shared/media/media-item/media-item.entity';
-import { Weekday } from 'src/modules/clubs/enums/weekday.enum/weekday.enum';
+import { Weekday } from 'src/modules/clubs/entities/weekday.enum';
 import { EventAudience, EventType } from '../entities/event.entity';
 
 /** Mídia do evento no contrato público. */

@@ -52,7 +52,7 @@ const buildVideo = (id: string, targetId: string): MediaItemEntity =>
   });
 
 describe('GetVideosPageService', () => {
-  const videosPageRepo = { findAll: jest.fn(), findById: jest.fn() };
+  const videosPageRepo = { findAllPaginated: jest.fn(), findById: jest.fn() };
   const mediaItemProcessor = {
     findMediaItemsByTarget: jest.fn(),
     findManyMediaItemsByTargets: jest.fn(),
@@ -74,42 +74,55 @@ describe('GetVideosPageService', () => {
     service = moduleRef.get(GetVideosPageService);
   });
 
-  describe('findAll', () => {
-    it('carrega os vídeos de todas as páginas em uma consulta', async () => {
-      videosPageRepo.findAll.mockResolvedValue([
-        buildPage('a'),
-        buildPage('b'),
-      ]);
+  describe('findAllPaginated', () => {
+    it('conta os vídeos de toda a página em uma consulta', async () => {
+      videosPageRepo.findAllPaginated.mockResolvedValue({
+        items: [buildPage('a'), buildPage('b')],
+        total: 2,
+      });
       mediaItemProcessor.findManyMediaItemsByTargets.mockResolvedValue([
         buildVideo('v1', 'a'),
         buildVideo('v2', 'a'),
       ]);
 
-      const result = await service.findAll();
+      const result = await service.findAllPaginated({ page: 1, limit: 12 });
 
       expect(
         mediaItemProcessor.findManyMediaItemsByTargets,
       ).toHaveBeenCalledTimes(1);
-      expect(result[0].videos).toHaveLength(2);
-      expect(result[1].videos).toHaveLength(0);
+      expect(result.data[0].videoCount).toBe(2);
+      expect(result.data[1].videoCount).toBe(0);
     });
 
-    it('omite página sem rota em vez de derrubar a listagem', async () => {
-      videosPageRepo.findAll.mockResolvedValue([
-        buildPage('a'),
-        buildPage('sem-rota', { route: undefined as never }),
-      ]);
+    it('mantém a página sem rota na listagem, com routePath nulo', async () => {
+      videosPageRepo.findAllPaginated.mockResolvedValue({
+        items: [
+          buildPage('a'),
+          buildPage('sem-rota', { route: undefined as never }),
+        ],
+        total: 2,
+      });
       mediaItemProcessor.findManyMediaItemsByTargets.mockResolvedValue([]);
 
-      const result = await service.findAll();
+      const result = await service.findAllPaginated({});
 
-      expect(result.map((page) => page.id)).toEqual(['a']);
+      expect(result.data.map((page) => page.id)).toEqual(['a', 'sem-rota']);
+      expect(result.data[1].routePath).toBeNull();
     });
 
-    it('não consulta mídia quando não há página', async () => {
-      videosPageRepo.findAll.mockResolvedValue([]);
+    it('não consulta mídia quando a página está vazia', async () => {
+      videosPageRepo.findAllPaginated.mockResolvedValue({
+        items: [],
+        total: 0,
+      });
 
-      await expect(service.findAll()).resolves.toEqual([]);
+      await expect(service.findAllPaginated({})).resolves.toEqual({
+        data: [],
+        total: 0,
+        page: 1,
+        limit: 12,
+        pageCount: 0,
+      });
       expect(
         mediaItemProcessor.findManyMediaItemsByTargets,
       ).not.toHaveBeenCalled();

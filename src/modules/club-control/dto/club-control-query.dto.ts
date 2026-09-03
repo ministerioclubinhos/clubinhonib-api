@@ -11,7 +11,7 @@ import {
   Min,
   ValidateIf,
 } from 'class-validator';
-import { Weekday } from 'src/modules/clubs/enums/weekday.enum/weekday.enum';
+import { Weekday } from 'src/modules/clubs/entities/weekday.enum';
 
 const parseStrictBoolean = ({ value }: { value: unknown }): unknown => {
   if (value === true || value === 'true') return true;

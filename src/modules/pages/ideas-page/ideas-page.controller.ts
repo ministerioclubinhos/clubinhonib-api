@@ -10,6 +10,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -22,6 +23,9 @@ import { AdminRoleGuard } from 'src/core/auth/guards/role-guard';
 import { CreateIdeasPageDto } from './dto/create-ideas-page.dto';
 import { UpdateIdeasPageDto } from './dto/update-ideas-page.dto';
 import { IdeasPageResponseDto } from './dto/ideas-page-response.dto';
+import { IdeasPageSummaryDto } from './dto/ideas-page-summary.dto';
+import { QueryIdeasPagesDto } from './dto/query-ideas-pages.dto';
+import { Paginated } from 'src/shared/dto/paginated.dto';
 import { IdeasPageCreateService } from './services/create-ideas-page.service';
 import { IdeasPageGetService } from './services/get-ideas-page.service';
 import { IdeasPageUpdateService } from './services/update-ideas-page.service';
@@ -69,10 +73,17 @@ export class IdeasPageController {
     return this.updateService.updateIdeasPage(id, dto, buildFilesDict(files));
   }
 
+  /**
+   * Listagem do painel. Exige sessão: é o inventário administrativo das
+   * páginas de ideias, inclusive das que não estão publicadas.
+   */
+  @UseGuards(JwtAuthGuard)
   @Get()
-  async findAll(): Promise<IdeasPageResponseDto[]> {
+  async findAll(
+    @Query() query: QueryIdeasPagesDto,
+  ): Promise<Paginated<IdeasPageSummaryDto>> {
     this.logger.debug('GET /ideas-pages');
-    return this.getService.findAll();
+    return this.getService.findAllPaginated(query);
   }
 
   @Get(':id')

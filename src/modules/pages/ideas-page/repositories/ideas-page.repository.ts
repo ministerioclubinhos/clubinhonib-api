@@ -1,9 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, In, Repository } from 'typeorm';
+import { EntityManager, In, Repository, SelectQueryBuilder } from 'typeorm';
 import { IdeasPageEntity } from '../entities/ideas-page.entity';
 import { IdeasSectionEntity } from '../entities/ideas-section.entity';
-import { IDEAS_PAGE_RELATIONS } from '../constants';
+import {
+  IDEAS_PAGES_DEFAULT_LIMIT,
+  IDEAS_PAGES_DEFAULT_PAGE,
+  IDEAS_PAGE_DEFAULT_ORDER,
+  IDEAS_PAGE_DEFAULT_SORT,
+  IDEAS_PAGE_RELATIONS,
+  IDEAS_PAGE_SORT_COLUMNS,
+} from '../constants';
+import { QueryIdeasPagesDto } from '../dto/query-ideas-pages.dto';
 import { IdeasPageContent, IdeasSectionContent } from '../types';
 
 @Injectable()
@@ -27,11 +35,60 @@ export class IdeasPageRepository {
       : this.sectionRepo;
   }
 
-  async findAllWithSections(): Promise<IdeasPageEntity[]> {
-    return this.pageRepo.find({
-      relations: [...IDEAS_PAGE_RELATIONS],
-      order: { createdAt: 'DESC' },
-    });
+  /** Busca e visibilidade resolvidas no banco. */
+  private applyFilters(
+    qb: SelectQueryBuilder<IdeasPageEntity>,
+    query: QueryIdeasPagesDto,
+  ): void {
+    const search = query.searchString?.trim();
+
+    if (search) {
+      qb.andWhere(
+        `(
+          LOWER(page.title) LIKE LOWER(:search) OR
+          LOWER(page.subtitle) LIKE LOWER(:search) OR
+          LOWER(page.description) LIKE LOWER(:search)
+        )`,
+        { search: `%${search}%` },
+      );
+    }
+
+    if (query.public !== undefined) {
+      qb.andWhere('page.public = :public', { public: query.public });
+    }
+  }
+
+  /**
+   * Página da listagem, com a contagem de seções.
+   *
+   * As seções em si não são carregadas: a listagem do painel mostra apenas o
+   * resumo, e trazer o conteúdo inteiro de cada página é o que tornava a tela
+   * lenta à medida que o acervo crescia.
+   */
+  async findAllPaginated(
+    query: QueryIdeasPagesDto,
+  ): Promise<{ items: IdeasPageEntity[]; total: number }> {
+    const {
+      page = IDEAS_PAGES_DEFAULT_PAGE,
+      limit = IDEAS_PAGES_DEFAULT_LIMIT,
+      sort = IDEAS_PAGE_DEFAULT_SORT,
+      order = IDEAS_PAGE_DEFAULT_ORDER,
+    } = query;
+
+    const qb = this.pageRepo
+      .createQueryBuilder('page')
+      .leftJoinAndSelect('page.route', 'route')
+      .loadRelationCountAndMap('page.sectionCount', 'page.sections');
+
+    this.applyFilters(qb, query);
+
+    qb.orderBy(IDEAS_PAGE_SORT_COLUMNS[sort], order)
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    const [items, total] = await qb.getManyAndCount();
+
+    return { items, total };
   }
 
   async findByIdWithSections(

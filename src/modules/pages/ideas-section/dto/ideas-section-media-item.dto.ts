@@ -9,7 +9,7 @@ import {
   PlatformType,
   UploadType,
 } from 'src/shared/media/media-item/media-item.entity';
-import { IdeasSectionMediaType } from '../enums/ideas-section-media-type.enum';
+import { IdeasSectionMediaType } from '../entities/ideas-section-media-type.enum';
 
 export class IdeasSectionMediaItemDto {
   @IsOptional()
@@ -51,6 +51,12 @@ export class IdeasSectionMediaItemDto {
   @IsString({ message: 'O campo "originalName" deve ser uma string.' })
   originalName?: string;
 
+  /**
+   * Campo do multipart que carrega o arquivo desta mídia.
+   *
+   * É o que religa arquivo e mídia do outro lado. O nome interno usado pelo
+   * processador (`fileField`) sai daqui e não é aceito na requisição.
+   */
   @IsOptional()
   @IsString({ message: 'O campo "fieldKey" deve ser uma string.' })
   fieldKey?: string;
@@ -58,8 +64,4 @@ export class IdeasSectionMediaItemDto {
   @IsOptional()
   @IsNumber({}, { message: 'O campo "size" deve ser um número.' })
   size?: number;
-
-  @IsOptional()
-  @IsString({ message: 'O campo "fileField" deve ser uma string.' })
-  fileField?: string;
 }

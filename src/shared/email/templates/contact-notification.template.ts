@@ -21,6 +21,9 @@ export function contactNotificationEmail(
       { label: 'Telefone', value: data.phone, as: 'phone' },
       { label: 'Data', value: formatBrazilianDateTime(data.receivedAt) },
     ],
+    action: data.panelUrl
+      ? { label: 'Ver mensagens de contato', url: data.panelUrl }
+      : null,
     sections: [{ heading: 'Mensagem', text: data.message }],
   });
 }

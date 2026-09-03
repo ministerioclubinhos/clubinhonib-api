@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { RouteModule } from './modules/routes/route.module';
 import { UserModule } from './core/user/user.module';
 import { AuthModule } from './core/auth/auth.module';
+import { FeatureFlagsModule } from './core/feature-flags/feature-flags.module';
 import { AwsModule } from './shared/providers/aws/aws.module';
 import { EmailModule } from './shared/email';
 import { SiteUrlModule } from './shared/site-url';
@@ -50,6 +51,7 @@ import { ClubControlModule } from './modules/club-control/club-control.module';
     RouteModule,
     UserModule,
     AuthModule,
+    FeatureFlagsModule,
     VideosPageModule,
     WeekMaterialsPageModule,
     MeditationModule,

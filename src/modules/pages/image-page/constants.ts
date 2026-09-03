@@ -23,3 +23,24 @@ export const IMAGE_PAGE_RELATIONS = ['route', 'sections'] as const;
 export const IMAGE_SECTIONS_DEFAULT_PAGE = 1;
 export const IMAGE_SECTIONS_DEFAULT_LIMIT = 2;
 export const IMAGE_SECTIONS_MAX_LIMIT = 50;
+
+/** Paginação da listagem de galerias: valores padrão e teto do `limit`. */
+export const IMAGE_PAGES_DEFAULT_PAGE = 1;
+export const IMAGE_PAGES_DEFAULT_LIMIT = 12;
+export const IMAGE_PAGES_MAX_LIMIT = 100;
+
+/** Campos aceitos na ordenação da listagem, e o padrão. */
+export const IMAGE_PAGE_SORT_FIELDS = ['createdAt', 'title'] as const;
+
+export const IMAGE_PAGE_DEFAULT_SORT = 'createdAt';
+export const IMAGE_PAGE_DEFAULT_ORDER = 'DESC';
+
+/** Coluna correspondente a cada campo de ordenação aceito. */
+export const IMAGE_PAGE_SORT_COLUMNS = {
+  createdAt: 'page.createdAt',
+  // A coluna se chama `name`; o contrato expõe o mesmo dado como `title`.
+  title: 'page.name',
+} as const satisfies Record<(typeof IMAGE_PAGE_SORT_FIELDS)[number], string>;
+
+/** Tamanho máximo do texto de busca. */
+export const IMAGE_PAGE_SEARCH_MAX_LENGTH = 200;

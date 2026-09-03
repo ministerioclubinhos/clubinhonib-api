@@ -152,7 +152,55 @@ Retrieves the currently logged-in user's profile.
 ### Response
 
 - **Status**: `200 OK`
-- Returns the full User object including specialized profiles (`teacherProfile`, etc.).
+- Returns `MyProfileResponseDto`.
+
+`GET /auth/me`, `PATCH /profile`, `PATCH /profile/image` and this endpoint all
+answer **the same** `MyProfileResponseDto`, built by `toMyProfileResponse`.
+`/auth/me` used to build its own copy that omitted `active`, `completed`,
+`createdAt` and `updatedAt`.
+
+```typescript
+{
+  id: string;
+  email: string;
+  name: string;
+  phone: string;
+  cpf: string | null;
+  role: string;
+  active: boolean;
+  completed: boolean;
+  commonUser: boolean;
+  createdAt: string;            // ISO
+  updatedAt: string;            // ISO
+  image: {                      // null when the user has no photo
+    id: string;
+    title: string | null;
+    description: string | null;
+    url: string;
+    uploadType: string;
+    mediaType: string;
+    isLocalFile: boolean;
+    platformType: string | null;
+    originalName: string | null;
+    size: number | null;
+  } | null;
+  personalData?: { ... };       // see profile-module.md
+  preferences?: { ... };        // see profile-module.md
+  teacherProfile: {             // null when the user is not a teacher
+    id: string;
+    active: boolean;
+    club: { id, number, weekday, time, isActive } | null;
+  } | null;
+  coordinatorProfile: {         // null when the user is not a coordinator
+    id: string;
+    active: boolean;
+    clubs: Array<{ id, number, weekday, time, isActive }>;
+  } | null;
+}
+```
+
+The frontend mirrors this as `MyProfile` in `src/features/profile/types.ts`,
+and it is also the Redux `User` — one declaration, not two.
 
 ---
 
@@ -170,6 +218,7 @@ Allows a user to update their own basic account information.
 | `name` | `string` | No | `@MinLength(2)` | Update display name. |
 | `email` | `string` | No | `@IsEmail` | Update contact email. |
 | `phone` | `string` | No | `@IsString` | Update phone. |
+| `cpf` | `string` | No | `@IsString` | Update CPF; conflicts answer `409`. |
 
 #### Example Request JSON
 

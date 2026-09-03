@@ -34,6 +34,8 @@ export interface ContactNotificationEmailData {
   phone: string;
   message: string;
   receivedAt: Date;
+  /** Tela onde a mensagem é respondida; o botão some sem ela. */
+  panelUrl?: string;
 }
 
 /** Dados do aviso de nova ideia compartilhada no site. */
@@ -69,6 +71,8 @@ export interface CommentNotificationEmailData {
   clubinho: string;
   neighborhood: string;
   createdAt: Date;
+  /** Tela onde o comentário é publicado; o botão some sem ela. */
+  panelUrl?: string;
 }
 
 /** Dados do aviso de uma nova avaliação do site. */
@@ -83,6 +87,8 @@ export interface SiteFeedbackNotificationEmailData {
   category: string;
   comment: string;
   receivedAt: Date;
+  /** Tela onde a avaliação é lida; o botão some sem ela. */
+  panelUrl?: string;
 }
 
 /** Dados do aviso de novo material da semana. */

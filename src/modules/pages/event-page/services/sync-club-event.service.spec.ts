@@ -1,5 +1,5 @@
 import { Test } from '@nestjs/testing';
-import { Weekday } from 'src/modules/clubs/enums/weekday.enum/weekday.enum';
+import { Weekday } from 'src/modules/clubs/entities/weekday.enum';
 import { EventRepository } from '../repositories/event.repository';
 import {
   EventAudience,

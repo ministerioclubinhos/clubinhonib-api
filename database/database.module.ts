@@ -17,15 +17,15 @@ import { VideosPage } from '../src/modules/pages/video-page/entities/video-page.
 
 import { WeekMaterialsPageEntity } from '../src/modules/pages/week-material-page/entities/week-material-page.entity';
 import { MediaItemEntity } from '../src/shared/media/media-item/media-item.entity';
-import { ContactEntity } from '../src/modules/contacts/contact.entity';
+import { ContactEntity } from '../src/modules/contacts/entities/contact.entity';
 import { EventEntity } from '../src/modules/pages/event-page/entities/event.entity';
-import { CommentEntity } from '../src/modules/comments/entity/comment.entity';
+import { CommentEntity } from '../src/modules/comments/entities/comment.entity';
 import { DocumentEntity } from '../src/modules/documents/entities/document.entity';
 import { IdeasSectionEntity } from '../src/modules/pages/ideas-page/entities/ideas-section.entity';
 import { IdeasPageEntity } from '../src/modules/pages/ideas-page/entities/ideas-page.entity';
 import { InformativeEntity } from '../src/modules/informatives/entities/informative.entity';
-import { SiteFeedbackEntity } from '../src/modules/feedbacks/entity/site-feedback.entity';
-import { ClubEntity } from 'src/modules/clubs/entities/club.entity/club.entity';
+import { SiteFeedbackEntity } from '../src/modules/feedbacks/entities/site-feedback.entity';
+import { ClubEntity } from 'src/modules/clubs/entities/club.entity';
 import { TeacherProfileEntity } from 'src/modules/teacher-profiles/entities/teacher-profile.entity/teacher-profile.entity';
 import { CoordinatorProfileEntity } from 'src/modules/coordinator-profiles/entities/coordinator-profile.entity/coordinator-profile.entity';
 import { AddressEntity } from 'src/modules/addresses/entities/address.entity/address.entity';

@@ -5,12 +5,44 @@ import { WeekMaterialsPageEntity } from '../entities/week-material-page.entity';
 import { WeekMaterialsPageRepository } from './week-material-page.repository';
 
 describe('WeekMaterialsPageRepository', () => {
+  /**
+   * Só os métodos que o repositório encadeia. Cada um devolve o próprio mock,
+   * que é o que o `QueryBuilder` real faz.
+   */
+  interface QueryBuilderMock {
+    leftJoinAndSelect: jest.Mock;
+    andWhere: jest.Mock;
+    orderBy: jest.Mock;
+    skip: jest.Mock;
+    take: jest.Mock;
+    getManyAndCount: jest.Mock;
+  }
+
+  const queryBuilder: QueryBuilderMock = {
+    leftJoinAndSelect: jest.fn(),
+    andWhere: jest.fn(),
+    orderBy: jest.fn(),
+    skip: jest.fn(),
+    take: jest.fn(),
+    getManyAndCount: jest.fn(),
+  };
+
+  const resetQueryBuilder = (): void => {
+    queryBuilder.leftJoinAndSelect.mockReturnValue(queryBuilder);
+    queryBuilder.andWhere.mockReturnValue(queryBuilder);
+    queryBuilder.orderBy.mockReturnValue(queryBuilder);
+    queryBuilder.skip.mockReturnValue(queryBuilder);
+    queryBuilder.take.mockReturnValue(queryBuilder);
+    queryBuilder.getManyAndCount.mockResolvedValue([[], 0]);
+  };
+
   const defaultRepo = {
     find: jest.fn(),
     findOne: jest.fn(),
     create: jest.fn(),
     save: jest.fn(),
     remove: jest.fn(),
+    createQueryBuilder: jest.fn(),
   };
   const scopedRepo = {
     find: jest.fn(),
@@ -28,6 +60,8 @@ describe('WeekMaterialsPageRepository', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    resetQueryBuilder();
+    defaultRepo.createQueryBuilder.mockReturnValue(queryBuilder);
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -43,15 +77,39 @@ describe('WeekMaterialsPageRepository', () => {
     repository = moduleRef.get(WeekMaterialsPageRepository);
   });
 
-  it('lists pages with their route in a deterministic order', async () => {
-    defaultRepo.find.mockResolvedValue([]);
+  it('pagina a listagem no banco, com a rota carregada', async () => {
+    await repository.findAllPaginated({ page: 2, limit: 10 });
 
-    await repository.findAllPages();
+    expect(defaultRepo.createQueryBuilder).toHaveBeenCalledWith('page');
+    expect(queryBuilder.leftJoinAndSelect).toHaveBeenCalledWith(
+      'page.route',
+      'route',
+    );
+    expect(queryBuilder.orderBy).toHaveBeenCalledWith('page.createdAt', 'DESC');
+    expect(queryBuilder.skip).toHaveBeenCalledWith(10);
+    expect(queryBuilder.take).toHaveBeenCalledWith(10);
+  });
 
-    expect(defaultRepo.find).toHaveBeenCalledWith({
-      relations: ['route'],
-      order: { createdAt: 'DESC' },
+  it('filtra busca e semana atual no banco, e não na tela', async () => {
+    await repository.findAllPaginated({
+      searchString: '  festa  ',
+      currentWeek: true,
     });
+
+    const clauses = (queryBuilder.andWhere.mock.calls as unknown[][]).map(
+      (call) => String(call[0]),
+    );
+    expect(clauses.some((clause) => clause.includes('page.title'))).toBe(true);
+    expect(queryBuilder.andWhere).toHaveBeenCalledWith(
+      'page.currentWeek = :currentWeek',
+      { currentWeek: true },
+    );
+    // O termo entra sem os espaços das pontas.
+    const [, params] = (queryBuilder.andWhere.mock.calls as unknown[][])[0] as [
+      string,
+      { search: string },
+    ];
+    expect(params.search).toBe('%festa%');
   });
 
   it('loads one page with its route', async () => {

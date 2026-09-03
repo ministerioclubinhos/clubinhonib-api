@@ -1,7 +1,7 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from 'src/shared/share-entity/base.entity';
-import { ClubEntity } from 'src/modules/clubs/entities/club.entity/club.entity';
-import { Weekday } from 'src/modules/clubs/enums/weekday.enum/weekday.enum';
+import { ClubEntity } from 'src/modules/clubs/entities/club.entity';
+import { Weekday } from 'src/modules/clubs/entities/weekday.enum';
 
 export enum EventAudience {
   ALL = 'all',

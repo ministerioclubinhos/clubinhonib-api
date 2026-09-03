@@ -1,240 +1,139 @@
 import {
+  Body,
   Controller,
-  Post,
-  Patch,
   Delete,
   Get,
-  Param,
-  Body,
-  UploadedFiles,
-  UseInterceptors,
-  UseGuards,
   Logger,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
   Request,
+  UploadedFiles,
+  UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
-import {
-  AppNotFoundException,
-  AppValidationException,
-  AppInternalException,
-  ErrorCode,
-} from 'src/shared/exceptions';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
+
 import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 import { AdminRoleGuard } from 'src/core/auth/guards/role-guard';
 import { AuthRequest } from 'src/core/auth/auth.types';
-import { plainToInstance } from 'class-transformer';
-import { validate } from 'class-validator';
-import { IdeasSectionUpdateService } from './services/ideas-section-update.service';
-import { IdeasSectionGetService } from './services/ideas-section-get.service';
-import { IdeasSectionDeleteService } from './services/ideas-section-delete.service';
-import { IdeasSectionResponseDto } from './dto/ideas-section-response.dto';
+import { Paginated } from 'src/shared/dto/paginated.dto';
+
 import { CreateIdeasSectionDto } from './dto/create-ideas-section.dto';
 import { UpdateIdeasSectionDto } from './dto/update-ideas-section.dto';
-import { IdeasSectionCreateService } from './services/ideas-section-create.service';
-import { NotificationService } from 'src/shared/providers/notification/notification.service';
+import { QueryIdeasSectionsDto } from './dto/query-ideas-sections.dto';
+import { IdeasSectionResponseDto } from './dto/ideas-section-response.dto';
+import { CreateIdeasSectionService } from './services/create-ideas-section.service';
+import { GetIdeasSectionsService } from './services/get-ideas-sections.service';
+import { UpdateIdeasSectionService } from './services/update-ideas-section.service';
+import { AttachIdeasSectionService } from './services/attach-ideas-section.service';
+import { DeleteIdeasSectionService } from './services/delete-ideas-section.service';
+import { IDEAS_SECTION_PAYLOAD_FIELD } from './constants';
+import { parseSectionPayload, toFilesDict } from './utils';
 
+/**
+ * Ideias compartilhadas pela base.
+ *
+ * Qualquer pessoa autenticada envia uma ideia; ela entra na fila e só a
+ * administração decide se e em qual página publicar.
+ */
 @Controller('ideas-sections')
 export class IdeasSectionController {
   private readonly logger = new Logger(IdeasSectionController.name);
 
   constructor(
-    private readonly createService: IdeasSectionCreateService,
-    private readonly updateService: IdeasSectionUpdateService,
-    private readonly getService: IdeasSectionGetService,
-    private readonly deleteService: IdeasSectionDeleteService,
-    private readonly notificationService: NotificationService,
+    private readonly createService: CreateIdeasSectionService,
+    private readonly getService: GetIdeasSectionsService,
+    private readonly updateService: UpdateIdeasSectionService,
+    private readonly attachService: AttachIdeasSectionService,
+    private readonly deleteService: DeleteIdeasSectionService,
   ) {}
 
-  @UseGuards(JwtAuthGuard)
   @Post()
+  @UseGuards(JwtAuthGuard)
   @UseInterceptors(AnyFilesInterceptor())
   async create(
     @Request() req: AuthRequest,
     @UploadedFiles() files: Express.Multer.File[],
-    @Body('sectionData') raw: string | Buffer,
+    @Body(IDEAS_SECTION_PAYLOAD_FIELD) raw: string | Buffer,
   ): Promise<IdeasSectionResponseDto> {
-    this.logger.debug('🚀 Criando nova seção de ideias órfã');
-    this.logger.debug(`📁 Arquivos recebidos: ${files?.length || 0}`);
-    this.logger.debug(
-      `📋 Arquivos: ${JSON.stringify(files?.map((f) => ({ fieldname: f.fieldname, originalname: f.originalname })) || [])}`,
-    );
-    this.logger.debug(`📄 Raw data type: ${typeof raw}`);
-    this.logger.debug(
-      `📄 Raw data: ${Buffer.isBuffer(raw) ? raw.toString() : raw}`,
-    );
+    this.logger.debug('POST /ideas-sections');
 
-    const parsedData = JSON.parse(
-      Buffer.isBuffer(raw) ? raw.toString() : raw,
-    ) as Record<string, unknown>;
-    const dto = plainToInstance(CreateIdeasSectionDto, parsedData);
-    const validationErrors = await validate(dto, {
-      whitelist: true,
-      forbidNonWhitelisted: true,
-    });
+    const dto = await parseSectionPayload(CreateIdeasSectionDto, raw);
 
-    if (validationErrors.length > 0) {
-      this.logger.error(
-        '❌ Erros de validação:',
-        JSON.stringify(validationErrors, null, 2),
-      );
-      throw new AppValidationException(
-        ErrorCode.VALIDATION_ERROR,
-        'Dados inválidos na requisição',
-      );
-    }
-
-    const filesDict: Record<string, Express.Multer.File> = {};
-    files.forEach((file) => (filesDict[file.fieldname] = file));
-    this.logger.debug(
-      `🗂️ FilesDict: ${JSON.stringify(Object.keys(filesDict))}`,
-    );
-    const result = await this.createService.createSection(dto, filesDict);
-
-    this.logger.log(`✅ Seção de ideias criada com ID=${result.id}`);
-
-    await this.notificationService.notifyNewIdeaShared(result, {
+    return this.createService.createSection(dto, toFilesDict(files), {
       email: req.user?.email,
     });
-
-    return result;
   }
 
+  /** Fila da administração: ideias que ainda aguardam decisão. */
+  @Get()
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
-  @Patch(':id')
-  @UseInterceptors(AnyFilesInterceptor())
-  async update(
-    @Param('id') id: string,
-    @UploadedFiles() files: Express.Multer.File[],
-    @Body('sectionData') raw: string | Buffer,
-  ): Promise<IdeasSectionResponseDto> {
-    this.logger.debug(`🚀 Atualizando seção de ideias ID=${id}`);
-
-    const parsedData = JSON.parse(
-      Buffer.isBuffer(raw) ? raw.toString() : raw,
-    ) as Record<string, unknown>;
-    const dto = plainToInstance(UpdateIdeasSectionDto, parsedData);
-    const validationErrors = await validate(dto, {
-      whitelist: true,
-      forbidNonWhitelisted: true,
-    });
-
-    if (validationErrors.length > 0) {
-      this.logger.error(
-        '❌ Erros de validação:',
-        JSON.stringify(validationErrors, null, 2),
-      );
-      throw new AppValidationException(
-        ErrorCode.VALIDATION_ERROR,
-        'Dados inválidos na requisição',
-      );
-    }
-
-    const filesDict: Record<string, Express.Multer.File> = {};
-    files.forEach((file) => (filesDict[file.fieldname] = file));
-    const result = await this.updateService.updateSection(id, dto, filesDict);
-
-    this.logger.log(`✅ Seção de ideias atualizada com ID=${result.id}`);
-    return result;
+  async findPending(
+    @Query() query: QueryIdeasSectionsDto,
+  ): Promise<Paginated<IdeasSectionResponseDto>> {
+    this.logger.debug('GET /ideas-sections');
+    return this.getService.findPendingPaginated(query);
   }
 
+  @Get('pending-count')
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
-  @Patch(':id/attach/:pageId')
-  @UseInterceptors(AnyFilesInterceptor())
-  async editAndAttachToPage(
-    @Param('id') sectionId: string,
-    @Param('pageId') pageId: string,
-    @UploadedFiles() files: Express.Multer.File[],
-    @Body('sectionData') raw: string,
-  ): Promise<IdeasSectionResponseDto> {
-    this.logger.debug(
-      `🚀 [PATCH /ideas-sections/${sectionId}/attach/${pageId}] Editando e vinculando seção`,
-    );
-
-    try {
-      if (!raw)
-        throw new AppValidationException(
-          ErrorCode.INVALID_INPUT,
-          'sectionData é obrigatório.',
-        );
-
-      const parsedData = JSON.parse(
-        Buffer.isBuffer(raw) ? raw.toString() : raw,
-      ) as Record<string, unknown>;
-      const dto = plainToInstance(UpdateIdeasSectionDto, parsedData);
-      const validationErrors = await validate(dto, {
-        whitelist: true,
-        forbidNonWhitelisted: true,
-      });
-
-      if (validationErrors.length > 0) {
-        this.logger.error(
-          '❌ Erros de validação:',
-          JSON.stringify(validationErrors, null, 2),
-        );
-        throw new AppValidationException(
-          ErrorCode.VALIDATION_ERROR,
-          'Dados inválidos na requisição',
-        );
-      }
-
-      const filesDict: Record<string, Express.Multer.File> = {};
-      files.forEach((file) => (filesDict[file.fieldname] = file));
-
-      const result = await this.updateService.editAndAttachSectionToPage(
-        sectionId,
-        pageId,
-        dto,
-        filesDict,
-      );
-      this.logger.log(
-        `✅ Seção editada e vinculada com sucesso: ID=${result.id}`,
-      );
-      return result;
-    } catch (error: unknown) {
-      this.logger.error(
-        '❌ Erro ao editar e vincular seção',
-        error instanceof Error ? error.stack : error,
-      );
-      throw new AppInternalException(
-        ErrorCode.INTERNAL_ERROR,
-        'Erro ao editar e vincular a seção de ideias.',
-      );
-    }
-  }
-
-  @UseGuards(JwtAuthGuard, AdminRoleGuard)
-  @Delete(':id')
-  async delete(@Param('id') id: string) {
-    this.logger.debug(`🚀 Removendo seção de ideias ID=${id}`);
-
-    await this.deleteService.deleteSection(id);
-    this.logger.log(`✅ Seção de ideias removida com ID=${id}`);
-
-    return { message: 'Seção de ideias removida com sucesso.' };
+  async countPending(): Promise<{ pending: number }> {
+    return this.getService.countPending();
   }
 
   @Get(':id')
-  async getById(@Param('id') id: string): Promise<IdeasSectionResponseDto> {
-    this.logger.debug(`🚀 Buscando seção de ideias ID=${id}`);
-
-    const result = await this.getService.findOne(id);
-    if (!result) {
-      throw new AppNotFoundException(
-        ErrorCode.IDEA_NOT_FOUND,
-        `Seção de ideias com id=${id} não encontrada`,
-      );
-    }
-
-    this.logger.log(`✅ Seção de ideias encontrada ID=${id}`);
-    return result;
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<IdeasSectionResponseDto> {
+    return this.getService.findOne(id);
   }
 
-  @Get()
-  async getAll(): Promise<IdeasSectionResponseDto[]> {
-    this.logger.debug('🚀 Listando todas as seções de ideias órfãs');
+  @Patch(':id')
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
+  @UseInterceptors(AnyFilesInterceptor())
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFiles() files: Express.Multer.File[],
+    @Body(IDEAS_SECTION_PAYLOAD_FIELD) raw: string | Buffer,
+  ): Promise<IdeasSectionResponseDto> {
+    this.logger.debug(`PATCH /ideas-sections/${id}`);
 
-    const result = await this.getService.findAll();
-    this.logger.log(`✅ ${result.length} seções de ideias encontradas`);
-    return result;
+    const dto = await parseSectionPayload(UpdateIdeasSectionDto, raw);
+
+    return this.updateService.updateSection(id, dto, toFilesDict(files));
+  }
+
+  /** Aceita a ideia e a publica na página escolhida. */
+  @Patch(':id/attach/:pageId')
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
+  @UseInterceptors(AnyFilesInterceptor())
+  async attachToPage(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('pageId', ParseUUIDPipe) pageId: string,
+    @UploadedFiles() files: Express.Multer.File[],
+    @Body(IDEAS_SECTION_PAYLOAD_FIELD) raw: string | Buffer,
+  ): Promise<IdeasSectionResponseDto> {
+    this.logger.debug(`PATCH /ideas-sections/${id}/attach/${pageId}`);
+
+    const dto = await parseSectionPayload(UpdateIdeasSectionDto, raw);
+
+    return this.attachService.attachToPage(id, pageId, dto, toFilesDict(files));
+  }
+
+  /** Recusa a ideia: sai da fila e os arquivos saem do bucket. */
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ message: string }> {
+    this.logger.debug(`DELETE /ideas-sections/${id}`);
+
+    await this.deleteService.deleteSection(id);
+
+    return { message: 'Ideia compartilhada removida com sucesso' };
   }
 }

@@ -255,12 +255,10 @@ Paginated list of clubs with filters.
 {
   page?: number;                // Default: 1
   limit?: number;               // Default: 10
-  addressSearchString?: string; // Search in address
-  userSearchString?: string;    // Search in coordinators/teachers
-  clubSearchString?: string;    // Search by number, time or weekday
-  isActive?: boolean;           // ⭐ NEW: Filter by active/inactive status
-  sort?: 'number' | 'weekday' | 'time' | 'createdAt' | 'updatedAt' | 'city' | 'state';
-  order?: 'ASC' | 'DESC' | 'asc' | 'desc';
+  searchString?: string;        // Club number, district or city
+  isActive?: boolean;           // Filter by active/inactive status
+  sort?: 'number' | 'weekday' | 'time' | 'createdAt' | 'updatedAt' | 'city' | 'state';  // Default: 'number'
+  order?: 'ASC' | 'DESC';       // Case-insensitive on input; default: 'ASC'
 }
 ```
 
@@ -316,23 +314,24 @@ ClubResponseDto
 
 #### 5. POST `/clubs`
 
-Create a new club.
+Create a new club. A number already in use answers `409` with
+`CLUB_NUMBER_IN_USE` — on `PATCH` as well as here.
 
 **Request Body:**
 
 ```typescript
 {
   number: number;               // Minimum: 1
-  weekday: Weekday;             // 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY' | 'SUNDAY'
+  weekday: Weekday;             // 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday'
   time?: string;                // Format: H:mm or HH:mm (0:00-23:59)
   isActive?: boolean;           // ⭐ NEW: Active/inactive status (default: true)
-  address: {                    // Required
-    street: string;
+  address?: {                   // Optional; every field is optional
+    street?: string;
     number?: string;
-    district: string;
-    city: string;
-    state: string;
-    postalCode: string;
+    district?: string;
+    city?: string;
+    state?: string;
+    postalCode?: string;
     complement?: string;
   };
   coordinatorProfileId?: string;      // UUID (optional)
@@ -384,21 +383,27 @@ ClubResponseDto
 
 #### 7. DELETE `/clubs/:id`
 
-Remove a club.
+Remove a club. Teachers are detached, the coordinator link is cleared, the
+weekly meeting leaves the calendar, and the address row is deleted with the
+club. Children keep their record with `clubId` set to `NULL`.
 
 **Response:**
 
 ```typescript
 {
-  message: string;              // "Club removed successfully"
+  message: string;              // "Clubinho removido com sucesso"
 }
 ```
 
 ---
 
-#### 8. PATCH `/clubs/:id/toggle-active` ⭐ NEW
+#### 8. PATCH `/clubs/:id/toggle-active`
 
 Activate or deactivate a club. Only admin and coordinator can use this endpoint.
+
+Deactivating a club removes its weekly meeting from the calendar; activating it
+puts the meeting back. Creating, updating and deleting a club keep that meeting
+in sync the same way — see `SyncClubEventService`. None of it sends e-mail.
 
 **Response:**
 
@@ -418,16 +423,16 @@ ClubResponseDto
   number: number;
   time: string | null;          // Format: H:mm (first 5 chars)
   isActive: boolean;            // ⭐ NEW
-  address: {
+  address: {                    // null when the club has no address
     id: string;
-    street: string;
-    number?: string;
-    district: string;
-    city: string;
-    state: string;
-    postalCode: string;
-    complement?: string;
-  };
+    street: string | null;
+    number: string | null;
+    district: string | null;
+    city: string | null;
+    state: string | null;
+    postalCode: string | null;
+    complement: string | null;
+  } | null;
   coordinator: {
     id: string;
     active: boolean;
@@ -439,7 +444,7 @@ ClubResponseDto
       active: boolean;
       completed: boolean;
       commonUser: boolean;
-    };
+    } | null;
   } | null;
   teachers: {
     id: string;
@@ -452,7 +457,7 @@ ClubResponseDto
       active: boolean;
       completed: boolean;
       commonUser: boolean;
-    };
+    } | null;
   }[];
   weekday: Weekday;
   createdAt: Date;
@@ -469,16 +474,16 @@ ClubResponseDto
   weekday: Weekday;
   time: string | null;          // Format: H:mm
   isActive: boolean;            // ⭐ NEW
-  address: {
+  address: {                    // null when the club has no address
     id: string;
-    street: string;
-    number?: string;
-    district: string;
-    city: string;
-    state: string;
-    postalCode: string;
-    complement?: string;
-  };
+    street: string | null;
+    number: string | null;
+    district: string | null;
+    city: string | null;
+    state: string | null;
+    postalCode: string | null;
+    complement: string | null;
+  } | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -489,7 +494,7 @@ ClubResponseDto
 ```typescript
 {
   id: string;
-  detalhe: string;              // Format: "Club {number} : {district}"
+  label: string;                // Format: "Clubinho {number} : {district}"
   coordinator: boolean;
 }
 ```
@@ -674,14 +679,20 @@ PATCH /clubs/{id}/toggle-active
 
 ```typescript
 enum Weekday {
-  MONDAY = 'MONDAY',
-  TUESDAY = 'TUESDAY',
-  WEDNESDAY = 'WEDNESDAY',
-  THURSDAY = 'THURSDAY',
-  FRIDAY = 'FRIDAY',
-  SATURDAY = 'SATURDAY',
-  SUNDAY = 'SUNDAY'
+  MONDAY = 'monday',
+  TUESDAY = 'tuesday',
+  WEDNESDAY = 'wednesday',
+  THURSDAY = 'thursday',
+  FRIDAY = 'friday',
+  SATURDAY = 'saturday',
 }
+```
+
+There is no Sunday: no Clubinho meets on Sunday, and the column is a database
+enum. The frontend list in `src/features/clubs/constants.ts` mirrors these six
+values exactly.
+
+```typescript
 ```
 
 ---
