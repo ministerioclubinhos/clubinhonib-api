@@ -73,7 +73,7 @@ export class PagelasRepository {
     if (role === 'coordinator') {
       qb.leftJoin('club.coordinator', 'coordinator')
         .leftJoin('coordinator.user', 'coordinatorUser')
-        .andWhere('coordinatorUser.id = :accessUserId', {
+        .andWhere('(coordinatorUser.id = :accessUserId OR child.club_id IS NULL)', {
           accessUserId: userId,
         })
         .distinct(true);
@@ -83,7 +83,9 @@ export class PagelasRepository {
     if (role === 'teacher') {
       qb.leftJoin('club.teachers', 'teacherProfile')
         .leftJoin('teacherProfile.user', 'teacherUser')
-        .andWhere('teacherUser.id = :accessUserId', { accessUserId: userId })
+        .andWhere('(teacherUser.id = :accessUserId OR child.club_id IS NULL)', {
+          accessUserId: userId,
+        })
         .distinct(true);
       return;
     }
@@ -205,13 +207,15 @@ export class PagelasRepository {
     if (role === 'coordinator') {
       qb.leftJoin('club.coordinator', 'coordinator')
         .leftJoin('coordinator.user', 'coordinatorUser')
-        .andWhere('coordinatorUser.id = :accessUserId', {
+        .andWhere('(coordinatorUser.id = :accessUserId OR child.club_id IS NULL)', {
           accessUserId: userId,
         });
     } else if (role === 'teacher') {
       qb.leftJoin('club.teachers', 'teacherProfile')
         .leftJoin('teacherProfile.user', 'teacherUser')
-        .andWhere('teacherUser.id = :accessUserId', { accessUserId: userId });
+        .andWhere('(teacherUser.id = :accessUserId OR child.club_id IS NULL)', {
+          accessUserId: userId,
+        });
     } else {
       return false;
     }

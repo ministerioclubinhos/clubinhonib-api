@@ -34,12 +34,12 @@ export class ChildrenRepository {
     if (role === 'coordinator') {
       qb.leftJoin('club.coordinator', 'coord')
         .leftJoin('coord.user', 'coordUser')
-        .andWhere('coordUser.id = :uid', { uid: userId })
+        .andWhere('(coordUser.id = :uid OR c.club_id IS NULL)', { uid: userId })
         .distinct(true);
     } else if (role === 'teacher') {
       qb.leftJoin('club.teachers', 'tprof')
         .leftJoin('tprof.user', 'tuser')
-        .andWhere('tuser.id = :uid', { uid: userId })
+        .andWhere('(tuser.id = :uid OR c.club_id IS NULL)', { uid: userId })
         .distinct(true);
     }
   }

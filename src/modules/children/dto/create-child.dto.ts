@@ -7,9 +7,10 @@ import {
   ValidateNested,
   IsBoolean,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 
 class AddressDto {
+  @IsOptional() @IsString() id?: string;
   @IsOptional() @IsString() street?: string;
   @IsOptional() @IsString() number?: string;
   @IsOptional() @IsString() district?: string;
@@ -20,18 +21,49 @@ class AddressDto {
 }
 
 export class CreateChildDto {
-  @IsString() @Length(2, 255) name: string;
-  @IsDateString() birthDate: string;
+  @IsString()
+  @Length(2, 255)
+  name: string;
 
-  @IsString() @Length(2, 255) guardianName: string;
-  @IsString() @Length(1, 255) gender: string;
-  @IsString() @Length(5, 32) guardianPhone: string;
+  @IsDateString()
+  birthDate: string;
 
-  @IsOptional() @IsDateString() joinedAt?: string;
+  @IsString()
+  @Length(2, 255)
+  guardianName: string;
 
-  @IsOptional() @IsBoolean() isActive?: boolean;
+  @IsString()
+  @Length(1, 255)
+  gender: string;
 
-  @IsOptional() @IsUUID() clubId?: string;
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
+  @IsOptional()
+  @IsString()
+  guardianPhone?: string;
+
+  @Transform(({ value }: { value: unknown }) =>
+    !value || (typeof value === 'string' && value.trim() === '')
+      ? undefined
+      : value,
+  )
+  @IsOptional()
+  @IsDateString()
+  joinedAt?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  @Transform(({ value }: { value: unknown }) =>
+    !value || (typeof value === 'string' && value.trim() === '')
+      ? undefined
+      : value,
+  )
+  @IsOptional()
+  @IsUUID()
+  clubId?: string;
 
   @IsOptional()
   @ValidateNested()

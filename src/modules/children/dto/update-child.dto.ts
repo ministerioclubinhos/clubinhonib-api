@@ -7,9 +7,13 @@ import {
   ValidateNested,
   IsBoolean,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 
 class AddressUpdateDto {
+  @IsOptional()
+  @IsString()
+  id?: string;
+
   @IsOptional()
   @IsString()
   street?: string;
@@ -59,19 +63,27 @@ export class UpdateChildDto {
   @Length(1, 255)
   gender?: string;
 
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' && value.trim() === '' ? null : value,
+  )
   @IsOptional()
   @IsString()
-  @Length(5, 32)
   guardianPhone?: string;
 
+  @Transform(({ value }: { value: unknown }) =>
+    !value || (typeof value === 'string' && value.trim() === '') ? null : value,
+  )
   @IsOptional()
   @IsDateString()
-  joinedAt?: string;
+  joinedAt?: string | null;
 
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
 
+  @Transform(({ value }: { value: unknown }) =>
+    !value || (typeof value === 'string' && value.trim() === '') ? null : value,
+  )
   @IsOptional()
   @IsUUID()
   clubId?: string | null;
