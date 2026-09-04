@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import {
-  AppNotFoundException,
   AppBusinessException,
+  AppConflictException,
+  AppNotFoundException,
   ErrorCode,
 } from 'src/shared/exceptions';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -20,8 +21,26 @@ import {
   toCoordinatorSimple,
 } from '../dto/coordinator-simple-list.dto';
 import { CoordinatorProfilesQueryDto } from '../dto/coordinator-profiles.query.dto';
+import {
+  COORDINATORS_DEFAULT_LIMIT,
+  COORDINATORS_DEFAULT_ORDER,
+  COORDINATORS_DEFAULT_PAGE,
+  COORDINATORS_DEFAULT_SORT,
+  COORDINATORS_MAX_LIMIT,
+  COORDINATOR_SORT_COLUMNS,
+  CoordinatorSortField,
+  SortOrder,
+} from '../constants';
 
 type SortDir = 'ASC' | 'DESC';
+
+/** Uma página de coordenadores, como o banco a devolve. */
+export interface PaginatedCoordinators {
+  items: CoordinatorProfileEntity[];
+  total: number;
+  page: number;
+  limit: number;
+}
 
 @Injectable()
 export class CoordinatorProfilesRepository {
@@ -35,6 +54,11 @@ export class CoordinatorProfilesRepository {
     private readonly clubRepo: Repository<ClubEntity>,
   ) {}
 
+  /**
+   * A situação da conta não peneira a listagem: um coordenador suspenso
+   * continua sendo gerenciado — e continua com os clubinhos dele. Quem filtra é
+   * o parâmetro `active`, que lê o perfil.
+   */
   private buildCoordinatorBaseQB(
     manager?: EntityManager,
   ): SelectQueryBuilder<CoordinatorProfileEntity> {
@@ -65,32 +89,26 @@ export class CoordinatorProfilesRepository {
         'teacher_user.active',
         'teacher_user.completed',
         'teacher_user.commonUser',
-      ])
-      .where('coord_user.active = true');
+      ]);
   }
 
   private baseIdsQuery(): SelectQueryBuilder<CoordinatorProfileEntity> {
     return this.coordRepo
       .createQueryBuilder('coord')
-      .leftJoin('coord.user', 'coord_user')
-      .where('coord_user.active = true');
+      .leftJoin('coord.user', 'coord_user');
   }
 
-  private resolveSort(sort?: string) {
-    const map: Record<string, string> = {
-      createdAt: 'coord.createdAt',
-      updatedAt: 'coord.updatedAt',
-      name: 'coord_user.name',
-    };
-    return map[sort ?? 'updatedAt'] ?? 'coord.updatedAt';
-  }
-
-  private coerceClubNumber(input: unknown): number | undefined {
-    if (input === undefined || input === null || input === '') return undefined;
-    if (typeof input !== 'string' && typeof input !== 'number')
-      return undefined;
-    const n = Number(String(input).trim());
-    return Number.isInteger(n) ? n : undefined;
+  /**
+   * Coluna do banco para o campo de ordenação pedido.
+   *
+   * Só um nome da tabela de constantes chega ao SQL; o valor recebido nunca é
+   * interpolado.
+   */
+  private resolveSort(sort?: CoordinatorSortField): string {
+    return (
+      COORDINATOR_SORT_COLUMNS[sort ?? COORDINATORS_DEFAULT_SORT] ??
+      COORDINATOR_SORT_COLUMNS[COORDINATORS_DEFAULT_SORT]
+    );
   }
 
   private applyFilters(
@@ -98,10 +116,7 @@ export class CoordinatorProfilesRepository {
     params: CoordinatorProfilesQueryDto,
   ) {
     const text = (params.searchString ?? params.q)?.trim();
-    const { active, hasClubs } = params;
-    const clubNumber = this.coerceClubNumber(
-      (params as { clubNumber?: unknown }).clubNumber,
-    );
+    const { active, hasClubs, clubNumber } = params;
 
     if (text) {
       const like = `%${text.toLowerCase()}%`;
@@ -169,17 +184,21 @@ export class CoordinatorProfilesRepository {
     return qb;
   }
 
-  async findPageWithFilters(query: CoordinatorProfilesQueryDto): Promise<{
-    items: CoordinatorProfileEntity[];
-    total: number;
-    page: number;
-    limit: number;
-  }> {
-    const { page = 1, limit = 12, sort = 'updatedAt', order = 'desc' } = query;
+  async findPageWithFilters(
+    query: CoordinatorProfilesQueryDto,
+  ): Promise<PaginatedCoordinators> {
+    const {
+      page = COORDINATORS_DEFAULT_PAGE,
+      sort = COORDINATORS_DEFAULT_SORT,
+      order = COORDINATORS_DEFAULT_ORDER,
+    } = query;
+    const limit = Math.min(
+      Math.max(query.limit ?? COORDINATORS_DEFAULT_LIMIT, 1),
+      COORDINATORS_MAX_LIMIT,
+    );
 
     const sortColumn = this.resolveSort(sort);
-    const sortDir: SortDir =
-      (order || 'desc').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+    const sortDir: SortDir = order === SortOrder.ASC ? 'ASC' : 'DESC';
     const offset = (page - 1) * limit;
 
     const total = await this.applyFilters(this.baseIdsQuery(), query)
@@ -192,6 +211,9 @@ export class CoordinatorProfilesRepository {
       .addSelect(sortColumn, 'ord')
       .distinct(true)
       .orderBy(sortColumn, sortDir)
+      // O desempate por id mantém a paginação estável quando duas linhas têm o
+      // mesmo valor na coluna ordenada.
+      .addOrderBy('coord.id', 'ASC')
       .offset(offset)
       .limit(limit)
       .getRawMany<{ id: string }>();
@@ -209,14 +231,6 @@ export class CoordinatorProfilesRepository {
       .getMany();
 
     return { items, total, page, limit };
-  }
-
-  async findAllWithClubsAndTeachers(): Promise<CoordinatorProfileEntity[]> {
-    return this.buildCoordinatorBaseQB()
-      .orderBy('coord.createdAt', 'ASC')
-      .addOrderBy('club.number', 'ASC')
-      .addOrderBy('teachers.createdAt', 'ASC')
-      .getMany();
   }
 
   async findOneWithClubsAndTeachersOrFail(
@@ -284,7 +298,18 @@ export class CoordinatorProfilesRepository {
           'Clubinho não encontrado',
         );
 
-      if (club.coordinator && club.coordinator.id === coordinatorId) return;
+      if (club.coordinator?.id === coordinatorId) return;
+
+      // Um clubinho tem um coordenador só. Reatribuí-lo aqui tiraria o
+      // clubinho de outra pessoa sem que ninguém pedisse: quem quer transferir
+      // usa `move-club`, que nomeia origem e destino.
+      if (club.coordinator) {
+        throw new AppConflictException(
+          ErrorCode.RESOURCE_CONFLICT,
+          'Este Clubinho já tem coordenador. Use a transferência para passá-lo a outro coordenador.',
+          { clubId, currentCoordinatorProfileId: club.coordinator.id },
+        );
+      }
 
       club.coordinator = coordinator;
       await clubRepo.save(club);
@@ -315,7 +340,7 @@ export class CoordinatorProfilesRepository {
         );
       }
 
-      club.coordinator = null as unknown as CoordinatorProfileEntity;
+      club.coordinator = null;
       await clubRepo.save(club);
     });
   }
@@ -395,6 +420,22 @@ export class CoordinatorProfilesRepository {
     });
   }
 
+  /**
+   * Liga ou desliga o perfil sem mexer nos clubinhos.
+   *
+   * Desativar um coordenador apagava o perfil e soltava todos os clubinhos
+   * dele; reativar devolvia um perfil vazio. A criação já mantinha o perfil de
+   * um usuário inativo, então as duas rotinas discordavam.
+   */
+  async setActiveByUserId(userId: string, active: boolean): Promise<void> {
+    const profile = await this.coordRepo.findOne({
+      where: { user: { id: userId } },
+    });
+    if (!profile || profile.active === active) return;
+
+    await this.coordRepo.update(profile.id, { active });
+  }
+
   async removeByUserId(userId: string): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
       const txCoord = manager.withRepository(this.coordRepo);
@@ -410,7 +451,7 @@ export class CoordinatorProfilesRepository {
         await txClub
           .createQueryBuilder()
           .update(ClubEntity)
-          .set({ coordinator: null as unknown as CoordinatorProfileEntity })
+          .set({ coordinator: null })
           .where('coordinator_profile_id = :id', { id: coord.id })
           .execute();
       }

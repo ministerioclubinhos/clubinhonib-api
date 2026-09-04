@@ -16,7 +16,7 @@ import { LoginDto } from '../dto/login.dto';
 import { UserRole, JwtPayload } from '../auth.types';
 import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 import { EmailVerificationService } from './email-verification.service';
-import { TeacherProfilesRepository } from 'src/modules/teacher-profiles/repositories/teacher-profiles.repository';
+import { UpdateTeacherProfilesService } from 'src/modules/teacher-profiles/services/update-teacher-profiles.service';
 import { NotificationService } from 'src/shared/providers/notification/notification.service';
 import {
   AppUnauthorizedException,
@@ -39,8 +39,8 @@ export class AuthService {
     private readonly getUsersService: GetUsersService,
     private readonly userRepo: UserRepository,
     private readonly emailVerificationService: EmailVerificationService,
-    @Inject(forwardRef(() => TeacherProfilesRepository))
-    private readonly teacherProfilesRepository: TeacherProfilesRepository,
+    @Inject(forwardRef(() => UpdateTeacherProfilesService))
+    private readonly updateTeacherProfilesService: UpdateTeacherProfilesService,
     private readonly notificationService: NotificationService,
   ) {
     this.googleClient = new OAuth2Client(
@@ -413,11 +413,10 @@ export class AuthService {
     userId: string,
     clubNumber: number,
   ): Promise<{ message: string }> {
-    const profile =
-      await this.teacherProfilesRepository.linkTeacherToClubByNumber(
-        userId,
-        clubNumber,
-      );
+    const profile = await this.updateTeacherProfilesService.linkOwnClubByNumber(
+      userId,
+      clubNumber,
+    );
     return {
       message: `Professor vinculado ao clubinho #${profile.club?.number ?? clubNumber} com sucesso.`,
     };

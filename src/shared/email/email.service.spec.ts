@@ -1,15 +1,29 @@
 import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { SmtpService } from 'src/shared/providers/smtp/smtp.service';
-import { EMAIL_SUBJECTS } from './constants';
+import { SiteUrlService } from 'src/shared/site-url/site-url.service';
+import { EMAIL_SUBJECTS, UNSUBSCRIBE_FOOTER } from './constants';
 import { EmailService } from './email.service';
+import { EmailRecipient } from './types';
+import { UnsubscribeTokenService } from './unsubscribe-token.service';
 
 describe('EmailService', () => {
   const smtpService = { sendMail: jest.fn() };
   const config: Record<string, string> = {
     MAIL_CONTACT_TO: 'equipe@clubinhonib.com, coordenacao@clubinhonib.com',
+    EMAIL_UNSUBSCRIBE_SECRET: 'segredo-de-teste',
   };
   const configService = { get: (key: string) => config[key] };
+  const siteUrlService = { baseUrl: 'https://clubinhonib.com' };
+
+  const recipient = (index = 0): EmailRecipient => ({
+    id: `user-${index}`,
+    name: `Pessoa ${index}`,
+    email: `user${index}@exemplo.com`,
+  });
+
+  const recipients = (total: number): EmailRecipient[] =>
+    Array.from({ length: total }, (_, index) => recipient(index));
 
   let service: EmailService;
 
@@ -21,7 +35,9 @@ describe('EmailService', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         EmailService,
+        UnsubscribeTokenService,
         { provide: SmtpService, useValue: smtpService },
+        { provide: SiteUrlService, useValue: siteUrlService },
         { provide: ConfigService, useValue: configService },
       ],
     }).compile();
@@ -30,10 +46,13 @@ describe('EmailService', () => {
   });
 
   it('envia a recuperação de senha com assunto, html e texto', async () => {
-    await service.sendPasswordRecovery('ana@exemplo.com', {
-      recipientName: 'Ana',
-      resetLink: 'https://clubinhonib.com/recuperar-senha/abc',
-    });
+    await service.sendPasswordRecovery(
+      { id: 'user-1', name: 'Ana', email: 'ana@exemplo.com' },
+      {
+        recipientName: 'Ana',
+        resetLink: 'https://clubinhonib.com/recuperar-senha/abc',
+      },
+    );
 
     expect(smtpService.sendMail).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -46,10 +65,10 @@ describe('EmailService', () => {
   });
 
   it('envia o aviso de senha alterada', async () => {
-    await service.sendPasswordChanged('ana@exemplo.com', {
-      recipientName: 'Ana',
-      loginLink: 'https://clubinhonib.com',
-    });
+    await service.sendPasswordChanged(
+      { id: 'user-1', name: 'Ana', email: 'ana@exemplo.com' },
+      { recipientName: 'Ana', loginLink: 'https://clubinhonib.com' },
+    );
 
     expect(smtpService.sendMail).toHaveBeenCalledWith(
       expect.objectContaining({ subject: EMAIL_SUBJECTS.passwordChanged }),
@@ -57,10 +76,13 @@ describe('EmailService', () => {
   });
 
   it('envia a confirmação de e-mail', async () => {
-    await service.sendEmailVerification('ana@exemplo.com', {
-      recipientName: 'Ana',
-      verificationLink: 'https://clubinhonib.com/confirmar-email/abc',
-    });
+    await service.sendEmailVerification(
+      { id: 'user-1', name: 'Ana', email: 'ana@exemplo.com' },
+      {
+        recipientName: 'Ana',
+        verificationLink: 'https://clubinhonib.com/confirmar-email/abc',
+      },
+    );
 
     expect(smtpService.sendMail).toHaveBeenCalledWith(
       expect.objectContaining({ subject: EMAIL_SUBJECTS.emailVerification }),
@@ -75,56 +97,74 @@ describe('EmailService', () => {
       materialLink: 'https://clubinhonib.com/materiais_semanal_semana-12',
     };
 
-    const emails = (total: number): string[] =>
-      Array.from({ length: total }, (_, index) => `user${index}@exemplo.com`);
+    /**
+     * Antes ia em lotes com os endereços em cópia oculta. O rodapé precisa
+     * levar o token de quem recebe, e um token só serve para uma pessoa.
+     */
+    it('manda uma mensagem por pessoa, sem cópia oculta', async () => {
+      await service.sendWeekMaterialAnnouncement(recipients(3), data);
 
-    it('manda os endereços em cópia oculta, nunca no para', async () => {
-      // Sem isso, cada pessoa receberia a lista de e-mails de todas as outras.
-      await service.sendWeekMaterialAnnouncement(emails(3), data);
+      expect(smtpService.sendMail).toHaveBeenCalledTimes(3);
 
-      const [[sent]] = smtpService.sendMail.mock.calls as [
-        [{ to?: unknown; bcc: string[] }],
-      ];
-      expect(sent.to).toBeUndefined();
-      expect(sent.bcc).toHaveLength(3);
+      const calls = smtpService.sendMail.mock.calls as [
+        { to: string; bcc?: unknown },
+      ][];
+      for (const [sent] of calls) {
+        expect(sent.bcc).toBeUndefined();
+        expect(typeof sent.to).toBe('string');
+      }
     });
 
-    it('divide em lotes de 50', async () => {
+    it('dá a cada pessoa um link de descadastro diferente', async () => {
+      await service.sendWeekMaterialAnnouncement(recipients(2), data);
+
+      const [[first], [second]] = smtpService.sendMail.mock.calls as [
+        [{ html: string }],
+        [{ html: string }],
+      ];
+
+      expect(first.html).toContain(UNSUBSCRIBE_FOOTER.action);
+      expect(first.html).toContain('/descadastrar?token=');
+      expect(first.html).not.toEqual(second.html);
+    });
+
+    it('conta os envios, um por destinatário', async () => {
       const result = await service.sendWeekMaterialAnnouncement(
-        emails(120),
+        recipients(120),
         data,
       );
 
-      expect(smtpService.sendMail).toHaveBeenCalledTimes(3);
-      expect(result).toEqual({
-        recipients: 120,
-        batchesSent: 3,
-        batchesFailed: 0,
-      });
+      expect(smtpService.sendMail).toHaveBeenCalledTimes(120);
+      expect(result).toEqual({ recipients: 120, sent: 120, failed: 0 });
     });
 
     it('remove endereços repetidos antes de enviar', async () => {
       const result = await service.sendWeekMaterialAnnouncement(
-        ['ana@exemplo.com', ' ana@exemplo.com ', 'bia@exemplo.com', ''],
+        [
+          { id: 'a', name: 'Ana', email: 'ana@exemplo.com' },
+          { id: 'a', name: 'Ana', email: ' ana@exemplo.com ' },
+          { id: 'b', name: 'Bia', email: 'bia@exemplo.com' },
+          { id: 'c', name: 'Cida', email: '' },
+        ],
         data,
       );
 
       expect(result.recipients).toBe(2);
     });
 
-    it('segue com os outros lotes quando um falha', async () => {
+    it('segue com os outros quando um envio falha', async () => {
       smtpService.sendMail
         .mockRejectedValueOnce(new Error('limite diário'))
         .mockResolvedValue(undefined);
 
       const result = await service.sendWeekMaterialAnnouncement(
-        emails(120),
+        recipients(3),
         data,
       );
 
       expect(smtpService.sendMail).toHaveBeenCalledTimes(3);
-      expect(result.batchesSent).toBe(2);
-      expect(result.batchesFailed).toBe(1);
+      expect(result.sent).toBe(2);
+      expect(result.failed).toBe(1);
     });
 
     it('não envia nada sem destinatário', async () => {

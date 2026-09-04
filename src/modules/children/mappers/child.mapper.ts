@@ -1,87 +1,80 @@
-import { ChildEntity } from '../entities/child.entity';
 import { AddressEntity } from 'src/modules/addresses/entities/address.entity/address.entity';
+import { AcceptedChristShortDto } from 'src/modules/accepted-christs/dtos/accepted-christ-short.dto';
+
 import {
   AddressResponseDto,
+  ChildClubDto,
   ChildListItemDto,
   ChildResponseDto,
 } from '../dto/child-response.dto';
-import { AcceptedChristShortDto } from 'src/modules/accepted-christs/dtos/accepted-christ-short.dto';
+import { ChildEntity } from '../entities/child.entity';
+import { Gender } from '../entities/gender.enum';
+import { toDateOnly, toIsoDateTime } from '../utils';
 
-const dateOnly = (v: unknown): string | null => {
-  if (v === null || v === undefined) return null;
+/**
+ * Sexo gravado na coluna textual.
+ *
+ * Cadastros anteriores à validação podem trazer outro texto; nesse caso o
+ * contrato devolve masculino, que é o padrão histórico do formulário.
+ */
+const toGender = (value: string): Gender =>
+  value === (Gender.FEMALE as string) ? Gender.FEMALE : Gender.MALE;
 
-  if (v instanceof Date && !isNaN(v.getTime())) {
-    return v.toISOString().slice(0, 10);
-  }
+const toClub = (entity: ChildEntity): ChildClubDto | null =>
+  entity.club
+    ? {
+        id: entity.club.id,
+        number: entity.club.number,
+        weekday: String(entity.club.weekday),
+      }
+    : null;
 
-  if (typeof v !== 'string' && typeof v !== 'number') return null;
+export const toAddressDto = (
+  address: AddressEntity | null | undefined,
+): AddressResponseDto | null => {
+  if (!address) return null;
 
-  const s = String(v).trim();
-  const m = s.match(/^(\d{4}-\d{2}-\d{2})$/);
-  if (m) return m[1];
-
-  const d = new Date(s);
-  return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+  return {
+    id: address.id,
+    street: address.street ?? '',
+    number: address.number ?? null,
+    district: address.district ?? '',
+    city: address.city ?? '',
+    state: address.state ?? '',
+    postalCode: address.postalCode ?? '',
+    complement: address.complement ?? null,
+  };
 };
 
-const toIsoDateTime = (v: unknown): string => {
-  const s = String(v);
-  if (/\d{4}-\d{2}-\d{2}T/.test(s)) return s;
-  const d = v instanceof Date ? v : new Date(s);
-  return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
-};
-
-export const toChildListItemDto = (e: ChildEntity): ChildListItemDto => ({
-  id: e.id,
-  name: e.name,
-  guardianName: e.guardianName,
-  gender: e.gender,
-  guardianPhone: e.guardianPhone,
-  isActive: e.isActive,
-  clubId: e.club?.id ?? null,
-  acceptedChrists: (e.acceptedChrists ?? []).map(
-    (a): AcceptedChristShortDto => ({
-      id: a.id,
-      decision: a.decision,
-      createdAt: a.createdAt.toISOString(),
-      updatedAt: a.updatedAt.toISOString(),
+export const toChildListItemDto = (entity: ChildEntity): ChildListItemDto => ({
+  id: entity.id,
+  name: entity.name,
+  guardianName: entity.guardianName,
+  gender: toGender(entity.gender),
+  guardianPhone: entity.guardianPhone,
+  isActive: entity.isActive,
+  clubId: entity.club?.id ?? null,
+  acceptedChrists: (entity.acceptedChrists ?? []).map(
+    (accepted): AcceptedChristShortDto => ({
+      id: accepted.id,
+      decision: accepted.decision,
+      createdAt: accepted.createdAt.toISOString(),
+      updatedAt: accepted.updatedAt.toISOString(),
     }),
   ),
 });
 
-export const toAddressDto = (
-  a: AddressEntity | null | undefined,
-): AddressResponseDto | null => {
-  if (!a) return null;
-  return {
-    id: a.id,
-    street: a.street ?? '',
-    number: a.number ?? undefined,
-    district: a.district ?? '',
-    city: a.city ?? '',
-    state: a.state ?? '',
-    postalCode: a.postalCode ?? '',
-    complement: a.complement ?? undefined,
-  };
-};
-
-export const toChildResponseDto = (e: ChildEntity): ChildResponseDto => ({
-  id: e.id,
-  name: e.name,
-  birthDate: dateOnly(e.birthDate)!,
-  guardianName: e.guardianName,
-  gender: e.gender,
-  guardianPhone: e.guardianPhone,
-  joinedAt: dateOnly(e.joinedAt),
-  isActive: e.isActive,
-  club: e.club
-    ? {
-        id: e.club.id,
-        number: e.club.number,
-        weekday: String(e.club.weekday),
-      }
-    : null,
-  address: toAddressDto(e.address),
-  createdAt: toIsoDateTime(e.createdAt),
-  updatedAt: toIsoDateTime(e.updatedAt),
+export const toChildResponseDto = (entity: ChildEntity): ChildResponseDto => ({
+  id: entity.id,
+  name: entity.name,
+  birthDate: toDateOnly(entity.birthDate) ?? '',
+  guardianName: entity.guardianName,
+  gender: toGender(entity.gender),
+  guardianPhone: entity.guardianPhone,
+  joinedAt: toDateOnly(entity.joinedAt),
+  isActive: entity.isActive,
+  club: toClub(entity),
+  address: toAddressDto(entity.address),
+  createdAt: toIsoDateTime(entity.createdAt),
+  updatedAt: toIsoDateTime(entity.updatedAt),
 });

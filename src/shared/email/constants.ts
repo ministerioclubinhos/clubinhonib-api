@@ -64,3 +64,15 @@ export const EMAIL_ANNOUNCEMENT_BATCH_SIZE = 50;
 
 /** Esquemas aceitos em um link dentro do e-mail. */
 export const EMAIL_ALLOWED_URL_SCHEMES = ['http:', 'https:'] as const;
+
+/** Separa o id da assinatura no token de descadastro. */
+export const UNSUBSCRIBE_TOKEN_SEPARATOR = '.';
+
+/** Caminho, no site, da página que confirma o descadastro. */
+export const UNSUBSCRIBE_PATH = '/descadastrar';
+
+/** Textos do rodapé de descadastro, em um lugar só. */
+export const UNSUBSCRIBE_FOOTER = {
+  question: 'Não quer mais receber os avisos do Clubinho?',
+  action: 'Cancelar o recebimento',
+} as const;

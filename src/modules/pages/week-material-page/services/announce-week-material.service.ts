@@ -45,14 +45,11 @@ export class AnnounceWeekMaterialService {
 
     const recipients = await this.getUsersService.findActiveRecipients();
 
-    await this.emailService.sendWeekMaterialAnnouncement(
-      recipients.map((recipient) => recipient.email),
-      {
-        title: page.title,
-        subtitle: page.subtitle,
-        description: page.description,
-        materialLink: this.siteUrlService.buildUrl(path),
-      },
-    );
+    await this.emailService.sendWeekMaterialAnnouncement(recipients, {
+      title: page.title,
+      subtitle: page.subtitle,
+      description: page.description,
+      materialLink: this.siteUrlService.buildUrl(path),
+    });
   }
 }

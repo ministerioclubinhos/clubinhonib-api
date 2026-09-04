@@ -1,52 +1,32 @@
 import {
+  IsBoolean,
   IsDateString,
+  IsEnum,
   IsOptional,
   IsString,
-  Length,
   IsUUID,
+  Length,
   ValidateNested,
-  IsBoolean,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 
-class AddressUpdateDto {
-  @IsOptional()
-  @IsString()
-  id?: string;
+import { CHILD_TEXT_MAX_LENGTH, CHILD_TEXT_MIN_LENGTH } from '../constants';
+import { Gender } from '../entities/gender.enum';
+import { UpdateChildAddressDto } from './child-address.dto';
 
-  @IsOptional()
-  @IsString()
-  street?: string;
-
-  @IsOptional()
-  @IsString()
-  number?: string;
-
-  @IsOptional()
-  @IsString()
-  district?: string;
-
-  @IsOptional()
-  @IsString()
-  city?: string;
-
-  @IsOptional()
-  @IsString()
-  state?: string;
-
-  @IsOptional()
-  @IsString()
-  postalCode?: string;
-
-  @IsOptional()
-  @IsString()
-  complement?: string;
-}
+/**
+ * Texto vazio equivale a limpar o campo.
+ *
+ * Na atualização, ao contrário da criação, o vazio é uma intenção: `null`
+ * distingue "apague isto" de "não mexa nisto", que é a ausência da propriedade.
+ */
+const emptyToNull = ({ value }: { value: unknown }): unknown =>
+  !value || (typeof value === 'string' && value.trim() === '') ? null : value;
 
 export class UpdateChildDto {
   @IsOptional()
   @IsString()
-  @Length(2, 255)
+  @Length(CHILD_TEXT_MIN_LENGTH, CHILD_TEXT_MAX_LENGTH)
   name?: string;
 
   @IsOptional()
@@ -55,13 +35,12 @@ export class UpdateChildDto {
 
   @IsOptional()
   @IsString()
-  @Length(2, 255)
+  @Length(CHILD_TEXT_MIN_LENGTH, CHILD_TEXT_MAX_LENGTH)
   guardianName?: string;
 
   @IsOptional()
-  @IsString()
-  @Length(1, 255)
-  gender?: string;
+  @IsEnum(Gender)
+  gender?: Gender;
 
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' && value.trim() === '' ? null : value,
@@ -70,9 +49,7 @@ export class UpdateChildDto {
   @IsString()
   guardianPhone?: string;
 
-  @Transform(({ value }: { value: unknown }) =>
-    !value || (typeof value === 'string' && value.trim() === '') ? null : value,
-  )
+  @Transform(emptyToNull)
   @IsOptional()
   @IsDateString()
   joinedAt?: string | null;
@@ -81,15 +58,13 @@ export class UpdateChildDto {
   @IsBoolean()
   isActive?: boolean;
 
-  @Transform(({ value }: { value: unknown }) =>
-    !value || (typeof value === 'string' && value.trim() === '') ? null : value,
-  )
+  @Transform(emptyToNull)
   @IsOptional()
   @IsUUID()
   clubId?: string | null;
 
   @IsOptional()
   @ValidateNested()
-  @Type(() => AddressUpdateDto)
-  address?: AddressUpdateDto | null;
+  @Type(() => UpdateChildAddressDto)
+  address?: UpdateChildAddressDto | null;
 }

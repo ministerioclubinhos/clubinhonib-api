@@ -7,7 +7,10 @@ import { PersonalDataRepository } from 'src/core/profile/repositories/personal-d
 import { UserPreferencesRepository } from 'src/core/profile/repositories/user-preferences.repository';
 import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import { MyProfileResponseDto } from '../dto/my-profile-response.dto';
-import { toMyProfileResponse } from '../mappers';
+import { PaginatedUsersResponseDto } from '../dto/user-response.dto';
+import { toMyProfileResponse, toUserResponse } from '../mappers';
+import { EmailRecipient } from 'src/shared/email/types';
+import { USER_MEDIA_TARGET } from '../constants';
 
 @Injectable()
 export class GetUsersService {
@@ -20,8 +23,17 @@ export class GetUsersService {
     private readonly userPreferencesRepository: UserPreferencesRepository,
   ) {}
 
-  async findAllPaginated(q: GetUsersQueryDto) {
-    return this.userRepo.findAllPaginated(q);
+  /** Página da listagem administrativa, já no contrato público. */
+  async findAllPaginated(
+    q: GetUsersQueryDto,
+  ): Promise<PaginatedUsersResponseDto> {
+    const { items, page, limit, total, totalPages, sort, order } =
+      await this.userRepo.findAllPaginated(q);
+
+    return {
+      items: items.map(toUserResponse),
+      meta: { page, limit, total, totalPages, sort, order },
+    };
   }
 
   async findAlll(): Promise<UserEntity[]> {
@@ -43,7 +55,7 @@ export class GetUsersService {
    * Destinatários dos avisos enviados a toda a base: só usuários já validados.
    * Outros módulos chegam aqui pelo serviço, nunca pelo repositório de usuário.
    */
-  async findActiveRecipients(): Promise<{ name: string; email: string }[]> {
+  async findActiveRecipients(): Promise<EmailRecipient[]> {
     return this.userRepo.findActiveRecipients();
   }
 
@@ -64,7 +76,7 @@ export class GetUsersService {
     }
 
     const [image, personalData, preferences] = await Promise.all([
-      this.mediaItemProcessor.findMediaItemByTarget(id, 'UserEntity'),
+      this.mediaItemProcessor.findMediaItemByTarget(id, USER_MEDIA_TARGET),
       this.personalDataRepository.findByUserId(id),
       this.userPreferencesRepository.findByUserId(id),
     ]);

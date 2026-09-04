@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import {
   AppNotFoundException,
   AppConflictException,
-  AppBusinessException,
   ErrorCode,
 } from 'src/shared/exceptions';
 import {
@@ -237,6 +236,28 @@ export class ClubsRepository {
     return items.map(toClubSelectOption);
   }
 
+  /**
+   * Onde cada professor está hoje.
+   *
+   * Vincular um professor a um clubinho o move do anterior, então o caso de uso
+   * precisa saber de onde ele viria para conferir o alcance de quem pediu.
+   */
+  async findCurrentClubIdsOfTeachers(
+    teacherProfileIds: string[],
+  ): Promise<Map<string, string | null>> {
+    if (!teacherProfileIds.length) return new Map();
+
+    const profiles = await this.teacherProfileRepo.find({
+      where: { id: In(teacherProfileIds) },
+      relations: { club: true },
+      select: { id: true },
+    });
+
+    return new Map(
+      profiles.map((profile) => [profile.id, profile.club?.id ?? null]),
+    );
+  }
+
   async createClub(dto: CreateClubDto): Promise<ClubEntity> {
     return this.dataSource.transaction(async (manager) => {
       const clubRepo = manager.withRepository(this.clubRepo);
@@ -289,16 +310,9 @@ export class ClubsRepository {
           );
         }
 
-        const alreadyAssigned = teachers.filter((t) => !!t.club);
-        if (alreadyAssigned.length) {
-          throw new AppBusinessException(
-            ErrorCode.PROFILE_INVALID_OPERATION,
-            `Alguns perfis de professores já estão vinculados a outro Clubinho: ${alreadyAssigned
-              .map((t) => t.id)
-              .join(', ')}`,
-          );
-        }
-
+        // Um professor vinculado a outro clubinho é movido, como acontece em
+        // `PATCH /teacher-profiles/:id/assign-club`. A recusa anterior fazia a
+        // mesma escolha responder coisas diferentes conforme a tela usada.
         await teacherRepo.update(
           { id: In(ids) },
           { club: { id: club.id } as Partial<ClubEntity> },
@@ -451,18 +465,9 @@ export class ClubsRepository {
       );
     }
 
-    const attachedElsewhere = attachProfiles.filter(
-      (p) => p.club && p.club.id !== clubId,
-    );
-    if (attachedElsewhere.length) {
-      throw new AppBusinessException(
-        ErrorCode.PROFILE_INVALID_OPERATION,
-        `Alguns perfis de professores já estão vinculados a outro Clubinho: ${attachedElsewhere
-          .map((t) => t.id)
-          .join(', ')}`,
-      );
-    }
-
+    // Um professor vinculado a outro clubinho é movido, como acontece em
+    // `PATCH /teacher-profiles/:id/assign-club`. Quem confere o alcance de quem
+    // pediu é o caso de uso, antes de chegar aqui.
     if (attachProfiles.length) {
       await txTeacherRepo.update(
         { id: In(attachProfiles.map((p) => p.id)) },
@@ -471,10 +476,7 @@ export class ClubsRepository {
     }
 
     if (toDetach.length) {
-      await txTeacherRepo.update(
-        { id: In(toDetach) },
-        { club: null as unknown as ClubEntity },
-      );
+      await txTeacherRepo.update({ id: In(toDetach) }, { club: null });
     }
   }
 
@@ -497,7 +499,7 @@ export class ClubsRepository {
       if (club.teachers?.length) {
         await txTeacher.update(
           { id: In(club.teachers.map((t) => t.id)) },
-          { club: null as unknown as ClubEntity },
+          { club: null },
         );
       }
 

@@ -7,9 +7,32 @@ import {
   QueryChildrenSimpleDto,
 } from '../dto/query-children.dto';
 import { ClubEntity } from 'src/modules/clubs/entities/club.entity';
+import { AccessContext, UserRole } from 'src/core/auth/auth.types';
 
-export type PaginatedRows<T> = { items: T[]; total: number };
-type RoleCtx = { role?: string; userId?: string | null };
+import {
+  CHILDREN_DEFAULT_LIMIT,
+  CHILDREN_DEFAULT_PAGE,
+  CHILDREN_DEFAULT_SORT,
+  CHILDREN_MAX_LIMIT,
+  CHILD_DECIDED_DECISIONS,
+  CHILD_SORT_COLUMNS,
+  ChildSortField,
+  SortOrder,
+} from '../constants';
+
+/** Uma página de crianças, como o banco a devolve. */
+export interface PaginatedRows<T> {
+  items: T[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+/** Uma página ordenada, com a ordenação efetivamente aplicada. */
+export interface SortedPaginatedRows<T> extends PaginatedRows<T> {
+  orderBy: ChildSortField;
+  order: SortOrder;
+}
 
 @Injectable()
 export class ChildrenRepository {
@@ -26,17 +49,20 @@ export class ChildrenRepository {
       .leftJoinAndSelect('c.club', 'club')
       .leftJoinAndSelect('c.address', 'addr');
   }
-  private applyRoleFilter(qb: SelectQueryBuilder<ChildEntity>, ctx?: RoleCtx) {
-    const role = ctx?.role?.toLowerCase();
+  private applyRoleFilter(
+    qb: SelectQueryBuilder<ChildEntity>,
+    ctx?: AccessContext,
+  ): void {
+    const role = ctx?.role;
     const userId = ctx?.userId;
-    if (!role || role === 'admin' || !userId) return;
+    if (!role || role === UserRole.ADMIN || !userId) return;
 
-    if (role === 'coordinator') {
+    if (role === UserRole.COORDINATOR) {
       qb.leftJoin('club.coordinator', 'coord')
         .leftJoin('coord.user', 'coordUser')
         .andWhere('(coordUser.id = :uid OR c.club_id IS NULL)', { uid: userId })
         .distinct(true);
-    } else if (role === 'teacher') {
+    } else if (role === UserRole.TEACHER) {
       qb.leftJoin('club.teachers', 'tprof')
         .leftJoin('tprof.user', 'tuser')
         .andWhere('(tuser.id = :uid OR c.club_id IS NULL)', { uid: userId })
@@ -46,10 +72,13 @@ export class ChildrenRepository {
 
   async findAllPaginated(
     q: QueryChildrenDto,
-    ctx?: RoleCtx,
-  ): Promise<PaginatedRows<ChildEntity>> {
-    const page = q.page ?? 1;
-    const limit = q.limit ?? 20;
+    ctx?: AccessContext,
+  ): Promise<SortedPaginatedRows<ChildEntity>> {
+    const page = q.page ?? CHILDREN_DEFAULT_PAGE;
+    const limit = Math.min(
+      Math.max(q.limit ?? CHILDREN_DEFAULT_LIMIT, 1),
+      CHILDREN_MAX_LIMIT,
+    );
 
     const qb = this.baseQB();
 
@@ -93,30 +122,33 @@ export class ChildrenRepository {
 
     this.applyRoleFilter(qb, ctx);
 
-    const orderByMap: Record<string, string> = {
-      name: 'c.name',
-      birthDate: 'c.birthDate',
-      joinedAt: 'c.joinedAt',
-      createdAt: 'c.createdAt',
-    };
-    const orderBy = orderByMap[q.orderBy ?? 'name'] ?? 'c.name';
-    const order: 'ASC' | 'DESC' =
-      (q.order ?? 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+    // Só um nome da tabela de colunas chega ao SQL; o valor recebido nunca é
+    // interpolado.
+    const orderBy = q.orderBy ?? CHILDREN_DEFAULT_SORT;
+    const order = q.order === SortOrder.DESC ? SortOrder.DESC : SortOrder.ASC;
+    const orderColumn =
+      CHILD_SORT_COLUMNS[orderBy] ?? CHILD_SORT_COLUMNS[CHILDREN_DEFAULT_SORT];
 
-    qb.orderBy(orderBy, order)
+    // O desempate por id mantém a paginação estável quando duas linhas têm o
+    // mesmo valor na coluna ordenada.
+    qb.orderBy(orderColumn, order)
+      .addOrderBy('c.id', SortOrder.ASC)
       .skip((page - 1) * limit)
       .take(limit);
 
     const [items, total] = await qb.getManyAndCount();
-    return { items, total };
+    return { items, total, page, limit, orderBy, order };
   }
 
   async findAllSimple(
     q: QueryChildrenSimpleDto,
-    ctx?: RoleCtx,
+    ctx?: AccessContext,
   ): Promise<PaginatedRows<ChildEntity>> {
-    const page = q.page ?? 1;
-    const limit = q.limit ?? 20;
+    const page = q.page ?? CHILDREN_DEFAULT_PAGE;
+    const limit = Math.min(
+      Math.max(q.limit ?? CHILDREN_DEFAULT_LIMIT, 1),
+      CHILDREN_MAX_LIMIT,
+    );
 
     const qb = this.repo
       .createQueryBuilder('c')
@@ -145,15 +177,10 @@ export class ChildrenRepository {
     }
 
     if (q.isActive !== undefined) {
-      const isActiveValue =
-        String(q.isActive) === 'true' || q.isActive === true;
-      qb.andWhere('c.isActive = :isActive', { isActive: isActiveValue });
+      qb.andWhere('c.isActive = :isActive', { isActive: q.isActive });
     }
     if (q.acceptedChrist !== undefined) {
-      const acceptedChristValue =
-        String(q.acceptedChrist) === 'true' || q.acceptedChrist === true;
-
-      if (acceptedChristValue === true) {
+      if (q.acceptedChrist) {
         qb.andWhere((qb) => {
           const subQuery = qb
             .subQuery()
@@ -161,7 +188,7 @@ export class ChildrenRepository {
             .from('accepted_christs', 'ac')
             .where('ac.child_id = c.id')
             .andWhere('ac.decision IN (:...decisions)', {
-              decisions: ['ACCEPTED', 'RECONCILED'],
+              decisions: CHILD_DECIDED_DECISIONS,
             })
             .getQuery();
           return `EXISTS ${subQuery}`;
@@ -174,7 +201,7 @@ export class ChildrenRepository {
             .from('accepted_christs', 'ac')
             .where('ac.child_id = c.id')
             .andWhere('ac.decision IN (:...decisions)', {
-              decisions: ['ACCEPTED', 'RECONCILED'],
+              decisions: CHILD_DECIDED_DECISIONS,
             })
             .getQuery();
           return `NOT EXISTS ${subQuery}`;
@@ -184,7 +211,9 @@ export class ChildrenRepository {
 
     this.applyRoleFilter(qb as unknown as SelectQueryBuilder<ChildEntity>, ctx);
 
-    qb.orderBy('c.isActive', 'DESC').addOrderBy('c.name', 'ASC');
+    qb.orderBy('c.isActive', SortOrder.DESC)
+      .addOrderBy('c.name', SortOrder.ASC)
+      .addOrderBy('c.id', SortOrder.ASC);
 
     qb.distinct(true);
 
@@ -194,33 +223,36 @@ export class ChildrenRepository {
     qb.skip((page - 1) * limit).take(limit);
 
     const items = await qb.getMany();
-    return { items, total };
+    return { items, total, page, limit };
   }
 
   async findOneForResponse(
     id: string,
-    ctx?: RoleCtx,
+    ctx?: AccessContext,
   ): Promise<ChildEntity | null> {
     const qb = this.baseQB().where('c.id = :id', { id });
     this.applyRoleFilter(qb, ctx);
     return qb.getOne();
   }
 
-  async userHasAccessToClub(clubId: string, ctx?: RoleCtx): Promise<boolean> {
-    const role = ctx?.role?.toLowerCase();
+  async userHasAccessToClub(
+    clubId: string,
+    ctx?: AccessContext,
+  ): Promise<boolean> {
+    const role = ctx?.role;
     const userId = ctx?.userId;
-    if (!role || role === 'admin') return true;
+    if (!role || role === UserRole.ADMIN) return true;
     if (!userId) return false;
 
     const qb = this.clubRepo
       .createQueryBuilder('club')
       .where('club.id = :clubId', { clubId });
 
-    if (role === 'coordinator') {
+    if (role === UserRole.COORDINATOR) {
       qb.leftJoin('club.coordinator', 'coord')
         .leftJoin('coord.user', 'coordUser')
         .andWhere('coordUser.id = :uid', { uid: userId });
-    } else if (role === 'teacher') {
+    } else if (role === UserRole.TEACHER) {
       qb.leftJoin('club.teachers', 'tprof')
         .leftJoin('tprof.user', 'tuser')
         .andWhere('tuser.id = :uid', { uid: userId });

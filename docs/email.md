@@ -60,6 +60,69 @@ Regras que a casca garante:
 | Novo material da semana | `POST /week-material-pages` | `week-material-announcement.template.ts` |
 | Evento criado, alterado ou cancelado | `POST`, `PUT` e `DELETE` de `/events` | `event-announcement.template.ts` |
 
+## Descadastro
+
+Todo e-mail endereçado a uma pessoa da base leva, no rodapé, um link que cancela
+o recebimento dos avisos. Fica discreto de propósito — 11px, no tom neutro, sob
+o direito autoral — mas está sempre ao alcance.
+
+### O que para e o que continua
+
+Descadastrar interrompe **os avisos**: novo material da semana e eventos da
+agenda. Recuperação de senha, confirmação de e-mail e aviso de senha alterada
+continuam saindo — são resposta a algo que a pessoa acabou de pedir, e cortá-los
+a trancaria para fora da própria conta. O link aparece nos dois grupos; o texto
+da página de confirmação diz exatamente isso.
+
+Os avisos internos para a equipe — contato, avaliação, comentário, ideia,
+imagem, pré-cadastro — não levam o link: vão para uma lista de endereços de
+administradores, não para uma pessoa identificada, e não há assinatura a emitir
+nem lista da qual sair.
+
+### O token
+
+`UnsubscribeTokenService` emite `<userId>.<hmac>`, um HMAC-SHA256 do id com o
+segredo do servidor. Não é JWT de propósito:
+
+- **não expira** — o link vive dentro de um e-mail que pode ser aberto meses
+  depois;
+- **não abre nada** — assinado com `EMAIL_UNSUBSCRIBE_SECRET` (ou, na falta
+  dela, `JWT_SECRET`), serve só para esta operação e não vale como sessão;
+- **nada é guardado** — o token se valida sozinho, sem tabela de tokens.
+
+A verificação compara em tempo constante: `===` vazaria, pelo tempo de resposta,
+o quanto de uma assinatura forjada estava certo.
+
+### Por que `POST`, e não `GET`
+
+O link do rodapé aponta para `/descadastrar` **no site**, não para a API. A
+página pede a confirmação e só então chama `POST /email-preferences/unsubscribe`.
+
+Um `GET` que já cancelasse seria disparado pelos leitores de link que os
+provedores rodam antes de a pessoa abrir a mensagem — e descadastraria quem
+nunca clicou.
+
+A rota é pública: quem clica no link de um e-mail antigo não está logado. Quem
+autoriza é o token. A operação é idempotente, e a resposta é a mesma para token
+inválido e para usuário inexistente — não conta se aquele endereço está na base.
+
+### Um envio por pessoa
+
+Os avisos saíam em lotes com os endereços em cópia oculta: um HTML para muita
+gente. O rodapé precisa levar o token de quem recebe, e um token só serve para
+uma pessoa — então cada mensagem passou a ser montada para o seu destinatário.
+
+`BulkEmailResult` conta mensagens (`sent`/`failed`), não mais lotes. Uma falha
+isolada não interrompe as demais.
+
+> **Atenção operacional**: agora são N envios por aviso, e o SMTP do Gmail tem
+> teto diário (500 em conta comum, 2000 no Workspace). Com a base grande, um
+> aviso pode encostar no limite; o registro do serviço diz quantos passaram e
+> quantos falharam.
+
+`findActiveRecipients()` já devolve `EmailRecipient` (`id`, `name`, `email`) e
+deixa de fora quem se descadastrou.
+
 ### Avisos internos
 
 Os avisos para os administradores — contato, avaliação, comentário, ideia,

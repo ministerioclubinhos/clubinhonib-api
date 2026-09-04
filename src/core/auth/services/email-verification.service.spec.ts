@@ -66,8 +66,10 @@ describe('EmailVerificationService', () => {
         verificationEmailSent: true,
         message: EMAIL_VERIFICATION_MESSAGES.sent,
       });
+      // O destinatário vai identificado: o rodapé leva um link de descadastro
+      // assinado para aquela pessoa, e sem o id não há token a emitir.
       expect(emailService.sendEmailVerification).toHaveBeenCalledWith(
-        'ana@exemplo.com',
+        expect.objectContaining({ id: 'user-1', email: 'ana@exemplo.com' }),
         expect.objectContaining({ recipientName: 'Ana' }),
       );
     });

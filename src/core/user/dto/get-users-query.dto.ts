@@ -1,47 +1,71 @@
 import {
+  IsBoolean,
+  IsEnum,
   IsInt,
   IsOptional,
   IsString,
-  IsBooleanString,
-  IsIn,
+  Max,
   Min,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+
+import { UserRole } from 'src/core/auth/auth.types';
+import {
+  toOptionalBoolean,
+  toOptionalText,
+  toUpperCaseText,
+} from 'src/shared/dto/query-transforms';
+
+import {
+  SortOrder,
+  USERS_DEFAULT_LIMIT,
+  USERS_DEFAULT_PAGE,
+  USERS_MAX_LIMIT,
+  USER_DEFAULT_ORDER,
+  USER_DEFAULT_SORT,
+  UserSortField,
+} from '../constants';
 
 export class GetUsersQueryDto {
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @IsOptional()
-  page = 1;
+  page: number = USERS_DEFAULT_PAGE;
 
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @IsOptional()
-  limit = 12;
+  @Max(USERS_MAX_LIMIT)
+  limit: number = USERS_DEFAULT_LIMIT;
 
+  /** Busca livre por nome, e-mail, telefone ou papel. */
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) => toOptionalText(value))
   @IsString()
   q?: string;
 
   @IsOptional()
-  @IsIn(['user', 'admin', 'coordinator', 'teacher'])
-  role?: 'user' | 'admin' | 'coordinator' | 'teacher';
+  @IsEnum(UserRole)
+  role?: UserRole;
 
   @IsOptional()
-  @IsBooleanString()
-  active?: string;
+  @Transform(({ value }: { value: unknown }) => toOptionalBoolean(value))
+  @IsBoolean()
+  active?: boolean;
 
   @IsOptional()
-  @IsBooleanString()
-  completed?: string;
+  @Transform(({ value }: { value: unknown }) => toOptionalBoolean(value))
+  @IsBoolean()
+  completed?: boolean;
 
   @IsOptional()
-  @IsIn(['name', 'email', 'phone', 'role', 'createdAt', 'updatedAt'])
-  sort: string = 'updatedAt';
+  @IsEnum(UserSortField)
+  sort: UserSortField = USER_DEFAULT_SORT;
 
   @IsOptional()
-  @IsIn(['ASC', 'DESC', 'asc', 'desc'])
-  order: 'ASC' | 'DESC' | 'asc' | 'desc' = 'DESC';
+  @Transform(({ value }: { value: unknown }) => toUpperCaseText(value))
+  @IsEnum(SortOrder)
+  order: SortOrder = USER_DEFAULT_ORDER;
 }

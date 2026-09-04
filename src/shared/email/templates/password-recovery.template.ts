@@ -1,6 +1,6 @@
 import { EMAIL_LINK_TTL_MINUTES, EMAIL_SUBJECTS } from '../constants';
 import { EmailContent, PasswordRecoveryEmailData } from '../types';
-import { joinTextLines } from '../utils';
+import { joinTextLines, unsubscribeTextLines } from '../utils';
 import { button, composeBody, linkFallback, note, paragraph } from './blocks';
 import { renderEmailLayout } from './layout';
 
@@ -25,6 +25,7 @@ export function passwordRecoveryEmail(
         'Se não foi você quem pediu, ignore este e-mail: sua senha continua a mesma.',
       ),
     ]),
+    unsubscribeUrl: data.unsubscribeUrl,
   });
 
   const text = joinTextLines([
@@ -36,6 +37,7 @@ export function passwordRecoveryEmail(
     '',
     validity,
     'Se não foi você quem pediu, ignore este e-mail: sua senha continua a mesma.',
+    ...unsubscribeTextLines(data.unsubscribeUrl),
   ]);
 
   return { subject: EMAIL_SUBJECTS.passwordRecovery, html, text };

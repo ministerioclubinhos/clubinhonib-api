@@ -34,13 +34,18 @@ Paginated list of children with filters.
   joinedAt?: string;            // Join date (YYYY-MM-DD)
   joinedFrom?: string;          // Initial join date (YYYY-MM-DD)
   joinedTo?: string;            // Final join date (YYYY-MM-DD)
-  isActive?: boolean;           // ⭐ NEW: Filter by active/inactive status
-  orderBy?: 'name' | 'birthDate' | 'joinedAt' | 'createdAt';
-  order?: 'ASC' | 'DESC';
+  isActive?: boolean;           // Filter by active/inactive status
+  orderBy?: ChildSortField;     // 'name' | 'birthDate' | 'joinedAt' | 'createdAt' | 'updatedAt'
+  order?: 'ASC' | 'DESC';       // Default: 'ASC'; case-insensitive
   page?: number;                // Default: 1
-  limit?: number;               // Default: 20
+  limit?: number;               // Default: 20, maximum 100
 }
 ```
+
+`orderBy` and `order` are validated against enums: an unknown value is rejected
+with `400` instead of silently falling back to another column. Every date filter
+must be a valid ISO date. Ordering breaks ties by `c.id`, so paging never repeats
+or skips a row.
 
 **Response:**
 
@@ -52,17 +57,24 @@ Paginated list of children with filters.
     limit: number;
     totalItems: number;
     totalPages: number;
-    orderBy?: string;
-    order?: 'ASC' | 'DESC';
+    orderBy: ChildSortField;    // the ordering actually applied
+    order: 'ASC' | 'DESC';
   };
 }
 ```
+
+`meta` reports the ordering the query really used, not the one requested — the
+two used to differ silently when an unsupported `orderBy` arrived.
 
 ---
 
 #### 2. GET `/children/simple`
 
-Simple list of children (no pagination).
+Children in the shape the form selects use. Paginated like the main listing —
+`page` (default 1) and `limit` (default 20, maximum 100) — and ordered with the
+active ones first, then by name. It accepts `searchString`, `isActive` and
+`acceptedChrist`, and does not accept a client-chosen ordering; `meta.orderBy`
+and `meta.order` report the fixed one.
 
 **Response:**
 
@@ -95,22 +107,26 @@ Create a new child.
   name: string;                 // 2-255 characters
   birthDate: string;            // YYYY-MM-DD
   guardianName: string;         // 2-255 characters
-  gender: string;               // 1-255 characters
-  guardianPhone: string;        // 5-32 characters
+  gender: Gender;               // 'M' | 'F' — any other value is rejected with 400
+  guardianPhone?: string;       // digits only
   joinedAt?: string;            // YYYY-MM-DD (optional)
-  isActive?: boolean;           // ⭐ NEW: Active/inactive status (default: true)
+  isActive?: boolean;           // Active/inactive status (default: true)
   clubId?: string;              // Club UUID (optional)
   address?: {                   // Address (optional)
-    street: string;
+    street?: string;
     number?: string;
-    district: string;
-    city: string;
-    state: string;
-    postalCode: string;
+    district?: string;
+    city?: string;
+    state?: string;
+    postalCode?: string;
     complement?: string;
   };
 }
 ```
+
+The address DTO accepts **only** those fields: global validation rejects
+non-whitelisted properties, so sending back `id`, `createdAt` or `updatedAt` from
+a previous response fails the whole request with `400`.
 
 **Response:**
 
@@ -192,25 +208,26 @@ ChildResponseDto
   name: string;
   birthDate: string;            // YYYY-MM-DD
   guardianName: string;
-  gender: string;
+  gender: Gender;               // 'M' | 'F'
   guardianPhone: string;
-  joinedAt?: string | null;     // YYYY-MM-DD
-  isActive: boolean;            // ⭐ NEW
-  club?: {
+  joinedAt: string | null;      // YYYY-MM-DD
+  isActive: boolean;
+  club: {
     id: string;
     number: number;
     weekday: string;
   } | null;
-  address?: {
+  address: {
     id: string;
     street: string;
-    number?: string;
+    number: string | null;
     district: string;
     city: string;
     state: string;
     postalCode: string;
-    complement?: string;
-  } | null;
+    complement: string | null;
+  } | null;                     // no createdAt/updatedAt: the address is a
+                                // detail of the child, not its own resource
   createdAt: string;            // ISO 8601
   updatedAt: string;            // ISO 8601
 }

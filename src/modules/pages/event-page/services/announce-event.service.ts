@@ -41,7 +41,6 @@ export class AnnounceEventService {
 
   async announce(change: EventChange, event: EventEntity): Promise<void> {
     const recipients = await this.getUsersService.findActiveRecipients();
-    const emails = recipients.map((recipient) => recipient.email);
 
     // Eventos não têm página própria: o link leva para a agenda.
     const data: EventAnnouncementEmailData = {
@@ -53,15 +52,15 @@ export class AnnounceEventService {
     };
 
     if (change === 'created') {
-      await this.emailService.sendEventCreated(emails, data);
+      await this.emailService.sendEventCreated(recipients, data);
       return;
     }
 
     if (change === 'updated') {
-      await this.emailService.sendEventUpdated(emails, data);
+      await this.emailService.sendEventUpdated(recipients, data);
       return;
     }
 
-    await this.emailService.sendEventCancelled(emails, data);
+    await this.emailService.sendEventCancelled(recipients, data);
   }
 }

@@ -23,6 +23,7 @@ import { UpdateCompleteProfileDto } from '../dto/update-complete-profile.dto';
 import { CompleteProfileResponseDto } from '../dto/complete-profile-response.dto';
 import { QueryProfilesDto } from '../dto/query-profiles.dto';
 import { PaginatedProfilesResponseDto } from '../dto/paginated-profiles-response.dto';
+import { ProfileBirthdayResponseDto } from '../dto/profile-birthday-response.dto';
 import { CreateProfileService } from '../services/profile/create-profile.service';
 import { GetAllProfilesService } from '../services/profile/get-all-profiles.service';
 import { GetOneProfileService } from '../services/profile/get-one-profile.service';
@@ -83,6 +84,22 @@ export class ProfileController {
     this.logger.debug('GET /profiles');
 
     return this.getAllProfilesService.execute(context, query);
+  }
+
+  /**
+   * Aniversariantes do mês.
+   *
+   * A faixa da tela usava a listagem completa com `limit=1000` para descobrir
+   * isto, trazendo perfis inteiros de quem nem faz aniversário no mês.
+   */
+  @Get('birthdays')
+  async getBirthdays(
+    @Req() request: Request,
+  ): Promise<ProfileBirthdayResponseDto[]> {
+    const context = await this.contextOf(request);
+    assertCanListProfiles(context);
+
+    return this.getAllProfilesService.findBirthdaysOfCurrentMonth(context);
   }
 
   @Get('me')

@@ -1,7 +1,7 @@
 import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
-  IsIn,
+  IsEnum,
   IsInt,
   IsOptional,
   IsString,
@@ -9,78 +9,78 @@ import {
   Min,
 } from 'class-validator';
 
-const toBool = (v: any): boolean | undefined => {
-  if (v === undefined || v === null || v === '') return undefined;
-  const s = String(v).trim().toLowerCase();
-  if (['true', '1', 'yes', 'y'].includes(s)) return true;
-  if (['false', '0', 'no', 'n'].includes(s)) return false;
-  return undefined;
-};
-const toInt = (v: any): number | undefined => {
-  if (v === undefined || v === null || v === '') return undefined;
-  const n = Number(String(v).trim());
-  return Number.isFinite(n) ? n : undefined;
-};
-const trimOrUndef = (v: any): string | undefined => {
-  if (typeof v !== 'string') return undefined;
-  const t = v.trim();
-  return t ? t : undefined;
-};
+import {
+  toLowerCaseText,
+  toOptionalBoolean,
+  toOptionalText,
+} from 'src/shared/dto/query-transforms';
+
+import {
+  COORDINATORS_DEFAULT_LIMIT,
+  COORDINATORS_DEFAULT_ORDER,
+  COORDINATORS_DEFAULT_PAGE,
+  COORDINATORS_DEFAULT_SORT,
+  COORDINATORS_MAX_LIMIT,
+  CoordinatorSortField,
+  SortOrder,
+} from '../constants';
 
 export class CoordinatorProfilesQueryDto {
+  /** Busca livre por coordenador, clubinho ou professor vinculado. */
   @IsOptional()
-  @Transform(({ value }) => trimOrUndef(value))
+  @Transform(({ value }: { value: unknown }) => toOptionalText(value))
   @IsString()
   searchString?: string;
 
+  /** Alias histórico de `searchString`; os dois filtram o mesmo. */
   @IsOptional()
-  @Transform(({ value }) => trimOrUndef(value))
+  @Transform(({ value }: { value: unknown }) => toOptionalText(value))
   @IsString()
   q?: string;
 
   @IsOptional()
-  @Transform(({ value }) => toBool(value))
+  @Transform(({ value }: { value: unknown }) => toOptionalBoolean(value))
   @IsBoolean()
   active?: boolean;
 
   @IsOptional()
-  @Transform(({ value }) => toBool(value))
+  @Transform(({ value }: { value: unknown }) => toOptionalBoolean(value))
   @IsBoolean()
   hasClubs?: boolean;
 
   @IsOptional()
-  @Transform(({ value }) => toInt(value))
   @Type(() => Number)
   @IsInt()
+  @Min(1)
   clubNumber?: number;
 
   @IsOptional()
-  @Transform(({ value }) => toInt(value))
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  page: number = 1;
+  page: number = COORDINATORS_DEFAULT_PAGE;
 
   @IsOptional()
-  @Transform(({ value }) => toInt(value))
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(100)
-  limit: number = 12;
+  @Max(COORDINATORS_MAX_LIMIT)
+  limit: number = COORDINATORS_DEFAULT_LIMIT;
 
   @IsOptional()
-  @IsIn(['updatedAt', 'createdAt', 'name'])
-  sort: 'updatedAt' | 'createdAt' | 'name' = 'updatedAt';
+  @IsEnum(CoordinatorSortField)
+  sort: CoordinatorSortField = COORDINATORS_DEFAULT_SORT;
 
   @IsOptional()
-  @IsIn(['asc', 'desc'])
-  order: 'asc' | 'desc' = 'desc';
+  @Transform(({ value }: { value: unknown }) => toLowerCaseText(value))
+  @IsEnum(SortOrder)
+  order: SortOrder = COORDINATORS_DEFAULT_ORDER;
 }
 
+/** Uma página de resultados. */
 export class PageDto<T> {
-  items!: T[];
-  total!: number;
-  page!: number;
-  limit!: number;
+  items: T[];
+  total: number;
+  page: number;
+  limit: number;
 }

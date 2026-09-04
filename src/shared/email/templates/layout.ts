@@ -1,5 +1,10 @@
-import { EMAIL_BRAND, EMAIL_COLORS, EMAIL_MAX_WIDTH_PX } from '../constants';
-import { escapeHtml } from '../utils';
+import {
+  EMAIL_BRAND,
+  EMAIL_COLORS,
+  EMAIL_MAX_WIDTH_PX,
+  UNSUBSCRIBE_FOOTER,
+} from '../constants';
+import { escapeHtml, safeUrl } from '../utils';
 
 export interface EmailLayoutParams {
   /** Aparece na aba do cliente de e-mail e no cabeçalho. */
@@ -8,6 +13,13 @@ export interface EmailLayoutParams {
   recipientName?: string;
   /** HTML do miolo, montado com os blocos. */
   body: string;
+  /**
+   * Link que cancela o recebimento dos avisos, já com o token de quem recebe.
+   *
+   * Ausente nos e-mails cujo destinatário não é uma pessoa da base — os avisos
+   * internos para a equipe —, onde não há token a emitir nem o que cancelar.
+   */
+  unsubscribeUrl?: string;
 }
 
 /**
@@ -24,9 +36,16 @@ export function renderEmailLayout({
   title,
   recipientName,
   body,
+  unsubscribeUrl,
 }: EmailLayoutParams): string {
   const year = new Date().getFullYear();
   const safeTitle = escapeHtml(title);
+  // Fica discreto de propósito: menor que o resto do rodapé e em tom neutro.
+  // Precisa estar sempre ao alcance, sem competir com o conteúdo do e-mail.
+  const safeUnsubscribe = unsubscribeUrl ? safeUrl(unsubscribeUrl) : null;
+  const unsubscribeLine = safeUnsubscribe
+    ? `<p class="text-muted" style="margin: 10px 0 0; color: ${EMAIL_COLORS.mutedText}; font-size: 11px; line-height: 1.5;">${UNSUBSCRIBE_FOOTER.question} <a href="${safeUnsubscribe}" style="color: ${EMAIL_COLORS.mutedText}; text-decoration: underline;">${UNSUBSCRIBE_FOOTER.action}</a>.</p>`
+    : '';
   const greeting = recipientName?.trim()
     ? `<p class="text-primary" style="margin: 0 0 20px 0; color: ${EMAIL_COLORS.primaryText}; font-size: 17px; font-weight: 700;">Olá, ${escapeHtml(recipientName.trim())}!</p>`
     : '';
@@ -106,6 +125,7 @@ ${body}
               <p class="text-muted" style="margin: 0; color: ${EMAIL_COLORS.mutedText}; font-size: 13px; font-weight: 600;">${EMAIL_BRAND.name}</p>
               <p class="text-muted" style="margin: 4px 0 0; color: ${EMAIL_COLORS.mutedText}; font-size: 12px;">${EMAIL_BRAND.tagline}</p>
               <p class="text-muted" style="margin: 12px 0 0; color: ${EMAIL_COLORS.mutedText}; font-size: 11px;">&copy; ${year} ${EMAIL_BRAND.name}</p>
+              ${unsubscribeLine}
             </td>
           </tr>
         </table>

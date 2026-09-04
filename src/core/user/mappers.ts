@@ -15,6 +15,7 @@ import {
   MyProfileResponseDto,
   MyProfileTeacherDto,
 } from './dto/my-profile-response.dto';
+import { UserResponseDto } from './dto/user-response.dto';
 
 /** Carimbo de data em ISO, venha ele como `Date` ou já como texto. */
 function toIsoString(value: Date | string): string {
@@ -88,5 +89,27 @@ export function toMyProfileResponse(args: {
     preferences: toPreferencesResponse(preferences),
     teacherProfile: toTeacherProfile(user),
     coordinatorProfile: toCoordinatorProfile(user),
+  };
+}
+
+/**
+ * Usuário no contrato público da administração.
+ *
+ * A entidade carrega o hash da senha e o refresh token; nenhuma resposta pode
+ * levá-los, então a conversão passa obrigatoriamente por aqui.
+ */
+export function toUserResponse(user: UserEntity): UserResponseDto {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    phone: user.phone,
+    cpf: user.cpf ?? null,
+    role: user.role,
+    active: user.active,
+    completed: user.completed,
+    commonUser: user.commonUser,
+    createdAt: toIsoString(user.createdAt),
+    updatedAt: toIsoString(user.updatedAt),
   };
 }

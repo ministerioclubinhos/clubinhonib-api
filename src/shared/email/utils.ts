@@ -1,4 +1,4 @@
-import { EMAIL_ALLOWED_URL_SCHEMES } from './constants';
+import { EMAIL_ALLOWED_URL_SCHEMES, UNSUBSCRIBE_FOOTER } from './constants';
 
 /**
  * Escapa o texto para uso dentro do HTML do e-mail.
@@ -77,4 +77,16 @@ export function formatEventDate(value: Date | string): string {
   if (Number.isNaN(date.getTime())) return String(value);
 
   return date.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+}
+
+/**
+ * A linha de descadastro na versão em texto.
+ *
+ * Vai depois do conteúdo, como no HTML, e some quando não há link — os avisos
+ * internos para a equipe não têm o que cancelar.
+ */
+export function unsubscribeTextLines(unsubscribeUrl?: string): string[] {
+  if (!unsubscribeUrl?.trim()) return [];
+
+  return ['', `${UNSUBSCRIBE_FOOTER.question} ${unsubscribeUrl.trim()}`];
 }

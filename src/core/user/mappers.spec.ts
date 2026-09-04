@@ -1,5 +1,5 @@
 import { UserEntity } from './entities/user.entity';
-import { toMyProfileResponse } from './mappers';
+import { toMyProfileResponse, toUserResponse } from './mappers';
 
 /**
  * Trava o formato do perfil de quem está logado.
@@ -151,5 +151,68 @@ describe('toMyProfileResponse (contrato do próprio perfil)', () => {
     });
 
     expect(response.personalData?.birthDate).toBe('1990-05-20');
+  });
+});
+
+/**
+ * Trava o formato do usuário na administração.
+ *
+ * As rotas de `/users` respondiam a entidade inteira, e com ela o hash da senha
+ * e o refresh token. Este teste falha se alguém voltar a expô-los.
+ */
+describe('toUserResponse (contrato administrativo do usuário)', () => {
+  const user = {
+    id: 'user-1',
+    email: 'fulano@example.com',
+    name: 'Fulano de Tal',
+    phone: '92999990000',
+    cpf: '12345678901',
+    role: 'teacher',
+    active: true,
+    completed: false,
+    commonUser: true,
+    password: '$2a$10$hash-que-nao-pode-sair-daqui',
+    refreshToken: 'refresh-que-nao-pode-sair-daqui',
+    createdAt: new Date('2026-01-01T00:00:00Z'),
+    updatedAt: new Date('2026-01-02T00:00:00Z'),
+  } as unknown as UserEntity;
+
+  it('expõe exatamente os campos do contrato', () => {
+    const response = toUserResponse(user);
+
+    expect(Object.keys(response).sort()).toEqual(
+      [
+        'active',
+        'commonUser',
+        'completed',
+        'cpf',
+        'createdAt',
+        'email',
+        'id',
+        'name',
+        'phone',
+        'role',
+        'updatedAt',
+      ].sort(),
+    );
+  });
+
+  it('não deixa a senha nem o refresh token saírem', () => {
+    const response = toUserResponse(user);
+
+    expect(response).not.toHaveProperty('password');
+    expect(response).not.toHaveProperty('refreshToken');
+    expect(JSON.stringify(response)).not.toContain('$2a$10$');
+  });
+
+  it('devolve os carimbos em ISO e o CPF ausente como nulo', () => {
+    const response = toUserResponse({
+      ...user,
+      cpf: undefined,
+    } as unknown as UserEntity);
+
+    expect(response.createdAt).toBe('2026-01-01T00:00:00.000Z');
+    expect(response.updatedAt).toBe('2026-01-02T00:00:00.000Z');
+    expect(response.cpf).toBeNull();
   });
 });

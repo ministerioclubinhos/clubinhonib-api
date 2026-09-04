@@ -65,8 +65,10 @@ describe('PasswordRecoveryService', () => {
         passwordResetTokenRepo.invalidateTokensForUser,
       ).toHaveBeenCalledWith('user-1');
       expect(passwordResetTokenRepo.createToken).toHaveBeenCalled();
+      // O destinatário vai identificado: o rodapé leva um link de descadastro
+      // assinado para aquela pessoa, e sem o id não há token a emitir.
       expect(emailService.sendPasswordRecovery).toHaveBeenCalledWith(
-        'ana@exemplo.com',
+        expect.objectContaining({ id: 'user-1', email: 'ana@exemplo.com' }),
         expect.objectContaining({
           recipientName: 'Ana',
           resetLink: expect.stringContaining(
@@ -113,7 +115,7 @@ describe('PasswordRecoveryService', () => {
       });
       expect(passwordResetTokenRepo.deleteToken).toHaveBeenCalledWith('abc');
       expect(emailService.sendPasswordChanged).toHaveBeenCalledWith(
-        'ana@exemplo.com',
+        expect.objectContaining({ id: 'user-1', email: 'ana@exemplo.com' }),
         expect.objectContaining({ recipientName: 'Ana' }),
       );
     });

@@ -5,6 +5,9 @@ import { UserEntity } from './entities/user.entity';
 import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 
 import { UserRepository } from './user.repository';
+import { EmailModule } from 'src/shared/email/email.module';
+import { EmailPreferencesController } from './email-preferences.controller';
+import { UpdateEmailPreferencesService } from './services/update-email-preferences.service';
 import { CreateUserService } from './services/create-user.service';
 import { GetUsersService } from './services/get-user.service';
 import { UserController } from './user.controller';
@@ -29,6 +32,7 @@ import { ProfileModule } from '../profile/profile.module';
     MediaModule,
     AuthModule,
     ProfileModule,
+    EmailModule,
   ],
   providers: [
     UserRepository,
@@ -39,8 +43,9 @@ import { ProfileModule } from '../profile/profile.module';
     UpdateUserImageService,
     UpdateOwnProfileService,
     ChangePasswordService,
+    UpdateEmailPreferencesService,
   ],
-  controllers: [UserController, ProfileController],
+  controllers: [UserController, ProfileController, EmailPreferencesController],
   exports: [
     UserRepository,
     CreateUserService,

@@ -33,7 +33,7 @@ describe('AnnounceEventService', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     getUsersService.findActiveRecipients.mockResolvedValue([
-      { name: 'Ana', email: 'ana@exemplo.com' },
+      { id: 'user-1', name: 'Ana', email: 'ana@exemplo.com' },
     ]);
 
     const moduleRef = await Test.createTestingModule({
@@ -55,8 +55,10 @@ describe('AnnounceEventService', () => {
   ] as const)('usa o e-mail de %s', async (change, method) => {
     await service.announce(change, buildEvent());
 
+    // Os destinatários vão identificados: o rodapé de cada mensagem leva um
+    // link de descadastro assinado para aquela pessoa.
     expect(emailService[method]).toHaveBeenCalledWith(
-      ['ana@exemplo.com'],
+      [{ id: 'user-1', name: 'Ana', email: 'ana@exemplo.com' }],
       expect.objectContaining({ title: 'Festa da Família' }),
     );
   });

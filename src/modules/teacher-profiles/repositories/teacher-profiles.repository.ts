@@ -14,9 +14,26 @@ import {
   TeacherSimpleListDto,
   toTeacherSimple,
 } from '../dto/teacher-simple-list.dto';
+import { AccessContext, UserRole } from 'src/core/auth/auth.types';
+import {
+  SortOrder,
+  TEACHERS_DEFAULT_LIMIT,
+  TEACHERS_DEFAULT_ORDER,
+  TEACHERS_DEFAULT_PAGE,
+  TEACHERS_DEFAULT_SORT,
+  TEACHERS_MAX_LIMIT,
+  TEACHER_SORT_COLUMNS,
+  TeacherSortField,
+} from '../constants';
 import { TeacherProfilesQueryDto } from '../dto/teacher-profiles.query.dto';
 
-type RoleCtx = { role?: string; userId?: string | null };
+/** Uma página de professores, como o banco a devolve. */
+export interface PaginatedTeachers {
+  items: TeacherProfileEntity[];
+  total: number;
+  page: number;
+  limit: number;
+}
 type SortDir = 'ASC' | 'DESC';
 
 @Injectable()
@@ -36,6 +53,11 @@ export class TeacherProfilesRepository {
     private readonly userRepo: Repository<UserEntity>,
   ) {}
 
+  /**
+   * A situação da conta não peneira a listagem: um professor suspenso continua
+   * sendo gerenciado — e continua no clubinho. Quem filtra é o parâmetro
+   * `active`, que lê o perfil.
+   */
   private baseQB(): SelectQueryBuilder<TeacherProfileEntity> {
     return this.teacherRepo
       .createQueryBuilder('teacher')
@@ -60,8 +82,7 @@ export class TeacherProfilesRepository {
         'coord_user.active',
         'coord_user.completed',
         'coord_user.commonUser',
-      ])
-      .andWhere('teacher_user.active = true');
+      ]);
   }
 
   private baseIdsQuery(): SelectQueryBuilder<TeacherProfileEntity> {
@@ -70,44 +91,35 @@ export class TeacherProfilesRepository {
       .leftJoin('teacher.user', 'teacher_user')
       .leftJoin('teacher.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
-      .leftJoin('coordinator.user', 'coord_user')
-      .where('teacher_user.active = true');
+      .leftJoin('coordinator.user', 'coord_user');
   }
 
-  private resolveSort(sort?: string) {
-    const map: Record<string, string> = {
-      createdAt: 'teacher.createdAt',
-      updatedAt: 'teacher.updatedAt',
-      name: 'teacher_user.name',
-      clubNumber: 'club.number',
-    };
-    return map[sort ?? 'updatedAt'] ?? 'teacher.updatedAt';
+  /**
+   * Coluna do banco para o campo de ordenação pedido.
+   *
+   * Só um nome da tabela de constantes chega ao SQL; o valor recebido nunca é
+   * interpolado.
+   */
+  private resolveSort(sort?: TeacherSortField): string {
+    return (
+      TEACHER_SORT_COLUMNS[sort ?? TEACHERS_DEFAULT_SORT] ??
+      TEACHER_SORT_COLUMNS[TEACHERS_DEFAULT_SORT]
+    );
   }
 
   private applyRoleFilter(
     qb: SelectQueryBuilder<TeacherProfileEntity>,
-    ctx?: RoleCtx,
+    ctx?: AccessContext,
   ) {
-    const role = ctx?.role?.toLowerCase();
+    const role = ctx?.role;
     const userId = ctx?.userId;
-    if (!role || role === 'admin' || !userId) return;
+    if (!role || role === UserRole.ADMIN || !userId) return;
 
-    if (role === 'coordinator') {
+    if (role === UserRole.COORDINATOR) {
       qb.andWhere('coord_user.id = :uid', { uid: userId }).distinct(true);
-    } else if (role === 'teacher') {
+    } else if (role === UserRole.TEACHER) {
       qb.andWhere('1 = 0');
     }
-  }
-
-  private coerceInt(input: unknown): number | undefined {
-    if (input === undefined || input === null || input === '') return undefined;
-    const str =
-      typeof input === 'string' || typeof input === 'number'
-        ? String(input).trim()
-        : '';
-    if (!str) return undefined;
-    const n = Number(str);
-    return Number.isInteger(n) ? n : undefined;
   }
 
   private applyFilters(
@@ -115,10 +127,7 @@ export class TeacherProfilesRepository {
     params: TeacherProfilesQueryDto,
   ) {
     const text = (params.searchString ?? params.q)?.trim();
-    const { active, hasClub } = params;
-    const clubNumber = this.coerceInt(
-      (params as { clubNumber?: unknown }).clubNumber,
-    );
+    const { active, hasClub, clubNumber } = params;
 
     if (text) {
       const like = `%${text.toLowerCase()}%`;
@@ -155,20 +164,9 @@ export class TeacherProfilesRepository {
     return qb;
   }
 
-  async findAllWithClubAndCoordinator(
-    ctx?: RoleCtx,
-  ): Promise<TeacherProfileEntity[]> {
-    const qb = this.baseQB()
-      .orderBy('teacher.createdAt', 'ASC')
-      .addOrderBy('club.number', 'ASC');
-
-    this.applyRoleFilter(qb, ctx);
-    return qb.getMany();
-  }
-
   async findOneWithClubAndCoordinatorOrFail(
     id: string,
-    ctx?: RoleCtx,
+    ctx?: AccessContext,
   ): Promise<TeacherProfileEntity> {
     const qb = this.baseQB().andWhere('teacher.id = :id', { id });
     this.applyRoleFilter(qb, ctx);
@@ -184,7 +182,7 @@ export class TeacherProfilesRepository {
 
   async findByClubIdWithCoordinator(
     clubId: string,
-    ctx?: RoleCtx,
+    ctx?: AccessContext,
   ): Promise<TeacherProfileEntity[]> {
     const club = await this.clubRepo.findOne({ where: { id: clubId } });
     if (!club)
@@ -193,7 +191,7 @@ export class TeacherProfilesRepository {
         'Clubinho não encontrado',
       );
 
-    if (ctx?.role && ctx.role !== 'admin') {
+    if (ctx?.role && ctx.role !== UserRole.ADMIN) {
       const allowed = await this.userHasAccessToClub(clubId, ctx);
       if (!allowed)
         throw new AppNotFoundException(
@@ -210,18 +208,20 @@ export class TeacherProfilesRepository {
 
   async findPageWithFilters(
     query: TeacherProfilesQueryDto,
-    ctx?: RoleCtx,
-  ): Promise<{
-    items: TeacherProfileEntity[];
-    total: number;
-    page: number;
-    limit: number;
-  }> {
-    const { page = 1, limit = 12, sort = 'updatedAt', order = 'desc' } = query;
+    ctx?: AccessContext,
+  ): Promise<PaginatedTeachers> {
+    const {
+      page = TEACHERS_DEFAULT_PAGE,
+      sort = TEACHERS_DEFAULT_SORT,
+      order = TEACHERS_DEFAULT_ORDER,
+    } = query;
+    const limit = Math.min(
+      Math.max(query.limit ?? TEACHERS_DEFAULT_LIMIT, 1),
+      TEACHERS_MAX_LIMIT,
+    );
 
     const sortColumn = this.resolveSort(sort);
-    const sortDir: SortDir =
-      (order || 'desc').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+    const sortDir: SortDir = order === SortOrder.ASC ? 'ASC' : 'DESC';
     const offset = (page - 1) * limit;
 
     const totalQB = this.applyFilters(this.baseIdsQuery(), query)
@@ -235,6 +235,9 @@ export class TeacherProfilesRepository {
       .addSelect(sortColumn, 'ord')
       .distinct(true)
       .orderBy(sortColumn, sortDir)
+      // O desempate por id mantém a paginação estável quando duas linhas têm o
+      // mesmo valor na coluna ordenada.
+      .addOrderBy('teacher.id', 'ASC')
       .offset(offset)
       .limit(limit);
     this.applyRoleFilter(idsQB, ctx);
@@ -256,7 +259,7 @@ export class TeacherProfilesRepository {
     return { items, total, page, limit };
   }
 
-  async list(ctx?: RoleCtx): Promise<TeacherSimpleListDto[]> {
+  async list(ctx?: AccessContext): Promise<TeacherSimpleListDto[]> {
     const qb = this.teacherRepo
       .createQueryBuilder('teacher')
       .leftJoin('teacher.user', 'user')
@@ -265,7 +268,7 @@ export class TeacherProfilesRepository {
       .where('user.active = true')
       .orderBy('teacher.createdAt', 'ASC');
 
-    if (ctx?.role === 'teacher') {
+    if (ctx?.role === UserRole.TEACHER) {
       qb.andWhere('1 = 0');
     }
 
@@ -297,17 +300,22 @@ export class TeacherProfilesRepository {
           'Clubinho não encontrado',
         );
 
-      if (teacher.club && teacher.club.id === clubId) return;
+      if (teacher.club?.id === clubId) return;
 
-      if (teacher.club && teacher.club.id !== clubId) {
-        throw new AppBusinessException(
-          ErrorCode.PROFILE_INVALID_OPERATION,
-          'Professor já está vinculado a outro Clubinho',
-        );
-      }
+      // Trocar de clubinho é uma operação só: desvincular antes deixaria o
+      // professor sem turma se a segunda chamada falhasse, e a tela oferece
+      // exatamente esta troca. Ninguém mais perde nada — o clubinho é um
+      // atributo do professor, e não um recurso disputado.
+      const previousClubId = teacher.club?.id ?? null;
 
       teacher.club = club;
       await txTeacherRepo.save(teacher);
+
+      if (previousClubId) {
+        this.logger.log(
+          `Professor ${teacherId} movido do clubinho ${previousClubId} para ${clubId}`,
+        );
+      }
     });
   }
 
@@ -337,7 +345,7 @@ export class TeacherProfilesRepository {
         );
       }
 
-      teacher.club = null as unknown as ClubEntity;
+      teacher.club = null;
       await txTeacherRepo.save(teacher);
     });
   }
@@ -362,7 +370,7 @@ export class TeacherProfilesRepository {
       const entity = txTeacher.create({
         user: user,
         active: true,
-        club: null as unknown as ClubEntity,
+        club: null,
       });
       return txTeacher.save(entity);
     });
@@ -377,6 +385,23 @@ export class TeacherProfilesRepository {
       if (!profile) return;
       await txTeacher.delete(profile.id);
     });
+  }
+
+  /**
+   * Liga ou desliga o perfil sem mexer no clubinho.
+   *
+   * Desativar um professor apagava o perfil, e com ele o vínculo: reativar
+   * criava um perfil novo, sem turma, e ninguém era avisado de que a ligação
+   * havia sumido. A criação já mantinha o perfil de um usuário inativo, então
+   * as duas rotinas discordavam.
+   */
+  async setActiveByUserId(userId: string, active: boolean): Promise<void> {
+    const profile = await this.teacherRepo.findOne({
+      where: { user: { id: userId } },
+    });
+    if (!profile || profile.active === active) return;
+
+    await this.teacherRepo.update(profile.id, { active });
   }
 
   async linkTeacherToClubByNumber(
@@ -439,7 +464,10 @@ export class TeacherProfilesRepository {
     });
   }
 
-  async userHasAccessToClub(clubId: string, ctx?: RoleCtx): Promise<boolean> {
+  async userHasAccessToClub(
+    clubId: string,
+    ctx?: AccessContext,
+  ): Promise<boolean> {
     const role = ctx?.role?.toLowerCase();
     const userId = ctx?.userId;
     if (!role || role === 'admin') return true;

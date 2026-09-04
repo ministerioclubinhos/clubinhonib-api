@@ -4,29 +4,15 @@ import { Request } from 'express';
 import { ChildrenRepository } from '../repositories/children.repository';
 import { AddressesService } from '../../addresses/addresses.service';
 import { GetClubsService } from '../../clubs/services/get-clubs.service';
-import {
-  AppForbiddenException,
-  ErrorCode,
-} from 'src/shared/exceptions';
+import { AppForbiddenException, ErrorCode } from 'src/shared/exceptions';
 
 import { CreateChildDto } from '../dto/create-child.dto';
 import { ChildResponseDto } from '../dto/child-response.dto';
 import { toChildResponseDto } from '../mappers/child.mapper';
 import { ClubEntity } from '../../clubs/entities/club.entity';
 import { AuthContextService } from 'src/core/auth/services/auth-context.service';
-
-const toDateOnlyStr = (v: string | Date | undefined | null): string | null => {
-  if (v === undefined || v === null) return null;
-  if (v instanceof Date && !isNaN(v.getTime()))
-    return v.toISOString().slice(0, 10);
-  const s = String(v).trim();
-  const m = s.match(/^(\d{4}-\d{2}-\d{2})$/);
-  if (m) return m[1];
-  const d = new Date(s);
-  return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
-};
-
-type AccessCtx = { role?: string; userId?: string | null };
+import { UserRole } from 'src/core/auth/auth.types';
+import { toDateOnly } from '../utils';
 
 @Injectable()
 export class CreateChildrenService {
@@ -37,21 +23,13 @@ export class CreateChildrenService {
     private readonly authContextService: AuthContextService,
   ) {}
 
-  private async getCtx(request: Request): Promise<AccessCtx> {
-    const payload = await this.authContextService.tryGetPayload(request);
-    return {
-      role: payload?.role?.toString().toLowerCase(),
-      userId: payload?.sub ?? null,
-    };
-  }
-
   async create(
     dto: CreateChildDto,
     request: Request,
   ): Promise<ChildResponseDto> {
-    const ctx = await this.getCtx(request);
+    const ctx = await this.authContextService.resolveAccessContext(request);
 
-    if (dto.clubId && ctx.role && ctx.role !== 'admin') {
+    if (dto.clubId && ctx.role && ctx.role !== UserRole.ADMIN) {
       const allowed = await this.childrenRepo.userHasAccessToClub(
         dto.clubId,
         ctx,
@@ -69,8 +47,8 @@ export class CreateChildrenService {
       guardianName: dto.guardianName,
       gender: dto.gender,
       guardianPhone: dto.guardianPhone ?? '',
-      birthDate: toDateOnlyStr(dto.birthDate) ?? '',
-      joinedAt: toDateOnlyStr(dto.joinedAt),
+      birthDate: toDateOnly(dto.birthDate) ?? '',
+      joinedAt: toDateOnly(dto.joinedAt),
       isActive: dto.isActive !== undefined ? dto.isActive : true,
     });
 

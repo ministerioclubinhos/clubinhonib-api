@@ -59,13 +59,16 @@ export class PasswordRecoveryService {
       expiresAt,
     );
 
-    await this.emailService.sendPasswordRecovery(user.email, {
-      recipientName: user.name,
-      resetLink: this.siteUrlService.buildUrl(
-        AUTH_EMAIL_PATHS.passwordReset,
-        resetToken,
-      ),
-    });
+    await this.emailService.sendPasswordRecovery(
+      { id: user.id, name: user.name, email: user.email },
+      {
+        recipientName: user.name,
+        resetLink: this.siteUrlService.buildUrl(
+          AUTH_EMAIL_PATHS.passwordReset,
+          resetToken,
+        ),
+      },
+    );
 
     return GENERIC_FORGOT_PASSWORD_RESPONSE;
   }
@@ -100,10 +103,13 @@ export class PasswordRecoveryService {
 
     await this.passwordResetTokenRepo.deleteToken(dto.token);
 
-    await this.emailService.sendPasswordChanged(user.email, {
-      recipientName: user.name,
-      loginLink: this.siteUrlService.baseUrl,
-    });
+    await this.emailService.sendPasswordChanged(
+      { id: user.id, name: user.name, email: user.email },
+      {
+        recipientName: user.name,
+        loginLink: this.siteUrlService.baseUrl,
+      },
+    );
 
     return { message: 'Senha alterada com sucesso.' };
   }

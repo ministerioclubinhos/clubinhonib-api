@@ -1,4 +1,16 @@
 /**
+ * Quem recebe um e-mail nominal.
+ *
+ * O id entra porque o rodapé leva um link de descadastro assinado para aquela
+ * pessoa: sem saber de quem é o endereço, não há token a emitir.
+ */
+export interface EmailRecipient {
+  id: string;
+  name: string;
+  email: string;
+}
+
+/**
  * Conteúdo pronto de um e-mail. Todo template devolve este formato, e é o
  * único formato que o serviço de e-mail entrega ao transporte.
  */
@@ -13,18 +25,24 @@ export interface EmailContent {
 export interface PasswordRecoveryEmailData {
   recipientName: string;
   resetLink: string;
+  /** Link do rodapé que cancela os avisos; some quando ausente. */
+  unsubscribeUrl?: string;
 }
 
 /** Dados do e-mail de confirmação de senha alterada. */
 export interface PasswordChangedEmailData {
   recipientName: string;
   loginLink: string;
+  /** Link do rodapé que cancela os avisos; some quando ausente. */
+  unsubscribeUrl?: string;
 }
 
 /** Dados do e-mail de confirmação de endereço. */
 export interface EmailVerificationEmailData {
   recipientName: string;
   verificationLink: string;
+  /** Link do rodapé que cancela os avisos; some quando ausente. */
+  unsubscribeUrl?: string;
 }
 
 /** Dados do aviso de novo contato recebido pelo site. */
@@ -97,6 +115,8 @@ export interface WeekMaterialAnnouncementEmailData {
   subtitle?: string;
   description?: string;
   materialLink: string;
+  /** Link do rodapé que cancela os avisos; some quando ausente. */
+  unsubscribeUrl?: string;
 }
 
 /**
@@ -109,11 +129,14 @@ export interface EventAnnouncementEmailData {
   location: string;
   description?: string;
   agendaLink: string;
+  /** Link do rodapé que cancela os avisos; some quando ausente. */
+  unsubscribeUrl?: string;
 }
 
 /** Resultado de um envio em lote para toda a base. */
 export interface BulkEmailResult {
   recipients: number;
-  batchesSent: number;
-  batchesFailed: number;
+  /** Mensagens entregues ao transporte, uma por pessoa. */
+  sent: number;
+  failed: number;
 }

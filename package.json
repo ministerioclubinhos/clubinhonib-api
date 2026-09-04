@@ -24,7 +24,11 @@
     "test:all": "node scripts/run-all-testes.js",
     "populate": "node scripts/populate-mass.js",
     "s3:audit": "node scripts/s3/audit-orphans.js",
-    "email:preview": "ts-node -r tsconfig-paths/register scripts/email/preview.ts"
+    "email:preview": "ts-node -r tsconfig-paths/register scripts/email/preview.ts",
+    "db:local:migration:generate": "cross-env ENV_FILE=env/local.env node --require ts-node/register/transpile-only --require tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:generate",
+    "db:local:migration:deploy": "cross-env ENV_FILE=env/local.env node --require ts-node/register/transpile-only --require tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:run",
+    "db:local:migration:status": "cross-env ENV_FILE=env/local.env node --require ts-node/register/transpile-only --require tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:show",
+    "db:local:migration:revert": "cross-env ENV_FILE=env/local.env node --require ts-node/register/transpile-only --require tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:revert"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.758.0",

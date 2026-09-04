@@ -119,13 +119,16 @@ export class EmailVerificationService {
     await this.tokenRepo.deleteAllOfUser(user.id);
     await this.tokenRepo.createToken(user.id, this.hash(token), expiresAt);
 
-    await this.emailService.sendEmailVerification(user.email, {
-      recipientName: user.name,
-      verificationLink: this.siteUrlService.buildUrl(
-        AUTH_EMAIL_PATHS.emailVerification,
-        token,
-      ),
-    });
+    await this.emailService.sendEmailVerification(
+      { id: user.id, name: user.name, email: user.email },
+      {
+        recipientName: user.name,
+        verificationLink: this.siteUrlService.buildUrl(
+          AUTH_EMAIL_PATHS.emailVerification,
+          token,
+        ),
+      },
+    );
 
     return {
       verificationEmailSent: true,

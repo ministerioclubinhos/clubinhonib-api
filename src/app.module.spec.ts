@@ -65,13 +65,20 @@ const findBrokenImports = (
   return broken;
 };
 
-/** Entidades registradas na conexão raiz do TypeORM. */
+/**
+ * Entidades registradas na conexão raiz do TypeORM.
+ *
+ * A lista mora em `src/database/entities.ts` porque o `DataSource` do CLI de
+ * migration precisa exatamente das mesmas: gerar a partir de um conjunto
+ * diferente do que a aplicação usa produziria um diff inventado.
+ */
 const registeredEntities = (): string[] => {
   const source = readFileSync(
-    join(__dirname, '..', 'database', 'database.module.ts'),
+    join(__dirname, 'database', 'entities.ts'),
     'utf8',
   );
-  const block = /entities:\s*\[([\s\S]*?)\]/.exec(source)?.[1] ?? '';
+  const block =
+    /DATABASE_ENTITIES\s*=\s*\[([\s\S]*?)\]/.exec(source)?.[1] ?? '';
   return block
     .split(',')
     .map((entry) => entry.trim())

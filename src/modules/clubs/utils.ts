@@ -41,3 +41,33 @@ export function formatClubOptionLabel(
 ): string {
   return `Clubinho ${number} : ${district?.trim() || CLUB_DISTRICT_FALLBACK}`;
 }
+
+/**
+ * Um coordenador só traz para o clubinho dele um professor que já esteja sob a
+ * sua coordenação.
+ *
+ * Vincular passou a mover o professor entre clubinhos; sem esta conferência, o
+ * formulário do clubinho seria a porta dos fundos para tirar um professor da
+ * turma de outra coordenação.
+ */
+export function assertCanTakeTeachers(args: {
+  context: ClubAccessContext;
+  targetClubId: string | null;
+  currentClubIdByTeacher: Map<string, string | null>;
+  accessibleClubIds: Set<string>;
+}): void {
+  const { context, targetClubId, currentClubIdByTeacher, accessibleClubIds } =
+    args;
+
+  if (normalizedRole(context) !== 'coordinator') return;
+
+  for (const [, currentClubId] of currentClubIdByTeacher) {
+    if (!currentClubId || currentClubId === targetClubId) continue;
+    if (accessibleClubIds.has(currentClubId)) continue;
+
+    throw new AppForbiddenException(
+      ErrorCode.CLUB_ACCESS_DENIED,
+      'Um dos professores está em um clubinho de outra coordenação',
+    );
+  }
+}

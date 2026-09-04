@@ -1,6 +1,6 @@
 import { EMAIL_SUBJECTS } from '../constants';
 import { EmailContent, PasswordChangedEmailData } from '../types';
-import { joinTextLines } from '../utils';
+import { joinTextLines, unsubscribeTextLines } from '../utils';
 import { button, composeBody, note, paragraph } from './blocks';
 import { renderEmailLayout } from './layout';
 
@@ -22,6 +22,7 @@ export function passwordChangedEmail(
       button('Acessar plataforma', data.loginLink),
       note(warning),
     ]),
+    unsubscribeUrl: data.unsubscribeUrl,
   });
 
   const text = joinTextLines([
@@ -32,6 +33,7 @@ export function passwordChangedEmail(
     data.loginLink,
     '',
     warning,
+    ...unsubscribeTextLines(data.unsubscribeUrl),
   ]);
 
   return { subject: EMAIL_SUBJECTS.passwordChanged, html, text };

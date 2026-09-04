@@ -1,6 +1,6 @@
 import { EMAIL_LINK_TTL_MINUTES, EMAIL_SUBJECTS } from '../constants';
 import { EmailContent, EmailVerificationEmailData } from '../types';
-import { joinTextLines } from '../utils';
+import { joinTextLines, unsubscribeTextLines } from '../utils';
 import { button, composeBody, linkFallback, note, paragraph } from './blocks';
 import { renderEmailLayout } from './layout';
 
@@ -28,6 +28,7 @@ export function emailVerificationEmail(
       note(validity),
       note('Se você não criou uma conta, pode ignorar este e-mail.'),
     ]),
+    unsubscribeUrl: data.unsubscribeUrl,
   });
 
   const text = joinTextLines([
@@ -39,6 +40,7 @@ export function emailVerificationEmail(
     '',
     validity,
     'Se você não criou uma conta, pode ignorar este e-mail.',
+    ...unsubscribeTextLines(data.unsubscribeUrl),
   ]);
 
   return { subject: EMAIL_SUBJECTS.emailVerification, html, text };

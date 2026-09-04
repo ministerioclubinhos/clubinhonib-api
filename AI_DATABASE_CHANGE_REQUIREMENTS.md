@@ -6,19 +6,29 @@ Every database schema migration MUST be generated automatically by the TypeORM C
 
 The migration file MUST originate from `typeorm migration:generate`. Creating it with an editor, `apply_patch`, copy/paste, an ad hoc script, raw SQL, or `typeorm migration:create` is prohibited for schema changes. Manually editing the generated migration is also prohibited.
 
-## Current Repository Gap
+## Repository Status
 
-The repository currently uses `synchronize: true` and does not expose a complete TypeORM CLI migration workflow. This is existing technical debt, not an allowed schema-change mechanism.
+The migration infrastructure now exists and has been validated:
 
-Before the next schema-changing delivery, the implementation MUST first establish and validate:
+| Piece | Where |
+| --- | --- |
+| CLI `DataSource` | `src/database/data-source.ts` |
+| Entity list shared by app and CLI | `src/database/entities.ts` |
+| Versioned migration output | `src/database/migrations/` |
+| `synchronize` | `false` by default; `DB_SYNCHRONIZE=true` opts in and logs a warning |
+| Local commands | `db:local:migration:generate`, `db:local:migration:deploy`, `db:local:migration:status`, `db:local:migration:revert` |
+| Disposable-database guard | the `DataSource` refuses a non-local `DB_HOST` unless `DB_MIGRATION_ALLOW_REMOTE=true` |
 
-- a TypeORM CLI `DataSource` using the same entity metadata and naming behavior as the application;
-- `synchronize: false` for controlled environments;
-- a versioned migration output directory;
-- local commands for `migration:generate`, `migration:run`, and `migration:show`/status;
-- environment loading that points generation at a disposable/local database only.
+The entity list lives in `src/database/entities.ts` and is imported by both the
+application module and the CLI `DataSource`: generating from a different set
+than the application registers would produce an invented diff.
+`src/app.module.spec.ts` fails if an `@Entity` class is missing from that list.
 
-No entity/schema change is complete until this infrastructure exists and TypeORM itself has generated the migration.
+There is no baseline migration. When the infrastructure was set up,
+`migration:generate` reported *"No changes in database schema were found"* — the
+schema built by the old `synchronize: true` already matched the entities
+exactly. Environments created before this point already have the schema, so the
+first versioned migration is the first real change after it.
 
 ## Required Workflow
 

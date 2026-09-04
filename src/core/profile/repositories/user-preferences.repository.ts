@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { UserPreferences } from '../entities/user-preferences.entity';
 
 @Injectable()
@@ -10,6 +10,12 @@ export class UserPreferencesRepository extends Repository<UserPreferences> {
 
   async findByUserId(userId: string): Promise<UserPreferences | null> {
     return this.findOne({ where: { userId } });
+  }
+
+  /** Preferências de vários usuários de uma vez. */
+  async findByUserIds(userIds: string[]): Promise<UserPreferences[]> {
+    if (!userIds.length) return [];
+    return this.find({ where: { userId: In(userIds) } });
   }
 
   async createForUser(

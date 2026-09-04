@@ -1,7 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { SmtpService } from 'src/shared/providers/smtp/smtp.service';
+import { SiteUrlService } from 'src/shared/site-url/site-url.service';
 import {
   BulkEmailResult,
+  EmailRecipient,
   ContactNotificationEmailData,
   CommentNotificationEmailData,
   IdeaSharedNotificationEmailData,
@@ -30,7 +32,8 @@ import {
   eventUpdatedEmail,
   eventCancelledEmail,
 } from './templates';
-import { EMAIL_ANNOUNCEMENT_BATCH_SIZE } from './constants';
+import { UNSUBSCRIBE_PATH } from './constants';
+import { UnsubscribeTokenService } from './unsubscribe-token.service';
 
 /**
  * Único ponto de disparo de e-mail da aplicação: um método por e-mail, cada um
@@ -41,27 +44,63 @@ import { EMAIL_ANNOUNCEMENT_BATCH_SIZE } from './constants';
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
 
-  constructor(private readonly smtpService: SmtpService) {}
+  constructor(
+    private readonly smtpService: SmtpService,
+    private readonly siteUrlService: SiteUrlService,
+    private readonly unsubscribeTokenService: UnsubscribeTokenService,
+  ) {}
+
+  /**
+   * O link do rodapé, assinado para quem vai receber.
+   *
+   * Aponta para uma página do site, e não para a API: um `GET` que já cancela
+   * seria disparado pelos leitores de link que os provedores rodam antes de a
+   * pessoa abrir o e-mail, descadastrando quem nunca clicou.
+   */
+  private unsubscribeUrlFor(recipient: EmailRecipient): string {
+    const token = this.unsubscribeTokenService.create(recipient.id);
+    const base = this.siteUrlService.baseUrl;
+
+    return `${base}${UNSUBSCRIBE_PATH}?token=${encodeURIComponent(token)}`;
+  }
 
   async sendPasswordRecovery(
-    to: string,
+    recipient: EmailRecipient,
     data: PasswordRecoveryEmailData,
   ): Promise<void> {
-    await this.send(to, passwordRecoveryEmail(data));
+    await this.send(
+      recipient.email,
+      passwordRecoveryEmail({
+        ...data,
+        unsubscribeUrl: this.unsubscribeUrlFor(recipient),
+      }),
+    );
   }
 
   async sendPasswordChanged(
-    to: string,
+    recipient: EmailRecipient,
     data: PasswordChangedEmailData,
   ): Promise<void> {
-    await this.send(to, passwordChangedEmail(data));
+    await this.send(
+      recipient.email,
+      passwordChangedEmail({
+        ...data,
+        unsubscribeUrl: this.unsubscribeUrlFor(recipient),
+      }),
+    );
   }
 
   async sendEmailVerification(
-    to: string,
+    recipient: EmailRecipient,
     data: EmailVerificationEmailData,
   ): Promise<void> {
-    await this.send(to, emailVerificationEmail(data));
+    await this.send(
+      recipient.email,
+      emailVerificationEmail({
+        ...data,
+        unsubscribeUrl: this.unsubscribeUrlFor(recipient),
+      }),
+    );
   }
 
   /**
@@ -220,86 +259,107 @@ export class EmailService {
 
   /** Avisa toda a base sobre um novo material da semana. */
   async sendWeekMaterialAnnouncement(
-    recipients: string[],
+    recipients: EmailRecipient[],
     data: WeekMaterialAnnouncementEmailData,
   ): Promise<BulkEmailResult> {
-    return this.sendBulk(recipients, weekMaterialAnnouncementEmail(data));
+    return this.sendToEach(recipients, (unsubscribeUrl) =>
+      weekMaterialAnnouncementEmail({ ...data, unsubscribeUrl }),
+    );
   }
 
   /** Avisa toda a base sobre um evento novo na agenda. */
   async sendEventCreated(
-    recipients: string[],
+    recipients: EmailRecipient[],
     data: EventAnnouncementEmailData,
   ): Promise<BulkEmailResult> {
-    return this.sendBulk(recipients, eventCreatedEmail(data));
+    return this.sendToEach(recipients, (unsubscribeUrl) =>
+      eventCreatedEmail({ ...data, unsubscribeUrl }),
+    );
   }
 
   /** Avisa toda a base de que um evento da agenda mudou. */
   async sendEventUpdated(
-    recipients: string[],
+    recipients: EmailRecipient[],
     data: EventAnnouncementEmailData,
   ): Promise<BulkEmailResult> {
-    return this.sendBulk(recipients, eventUpdatedEmail(data));
+    return this.sendToEach(recipients, (unsubscribeUrl) =>
+      eventUpdatedEmail({ ...data, unsubscribeUrl }),
+    );
   }
 
   /** Avisa toda a base de que um evento saiu da agenda. */
   async sendEventCancelled(
-    recipients: string[],
+    recipients: EmailRecipient[],
     data: EventAnnouncementEmailData,
   ): Promise<BulkEmailResult> {
-    return this.sendBulk(recipients, eventCancelledEmail(data));
+    return this.sendToEach(recipients, (unsubscribeUrl) =>
+      eventCancelledEmail({ ...data, unsubscribeUrl }),
+    );
   }
 
   /**
-   * Envia o mesmo conteúdo para toda a base.
+   * Envia o aviso pessoa a pessoa.
    *
-   * Os endereços vão em cópia oculta, em lotes: ninguém vê a lista dos outros e
-   * cada mensagem fica dentro do limite de destinatários do provedor. Um lote
-   * que falha não interrompe os demais — o retorno diz quantos passaram.
+   * Antes ia em lotes com os endereços em cópia oculta, um HTML para muita
+   * gente. O rodapé precisa levar o token de quem recebe, e um token só serve
+   * para uma pessoa — então cada mensagem é montada para o seu destinatário.
+   *
+   * Uma falha isolada não interrompe as demais: o retorno diz quantas passaram,
+   * e o registro nomeia o quanto falhou sem expor os endereços.
    */
-  private async sendBulk(
-    recipients: string[],
-    content: EmailContent,
+  private async sendToEach(
+    recipients: EmailRecipient[],
+    buildContent: (unsubscribeUrl: string) => EmailContent,
   ): Promise<BulkEmailResult> {
-    const unique = [...new Set(recipients.map((email) => email.trim()))].filter(
-      (email) => email.length > 0,
-    );
+    const unique = this.uniqueRecipients(recipients);
 
     const result: BulkEmailResult = {
       recipients: unique.length,
-      batchesSent: 0,
-      batchesFailed: 0,
+      sent: 0,
+      failed: 0,
     };
 
     if (unique.length === 0) {
-      this.logger.warn(`Nenhum destinatário para "${content.subject}".`);
+      this.logger.warn('Nenhum destinatário para o aviso.');
       return result;
     }
 
-    for (const batch of this.inBatches(unique, EMAIL_ANNOUNCEMENT_BATCH_SIZE)) {
+    let subject = '';
+
+    for (const recipient of unique) {
+      const content = buildContent(this.unsubscribeUrlFor(recipient));
+      subject = content.subject;
+
       try {
-        await this.smtpService.sendMail({ bcc: batch, ...content });
-        result.batchesSent += 1;
+        await this.smtpService.sendMail({ to: recipient.email, ...content });
+        result.sent += 1;
       } catch (error: unknown) {
-        result.batchesFailed += 1;
+        result.failed += 1;
         this.logger.error(
-          `Lote de "${content.subject}" falhou (${batch.length} destinatários).`,
+          `Falha ao enviar "${content.subject}" para um destinatário.`,
           error instanceof Error ? error.stack : undefined,
         );
       }
     }
 
     this.logger.log(
-      `"${content.subject}": ${result.recipients} destinatário(s), ${result.batchesSent} lote(s) enviado(s), ${result.batchesFailed} com falha.`,
+      `"${subject}": ${result.recipients} destinatário(s), ${result.sent} enviado(s), ${result.failed} com falha.`,
     );
 
     return result;
   }
 
-  private *inBatches(items: string[], size: number): Generator<string[]> {
-    for (let index = 0; index < items.length; index += size) {
-      yield items.slice(index, index + size);
+  /** Um envio por pessoa, sem endereço repetido. */
+  private uniqueRecipients(recipients: EmailRecipient[]): EmailRecipient[] {
+    const byEmail = new Map<string, EmailRecipient>();
+
+    for (const recipient of recipients) {
+      const email = recipient.email?.trim();
+      if (!email) continue;
+      if (!byEmail.has(email)) byEmail.set(email, { ...recipient, email });
     }
+
+    return [...byEmail.values()];
   }
 
   private async send(to: string, content: EmailContent): Promise<void> {

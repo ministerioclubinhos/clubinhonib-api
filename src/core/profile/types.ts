@@ -1,5 +1,3 @@
-import { PROFILE_SORT_FIELDS } from './constants';
-
 /**
  * Quem está pedindo a operação.
  *
@@ -26,8 +24,11 @@ export interface ProfileUserSource {
   role: string;
 }
 
-/** Campo pelo qual a listagem pode ser ordenada. */
-export type ProfileSortField = (typeof PROFILE_SORT_FIELDS)[number];
-
-/** Direção da ordenação. */
-export type ProfileSortOrder = 'ASC' | 'DESC';
+/** Linha da faixa de aniversariantes, no recorte mínimo que a tela mostra. */
+export interface ProfileBirthdayRow {
+  id: string;
+  name: string;
+  role: string;
+  /** `YYYY-MM-DD` ou `Date`, conforme o driver. */
+  birthDate: string | Date;
+}

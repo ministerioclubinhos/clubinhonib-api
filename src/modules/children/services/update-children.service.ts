@@ -15,19 +15,8 @@ import { ChildResponseDto } from '../dto/child-response.dto';
 import { toChildResponseDto } from '../mappers/child.mapper';
 import { ClubEntity } from '../../clubs/entities/club.entity';
 import { AuthContextService } from 'src/core/auth/services/auth-context.service';
-
-const toDateOnlyStr = (v: string | Date | undefined | null): string | null => {
-  if (v === undefined || v === null) return null;
-  if (v instanceof Date && !isNaN(v.getTime()))
-    return v.toISOString().slice(0, 10);
-  const s = String(v).trim();
-  const m = s.match(/^(\d{4}-\d{2}-\d{2})$/);
-  if (m) return m[1];
-  const d = new Date(s);
-  return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
-};
-
-type AccessCtx = { role?: string; userId?: string | null };
+import { UserRole } from 'src/core/auth/auth.types';
+import { toDateOnly } from '../utils';
 
 @Injectable()
 export class UpdateChildrenService {
@@ -38,20 +27,12 @@ export class UpdateChildrenService {
     private readonly authContextService: AuthContextService,
   ) {}
 
-  private async getCtx(request: Request): Promise<AccessCtx> {
-    const payload = await this.authContextService.tryGetPayload(request);
-    return {
-      role: payload?.role?.toString().toLowerCase(),
-      userId: payload?.sub ?? null,
-    };
-  }
-
   async update(
     id: string,
     dto: UpdateChildDto,
     request: Request,
   ): Promise<ChildResponseDto> {
-    const ctx = await this.getCtx(request);
+    const ctx = await this.authContextService.resolveAccessContext(request);
 
     const entity = await this.childrenRepo.findOneForResponse(id, ctx);
     if (!entity) {
@@ -67,9 +48,8 @@ export class UpdateChildrenService {
     if (dto.guardianPhone !== undefined)
       entity.guardianPhone = dto.guardianPhone ?? '';
     if (dto.birthDate !== undefined)
-      entity.birthDate = toDateOnlyStr(dto.birthDate) ?? '';
-    if (dto.joinedAt !== undefined)
-      entity.joinedAt = toDateOnlyStr(dto.joinedAt);
+      entity.birthDate = toDateOnly(dto.birthDate) ?? '';
+    if (dto.joinedAt !== undefined) entity.joinedAt = toDateOnly(dto.joinedAt);
     if (dto.isActive !== undefined) entity.isActive = dto.isActive;
 
     if (dto.clubId !== undefined) {
@@ -77,7 +57,7 @@ export class UpdateChildrenService {
         entity.club = null;
       } else {
         await this.getClubsService.findOne(dto.clubId, ctx);
-        if (ctx.role && ctx.role !== 'admin') {
+        if (ctx.role && ctx.role !== UserRole.ADMIN) {
           const allowed = await this.childrenRepo.userHasAccessToClub(
             dto.clubId,
             ctx,
@@ -111,7 +91,7 @@ export class UpdateChildrenService {
   }
 
   async toggleActive(id: string, request: Request): Promise<ChildResponseDto> {
-    const ctx = await this.getCtx(request);
+    const ctx = await this.authContextService.resolveAccessContext(request);
     const entity = await this.childrenRepo.findOneForResponse(id, ctx);
     if (!entity) {
       throw new AppNotFoundException(

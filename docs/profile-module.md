@@ -112,13 +112,21 @@ Retrieves a paginated list of extended profiles.
 
 | Param | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `page` | `int` | `1` | Page number. |
-| `limit` | `int` | `10` | Items per page. |
-| `q` | `string` | - | General search. |
+| `page` | `int` ≥ 1 | `1` | Page number. |
+| `limit` | `int` 1–100 | `12` | Items per page. The ceiling is enforced by the DTO and again by the service. |
+| `q` | `string` | - | Name or e-mail. |
 | `name` | `string` | - | Filter by name. |
-| `role` | `string` | - | Filter by role. |
-| `loveLanguages` | `string` | - | Filter by specific preference. |
-| `sortBy` | `enum` | `name` | `name`, `email`, `createdAt`. |
+| `email` | `string` | - | Filter by e-mail. |
+| `role` | `UserRole` | - | `admin`, `coordinator` or `teacher`. |
+| `loveLanguages` | `string` | - | Filter by preference. |
+| `temperaments` | `string` | - | Filter by preference. |
+| `favoriteColor` | `string` | - | Filter by preference. |
+| `sortBy` | `ProfileSortField` | `name` | `name`, `email`, `createdAt`, `birthDate`. |
+| `order` | `ASC` \| `DESC` | `ASC` | |
+
+An admin sees every profile; a coordinator sees only the teachers of the clubs
+they coordinate. Ordering breaks ties by `u.id`, so paging never repeats or skips
+a row.
 
 #### Example Request URL
 
@@ -127,7 +135,36 @@ Retrieves a paginated list of extended profiles.
 ### Response
 
 - **Status**: `200 OK`
-- Returns paginated list of `CompleteProfileResponseDto`.
+- Returns a paginated list of `CompleteProfileResponseDto` with
+  `meta: { currentPage, itemsPerPage, totalItems, totalPages, hasNextPage, hasPreviousPage }`.
+
+---
+
+## 2.1 Birthdays of the current month
+
+The listing screen shows a band of upcoming birthdays. It used to build that by
+requesting the full listing with `limit=1000`, which returned complete profiles —
+contact details and preferences included — for everyone, most of whom had no
+birthday that month. This endpoint answers the same question directly.
+
+- **Endpoint**: `GET /profiles/birthdays`
+- **Access**: Protected (Admin, Coordinator) — same scope as the listing.
+- **Response** (`ProfileBirthdayResponseDto[]`), bounded to 200 rows and ordered
+  by day of month:
+
+  ```json
+  [
+    {
+      "id": "uuid-user",
+      "name": "Marta Reis",
+      "role": "coordinator",
+      "birthDate": "1990-05-20",
+      "image": { "id": "uuid-media", "url": "https://…", "title": null, "description": null, "uploadType": "upload", "mediaType": "image", "isLocalFile": true, "platformType": null, "originalName": "foto.jpg", "size": 12345 }
+    }
+  ]
+  ```
+
+  No e-mail, no phone, no preferences: the band shows a name, a photo and a date.
 
 ---
 

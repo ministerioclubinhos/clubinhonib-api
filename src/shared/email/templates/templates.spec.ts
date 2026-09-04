@@ -1,4 +1,9 @@
-import { EMAIL_BRAND, EMAIL_SUBJECTS } from '../constants';
+import {
+  EMAIL_BRAND,
+  EMAIL_COLORS,
+  EMAIL_SUBJECTS,
+  UNSUBSCRIBE_FOOTER,
+} from '../constants';
 import { EmailContent } from '../types';
 import { dataTable } from './blocks';
 import {
@@ -255,5 +260,64 @@ describe('templates de e-mail', () => {
     expect(html).toContain('tel:11988887777');
     expect(html).toContain('Quero ajudar no clubinho.');
     expect(text).toContain('Quero ajudar no clubinho.');
+  });
+});
+
+/**
+ * O rodapé de descadastro.
+ *
+ * Precisa estar em todo e-mail nominal e ficar discreto: o pedido foi um link
+ * sempre ao alcance, sem competir com o conteúdo.
+ */
+describe('rodapé de descadastro', () => {
+  const unsubscribeUrl = 'https://clubinhonib.com/descadastrar?token=abc.def';
+
+  it('mostra o link quando ele é informado', () => {
+    const { html, text } = passwordRecoveryEmail({
+      recipientName: 'Ana',
+      resetLink: 'https://clubinhonib.com/recuperar-senha/abc',
+      unsubscribeUrl,
+    });
+
+    expect(html).toContain(unsubscribeUrl);
+    expect(html).toContain(UNSUBSCRIBE_FOOTER.action);
+    expect(text).toContain(unsubscribeUrl);
+  });
+
+  it('some por completo quando não há link', () => {
+    const { html, text } = passwordRecoveryEmail({
+      recipientName: 'Ana',
+      resetLink: 'https://clubinhonib.com/recuperar-senha/abc',
+    });
+
+    expect(html).not.toContain(UNSUBSCRIBE_FOOTER.action);
+    expect(text).not.toContain(UNSUBSCRIBE_FOOTER.question);
+  });
+
+  /** Discreto: menor que o resto do rodapé e em tom neutro. */
+  it('usa o menor corpo do rodapé e a cor de apoio', () => {
+    const { html } = passwordRecoveryEmail({
+      recipientName: 'Ana',
+      resetLink: 'https://clubinhonib.com/recuperar-senha/abc',
+      unsubscribeUrl,
+    });
+
+    const line = html
+      .split('\n')
+      .find((row) => row.includes(UNSUBSCRIBE_FOOTER.action));
+
+    expect(line).toContain('font-size: 11px');
+    expect(line).toContain(EMAIL_COLORS.mutedText);
+  });
+
+  /** `safeUrl` já barra esquema estranho; aqui o link simplesmente não sai. */
+  it('não renderiza link de esquema não permitido', () => {
+    const { html } = passwordRecoveryEmail({
+      recipientName: 'Ana',
+      resetLink: 'https://clubinhonib.com/recuperar-senha/abc',
+      unsubscribeUrl: 'javascript:alert(1)',
+    });
+
+    expect(html).not.toContain('javascript:');
   });
 });

@@ -1,6 +1,6 @@
 import { EMAIL_SUBJECTS } from '../constants';
 import { EmailContent, WeekMaterialAnnouncementEmailData } from '../types';
-import { joinTextLines } from '../utils';
+import { joinTextLines, unsubscribeTextLines } from '../utils';
 import { button, composeBody, linkFallback, note, paragraph } from './blocks';
 import { renderEmailLayout } from './layout';
 
@@ -25,6 +25,7 @@ export function weekMaterialAnnouncementEmail(
       linkFallback(data.materialLink),
       note('Bom preparo e uma ótima visita!'),
     ]),
+    unsubscribeUrl: data.unsubscribeUrl,
   });
 
   const text = joinTextLines([
@@ -38,6 +39,7 @@ export function weekMaterialAnnouncementEmail(
     data.materialLink,
     '',
     'Bom preparo e uma ótima visita!',
+    ...unsubscribeTextLines(data.unsubscribeUrl),
   ]);
 
   return { subject: EMAIL_SUBJECTS.weekMaterialAnnouncement, html, text };

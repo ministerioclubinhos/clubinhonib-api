@@ -9,6 +9,7 @@ import { DeleteProfileService } from './services/profile/delete-profile.service'
 import { UserRepository } from '../user/user.repository';
 import { PersonalDataRepository } from './repositories/personal-data.repository';
 import { UserPreferencesRepository } from './repositories/user-preferences.repository';
+import { ProfilesListingRepository } from './repositories/profiles-listing.repository';
 import { UserEntity } from '../user/entities/user.entity';
 import { PersonalData } from './entities/personal-data.entity';
 import { UserPreferences } from './entities/user-preferences.entity';
@@ -31,6 +32,7 @@ import { MediaModule } from 'src/shared/media/media.module';
     UserRepository,
     PersonalDataRepository,
     UserPreferencesRepository,
+    ProfilesListingRepository,
   ],
   exports: [
     CreateProfileService,

@@ -9,6 +9,7 @@ import {
 } from 'src/shared/media/media-item/media-item.entity';
 import { GetUsersService } from './get-user.service';
 import { AppValidationException, ErrorCode } from 'src/shared/exceptions';
+import { USER_MEDIA_TARGET, USER_IMAGE_FIELD_KEY } from '../constants';
 
 @Injectable()
 export class UpdateUserImageService {
@@ -89,7 +90,7 @@ export class UpdateUserImageService {
 
     const existingMedia = await this.mediaItemProcessor.findMediaItemByTarget(
       userId,
-      'UserEntity',
+      USER_MEDIA_TARGET,
     );
 
     // O arquivo sobe antes da mídia ser gravada: o rastreador permite apagá-lo
@@ -108,13 +109,13 @@ export class UpdateUserImageService {
             platformType: PlatformType.ANY,
           },
           userId,
-          'UserEntity',
+          USER_MEDIA_TARGET,
         );
 
         const hasOldLocalFile = existingMedia.isLocalFile && existingMedia.url;
 
         if (hasFile) {
-          const fieldKey = mediaDto.fieldKey || 'file';
+          const fieldKey = mediaDto.fieldKey || USER_IMAGE_FIELD_KEY;
           const file = filesDict[fieldKey];
           if (!file) {
             throw new AppValidationException(
@@ -162,11 +163,11 @@ export class UpdateUserImageService {
             description: mediaDto.description || 'Imagem de perfil do usuário',
           },
           userId,
-          'UserEntity',
+          USER_MEDIA_TARGET,
         );
 
         if (hasFile) {
-          const fieldKey = mediaDto.fieldKey || 'file';
+          const fieldKey = mediaDto.fieldKey || USER_IMAGE_FIELD_KEY;
           const file = filesDict[fieldKey];
           if (!file) {
             throw new AppValidationException(

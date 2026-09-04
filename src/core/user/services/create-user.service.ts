@@ -5,10 +5,13 @@ import { UserRepository } from '../user.repository';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { UserEntity } from '../entities/user.entity';
 
-import { TeacherProfilesService } from 'src/modules/teacher-profiles/services/teacher-profiles.service';
-import { CoordinatorProfilesService } from 'src/modules/coordinator-profiles/services/coordinator-profiles.service';
+import { CreateTeacherProfilesService } from 'src/modules/teacher-profiles/services/create-teacher-profiles.service';
+import { UpdateTeacherProfilesService } from 'src/modules/teacher-profiles/services/update-teacher-profiles.service';
+import { CreateCoordinatorProfilesService } from 'src/modules/coordinator-profiles/services/create-coordinator-profiles.service';
+import { UpdateCoordinatorProfilesService } from 'src/modules/coordinator-profiles/services/update-coordinator-profiles.service';
 import { UserRole } from 'src/core/auth/auth.types';
 import { AppConflictException, ErrorCode } from 'src/shared/exceptions';
+import { PASSWORD_SALT_ROUNDS } from '../constants';
 
 @Injectable()
 export class CreateUserService {
@@ -16,8 +19,10 @@ export class CreateUserService {
 
   constructor(
     private readonly userRepo: UserRepository,
-    private teacherProfilesService: TeacherProfilesService,
-    private coordinatorProfilesService: CoordinatorProfilesService,
+    private readonly createTeacherProfileService: CreateTeacherProfilesService,
+    private readonly updateTeacherProfileService: UpdateTeacherProfilesService,
+    private readonly createCoordinatorProfileService: CreateCoordinatorProfilesService,
+    private readonly updateCoordinatorProfileService: UpdateCoordinatorProfilesService,
   ) {}
 
   async create(dto: CreateUserDto): Promise<UserEntity> {
@@ -41,7 +46,10 @@ export class CreateUserService {
       }
     }
 
-    const hashedPassword = await bcrypt.hash(dto.password, 10);
+    const hashedPassword = await bcrypt.hash(
+      dto.password,
+      PASSWORD_SALT_ROUNDS,
+    );
     const user = await this.userRepo.create({
       email: dto.email,
       password: hashedPassword,
@@ -54,11 +62,22 @@ export class CreateUserService {
       cpf: dto.cpf,
     });
 
+    // O perfil nasce junto com a conta e já espelha a situação dela: criar uma
+    // conta inativa deixava um perfil ativo para trás.
     if (user.role === UserRole.COORDINATOR) {
-      await this.coordinatorProfilesService.createForUser(user.id);
+      await this.createCoordinatorProfileService.createForUser(user.id);
+      await this.updateCoordinatorProfileService.setActiveForUser(
+        user.id,
+        user.active,
+      );
     } else if (user.role === UserRole.TEACHER) {
-      await this.teacherProfilesService.createForUser(user.id);
+      await this.createTeacherProfileService.createForUser(user.id);
+      await this.updateTeacherProfileService.setActiveForUser(
+        user.id,
+        user.active,
+      );
     }
+
     return user;
   }
 }

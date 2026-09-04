@@ -31,13 +31,13 @@ describe('AnnounceWeekMaterialService', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     getUsersService.findActiveRecipients.mockResolvedValue([
-      { name: 'Ana', email: 'ana@exemplo.com' },
-      { name: 'Bia', email: 'bia@exemplo.com' },
+      { id: 'user-1', name: 'Ana', email: 'ana@exemplo.com' },
+      { id: 'user-2', name: 'Bia', email: 'bia@exemplo.com' },
     ]);
     emailService.sendWeekMaterialAnnouncement.mockResolvedValue({
       recipients: 2,
-      batchesSent: 1,
-      batchesFailed: 0,
+      sent: 2,
+      failed: 0,
     });
 
     const moduleRef = await Test.createTestingModule({
@@ -55,8 +55,13 @@ describe('AnnounceWeekMaterialService', () => {
   it('envia para os usuários já validados, com o link da página', async () => {
     await service.announce(buildPage());
 
+    // Os destinatários vão identificados: o rodapé de cada mensagem leva um
+    // link de descadastro assinado para aquela pessoa.
     expect(emailService.sendWeekMaterialAnnouncement).toHaveBeenCalledWith(
-      ['ana@exemplo.com', 'bia@exemplo.com'],
+      [
+        { id: 'user-1', name: 'Ana', email: 'ana@exemplo.com' },
+        { id: 'user-2', name: 'Bia', email: 'bia@exemplo.com' },
+      ],
       expect.objectContaining({
         title: 'Semana 12',
         materialLink: 'https://clubinhonib.com/materiais_semanal_semana-12',

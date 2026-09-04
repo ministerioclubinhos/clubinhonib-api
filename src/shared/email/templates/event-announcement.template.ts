@@ -1,6 +1,6 @@
 import { EMAIL_SUBJECTS } from '../constants';
 import { EmailContent, EventAnnouncementEmailData } from '../types';
-import { formatEventDate, joinTextLines } from '../utils';
+import { formatEventDate, joinTextLines, unsubscribeTextLines } from '../utils';
 import {
   button,
   composeBody,
@@ -61,6 +61,7 @@ function renderEvent(
       ...eventDetails(data),
       button(variant.action, data.agendaLink),
     ]),
+    unsubscribeUrl: data.unsubscribeUrl,
   });
 
   const text = joinTextLines([
@@ -73,6 +74,7 @@ function renderEvent(
     'Veja a agenda completa:',
     data.agendaLink,
     ...(variant.closing ? ['', variant.closing] : []),
+    ...unsubscribeTextLines(data.unsubscribeUrl),
   ]);
 
   return { subject: variant.subject, html, text };

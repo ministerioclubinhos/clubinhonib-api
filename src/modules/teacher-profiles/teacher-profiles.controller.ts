@@ -10,7 +10,11 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Request } from 'express';
-import { TeacherProfilesService } from './services/teacher-profiles.service';
+
+import { AccessContext } from 'src/core/auth/auth.types';
+import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
+import { AuthContextService } from 'src/core/auth/services/auth-context.service';
+
 import {
   AssignTeacherToClubDto,
   UnassignTeacherFromClubDto,
@@ -21,59 +25,84 @@ import {
   PageDto,
   TeacherProfilesQueryDto,
 } from './dto/teacher-profiles.query.dto';
-import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
+import { GetTeacherProfilesService } from './services/get-teacher-profiles.service';
+import { UpdateTeacherProfilesService } from './services/update-teacher-profiles.service';
 
+/**
+ * Professores e o clubinho em que atuam.
+ *
+ * Ler o token é transporte: os casos de uso recebem só o papel e o id de quem
+ * pediu.
+ */
 @Controller('teacher-profiles')
 @UseGuards(JwtAuthGuard)
 export class TeacherProfilesController {
-  constructor(private readonly service: TeacherProfilesService) {}
+  constructor(
+    private readonly authContext: AuthContextService,
+    private readonly getService: GetTeacherProfilesService,
+    private readonly updateService: UpdateTeacherProfilesService,
+  ) {}
+
+  private contextOf(request: Request): Promise<AccessContext> {
+    return this.authContext.resolveAccessContext(request);
+  }
 
   @Get()
-  findPage(
-    @Req() req: Request,
+  async findPage(
+    @Req() request: Request,
     @Query() query: TeacherProfilesQueryDto,
   ): Promise<PageDto<TeacherResponseDto>> {
-    return this.service.findPage(req, query);
+    return this.getService.findPage(await this.contextOf(request), query);
   }
 
   @Get('simple')
-  listSimple(@Req() req: Request): Promise<TeacherSimpleListDto[]> {
-    return this.service.list(req);
+  async listSimple(@Req() request: Request): Promise<TeacherSimpleListDto[]> {
+    return this.getService.list(await this.contextOf(request));
   }
 
   @Get(':id')
-  findOne(
+  async findOne(
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Req() req: Request,
+    @Req() request: Request,
   ): Promise<TeacherResponseDto> {
-    return this.service.findOne(id, req);
+    return this.getService.findOne(await this.contextOf(request), id);
   }
 
   @Get('by-club/:clubId')
-  findByClubId(
+  async findByClubId(
     @Param('clubId', new ParseUUIDPipe()) clubId: string,
-    @Req() req: Request,
+    @Req() request: Request,
   ): Promise<TeacherResponseDto[]> {
-    return this.service.findByClubId(clubId, req);
+    return this.getService.findByClubId(await this.contextOf(request), clubId);
   }
 
   @Patch(':teacherId/assign-club')
   async assignClub(
     @Param('teacherId', new ParseUUIDPipe()) teacherId: string,
     @Body() dto: AssignTeacherToClubDto,
-    @Req() req: Request,
+    @Req() request: Request,
   ): Promise<{ message: string }> {
-    await this.service.assignClub(teacherId, dto.clubId, req);
-    return { message: 'Teacher atribuído ao club com sucesso' };
+    await this.updateService.assignClub(
+      await this.contextOf(request),
+      teacherId,
+      dto.clubId,
+    );
+
+    return { message: 'Professor vinculado ao clubinho com sucesso' };
   }
 
   @Patch(':teacherId/unassign-club')
   async unassignClub(
     @Param('teacherId', new ParseUUIDPipe()) teacherId: string,
     @Body() dto: UnassignTeacherFromClubDto,
-    @Req() req: Request,
+    @Req() request: Request,
   ): Promise<{ message: string }> {
-    await this.service.unassignClub(teacherId, dto.clubId, req);
-    return { message: 'Teacher removido do club com sucesso' };
+    await this.updateService.unassignClub(
+      await this.contextOf(request),
+      teacherId,
+      dto.clubId,
+    );
+
+    return { message: 'Professor desvinculado do clubinho com sucesso' };
   }
 }
