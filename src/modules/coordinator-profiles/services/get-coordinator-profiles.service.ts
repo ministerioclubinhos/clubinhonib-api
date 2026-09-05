@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { AccessContext } from 'src/core/auth/auth.types';
 
 import { CoordinatorProfilesRepository } from '../repositories/coordinator-profiles.repository';
+import { CoordinatorProfileEntity } from '../entities/coordinator-profile.entity/coordinator-profile.entity';
 import {
   CoordinatorResponseDto,
   toCoordinatorDto,
@@ -32,6 +33,18 @@ export class GetCoordinatorProfilesService {
   }
 
   /** Coordenadores no formato usado pelos seletores de formulário. */
+  /**
+   * Os coordenadores em atividade com os clubinhos de cada um.
+   *
+   * Contrato para o resumo semanal, que roda por agendamento e não tem sessão
+   * — por isso não passa por `assertCanReadCoordinatorProfiles`, que existe
+   * para recortar o que um usuário logado enxerga. Devolve a entidade porque
+   * quem consome precisa do `user.email`, que os DTOs de listagem não expõem.
+   */
+  async findAllActiveWithClubs(): Promise<CoordinatorProfileEntity[]> {
+    return this.repo.findAllActiveWithClubs();
+  }
+
   async list(context: AccessContext): Promise<CoordinatorSimpleListDto[]> {
     assertCanReadCoordinatorProfiles(context);
 

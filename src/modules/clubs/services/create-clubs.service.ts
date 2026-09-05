@@ -11,6 +11,7 @@ import {
   assertCanTakeTeachers,
   normalizedRole,
 } from '../utils';
+import { UserRole } from 'src/core/auth/auth.types';
 
 @Injectable()
 export class CreateClubsService {
@@ -28,7 +29,7 @@ export class CreateClubsService {
     assertCanManageClubs(context);
 
     // Coordenador só cria clubinho sob a própria coordenação.
-    if (normalizedRole(context) === 'coordinator') {
+    if (normalizedRole(context) === UserRole.COORDINATOR) {
       dto.coordinatorProfileId = await this.ownCoordinatorProfileId(context);
     }
 

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
+  DataSource,
   EntityManager,
   FindOptionsWhere,
   In,
@@ -23,11 +24,25 @@ import { ImagePageContent } from '../types';
 @Injectable()
 export class ImagePageRepository {
   constructor(
+    private readonly dataSource: DataSource,
     @InjectRepository(ImagePageEntity)
     private readonly pageRepo: Repository<ImagePageEntity>,
     @InjectRepository(ImageSectionEntity)
     private readonly sectionRepo: Repository<ImageSectionEntity>,
   ) {}
+
+  /**
+   * Roda um conjunto de escritas numa transação só.
+   *
+   * Abrir e fechar transação é acesso ao banco, e mora aqui. O caso de uso
+   * continua decidindo o que é atômico, mas não conhece `QueryRunner`, commit
+   * nem rollback.
+   */
+  async runInTransaction<T>(
+    work: (manager: EntityManager) => Promise<T>,
+  ): Promise<T> {
+    return this.dataSource.transaction(work);
+  }
 
   private scoped(manager?: EntityManager): Repository<ImagePageEntity> {
     return manager ? manager.getRepository(ImagePageEntity) : this.pageRepo;

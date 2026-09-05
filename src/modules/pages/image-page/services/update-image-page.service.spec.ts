@@ -1,11 +1,12 @@
 import { Test } from '@nestjs/testing';
-import { DataSource, EntityManager } from 'typeorm';
+import { EntityManager } from 'typeorm';
 import {
   AppInternalException,
   AppNotFoundException,
   ErrorCode,
 } from 'src/shared/exceptions';
-import { RouteService } from 'src/modules/routes/route.service';
+import { GetRouteService } from 'src/modules/routes/services/get-route.service';
+import { UpdateRouteService } from 'src/modules/routes/services/update-route.service';
 import { RouteType } from 'src/modules/routes/route-page.entity';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
@@ -77,12 +78,12 @@ const validDto = (overrides: Record<string, unknown> = {}) =>
 
 describe('ImagePageUpdateService', () => {
   const manager = {} as EntityManager;
-  const dataSource = {
-    transaction: jest.fn((run: (m: EntityManager) => Promise<unknown>) =>
+  // A transação passou a ser aberta pelo repositório: o caso de uso entrega
+  // o bloco de escritas e não conhece mais `DataSource`.
+  const imagePageRepository = {
+    runInTransaction: jest.fn((run: (m: EntityManager) => Promise<unknown>) =>
       run(manager),
     ),
-  };
-  const imagePageRepository = {
     savePage: jest.fn(),
     findByIdWithSections: jest.fn(),
     findSectionById: jest.fn(),
@@ -94,10 +95,12 @@ describe('ImagePageUpdateService', () => {
     findEntityOrFail: jest.fn(),
     findMediaOfSections: jest.fn(),
   };
-  const routeService = {
+  const rotaMockBase = {
     findRouteByEntityId: jest.fn(),
     upsertRouteWithAvailablePath: jest.fn(),
   };
+  const getRouteService = rotaMockBase;
+  const updateRouteService = rotaMockBase;
   const awsS3Service = { upload: jest.fn(), delete: jest.fn() };
   const mediaItemProcessor = {
     findManyMediaItemsByTargets: jest.fn(),
@@ -116,8 +119,8 @@ describe('ImagePageUpdateService', () => {
 
     getService.findEntityOrFail.mockResolvedValue(buildPage());
     getService.findMediaOfSections.mockResolvedValue(new Map());
-    routeService.findRouteByEntityId.mockResolvedValue(route);
-    routeService.upsertRouteWithAvailablePath.mockResolvedValue(route);
+    getRouteService.findRouteByEntityId.mockResolvedValue(route);
+    updateRouteService.upsertRouteWithAvailablePath.mockResolvedValue(route);
     imagePageRepository.savePage.mockImplementation(
       (page: ImagePageEntity) => page,
     );
@@ -136,10 +139,10 @@ describe('ImagePageUpdateService', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         ImagePageUpdateService,
-        { provide: DataSource, useValue: dataSource },
         { provide: ImagePageRepository, useValue: imagePageRepository },
         { provide: ImagePageGetService, useValue: getService },
-        { provide: RouteService, useValue: routeService },
+        { provide: GetRouteService, useValue: getRouteService },
+        { provide: UpdateRouteService, useValue: updateRouteService },
         { provide: AwsS3Service, useValue: awsS3Service },
         { provide: MediaItemProcessor, useValue: mediaItemProcessor },
       ],
@@ -151,8 +154,10 @@ describe('ImagePageUpdateService', () => {
   it('atualiza a galeria e a rota dentro de uma transação', async () => {
     const result = await service.updateImagePage('page-id', validDto(), {});
 
-    expect(dataSource.transaction).toHaveBeenCalledTimes(1);
-    expect(routeService.upsertRouteWithAvailablePath).toHaveBeenCalledWith(
+    expect(imagePageRepository.runInTransaction).toHaveBeenCalledTimes(1);
+    expect(
+      updateRouteService.upsertRouteWithAvailablePath,
+    ).toHaveBeenCalledWith(
       'route-id',
       expect.objectContaining({ title: 'Galeria revisada' }),
       'galeria_imagens_',
@@ -325,7 +330,7 @@ describe('ImagePageUpdateService', () => {
   });
 
   it('falha quando a galeria não tem rota', async () => {
-    routeService.findRouteByEntityId.mockResolvedValue(null);
+    getRouteService.findRouteByEntityId.mockResolvedValue(null);
 
     await expect(
       service.updateImagePage('page-id', validDto(), {}),

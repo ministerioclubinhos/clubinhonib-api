@@ -1,6 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DataSource } from 'typeorm';
-
 import {
   AppBusinessException,
   AppInternalException,
@@ -11,7 +9,8 @@ import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
 import { IdeasSectionEntity } from 'src/modules/pages/ideas-page/entities/ideas-section.entity';
-import { IdeasPageEntity } from 'src/modules/pages/ideas-page/entities/ideas-page.entity';
+
+import { IdeasSectionsRepository } from '../repositories/ideas-sections.repository';
 
 import { UpdateIdeasSectionDto } from '../dto/update-ideas-section.dto';
 import { IdeasSectionResponseDto } from '../dto/ideas-section-response.dto';
@@ -32,7 +31,7 @@ export class AttachIdeasSectionService {
   private readonly logger = new Logger(AttachIdeasSectionService.name);
 
   constructor(
-    private readonly dataSource: DataSource,
+    private readonly sectionRepo: IdeasSectionsRepository,
     private readonly awsS3Service: AwsS3Service,
     private readonly mediaItemProcessor: MediaItemProcessor,
     private readonly mediaService: IdeasSectionMediaService,
@@ -56,56 +55,59 @@ export class AttachIdeasSectionService {
 
     assertUploadsHaveFiles(dto.medias, filesDict);
 
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
     const uploads = new S3UploadTracker((file: Express.Multer.File) =>
       this.awsS3Service.upload(file),
     );
 
     try {
-      const page = await queryRunner.manager.findOne(IdeasPageEntity, {
-        where: { id: pageId },
-      });
+      // A transação é aberta pelo repositório; aqui só se decide o que entra
+      // nela. O rollback acontece sozinho quando o bloco lança.
+      const { saved, page, processedMedia } =
+        await this.sectionRepo.runInTransaction(async (manager) => {
+          const ideasPage = await this.sectionRepo.findPageById(
+            manager,
+            pageId,
+          );
 
-      if (!page) {
-        throw new AppNotFoundException(
-          ErrorCode.RESOURCE_NOT_FOUND,
-          'Página de ideias não encontrada',
-        );
-      }
+          if (!ideasPage) {
+            throw new AppNotFoundException(
+              ErrorCode.RESOURCE_NOT_FOUND,
+              'Página de ideias não encontrada',
+            );
+          }
 
-      const existingMedia = await this.mediaService.findExisting(
-        sectionId,
-        queryRunner,
-      );
+          const existingMedia = await this.mediaService.findExisting(
+            sectionId,
+            manager,
+          );
 
-      // O `id` vai junto: sem ele o `save` criava uma seção nova ligada à
-      // página e deixava a original parada na fila para sempre.
-      const saved = await queryRunner.manager.save(IdeasSectionEntity, {
-        id: existing.id,
-        title: dto.title,
-        description: dto.description,
-        public: dto.public ?? existing.public,
-        page,
-      });
+          // O `id` vai junto: sem ele o `save` criava uma seção nova ligada à
+          // página e deixava a original parada na fila para sempre.
+          const section = await this.sectionRepo.saveInTransaction(manager, {
+            id: existing.id,
+            title: dto.title,
+            description: dto.description,
+            public: dto.public ?? existing.public,
+            page: ideasPage,
+          });
 
-      await this.mediaService.deleteMedia(
-        existingMedia,
-        dto.medias ?? [],
-        queryRunner,
-      );
-      const processedMedia = await this.mediaService.processSectionMedia(
-        dto.medias ?? [],
-        saved.id,
-        existingMedia,
-        filesDict,
-        queryRunner,
-        uploads,
-      );
+          await this.mediaService.deleteMedia(
+            existingMedia,
+            dto.medias ?? [],
+            manager,
+          );
+          const media = await this.mediaService.processSectionMedia(
+            dto.medias ?? [],
+            section.id,
+            existingMedia,
+            filesDict,
+            manager,
+            uploads,
+          );
 
-      await queryRunner.commitTransaction();
+          return { saved: section, page: ideasPage, processedMedia: media };
+        });
+
       this.logger.log(
         `Ideia compartilhada publicada. ID=${sectionId} página=${pageId}`,
       );
@@ -115,7 +117,6 @@ export class AttachIdeasSectionService {
         processedMedia,
       );
     } catch (error: unknown) {
-      await queryRunner.rollbackTransaction();
       await this.mediaItemProcessor.discardUnreferencedUploads(
         uploads.uploadedUrls,
         (url: string) => this.awsS3Service.delete(url),
@@ -134,8 +135,6 @@ export class AttachIdeasSectionService {
         'Erro ao publicar a ideia compartilhada',
         error instanceof Error ? error : new Error(String(error)),
       );
-    } finally {
-      await queryRunner.release();
     }
   }
 }

@@ -6,59 +6,62 @@ Welcome to the official documentation for the **Clubinho NIB API**. This hub ser
 
 ## 🚀 Getting Started
 
-* [**Automation Checklist**](automation-checklist.md)  
-    *How to run test scripts, seed data, and automate system maintenance.*
-* [**Scripts Technical Readme**](../scripts/README.md)  
-    *Internal details of the `scripts/` folder.*
+- [**Automation Checklist**](automation-checklist.md)  
+   _How to run test scripts, seed data, and automate system maintenance._
+- [**Scripts Technical Readme**](../scripts/README.md)  
+   _Internal details of the `scripts/` folder._
 
 ---
 
 ## ⚙️ Core Business Logic
 
-| Document | Description |
-| :--- | :--- |
-| [**Children & Clubs**](api-children-clubs.md) | Endpoints for managing the core hierarchy of clubs and children. |
-| [**Education & Spirituality**](api-education.md) | Academic years, weekly "Pagelas" (attendance), and spiritual decisions. |
-| [**Implemented Rules**](implemented-rules.md) | Deep dive into business logic (e.g., `isActive` rules, academic periods). |
+| Document                                          | Description                                                                    |
+| :------------------------------------------------ | :----------------------------------------------------------------------------- |
+| [**Children & Clubs**](api-children-clubs.md)     | Endpoints for managing the core hierarchy of clubs and children.               |
+| [**Education & Spirituality**](api-education.md)  | Academic years, weekly "Pagelas" (attendance), and spiritual decisions.        |
+| [**Implemented Rules**](implemented-rules.md)     | Deep dive into business logic (e.g., `isActive` rules, academic periods).      |
+| [**Pendências técnicas**](pendencias-tecnicas.md) | Dívida levantada na varredura, em ordem de prioridade, com caixas para marcar. |
 
 ---
 
 ## 🔹 Administration & Dashboards
 
-| Document | Description |
-| :--- | :--- |
-| [**Dashboard Endpoints**](api-dashboard-endpoints.md) | High-performance endpoints for the administrative dashboard. |
-| [**Profiles Admin**](api-profiles-admin.md) | Role management for Teachers and Coordinators. |
-| [**User & Auth**](auth-module.md) | Authentication flows, user management, and security. |
-| [**Feature Flags**](api-feature-flags.md) | Dynamic feature toggling system. |
-| [**Core / Health**](api-core-app.md) | Root endpoints and system health. |
+| Document                                              | Description                                                                    |
+| :---------------------------------------------------- | :----------------------------------------------------------------------------- |
+| [**Dashboard Endpoints**](api-dashboard-endpoints.md) | High-performance endpoints for the administrative dashboard.                   |
+| [**Statistics**](api-statistics.md)                   | Numerador, denominador e fuso de cada métrica das onze rotas de `/statistics`. |
+| [**Profiles Admin**](api-profiles-admin.md)           | Role management for Teachers and Coordinators.                                 |
+| [**User & Auth**](auth-module.md)                     | Authentication flows, user management, and security.                           |
+| [**Feature Flags**](api-feature-flags.md)             | Dynamic feature toggling system.                                               |
+| [**Core / Health**](api-core-app.md)                  | Root endpoints and system health.                                              |
 
 ---
 
 ## 📝 Content & Communication
 
-| Document | Description |
-| :--- | :--- |
-| [**Content Management**](api-content-management.md) | CMS features: Pages, Meditations, Informatives, Documents. |
-| [**Week Materials**](api-week-materials.md) | Weekly material pages: contract, media synchronization, and current-week publishing. |
-| [**Communication**](api-communication.md) | Feedback, Comments, and Contact forms. |
-| [**E-mail**](email.md) | Transporte SMTP, a casca dos templates e a confirmação de endereço. |
-| [**Addresses**](api-addresses.md) | Geolocation and address management. |
+| Document                                            | Description                                                                          |
+| :-------------------------------------------------- | :----------------------------------------------------------------------------------- |
+| [**Content Management**](api-content-management.md) | CMS features: Pages, Meditations, Informatives, Documents.                           |
+| [**Week Materials**](api-week-materials.md)         | Weekly material pages: contract, media synchronization, and current-week publishing. |
+| [**Communication**](api-communication.md)           | Feedback, Comments, and Contact forms.                                               |
+| [**E-mail**](email.md)                              | Transporte SMTP, a casca dos templates e a confirmação de endereço.                  |
+| [**Agendador**](scheduling.md)                      | Jobs por horário: o runner, `SCHEDULER_ENABLED` e como escrever um job.              |
+| [**Addresses**](api-addresses.md)                   | Geolocation and address management.                                                  |
 
 ---
 
 ## 📊 Reporting & Analytics
 
-| Document | Description |
-| :--- | :--- |
-| [**Statistics API**](api-statistics.md) | Full analytics engine: Attendance, Growth, Rankings. |
-| [**Statistics Review**](api-statistics-review.md) | *Internal Audit* of statistics logic compliance. |
+| Document                                          | Description                                          |
+| :------------------------------------------------ | :--------------------------------------------------- |
+| [**Statistics API**](api-statistics.md)           | Full analytics engine: Attendance, Growth, Rankings. |
+| [**Statistics Review**](api-statistics-review.md) | _Internal Audit_ of statistics logic compliance.     |
 
 ---
 
 ## 👤 User Profiles
 
-| Document | Description |
-| :--- | :--- |
-| [**User Module**](user-module.md) | Account operations and basic user data. |
+| Document                                | Description                                              |
+| :-------------------------------------- | :------------------------------------------------------- |
+| [**User Module**](user-module.md)       | Account operations and basic user data.                  |
 | [**Profile Module**](profile-module.md) | Extended profile data (preferences, bio, personal info). |

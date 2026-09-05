@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing';
-import { DataSource, EntityManager } from 'typeorm';
-import { RouteService } from 'src/modules/routes/route.service';
+import { EntityManager } from 'typeorm';
+import { DeleteRouteService } from 'src/modules/routes/services/delete-route.service';
 import { RouteType } from 'src/modules/routes/route-page.entity';
 import {
   AppInternalException,
@@ -44,16 +44,17 @@ const buildPage = (
 
 describe('WeekMaterialsPageRemoveService', () => {
   const manager = {} as EntityManager;
-  const dataSource = {
-    transaction: jest.fn(
-      (runInTransaction: (m: EntityManager) => Promise<unknown>) =>
-        runInTransaction(manager),
+  // A transação passou a ser aberta pelo repositório: o caso de uso entrega
+  // o bloco de escritas e não conhece mais `DataSource`.
+  const pageRepo = {
+    runInTransaction: jest.fn((run: (m: EntityManager) => Promise<unknown>) =>
+      run(manager),
     ),
+    removePage: jest.fn(),
   };
-  const pageRepo = { removePage: jest.fn() };
   const getService = { findOnePage: jest.fn(), findMediaOfPage: jest.fn() };
   const s3 = { delete: jest.fn() };
-  const routeService = {
+  const deleteRouteService = {
     removeRoute: jest.fn(),
     removeRouteByEntity: jest.fn(),
   };
@@ -70,11 +71,10 @@ describe('WeekMaterialsPageRemoveService', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         WeekMaterialsPageRemoveService,
-        { provide: DataSource, useValue: dataSource },
         { provide: WeekMaterialsPageRepository, useValue: pageRepo },
         { provide: WeekMaterialsPageGetService, useValue: getService },
         { provide: AwsS3Service, useValue: s3 },
-        { provide: RouteService, useValue: routeService },
+        { provide: DeleteRouteService, useValue: deleteRouteService },
         { provide: MediaItemProcessor, useValue: mediaItemProcessor },
       ],
     }).compile();
@@ -102,7 +102,7 @@ describe('WeekMaterialsPageRemoveService', () => {
       expect.objectContaining({ id: 'page-id' }),
       manager,
     );
-    expect(routeService.removeRoute).toHaveBeenCalledWith('route-id');
+    expect(deleteRouteService.removeRoute).toHaveBeenCalledWith('route-id');
   });
 
   it('skips media deletion when the page has none', async () => {
@@ -119,8 +119,8 @@ describe('WeekMaterialsPageRemoveService', () => {
 
     await service.removeWeekMaterial('page-id');
 
-    expect(routeService.removeRoute).not.toHaveBeenCalled();
-    expect(routeService.removeRouteByEntity).toHaveBeenCalledWith(
+    expect(deleteRouteService.removeRoute).not.toHaveBeenCalled();
+    expect(deleteRouteService.removeRouteByEntity).toHaveBeenCalledWith(
       'WeekMaterialsPage',
       'page-id',
     );

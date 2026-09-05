@@ -15,3 +15,16 @@ export {
   eventCancelledEmail,
 } from './event-announcement.template';
 export { siteFeedbackNotificationEmail } from './site-feedback-notification.template';
+export { emailAddressChangedEmail } from './email-address-changed.template';
+export { accountApprovedEmail } from './account-approved.template';
+export { roleChangedEmail } from './role-changed.template';
+export { accountDeactivatedEmail } from './account-deactivated.template';
+export { accountDeletedEmail } from './account-deleted.template';
+export { accountCreatedByAdminEmail } from './account-created-by-admin.template';
+export { informativePublishedEmail } from './informative-published.template';
+export { documentPublishedEmail } from './document-published.template';
+export { clubDayCancelledEmail } from './club-day-cancelled.template';
+export { contactReceiptEmail } from './contact-receipt.template';
+export { missingPagelaReminderEmail } from './missing-pagela-reminder.template';
+export { coordinatorWeeklySummaryEmail } from './coordinator-weekly-summary.template';
+export { acceptedChristRegisteredEmail } from './accepted-christ-registered.template';

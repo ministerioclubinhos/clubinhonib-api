@@ -33,6 +33,10 @@ import { ClubControlModule } from '../club-control/club-control.module';
     DeletePagelasService,
   ],
   exports: [
+    // Sai do módulo porque o controle de clubinhos precisa resolver a semana
+    // letiva de uma data para os avisos de pagela, e a regra de qual período
+    // vale — inclusive na virada do ano — mora aqui.
+    ResolvePagelaWeekService,
     CreatePagelasService,
     GetPagelasService,
     UpdatePagelasService,

@@ -1,5 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { AppService } from './app.service';
+import { HealthResponseDto } from './dto/health-response.dto';
 
 @Controller()
 export class AppController {
@@ -11,7 +12,7 @@ export class AppController {
   }
 
   @Get('health')
-  getHealth() {
+  getHealth(): HealthResponseDto {
     return {
       status: 'ok',
       timestamp: new Date().toISOString(),

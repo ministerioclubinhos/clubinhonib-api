@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { GetFeatureFlagsService } from 'src/core/feature-flags/services/get-feature-flags.service';
 import { SmtpService } from 'src/shared/providers/smtp/smtp.service';
 import { SiteUrlService } from 'src/shared/site-url/site-url.service';
 import { EMAIL_SUBJECTS, UNSUBSCRIBE_FOOTER } from './constants';
@@ -16,6 +17,9 @@ describe('EmailService', () => {
   const configService = { get: (key: string) => config[key] };
   const siteUrlService = { baseUrl: 'https://clubinhonib.com' };
 
+  /** Toda flag ligada; a suíte de bloqueio abaixo é quem desliga. */
+  const featureFlags = { isSwitchedOn: jest.fn().mockResolvedValue(true) };
+
   const recipient = (index = 0): EmailRecipient => ({
     id: `user-${index}`,
     name: `Pessoa ${index}`,
@@ -29,6 +33,7 @@ describe('EmailService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    featureFlags.isSwitchedOn.mockResolvedValue(true);
     config.MAIL_CONTACT_TO =
       'equipe@clubinhonib.com, coordenacao@clubinhonib.com';
 
@@ -39,6 +44,7 @@ describe('EmailService', () => {
         { provide: SmtpService, useValue: smtpService },
         { provide: SiteUrlService, useValue: siteUrlService },
         { provide: ConfigService, useValue: configService },
+        { provide: GetFeatureFlagsService, useValue: featureFlags },
       ],
     }).compile();
 

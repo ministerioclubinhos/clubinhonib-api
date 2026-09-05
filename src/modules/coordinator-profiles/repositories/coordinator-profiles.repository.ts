@@ -460,6 +460,30 @@ export class CoordinatorProfilesRepository {
     });
   }
 
+  /**
+   * Os coordenadores em atividade e os clubinhos de cada um.
+   *
+   * Existe para o resumo semanal, que precisa varrer todos de uma vez — as
+   * leituras existentes ou paginam (`findPageWithFilters`) ou partem de um id
+   * conhecido. Traz o `user` porque o resumo vai por e-mail, e o e-mail está no
+   * usuário, não no perfil.
+   *
+   * Filtra pelas duas situações: o perfil de coordenador pode estar ativo com a
+   * conta suspensa, e nesse caso não há a quem escrever.
+   */
+  async findAllActiveWithClubs(): Promise<CoordinatorProfileEntity[]> {
+    return this.coordRepo
+      .createQueryBuilder('coord')
+      .leftJoin('coord.user', 'user')
+      .addSelect(['user.id', 'user.name', 'user.email'])
+      .leftJoinAndSelect('coord.clubs', 'club')
+      .where('user.active = true')
+      .andWhere('coord.active = true')
+      .orderBy('coord.createdAt', 'ASC')
+      .addOrderBy('club.number', 'ASC')
+      .getMany();
+  }
+
   async list(): Promise<CoordinatorSimpleListDto[]> {
     const items = await this.coordRepo
       .createQueryBuilder('coord')

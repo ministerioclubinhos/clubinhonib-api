@@ -1,12 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DataSource, EntityManager } from 'typeorm';
+import { EntityManager } from 'typeorm';
 import {
   AppException,
   AppInternalException,
   ErrorCode,
 } from 'src/shared/exceptions';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
-import { RouteService } from 'src/modules/routes/route.service';
+import { CreateRouteService } from 'src/modules/routes/services/create-route.service';
 import { RouteEntity, RouteType } from 'src/modules/routes/route-page.entity';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
@@ -30,9 +30,8 @@ export class IdeasPageCreateService {
   private readonly logger = new Logger(IdeasPageCreateService.name);
 
   constructor(
-    private readonly dataSource: DataSource,
     private readonly ideasPageRepository: IdeasPageRepository,
-    private readonly routeService: RouteService,
+    private readonly createRouteService: CreateRouteService,
     private readonly awsS3Service: AwsS3Service,
     private readonly mediaItemProcessor: MediaItemProcessor,
   ) {}
@@ -48,11 +47,9 @@ export class IdeasPageCreateService {
       filesDict,
     );
 
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
-    let savedPage: IdeasPageEntity | null = null;
+    // Fica fora do bloco porque o `catch` precisa do id para varrer a mídia
+    // que tenha sobrado da tentativa.
+    let savedPage: IdeasPageEntity | undefined;
 
     // Cada arquivo enviado fica registrado: se a criação falhar depois do
     // upload, o objeto é apagado do bucket em vez de ficar órfão.
@@ -61,40 +58,45 @@ export class IdeasPageCreateService {
     );
 
     try {
-      const manager = queryRunner.manager;
+      // A transação é aberta pelo repositório; aqui só se decide o que entra
+      // nela. O rollback acontece sozinho quando o bloco lança.
+      const { page, mediaBySection } =
+        await this.ideasPageRepository.runInTransaction(async (manager) => {
+          let created = await this.ideasPageRepository.createPage(
+            {
+              title: dto.title,
+              subtitle: dto.subtitle ?? '',
+              description: dto.description,
+              public: dto.public ?? false,
+            },
+            manager,
+          );
+          savedPage = created;
 
-      savedPage = await this.ideasPageRepository.createPage(
-        {
-          title: dto.title,
-          subtitle: dto.subtitle ?? '',
-          description: dto.description,
-          public: dto.public ?? false,
-        },
-        manager,
-      );
+          created.route = await this.createRoute(dto, created, manager);
+          created = await this.ideasPageRepository.savePage(created, manager);
+          savedPage = created;
 
-      savedPage.route = await this.createRoute(dto, savedPage, manager);
-      savedPage = await this.ideasPageRepository.savePage(savedPage, manager);
+          const media = await this.createSections(
+            dto,
+            created,
+            filesDict,
+            manager,
+            uploads,
+          );
 
-      const mediaBySection = await this.createSections(
-        dto,
-        savedPage,
-        filesDict,
-        manager,
-        uploads,
-      );
+          const reloaded = await this.ideasPageRepository.findByIdWithSections(
+            created.id,
+            manager,
+          );
 
-      const page = await this.ideasPageRepository.findByIdWithSections(
-        savedPage.id,
-        manager,
-      );
+          return { page: reloaded ?? created, mediaBySection: media };
+        });
 
-      await queryRunner.commitTransaction();
-      this.logger.log(`Página de ideias criada. ID=${savedPage.id}`);
+      this.logger.log(`Página de ideias criada. ID=${page.id}`);
 
-      return toIdeasPageResponse(page ?? savedPage, mediaBySection);
+      return toIdeasPageResponse(page, mediaBySection);
     } catch (error: unknown) {
-      await queryRunner.rollbackTransaction();
       await this.discardOrphanMedia(savedPage?.id);
       await this.mediaItemProcessor.discardUnreferencedUploads(
         uploads.uploadedUrls,
@@ -112,8 +114,6 @@ export class IdeasPageCreateService {
         'Erro ao criar a página de ideias. Nenhum dado foi salvo.',
         error as Error,
       );
-    } finally {
-      await queryRunner.release();
     }
   }
 
@@ -122,12 +122,12 @@ export class IdeasPageCreateService {
     page: IdeasPageEntity,
     manager: EntityManager,
   ): Promise<RouteEntity> {
-    const path = await this.routeService.generateAvailablePath(
+    const path = await this.createRouteService.generateAvailablePath(
       dto.title,
       IDEAS_PAGE_ROUTE_PATH_PREFIX,
     );
 
-    return this.routeService.createRouteWithManager(manager, {
+    return this.createRouteService.createRouteWithManager(manager, {
       title: dto.title,
       subtitle: dto.subtitle ?? '',
       description: dto.description,

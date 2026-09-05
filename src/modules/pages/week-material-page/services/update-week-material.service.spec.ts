@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
-import { DataSource, EntityManager } from 'typeorm';
-import { RouteService } from 'src/modules/routes/route.service';
+import { EntityManager } from 'typeorm';
+import { GetRouteService } from 'src/modules/routes/services/get-route.service';
+import { UpdateRouteService } from 'src/modules/routes/services/update-route.service';
 import { RouteType } from 'src/modules/routes/route-page.entity';
 import {
   AppInternalException,
@@ -76,13 +77,12 @@ const validDto = (
 
 describe('WeekMaterialsPageUpdateService', () => {
   const manager = {} as EntityManager;
-  const dataSource = {
-    transaction: jest.fn(
-      (runInTransaction: (m: EntityManager) => Promise<unknown>) =>
-        runInTransaction(manager),
-    ),
-  };
+  // A transação passou a ser aberta pelo repositório: o caso de uso entrega
+  // o bloco de escritas e não conhece mais `DataSource`.
   const pageRepo = {
+    runInTransaction: jest.fn((run: (m: EntityManager) => Promise<unknown>) =>
+      run(manager),
+    ),
     savePage: jest.fn(),
     findOnePageById: jest.fn(),
     findCurrentWeek: jest.fn(),
@@ -92,10 +92,12 @@ describe('WeekMaterialsPageUpdateService', () => {
     findMediaOfPage: jest.fn(),
   };
   const s3 = { upload: jest.fn(), delete: jest.fn() };
-  const routeService = {
+  const rotaMockBase = {
     findRouteByEntityId: jest.fn(),
     upsertRouteWithAvailablePath: jest.fn(),
   };
+  const getRouteService = rotaMockBase;
+  const updateRouteService = rotaMockBase;
   const mediaItemProcessor = {
     deleteMediaItems: jest.fn(),
     processMediaItemsPolymorphic: jest.fn(),
@@ -111,8 +113,8 @@ describe('WeekMaterialsPageUpdateService', () => {
 
     getService.findOnePage.mockResolvedValue(buildPage());
     getService.findMediaOfPage.mockResolvedValue([]);
-    routeService.findRouteByEntityId.mockResolvedValue(buildPage().route);
-    routeService.upsertRouteWithAvailablePath.mockImplementation(
+    getRouteService.findRouteByEntityId.mockResolvedValue(buildPage().route);
+    updateRouteService.upsertRouteWithAvailablePath.mockImplementation(
       (routeId: string, data: Record<string, unknown>) => ({
         ...buildPage().route,
         ...data,
@@ -134,11 +136,11 @@ describe('WeekMaterialsPageUpdateService', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         WeekMaterialsPageUpdateService,
-        { provide: DataSource, useValue: dataSource },
         { provide: WeekMaterialsPageRepository, useValue: pageRepo },
         { provide: WeekMaterialsPageGetService, useValue: getService },
         { provide: AwsS3Service, useValue: s3 },
-        { provide: RouteService, useValue: routeService },
+        { provide: GetRouteService, useValue: getRouteService },
+        { provide: UpdateRouteService, useValue: updateRouteService },
         { provide: MediaItemProcessor, useValue: mediaItemProcessor },
       ],
     }).compile();
@@ -154,8 +156,10 @@ describe('WeekMaterialsPageUpdateService', () => {
         {},
       );
 
-      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
-      expect(routeService.upsertRouteWithAvailablePath).toHaveBeenCalledWith(
+      expect(pageRepo.runInTransaction).toHaveBeenCalledTimes(1);
+      expect(
+        updateRouteService.upsertRouteWithAvailablePath,
+      ).toHaveBeenCalledWith(
         'route-id',
         expect.objectContaining({ title: 'Semana 1 revisada' }),
         'materiais_semanal_',
@@ -173,8 +177,12 @@ describe('WeekMaterialsPageUpdateService', () => {
 
       // O path é único no banco: quem resolve a disponibilidade é o RouteService,
       // recebendo apenas o prefixo do módulo.
-      const [, routeData, prefix] = routeService.upsertRouteWithAvailablePath
-        .mock.calls[0] as [string, Record<string, unknown>, string];
+      const [, routeData, prefix] = updateRouteService
+        .upsertRouteWithAvailablePath.mock.calls[0] as [
+        string,
+        Record<string, unknown>,
+        string,
+      ];
       expect(routeData).not.toHaveProperty('path');
       expect(prefix).toBe('materiais_semanal_');
     });
@@ -351,7 +359,7 @@ describe('WeekMaterialsPageUpdateService', () => {
     });
 
     it('fails when the page has no route', async () => {
-      routeService.findRouteByEntityId.mockResolvedValue(null);
+      getRouteService.findRouteByEntityId.mockResolvedValue(null);
 
       await expect(
         service.updateWeekMaterialsPage('page-id', validDto(), {}),

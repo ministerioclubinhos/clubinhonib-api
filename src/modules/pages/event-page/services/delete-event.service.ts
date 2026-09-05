@@ -6,7 +6,7 @@ import {
 } from 'src/shared/exceptions';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
-import { RouteService } from 'src/modules/routes/route.service';
+import { DeleteRouteService } from 'src/modules/routes/services/delete-route.service';
 import { EventRepository } from '../repositories/event.repository';
 import { GetEventService } from './get-event.service';
 import { AnnounceEventService } from './announce-event.service';
@@ -21,7 +21,7 @@ export class DeleteEventService {
     private readonly getService: GetEventService,
     private readonly s3Service: AwsS3Service,
     private readonly mediaItemProcessor: MediaItemProcessor,
-    private readonly routeService: RouteService,
+    private readonly deleteRouteService: DeleteRouteService,
     private readonly announceService: AnnounceEventService,
   ) {}
 
@@ -43,7 +43,10 @@ export class DeleteEventService {
         );
       }
 
-      await this.routeService.removeRouteByEntity(EVENT_MEDIA_TARGET_TYPE, id);
+      await this.deleteRouteService.removeRouteByEntity(
+        EVENT_MEDIA_TARGET_TYPE,
+        id,
+      );
       await this.eventRepo.removeById(id);
 
       this.logger.log(`Evento removido. ID=${id}`);

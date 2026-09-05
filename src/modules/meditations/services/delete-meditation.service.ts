@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DataSource, EntityManager } from 'typeorm';
+import { EntityManager } from 'typeorm';
 import {
   AppException,
   AppInternalException,
   ErrorCode,
 } from 'src/shared/exceptions';
-import { RouteService } from 'src/modules/routes/route.service';
+import { DeleteRouteService } from 'src/modules/routes/services/delete-route.service';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { MeditationRepository } from '../repositories/meditation.repository';
@@ -17,11 +17,10 @@ export class DeleteMeditationService {
   private readonly logger = new Logger(DeleteMeditationService.name);
 
   constructor(
-    private readonly dataSource: DataSource,
     private readonly meditationRepo: MeditationRepository,
     private readonly getService: GetMeditationService,
     private readonly s3Service: AwsS3Service,
-    private readonly routeService: RouteService,
+    private readonly deleteRouteService: DeleteRouteService,
     private readonly mediaItemProcessor: MediaItemProcessor,
   ) {}
 
@@ -43,11 +42,18 @@ export class DeleteMeditationService {
         );
       }
 
-      await this.dataSource.transaction(async (manager: EntityManager) => {
-        await this.meditationRepo.removeMeditation(meditation, manager);
-      });
+      // A transação é aberta pelo repositório; aqui só se decide o que entra
+      // nela.
+      await this.meditationRepo.runInTransaction(
+        async (manager: EntityManager) => {
+          await this.meditationRepo.removeMeditation(meditation, manager);
+        },
+      );
 
-      await this.routeService.removeRouteByEntity(MEDITATION_ENTITY_TYPE, id);
+      await this.deleteRouteService.removeRouteByEntity(
+        MEDITATION_ENTITY_TYPE,
+        id,
+      );
 
       this.logger.log(`Meditação removida. ID=${id}`);
     } catch (error: unknown) {

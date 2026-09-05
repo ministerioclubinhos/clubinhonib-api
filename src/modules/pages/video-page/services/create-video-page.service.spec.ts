@@ -1,10 +1,10 @@
 import { Test } from '@nestjs/testing';
-import { DataSource } from 'typeorm';
+import { EntityManager } from 'typeorm';
 import {
   AppInternalException,
   AppValidationException,
 } from 'src/shared/exceptions';
-import { RouteService } from 'src/modules/routes/route.service';
+import { CreateRouteService } from 'src/modules/routes/services/create-route.service';
 import { RouteType } from 'src/modules/routes/route-page.entity';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
@@ -39,18 +39,18 @@ const validDto = (
   });
 
 describe('CreateVideosPageService', () => {
-  const queryRunner = {
-    connect: jest.fn(),
-    startTransaction: jest.fn(),
-    commitTransaction: jest.fn(),
-    rollbackTransaction: jest.fn(),
-    release: jest.fn(),
-    manager: {},
+  const manager = {} as EntityManager;
+  // A transação passou a ser aberta pelo repositório: o caso de uso entrega
+  // o bloco de escritas e não conhece mais `DataSource`.
+  const videosPageRepo = {
+    runInTransaction: jest.fn((run: (m: EntityManager) => Promise<unknown>) =>
+      run(manager),
+    ),
+    createPage: jest.fn(),
+    savePage: jest.fn(),
   };
-  const dataSource = { createQueryRunner: jest.fn(() => queryRunner) };
-  const videosPageRepo = { createPage: jest.fn(), savePage: jest.fn() };
   const s3 = { upload: jest.fn(), delete: jest.fn() };
-  const routeService = {
+  const createRouteService = {
     generateAvailablePath: jest.fn(),
     createRouteWithManager: jest.fn(),
   };
@@ -94,19 +94,18 @@ describe('CreateVideosPageService', () => {
       page.route = route as never;
       return page;
     });
-    routeService.generateAvailablePath.mockResolvedValue(
+    createRouteService.generateAvailablePath.mockResolvedValue(
       'galeria_videos_galeria',
     );
-    routeService.createRouteWithManager.mockResolvedValue(route);
+    createRouteService.createRouteWithManager.mockResolvedValue(route);
     mediaItemProcessor.processMediaItemsPolymorphic.mockResolvedValue([]);
 
     const moduleRef = await Test.createTestingModule({
       providers: [
         CreateVideosPageService,
-        { provide: DataSource, useValue: dataSource },
         { provide: VideosPageRepository, useValue: videosPageRepo },
         { provide: AwsS3Service, useValue: s3 },
-        { provide: RouteService, useValue: routeService },
+        { provide: CreateRouteService, useValue: createRouteService },
         { provide: MediaItemProcessor, useValue: mediaItemProcessor },
       ],
     }).compile();
@@ -117,12 +116,11 @@ describe('CreateVideosPageService', () => {
   it('cria página, rota e vídeos numa transação confirmada', async () => {
     const result = await service.execute(validDto(), {});
 
-    expect(routeService.generateAvailablePath).toHaveBeenCalledWith(
+    expect(createRouteService.generateAvailablePath).toHaveBeenCalledWith(
       'Galeria de vídeos',
       'galeria_videos_',
     );
-    expect(queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
-    expect(queryRunner.release).toHaveBeenCalledTimes(1);
+    expect(videosPageRepo.runInTransaction).toHaveBeenCalledTimes(1);
     expect(result.id).toBe('page-id');
   });
 
@@ -131,7 +129,7 @@ describe('CreateVideosPageService', () => {
 
     expect(videosPageRepo.createPage).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'Galeria de vídeos' }),
-      queryRunner.manager,
+      manager,
     );
   });
 
@@ -151,7 +149,7 @@ describe('CreateVideosPageService', () => {
     await expect(service.execute(dto, {})).rejects.toBeInstanceOf(
       AppValidationException,
     );
-    expect(dataSource.createQueryRunner).not.toHaveBeenCalled();
+    expect(videosPageRepo.runInTransaction).not.toHaveBeenCalled();
   });
 
   it('recusa upload cujo arquivo não veio na requisição', async () => {
@@ -171,7 +169,7 @@ describe('CreateVideosPageService', () => {
     await expect(service.execute(dto, {})).rejects.toBeInstanceOf(
       AppValidationException,
     );
-    expect(dataSource.createQueryRunner).not.toHaveBeenCalled();
+    expect(videosPageRepo.runInTransaction).not.toHaveBeenCalled();
   });
 
   it('faz rollback e limpa mídia órfã quando a criação falha', async () => {
@@ -189,7 +187,7 @@ describe('CreateVideosPageService', () => {
       AppInternalException,
     );
 
-    expect(queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
+    expect(videosPageRepo.runInTransaction).toHaveBeenCalledTimes(1);
     expect(mediaItemProcessor.deleteMediaItems).toHaveBeenCalledWith(
       [orphan],
       expect.any(Function),

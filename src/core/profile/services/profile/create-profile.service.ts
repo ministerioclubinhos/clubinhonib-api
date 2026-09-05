@@ -1,9 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 
-import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
-import { MediaItemRepository } from 'src/shared/media/media-item-repository';
+import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
-import { UserRepository } from 'src/core/user/user.repository';
+import { GetUsersService } from 'src/core/user/services/get-user.service';
 
 import { PersonalDataRepository } from '../../repositories/personal-data.repository';
 import { UserPreferencesRepository } from '../../repositories/user-preferences.repository';
@@ -16,23 +15,17 @@ export class CreateProfileService {
   private readonly logger = new Logger(CreateProfileService.name);
 
   constructor(
-    private readonly userRepository: UserRepository,
+    private readonly getUsersService: GetUsersService,
     private readonly personalDataRepository: PersonalDataRepository,
     private readonly userPreferencesRepository: UserPreferencesRepository,
-    private readonly mediaItemRepository: MediaItemRepository,
+    private readonly mediaItemProcessor: MediaItemProcessor,
   ) {}
 
   async execute(
     userId: string,
     dto: CreateCompleteProfileDto,
   ): Promise<CompleteProfileResponseDto> {
-    const user = await this.userRepository.findById(userId);
-    if (!user) {
-      throw new AppNotFoundException(
-        ErrorCode.USER_NOT_FOUND,
-        'Usuário não encontrado',
-      );
-    }
+    const user = await this.getUsersService.findOne(userId);
 
     // Cada bloco é opcional, e o que já existir é atualizado em vez de
     // duplicado: o perfil é um por usuário.
@@ -57,7 +50,10 @@ export class CreateProfileService {
     const [personalData, preferences, [image]] = await Promise.all([
       this.personalDataRepository.findByUserId(userId),
       this.userPreferencesRepository.findByUserId(userId),
-      this.mediaItemRepository.findByTarget(userId, MediaTargetType.User),
+      this.mediaItemProcessor.findMediaItemsByTarget(
+        userId,
+        MediaTargetType.User,
+      ),
     ]);
 
     this.logger.log(`Perfil criado para o usuário: ${userId}`);

@@ -1,12 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DataSource, EntityManager } from 'typeorm';
+import { EntityManager } from 'typeorm';
 import {
   AppException,
   AppInternalException,
   ErrorCode,
 } from 'src/shared/exceptions';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
-import { RouteService } from 'src/modules/routes/route.service';
+import { DeleteRouteService } from 'src/modules/routes/services/delete-route.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { VideosPageRepository } from '../repositories/video-page.repository';
 import { GetVideosPageService } from './get-video-page.service';
@@ -17,11 +17,10 @@ export class DeleteVideosPageService {
   private readonly logger = new Logger(DeleteVideosPageService.name);
 
   constructor(
-    private readonly dataSource: DataSource,
     private readonly videosPageRepo: VideosPageRepository,
     private readonly getService: GetVideosPageService,
     private readonly s3: AwsS3Service,
-    private readonly routeService: RouteService,
+    private readonly deleteRouteService: DeleteRouteService,
     private readonly mediaItemProcessor: MediaItemProcessor,
   ) {}
 
@@ -42,14 +41,16 @@ export class DeleteVideosPageService {
 
       // A página sai antes da rota: com a página removida, a chave estrangeira
       // deixa de apontar para a rota e a exclusão dela fica livre.
-      await this.dataSource.transaction(async (manager: EntityManager) => {
-        await this.videosPageRepo.removePage(page, manager);
-      });
+      await this.videosPageRepo.runInTransaction(
+        async (manager: EntityManager) => {
+          await this.videosPageRepo.removePage(page, manager);
+        },
+      );
 
       if (page.route?.id) {
-        await this.routeService.removeRoute(page.route.id);
+        await this.deleteRouteService.removeRoute(page.route.id);
       } else {
-        await this.routeService.removeRouteByEntity(
+        await this.deleteRouteService.removeRouteByEntity(
           VIDEO_PAGE_ENTITY_TYPE,
           page.id,
         );

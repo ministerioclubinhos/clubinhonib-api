@@ -9,6 +9,7 @@ import { FeatureFlagsModule } from './core/feature-flags/feature-flags.module';
 import { AwsModule } from './shared/providers/aws/aws.module';
 import { EmailModule } from './shared/email';
 import { SiteUrlModule } from './shared/site-url';
+import { SchedulingModule } from './shared/scheduling';
 import { TwilioModule } from './shared/providers/twilio/twilio.module';
 import { NotificationModule } from './shared/providers/notification/notification.module';
 import { DatabaseModule } from '../database/database.module';
@@ -45,6 +46,7 @@ import { ClubControlModule } from './modules/club-control/club-control.module';
     AwsModule,
     EmailModule,
     SiteUrlModule,
+    SchedulingModule,
     TwilioModule,
     NotificationModule,
     ImageModule,

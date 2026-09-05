@@ -4,9 +4,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { MediaModule } from 'src/shared/media/media.module';
 import { AwsModule } from 'src/shared/providers/aws/aws.module';
 
-import { ImagePageEntity } from '../image-page/entity/Image-page.entity';
 import { ImageSectionEntity } from '../image-page/entity/Image-section.entity';
-import { ImagePageRepository } from '../image-page/repositories/image-page.repository';
+import { ImageModule } from '../image-page/image-page.module';
 
 import { ImageSectionController } from './image-section.controller';
 import { ImageSectionRepository } from './repository/image-section.repository';
@@ -18,7 +17,8 @@ import { ImageSectionDeleteService } from './services/delete-image-section.servi
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([ImageSectionEntity, ImagePageEntity]),
+    TypeOrmModule.forFeature([ImageSectionEntity]),
+    ImageModule,
     MediaModule,
     AwsModule,
   ],
@@ -26,7 +26,6 @@ import { ImageSectionDeleteService } from './services/delete-image-section.servi
   providers: [
     ImageSectionsRepository,
     ImageSectionRepository,
-    ImagePageRepository,
     ImageSectionCreateService,
     GetImageSectionsService,
     ImageSectionUpdateService,

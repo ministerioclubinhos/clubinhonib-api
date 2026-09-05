@@ -6,11 +6,10 @@ import {
   AppValidationException,
   ErrorCode,
 } from 'src/shared/exceptions';
-import { DataSource } from 'typeorm';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
-import { RouteService } from 'src/modules/routes/route.service';
+import { UpdateRouteService } from 'src/modules/routes/services/update-route.service';
 import { RouteType, RouteEntity } from 'src/modules/routes/route-page.entity';
 import { DocumentsRepository } from '../repositories/documents.repository';
 import { UpdateDocumentDto } from '../dto/update-document.dto';
@@ -28,11 +27,10 @@ export class UpdateDocumentService {
   private readonly logger = new Logger(UpdateDocumentService.name);
 
   constructor(
-    private readonly dataSource: DataSource,
     private readonly documentRepo: DocumentsRepository,
     private readonly s3Service: AwsS3Service,
     private readonly mediaProcessor: MediaItemProcessor,
-    private readonly routeService: RouteService,
+    private readonly updateRouteService: UpdateRouteService,
   ) {}
 
   async execute(
@@ -66,17 +64,15 @@ export class UpdateDocumentService {
     );
 
     try {
-      const savedDocument = await this.dataSource.transaction(
+      // A transação é aberta pelo repositório; aqui só se decide o que entra
+      // nela.
+      const savedDocument = await this.documentRepo.runInTransaction(
         async (manager) => {
-          const updatedDocument = manager.merge(
-            DocumentEntity,
+          const saved = await this.documentRepo.updateInTransaction(
+            manager,
             existingDocument,
-            {
-              name: dto.name,
-              description: dto.description,
-            },
+            { name: dto.name, description: dto.description },
           );
-          const saved = await manager.save(DocumentEntity, updatedDocument);
           this.logger.log(`✅ Documento atualizado: ${saved.id}`);
 
           if (saved.route) {
@@ -203,11 +199,12 @@ export class UpdateDocumentService {
     // `path` é único no banco: gerá-lo a partir do título sem checar a
     // disponibilidade quebrava a edição quando dois documentos passavam a ter
     // o mesmo nome.
-    const savedRoute = await this.routeService.upsertRouteWithAvailablePath(
-      routeId,
-      routeData,
-      DOCUMENT_ROUTE_PREFIX,
-    );
+    const savedRoute =
+      await this.updateRouteService.upsertRouteWithAvailablePath(
+        routeId,
+        routeData,
+        DOCUMENT_ROUTE_PREFIX,
+      );
     this.logger.debug(
       `✅ Rota do documento upsertada: ${savedRoute.id}, path: ${savedRoute.path}`,
     );

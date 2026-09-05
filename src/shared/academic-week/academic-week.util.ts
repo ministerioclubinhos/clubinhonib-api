@@ -28,9 +28,22 @@ export interface AcademicPeriod {
  * `new Date('2026-03-01')` seria meia-noite UTC e, em fuso negativo, cairia no
  * dia anterior. Ler ao meio-dia mantém o dia do calendário.
  */
-function parseDateOnly(value: string): Date {
+export function parseDateOnly(value: string): Date {
   const [year, month, day] = value.split('-').map(Number);
   return new Date(year, (month ?? 1) - 1, day ?? 1, 12, 0, 0, 0);
+}
+
+/**
+ * Formata uma data como `YYYY-MM-DD` a partir dos componentes locais.
+ *
+ * `toISOString()` converte para UTC antes de recortar: num processo em fuso
+ * positivo, meia-noite local é o dia anterior em UTC e a data volta um dia.
+ */
+export function formatDateOnly(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+
+  return `${date.getFullYear()}-${month}-${day}`;
 }
 
 /** Ano da data, sem passar por fuso. */

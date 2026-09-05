@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { WeekMaterialsPageEntity } from '../entities/week-material-page.entity';
 import { WeekMaterialsPageRepository } from './week-material-page.repository';
 
@@ -66,6 +66,9 @@ describe('WeekMaterialsPageRepository', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         WeekMaterialsPageRepository,
+        // O repositório passou a abrir a transação, então recebe o `DataSource`.
+        // Nenhum caso aqui transaciona: o duplo só satisfaz a injeção.
+        { provide: DataSource, useValue: { transaction: jest.fn() } },
         {
           provide: getRepositoryToken(WeekMaterialsPageEntity),
           useValue:

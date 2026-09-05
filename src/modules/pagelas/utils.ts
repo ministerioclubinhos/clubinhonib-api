@@ -10,6 +10,8 @@ import {
 } from './constants';
 import { AcademicWeek } from './types';
 import { PagelaAccessContext } from './types';
+import { UserRole } from 'src/core/auth/auth.types';
+import { normalizeRole } from 'src/core/auth/role.utils';
 
 export {
   getAcademicWeek,
@@ -17,14 +19,20 @@ export {
   referenceYearOf,
 } from 'src/shared/academic-week/academic-week.util';
 
-/** Papel em minúsculas, que é como as regras comparam. */
-export function normalizedRole(context: PagelaAccessContext): string {
-  return context.role?.toLowerCase() ?? '';
+/** O papel de quem chamou, ou `undefined` quando não é um papel conhecido. */
+export function normalizedRole(
+  context: PagelaAccessContext,
+): UserRole | undefined {
+  return normalizeRole(context.role);
 }
 
 /** Só administrador, coordenador e professor trabalham com pagelas. */
 export function canAccessPagelas(context: PagelaAccessContext): boolean {
-  return (PAGELA_ROLES as readonly string[]).includes(normalizedRole(context));
+  const role = normalizedRole(context);
+
+  return (
+    role !== undefined && (PAGELA_ROLES as readonly UserRole[]).includes(role)
+  );
 }
 
 /** Administrador enxerga todos os clubinhos; os demais, só os seus. */

@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { UserRole } from 'src/core/auth/auth.types';
-import { MediaItemRepository } from 'src/shared/media/media-item-repository';
+import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
 
 import {
@@ -20,7 +19,7 @@ import { PersonalDataRepository } from '../../repositories/personal-data.reposit
 import { ProfilesListingRepository } from '../../repositories/profiles-listing.repository';
 import { UserPreferencesRepository } from '../../repositories/user-preferences.repository';
 import { ProfileAccessContext } from '../../types';
-import { assertCanListProfiles, normalizedRole, toDateOnly } from '../../utils';
+import { assertCanListProfiles, toDateOnly } from '../../utils';
 
 @Injectable()
 export class GetAllProfilesService {
@@ -28,16 +27,14 @@ export class GetAllProfilesService {
     private readonly listingRepository: ProfilesListingRepository,
     private readonly personalDataRepository: PersonalDataRepository,
     private readonly userPreferencesRepository: UserPreferencesRepository,
-    private readonly mediaItemRepository: MediaItemRepository,
+    private readonly mediaItemProcessor: MediaItemProcessor,
   ) {}
 
   async execute(
     context: ProfileAccessContext,
     query: QueryProfilesDto,
   ): Promise<PaginatedProfilesResponseDto> {
-    assertCanListProfiles(context);
-
-    const role = normalizedRole(context) as UserRole;
+    const role = assertCanListProfiles(context);
     const requestingUserId = context.userId ?? '';
 
     const page = Math.max(query.page ?? PROFILES_DEFAULT_PAGE, 1);
@@ -59,7 +56,10 @@ export class GetAllProfilesService {
     // Uma consulta por bloco, e não uma por usuário: a versão anterior fazia
     // duas idas ao banco para cada linha da página.
     const [mediaItems, personalDataRows, preferencesRows] = await Promise.all([
-      this.mediaItemRepository.findManyByTargets(userIds, MediaTargetType.User),
+      this.mediaItemProcessor.findManyMediaItemsByTargets(
+        userIds,
+        MediaTargetType.User,
+      ),
       this.personalDataRepository.findByUserIds(userIds),
       this.userPreferencesRepository.findByUserIds(userIds),
     ]);
@@ -100,18 +100,17 @@ export class GetAllProfilesService {
   async findBirthdaysOfCurrentMonth(
     context: ProfileAccessContext,
   ): Promise<ProfileBirthdayResponseDto[]> {
-    assertCanListProfiles(context);
-
-    const role = normalizedRole(context) as UserRole;
+    const role = assertCanListProfiles(context);
     const rows = await this.listingRepository.findBirthdaysOfCurrentMonth(
       role,
       context.userId ?? '',
     );
 
-    const mediaItems = await this.mediaItemRepository.findManyByTargets(
-      rows.map((row) => row.id),
-      MediaTargetType.User,
-    );
+    const mediaItems =
+      await this.mediaItemProcessor.findManyMediaItemsByTargets(
+        rows.map((row) => row.id),
+        MediaTargetType.User,
+      );
     const mediaByUser = new Map(
       mediaItems.map((item) => [item.targetId, item]),
     );

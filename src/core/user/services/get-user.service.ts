@@ -3,8 +3,7 @@ import { UserEntity } from '../entities/user.entity';
 import { GetUsersQueryDto } from '../dto/get-users-query.dto';
 import { UserRepository } from '../user.repository';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
-import { PersonalDataRepository } from 'src/core/profile/repositories/personal-data.repository';
-import { UserPreferencesRepository } from 'src/core/profile/repositories/user-preferences.repository';
+import { GetProfileBlocksService } from 'src/core/profile/services/profile/get-profile-blocks.service';
 import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import { MyProfileResponseDto } from '../dto/my-profile-response.dto';
 import { PaginatedUsersResponseDto } from '../dto/user-response.dto';
@@ -19,8 +18,7 @@ export class GetUsersService {
   constructor(
     private readonly userRepo: UserRepository,
     private readonly mediaItemProcessor: MediaItemProcessor,
-    private readonly personalDataRepository: PersonalDataRepository,
-    private readonly userPreferencesRepository: UserPreferencesRepository,
+    private readonly getProfileBlocksService: GetProfileBlocksService,
   ) {}
 
   /** Página da listagem administrativa, já no contrato público. */
@@ -59,6 +57,27 @@ export class GetUsersService {
     return this.userRepo.findActiveRecipients();
   }
 
+  /**
+   * Dos ids informados, quem pode receber um aviso.
+   *
+   * O módulo que sabe *quem* avisar — o de clubes, para os professores de um
+   * clubinho — chega aqui pelo serviço, nunca pelo repositório de usuário, e
+   * não precisa conhecer a régua de elegibilidade.
+   */
+  async findNoticeRecipientsByIds(ids: string[]): Promise<EmailRecipient[]> {
+    return this.userRepo.findNoticeRecipientsByIds(ids);
+  }
+
+  /**
+   * E-mails dos administradores, para quem precisa avisá-los.
+   *
+   * Existe para o módulo de notificação não alcançar o repositório de usuários
+   * por dentro.
+   */
+  async findAdminEmails(): Promise<string[]> {
+    return this.userRepo.findAdminEmails();
+  }
+
   async findByEmail(email: string): Promise<UserEntity | null> {
     return this.userRepo.findByEmail(email);
   }
@@ -75,11 +94,11 @@ export class GetUsersService {
       );
     }
 
-    const [image, personalData, preferences] = await Promise.all([
+    const [image, blocks] = await Promise.all([
       this.mediaItemProcessor.findMediaItemByTarget(id, USER_MEDIA_TARGET),
-      this.personalDataRepository.findByUserId(id),
-      this.userPreferencesRepository.findByUserId(id),
+      this.getProfileBlocksService.findByUserId(id),
     ]);
+    const { personalData, preferences } = blocks;
 
     return toMyProfileResponse({ user, image, personalData, preferences });
   }

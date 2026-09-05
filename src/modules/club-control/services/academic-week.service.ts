@@ -1,14 +1,19 @@
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Inject, Injectable, forwardRef } from '@nestjs/common';
 import { ClubPeriodEntity } from '../entities/club-period.entity';
-import { getAcademicWeek } from 'src/shared/academic-week/academic-week.util';
+import { ClubControlRepository } from '../repositories/club-control.repository';
+import {
+  formatDateOnly,
+  getAcademicWeek,
+  parseDateOnly,
+} from 'src/shared/academic-week/academic-week.util';
 
 @Injectable()
 export class AcademicWeekService {
   constructor(
-    @InjectRepository(ClubPeriodEntity)
-    private readonly periodsRepository: Repository<ClubPeriodEntity>,
+    // O repositório importa este serviço de volta: sem `forwardRef` a classe
+    // chega `undefined` na hora de resolver a injeção e a aplicação não sobe.
+    @Inject(forwardRef(() => ClubControlRepository))
+    private readonly clubControlRepository: ClubControlRepository,
   ) {}
 
   async calculateCurrentAcademicWeek(): Promise<{
@@ -20,9 +25,10 @@ export class AcademicWeekService {
   } | null> {
     const now = new Date();
     const currentYear = now.getFullYear();
-    const period = await this.periodsRepository.findOne({
-      where: { year: currentYear, isActive: true },
-    });
+    // A consulta vive no repositório: `findPeriodByYear` já traz só o período
+    // ativo do ano, que é exatamente o que esta conta precisa.
+    const period =
+      await this.clubControlRepository.findPeriodByYear(currentYear);
 
     if (!period) {
       return {
@@ -92,8 +98,9 @@ export class AcademicWeekService {
       throw new Error(`Invalid weekday: ${weekday}`);
     }
 
-    const periodStartDate = new Date(period.startDate + 'T00:00:00');
-    const startWeekStart = this.getWeekStartDate(periodStartDate);
+    const startWeekStart = this.getWeekStartDate(
+      parseDateOnly(period.startDate),
+    );
 
     const academicWeekStart = new Date(startWeekStart);
     academicWeekStart.setDate(startWeekStart.getDate() + (week - 1) * 7);
@@ -108,12 +115,21 @@ export class AcademicWeekService {
 
     date.setDate(academicWeekStart.getDate() + dayDiff);
 
-    return date.toISOString().split('T')[0];
+    return formatDateOnly(date);
   }
 
+  /**
+   * Quantas semanas letivas o período tem.
+   *
+   * As datas são lidas como dia de calendário. Com `new Date('2026-03-02')` a
+   * leitura era meia-noite **UTC**: em fuso negativo isso caía no domingo
+   * anterior, o início do período ia para a semana de trás e o total saía com
+   * uma semana a mais. O efeito era concreto — `checkClubWeek` deixava passar
+   * uma semana que não existe, e todo clubinho aparecia devendo pagela dela.
+   */
   calculateMaxAcademicWeek(period: ClubPeriodEntity): number {
-    const start = new Date(period.startDate);
-    const end = new Date(period.endDate);
+    const start = parseDateOnly(period.startDate);
+    const end = parseDateOnly(period.endDate);
 
     const startWeekStart = this.getWeekStartDate(start);
     const endWeekStart = this.getWeekStartDate(end);

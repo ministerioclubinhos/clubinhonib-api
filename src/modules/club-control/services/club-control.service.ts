@@ -13,6 +13,23 @@ import { UpdateClubExceptionDto } from '../dto/update-club-exception.dto';
 import { DetailedIndicatorsResultDto } from '../dto/detailed-indicators-result.dto';
 import { AcademicWeekService } from './academic-week.service';
 import { ClubWeekCheckService } from './club-week-check.service';
+import {
+  ClubControlDashboardResponseDto,
+  ClubExceptionResponseDto,
+  ClubPeriodResponseDto,
+  ClubsWeekCheckResponseDto,
+  CurrentAcademicWeekDto,
+  DeleteResultDto,
+  PaginatedClubExceptionsDto,
+  PaginatedClubPeriodsDto,
+} from '../dto/club-control-contracts.dto';
+import { toClubExceptionResponse, toClubPeriodResponse } from '../mappers';
+import { ClubCheckResultDto } from '../dto/club-check-result.dto';
+import { ClubWeekStatus } from '../constants';
+import { ClubWeekPendency } from '../types';
+import { AnnounceClubExceptionService } from './announce-club-exception.service';
+import { isPendingStatus } from '../utils';
+import { ChildNotAttendingDto } from '../dto/club-control-contracts.dto';
 
 @Injectable()
 export class ClubControlService {
@@ -20,6 +37,7 @@ export class ClubControlService {
     private readonly clubControlRepository: ClubControlRepository,
     private readonly academicWeekService: AcademicWeekService,
     private readonly clubWeekCheckService: ClubWeekCheckService,
+    private readonly announceClubExceptionService: AnnounceClubExceptionService,
   ) {}
 
   private validatePeriodDates(
@@ -45,7 +63,7 @@ export class ClubControlService {
     }
   }
 
-  async createPeriod(dto: CreateClubPeriodDto) {
+  async createPeriod(dto: CreateClubPeriodDto): Promise<ClubPeriodResponseDto> {
     this.validatePeriodDates(dto.year, dto.startDate, dto.endDate);
     const existing = await this.clubControlRepository.findAnyPeriodByYear(
       dto.year,
@@ -61,27 +79,44 @@ export class ClubControlService {
       existing.endDate = dto.endDate;
       existing.description = dto.description;
       existing.isActive = dto.isActive ?? true;
-      return this.clubControlRepository.savePeriod(existing);
+      return toClubPeriodResponse(
+        await this.clubControlRepository.savePeriod(existing),
+      );
     }
 
-    return this.clubControlRepository.createPeriod({
+    const criado = await this.clubControlRepository.createPeriod({
       year: dto.year,
       startDate: dto.startDate,
       endDate: dto.endDate,
       description: dto.description,
       isActive: dto.isActive ?? true,
     });
+
+    return toClubPeriodResponse(criado);
   }
 
-  async getPeriodByYear(year: number) {
-    return this.clubControlRepository.findPeriodByYear(year);
+  async getPeriodByYear(year: number): Promise<ClubPeriodResponseDto | null> {
+    const periodo = await this.clubControlRepository.findPeriodByYear(year);
+
+    return periodo ? toClubPeriodResponse(periodo) : null;
   }
 
-  async getAllPeriods(page?: number, limit?: number) {
-    return this.clubControlRepository.findAllPeriods(page, limit);
+  async getAllPeriods(
+    page?: number,
+    limit?: number,
+  ): Promise<PaginatedClubPeriodsDto> {
+    const { items, total } = await this.clubControlRepository.findAllPeriods(
+      page,
+      limit,
+    );
+
+    return { items: items.map(toClubPeriodResponse), total };
   }
 
-  async updatePeriod(id: string, dto: UpdateClubPeriodDto) {
+  async updatePeriod(
+    id: string,
+    dto: UpdateClubPeriodDto,
+  ): Promise<ClubPeriodResponseDto> {
     const existing = await this.clubControlRepository.findPeriodById(id);
     if (!existing) {
       throw new AppNotFoundException(
@@ -99,14 +134,18 @@ export class ClubControlService {
     if (dto.description !== undefined) existing.description = dto.description;
     if (dto.isActive !== undefined) existing.isActive = dto.isActive;
 
-    return this.clubControlRepository.savePeriod(existing);
+    return toClubPeriodResponse(
+      await this.clubControlRepository.savePeriod(existing),
+    );
   }
 
-  async deletePeriod(id: string) {
+  async deletePeriod(id: string): Promise<DeleteResultDto> {
     return this.clubControlRepository.deletePeriod(id);
   }
 
-  async createException(dto: CreateClubExceptionDto) {
+  async createException(
+    dto: CreateClubExceptionDto,
+  ): Promise<ClubExceptionResponseDto> {
     const existing = await this.clubControlRepository.findAnyExceptionByDate(
       dto.exceptionDate,
     );
@@ -124,10 +163,18 @@ export class ClubControlService {
       existing.notes = dto.notes;
       existing.isActive = dto.isActive ?? true;
       existing.isRecurrent = dto.isRecurrent ?? true;
-      return this.clubControlRepository.saveException(existing);
+
+      const reativada =
+        await this.clubControlRepository.saveException(existing);
+
+      // Reativar uma data antiga é, para quem recebe, a mesma notícia que
+      // cadastrar uma nova: naquele dia não vai ter Clubinho.
+      this.announceClubExceptionService.announceInBackground(reativada);
+
+      return toClubExceptionResponse(reativada);
     }
 
-    return this.clubControlRepository.createException({
+    const criada = await this.clubControlRepository.createException({
       exceptionDate: dto.exceptionDate,
       reason: dto.reason,
       type: dto.type || 'other',
@@ -135,9 +182,18 @@ export class ClubControlService {
       isActive: dto.isActive ?? true,
       isRecurrent: dto.isRecurrent ?? true,
     });
+
+    // Depois de gravada e fora da requisição: a exceção já vale, e o aviso é
+    // consequência dela.
+    this.announceClubExceptionService.announceInBackground(criada);
+
+    return toClubExceptionResponse(criada);
   }
 
-  async updateException(id: string, dto: UpdateClubExceptionDto) {
+  async updateException(
+    id: string,
+    dto: UpdateClubExceptionDto,
+  ): Promise<ClubExceptionResponseDto> {
     const existing = await this.clubControlRepository.findExceptionById(id);
     if (!existing) {
       throw new AppNotFoundException(
@@ -166,11 +222,17 @@ export class ClubControlService {
     if (dto.isActive !== undefined) existing.isActive = dto.isActive;
     if (dto.isRecurrent !== undefined) existing.isRecurrent = dto.isRecurrent;
 
-    return this.clubControlRepository.saveException(existing);
+    return toClubExceptionResponse(
+      await this.clubControlRepository.saveException(existing),
+    );
   }
 
-  async getExceptionByDate(date: string) {
-    return this.clubControlRepository.findExceptionByDate(date);
+  async getExceptionByDate(
+    date: string,
+  ): Promise<ClubExceptionResponseDto | null> {
+    const excecao = await this.clubControlRepository.findExceptionByDate(date);
+
+    return excecao ? toClubExceptionResponse(excecao) : null;
   }
 
   async getExceptionsByPeriod(
@@ -178,20 +240,27 @@ export class ClubControlService {
     endDate?: string,
     page?: number,
     limit?: number,
-  ) {
-    return this.clubControlRepository.findExceptionsByPeriod(
-      startDate,
-      endDate,
-      page,
-      limit,
-    );
+  ): Promise<PaginatedClubExceptionsDto> {
+    const { items, total } =
+      await this.clubControlRepository.findExceptionsByPeriod(
+        startDate,
+        endDate,
+        page,
+        limit,
+      );
+
+    return { items: items.map(toClubExceptionResponse), total };
   }
 
-  async deleteException(id: string) {
+  async deleteException(id: string): Promise<DeleteResultDto> {
     return this.clubControlRepository.deleteException(id);
   }
 
-  async checkClubWeek(clubId: string, year: number, week: number) {
+  async checkClubWeek(
+    clubId: string,
+    year: number,
+    week: number,
+  ): Promise<ClubCheckResultDto> {
     return this.clubWeekCheckService.checkClubWeek(clubId, year, week);
   }
 
@@ -200,7 +269,7 @@ export class ClubControlService {
     week?: number,
     page: number = 1,
     limit: number = 50,
-  ) {
+  ): Promise<ClubsWeekCheckResponseDto> {
     let finalYear = year;
     let finalWeek = week;
 
@@ -293,7 +362,7 @@ export class ClubControlService {
     week: number,
     page: number,
     limit: number,
-  ) {
+  ): Promise<ClubsWeekCheckResponseDto> {
     const period = await this.clubControlRepository.findPeriodByYear(year);
 
     if (!period) {
@@ -402,7 +471,7 @@ export class ClubControlService {
     );
 
     let totalChildrenNotAttending = 0;
-    const childrenNotAttendingList: any[] = [];
+    const childrenNotAttendingList: ChildNotAttendingDto[] = [];
 
     clubsResults.forEach((result) => {
       if (result.children.notAttendingCount > 0) {
@@ -495,7 +564,10 @@ export class ClubControlService {
     };
   }
 
-  async getCurrentWeekDashboard(page: number = 1, limit: number = 20) {
+  async getCurrentWeekDashboard(
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<ClubControlDashboardResponseDto> {
     const result = await this.checkAllClubsWeek(
       undefined,
       undefined,
@@ -516,13 +588,7 @@ export class ClubControlService {
     };
   }
 
-  async getCurrentAcademicWeek(): Promise<{
-    year: number;
-    week: number;
-    isWithinPeriod: boolean;
-    periodStartDate: string;
-    periodEndDate: string;
-  } | null> {
+  async getCurrentAcademicWeek(): Promise<CurrentAcademicWeekDto | null> {
     const result =
       await this.academicWeekService.calculateCurrentAcademicWeek();
 
@@ -537,6 +603,54 @@ export class ClubControlService {
       periodStartDate: result.periodStartDate || '',
       periodEndDate: result.periodEndDate || '',
     };
+  }
+
+  /**
+   * Os clubinhos que fecharam a semana com pagela faltando.
+   *
+   * Existe separado de `checkAllClubsWeek` porque aquele pagina em 50 e devolve
+   * o painel inteiro — resumo, indicadores, crianças que não frequentam. O
+   * aviso de domingo precisa da lista **completa** e de quase nada dela: sem
+   * paginação, um clube não sairia da fila e simplesmente não seria avisado.
+   *
+   * Semana fora do período letivo devolve lista vazia: não há pagela a cobrar
+   * quando não há clubinho.
+   */
+  async listClubsWithMissingPagela(
+    year: number,
+    week: number,
+  ): Promise<ClubWeekPendency[]> {
+    const period = await this.clubControlRepository.findPeriodByYear(year);
+    if (!period) return [];
+
+    if (!this.academicWeekService.isWeekWithinPeriod(year, week, period)) {
+      return [];
+    }
+
+    const clubs = await this.clubControlRepository.findAllClubs();
+    const pending: ClubWeekPendency[] = [];
+
+    for (const club of clubs) {
+      const result = await this.clubWeekCheckService.checkClubWeek(
+        club.id,
+        year,
+        week,
+      );
+
+      if (!isPendingStatus(result.status)) continue;
+
+      pending.push({
+        clubId: result.clubId,
+        clubNumber: result.clubNumber,
+        status: result.status as ClubWeekStatus,
+        expectedDate: result.week.expectedDate,
+        totalChildren: result.children.total,
+        withPagela: result.children.withPagela,
+        missing: result.children.missingList,
+      });
+    }
+
+    return pending;
   }
 
   async getDetailedIndicators(

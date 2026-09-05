@@ -22,6 +22,7 @@ import {
   normalizedRole,
   parseWeekSearch,
 } from '../utils';
+import { UserRole } from 'src/core/auth/auth.types';
 
 @Injectable()
 export class PagelasRepository {
@@ -70,17 +71,20 @@ export class PagelasRepository {
 
     qb.leftJoin('child.club', 'club');
 
-    if (role === 'coordinator') {
+    if (role === UserRole.COORDINATOR) {
       qb.leftJoin('club.coordinator', 'coordinator')
         .leftJoin('coordinator.user', 'coordinatorUser')
-        .andWhere('(coordinatorUser.id = :accessUserId OR child.club_id IS NULL)', {
-          accessUserId: userId,
-        })
+        .andWhere(
+          '(coordinatorUser.id = :accessUserId OR child.club_id IS NULL)',
+          {
+            accessUserId: userId,
+          },
+        )
         .distinct(true);
       return;
     }
 
-    if (role === 'teacher') {
+    if (role === UserRole.TEACHER) {
       qb.leftJoin('club.teachers', 'teacherProfile')
         .leftJoin('teacherProfile.user', 'teacherUser')
         .andWhere('(teacherUser.id = :accessUserId OR child.club_id IS NULL)', {
@@ -204,13 +208,16 @@ export class PagelasRepository {
       .leftJoin('child.club', 'club')
       .where('child.id = :childId', { childId });
 
-    if (role === 'coordinator') {
+    if (role === UserRole.COORDINATOR) {
       qb.leftJoin('club.coordinator', 'coordinator')
         .leftJoin('coordinator.user', 'coordinatorUser')
-        .andWhere('(coordinatorUser.id = :accessUserId OR child.club_id IS NULL)', {
-          accessUserId: userId,
-        });
-    } else if (role === 'teacher') {
+        .andWhere(
+          '(coordinatorUser.id = :accessUserId OR child.club_id IS NULL)',
+          {
+            accessUserId: userId,
+          },
+        );
+    } else if (role === UserRole.TEACHER) {
       qb.leftJoin('club.teachers', 'teacherProfile')
         .leftJoin('teacherProfile.user', 'teacherUser')
         .andWhere('(teacherUser.id = :accessUserId OR child.club_id IS NULL)', {

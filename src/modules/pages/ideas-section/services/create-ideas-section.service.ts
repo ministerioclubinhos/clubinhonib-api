@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { EntityManager } from 'typeorm';
 import { AppInternalException, ErrorCode } from 'src/shared/exceptions';
-import { DataSource, QueryRunner } from 'typeorm';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
@@ -9,9 +9,9 @@ import { IdeasSectionMediaType } from '../entities/ideas-section-media-type.enum
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
 import { NotificationService } from 'src/shared/providers/notification/notification.service';
 import { CreateIdeasSectionDto } from '../dto/create-ideas-section.dto';
-import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 import { IdeasSectionResponseDto } from '../dto/ideas-section-response.dto';
 import { IdeasSectionEntity } from 'src/modules/pages/ideas-page/entities/ideas-section.entity';
+import { IdeasSectionsRepository } from '../repositories/ideas-sections.repository';
 import { toIdeasSectionResponse } from '../mappers';
 import { assertUploadsHaveFiles } from '../utils';
 import { UploadedFilesDict } from '../types';
@@ -21,7 +21,7 @@ export class CreateIdeasSectionService {
   private readonly logger = new Logger(CreateIdeasSectionService.name);
 
   constructor(
-    private readonly dataSource: DataSource,
+    private readonly sectionRepo: IdeasSectionsRepository,
     private readonly awsS3Service: AwsS3Service,
     private readonly mediaItemProcessor: MediaItemProcessor,
     private readonly notificationService: NotificationService,
@@ -42,10 +42,6 @@ export class CreateIdeasSectionService {
     // checagem existia e nunca era chamada.
     assertUploadsHaveFiles(dto.medias, filesDict);
 
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
     // Os arquivos sobem antes do commit e sobrevivem ao rollback: o rastreador
     // permite apagá-los do bucket quando a criação falha.
     const uploads = new S3UploadTracker((file: Express.Multer.File) =>
@@ -53,17 +49,26 @@ export class CreateIdeasSectionService {
     );
 
     try {
-      const section = await this.persistOrphanSection(queryRunner, dto);
-      await this.processOrphanSectionMedia(section, dto, filesDict, uploads);
+      // A transação é aberta pelo repositório; aqui só se decide o que entra
+      // nela. O rollback acontece sozinho quando o bloco lança.
+      const section = await this.sectionRepo.runInTransaction(
+        async (manager) => {
+          const created = await this.persistOrphanSection(manager, dto);
+          await this.processOrphanSectionMedia(
+            created,
+            dto,
+            filesDict,
+            uploads,
+          );
 
-      await queryRunner.commitTransaction();
-
-      const mediaItems = await queryRunner.manager.find(MediaItemEntity, {
-        where: {
-          targetId: section.id,
-          targetType: MediaTargetType.IdeasSection,
+          return created;
         },
-      });
+      );
+
+      const mediaItems = await this.mediaItemProcessor.findMediaItemsByTarget(
+        section.id,
+        MediaTargetType.IdeasSection,
+      );
 
       this.logger.log(`Ideia compartilhada criada. ID=${section.id}`);
 
@@ -79,7 +84,6 @@ export class CreateIdeasSectionService {
 
       return toIdeasSectionResponse(section, mediaItems);
     } catch (error: unknown) {
-      await queryRunner.rollbackTransaction();
       await this.mediaItemProcessor.discardUnreferencedUploads(
         uploads.uploadedUrls,
         (url: string) => this.awsS3Service.delete(url),
@@ -95,26 +99,19 @@ export class CreateIdeasSectionService {
         `Erro ao criar a seção de ideias: ${errMsg}`,
         error instanceof Error ? error : new Error(String(error)),
       );
-    } finally {
-      await queryRunner.release();
     }
   }
 
   private async persistOrphanSection(
-    queryRunner: QueryRunner,
+    manager: EntityManager,
     dto: CreateIdeasSectionDto,
   ): Promise<IdeasSectionEntity> {
-    const sectionRepo = queryRunner.manager.getRepository(IdeasSectionEntity);
-
-    const section = sectionRepo.create({
+    return this.sectionRepo.createInTransaction(manager, {
       title: dto.title,
       description: dto.description,
       // Nasce fora do ar; publicar é decisão da administração.
       public: false,
-      page: undefined,
     });
-
-    return sectionRepo.save(section);
   }
 
   private async processOrphanSectionMedia(

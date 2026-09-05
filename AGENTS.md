@@ -34,11 +34,12 @@ The backend best-practices document is the canonical detailed guide. This file i
 8. Use established application exceptions and the global `{ success: false, error: ... }` envelope. Preserve specific error codes.
 9. Multi-write operations require a transaction, and every write inside it must use the same transactional `EntityManager`.
 10. Every schema migration MUST be generated automatically by the official TypeORM CLI/core through `migration:generate`, using the repository `DataSource` and the entity/schema diff. Never use `migration:create`, create or edit a migration manually, or use `synchronize` as the deployment mechanism. If generated output is wrong, fix the entities or `DataSource` and regenerate it.
-11. Never log tokens, passwords, authorization headers, children's data, guardian details, uploaded contents, or unnecessary personal data.
-12. Every behavior change requires tests. Bug fixes require a regression test. External services and databases must be mocked.
-13. Update API docs, implemented rules, error docs, and automation examples when their behavior changes.
-14. Do not modify environments, deployments, infrastructure, shared databases, or production data without explicit authorization.
-15. Preserve unrelated user changes and keep the final diff limited to the requested outcome.
+11. Every e-mail notification MUST sit behind its own feature flag — one flag per notification, never shared with the flag of the feature that originates it, and never absent. A new e-mail requires, together: a value in `EmailNotification`, an `email_`-prefixed key in `FeatureFlagKeys`, the pair in `EMAIL_NOTIFICATION_FLAGS`, the flag seeded in `DEFAULT_FEATURE_FLAGS` as `enabled: true` with empty `targetRoles`, and a send method routed through `EmailService.dispatch`/`dispatchBulk`. See [`docs/email.md`](docs/email.md).
+12. Never log tokens, passwords, authorization headers, children's data, guardian details, uploaded contents, or unnecessary personal data.
+13. Every behavior change requires tests. Bug fixes require a regression test. External services and databases must be mocked.
+14. Update API docs, implemented rules, error docs, and automation examples when their behavior changes.
+15. Do not modify environments, deployments, infrastructure, shared databases, or production data without explicit authorization.
+16. Preserve unrelated user changes and keep the final diff limited to the requested outcome.
 
 ## Required Implementation Workflow
 

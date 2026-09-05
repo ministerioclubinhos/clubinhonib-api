@@ -126,6 +126,73 @@ describe('entidades do TypeORM', () => {
   });
 });
 
+/**
+ * Controllers cuja ausência de guard é deliberada, com o motivo.
+ *
+ * Qualquer outro controller sem `@UseGuards` é uma rota aberta na internet — foi
+ * assim que `POST /accepted-christs` deixou qualquer pessoa gravar que uma
+ * criança aceitou a Jesus.
+ */
+const INTENTIONALLY_PUBLIC: Record<string, string> = {
+  'app.controller.ts': 'sonda de saúde e raiz da API',
+  'email-preferences.controller.ts':
+    'descadastro pelo link do e-mail; quem autoriza é o token assinado',
+  'route.controller.ts':
+    'mapa de rotas que o site público monta antes do login',
+};
+
+/** Todos os controllers do código, com o texto do arquivo. */
+const controllers = (): { name: string; path: string; source: string }[] => {
+  const found: { name: string; path: string; source: string }[] = [];
+
+  const walk = (dir: string): void => {
+    for (const item of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, item.name);
+      if (item.isDirectory()) {
+        walk(full);
+        continue;
+      }
+      if (!item.name.endsWith('.controller.ts')) continue;
+      found.push({
+        name: item.name,
+        path: full,
+        source: readFileSync(full, 'utf8'),
+      });
+    }
+  };
+
+  walk(__dirname);
+  return found;
+};
+
+describe('guardas dos controllers', () => {
+  it('todo controller tem guarda, salvo os públicos declarados', () => {
+    const unguarded = controllers()
+      .filter(({ source }) => !source.includes('@UseGuards'))
+      .map(({ name }) => name)
+      .filter((name) => !(name in INTENTIONALLY_PUBLIC))
+      .sort();
+
+    expect(unguarded).toEqual([]);
+  });
+
+  it('a lista de públicos não guarda nome que já ganhou guarda', () => {
+    // Um nome que sobra aqui esconde a próxima rota aberta: o teste acima
+    // passaria a ignorar um arquivo que hoje é público de novo.
+    const stillPublic = new Set(
+      controllers()
+        .filter(({ source }) => !source.includes('@UseGuards'))
+        .map(({ name }) => name),
+    );
+
+    const obsolete = Object.keys(INTENTIONALLY_PUBLIC)
+      .filter((name) => !stillPublic.has(name))
+      .sort();
+
+    expect(obsolete).toEqual([]);
+  });
+});
+
 describe('grafo de módulos', () => {
   it('não tem import indefinido em nenhum módulo alcançável', () => {
     // Cada ciclo entre módulos precisa de forwardRef nos dois lados; sem isso,

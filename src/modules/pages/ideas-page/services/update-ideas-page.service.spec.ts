@@ -1,12 +1,13 @@
 import { Test } from '@nestjs/testing';
-import { DataSource, EntityManager } from 'typeorm';
+import { EntityManager } from 'typeorm';
 import {
   AppInternalException,
   AppNotFoundException,
   AppValidationException,
   ErrorCode,
 } from 'src/shared/exceptions';
-import { RouteService } from 'src/modules/routes/route.service';
+import { GetRouteService } from 'src/modules/routes/services/get-route.service';
+import { UpdateRouteService } from 'src/modules/routes/services/update-route.service';
 import { RouteType } from 'src/modules/routes/route-page.entity';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
@@ -81,12 +82,12 @@ const validDto = (overrides: Record<string, unknown> = {}) =>
 
 describe('IdeasPageUpdateService', () => {
   const manager = {} as EntityManager;
-  const dataSource = {
-    transaction: jest.fn((run: (m: EntityManager) => Promise<unknown>) =>
+  // A transação passou a ser aberta pelo repositório: o caso de uso entrega
+  // o bloco de escritas e não conhece mais `DataSource`.
+  const ideasPageRepository = {
+    runInTransaction: jest.fn((run: (m: EntityManager) => Promise<unknown>) =>
       run(manager),
     ),
-  };
-  const ideasPageRepository = {
     updateContent: jest.fn(),
     createSection: jest.fn(),
     saveSection: jest.fn(),
@@ -96,10 +97,12 @@ describe('IdeasPageUpdateService', () => {
     findEntityOrFail: jest.fn(),
     buildResponse: jest.fn(),
   };
-  const routeService = {
+  const rotaMockBase = {
     findRouteByEntityId: jest.fn(),
     upsertRouteWithAvailablePath: jest.fn(),
   };
+  const getRouteService = rotaMockBase;
+  const updateRouteService = rotaMockBase;
   const awsS3Service = { upload: jest.fn(), delete: jest.fn() };
   const mediaItemProcessor = {
     findManyMediaItemsByTargets: jest.fn(),
@@ -119,8 +122,8 @@ describe('IdeasPageUpdateService', () => {
 
     getService.findEntityOrFail.mockResolvedValue(buildPage());
     getService.buildResponse.mockResolvedValue({ id: 'page-id' });
-    routeService.findRouteByEntityId.mockResolvedValue(route);
-    routeService.upsertRouteWithAvailablePath.mockResolvedValue(route);
+    getRouteService.findRouteByEntityId.mockResolvedValue(route);
+    updateRouteService.upsertRouteWithAvailablePath.mockResolvedValue(route);
     ideasPageRepository.createSection.mockResolvedValue(buildSection('nova'));
     mediaItemProcessor.findManyMediaItemsByTargets.mockResolvedValue([]);
     mediaItemProcessor.findMediaItemsByTarget.mockResolvedValue([]);
@@ -137,10 +140,10 @@ describe('IdeasPageUpdateService', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         IdeasPageUpdateService,
-        { provide: DataSource, useValue: dataSource },
         { provide: IdeasPageRepository, useValue: ideasPageRepository },
         { provide: IdeasPageGetService, useValue: getService },
-        { provide: RouteService, useValue: routeService },
+        { provide: GetRouteService, useValue: getRouteService },
+        { provide: UpdateRouteService, useValue: updateRouteService },
         { provide: AwsS3Service, useValue: awsS3Service },
         { provide: MediaItemProcessor, useValue: mediaItemProcessor },
       ],
@@ -152,8 +155,10 @@ describe('IdeasPageUpdateService', () => {
   it('atualiza a página e a rota dentro de uma transação', async () => {
     const result = await service.updateIdeasPage('page-id', validDto(), {});
 
-    expect(dataSource.transaction).toHaveBeenCalledTimes(1);
-    expect(routeService.upsertRouteWithAvailablePath).toHaveBeenCalledWith(
+    expect(ideasPageRepository.runInTransaction).toHaveBeenCalledTimes(1);
+    expect(
+      updateRouteService.upsertRouteWithAvailablePath,
+    ).toHaveBeenCalledWith(
       'route-id',
       expect.objectContaining({ title: 'Ideias revisadas', public: false }),
       'galeria_ideias_',
@@ -537,7 +542,7 @@ describe('IdeasPageUpdateService', () => {
   });
 
   it('falha quando a página não tem rota', async () => {
-    routeService.findRouteByEntityId.mockResolvedValue(null);
+    getRouteService.findRouteByEntityId.mockResolvedValue(null);
 
     await expect(
       service.updateIdeasPage('page-id', validDto(), {}),

@@ -10,6 +10,7 @@ Mandatory summary:
 - When creating or editing any module, services MUST ALWAYS be split into separate operation files: create, get, update, and delete.
 - Always use explicit input DTOs (request/query) and output DTOs (response contracts) for everything; do not expose raw entities. ALWAYS create dedicated files for `types` and `constants`, ALWAYS use domain enums for finite sets (no magic strings), ALWAYS create dedicated `utils` files for pure functions/logic, and NEVER use `any` under any circumstances.
 - Enforce role, assigned-club scope, ownership, errors, privacy, statistics scope, and transactions in the API.
+- Toda notificação por e-mail fica atrás de uma feature flag PRÓPRIA — uma flag por notificação, nunca compartilhada com a flag do recurso de origem, nunca ausente. Um e-mail novo exige, em conjunto: valor em `EmailNotification`, chave `email_*` em `FeatureFlagKeys`, o par em `EMAIL_NOTIFICATION_FLAGS`, a flag semeada em `DEFAULT_FEATURE_FLAGS` com `enabled: true`, e o envio passando por `EmailService.dispatch`/`dispatchBulk`. Ver `docs/email.md`.
 - Every schema migration must come from the official TypeORM CLI/core `migration:generate` command. Never use `migration:create`, create/edit migrations manually, or use `synchronize` to deploy schema changes.
 - Behavior changes require Jest tests and synchronized docs.
 

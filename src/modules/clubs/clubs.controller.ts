@@ -51,7 +51,9 @@ export class ClubsController {
    */
   private async contextOf(request: Request): Promise<ClubAccessContext> {
     const payload = await this.authContext.tryGetPayload(request);
-    return { role: payload?.role?.toLowerCase(), userId: payload?.sub ?? null };
+    // O papel vai como veio: normalizar é responsabilidade de `normalizeRole`,
+    // que também reconhece papel desconhecido.
+    return { role: payload?.role, userId: payload?.sub ?? null };
   }
 
   @Post()

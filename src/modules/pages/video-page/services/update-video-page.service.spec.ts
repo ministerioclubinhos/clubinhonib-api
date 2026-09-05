@@ -1,12 +1,13 @@
 import { Test } from '@nestjs/testing';
-import { DataSource, EntityManager } from 'typeorm';
+import { EntityManager } from 'typeorm';
 import {
   AppInternalException,
   AppNotFoundException,
   AppValidationException,
   ErrorCode,
 } from 'src/shared/exceptions';
-import { RouteService } from 'src/modules/routes/route.service';
+import { GetRouteService } from 'src/modules/routes/services/get-route.service';
+import { UpdateRouteService } from 'src/modules/routes/services/update-route.service';
 import { RouteType } from 'src/modules/routes/route-page.entity';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
@@ -81,18 +82,22 @@ const validDto = (
 
 describe('UpdateVideosPageService', () => {
   const manager = {} as EntityManager;
-  const dataSource = {
-    transaction: jest.fn((run: (m: EntityManager) => Promise<unknown>) =>
+  // A transação passou a ser aberta pelo repositório: o caso de uso entrega
+  // o bloco de escritas e não conhece mais `DataSource`.
+  const videosPageRepo = {
+    runInTransaction: jest.fn((run: (m: EntityManager) => Promise<unknown>) =>
       run(manager),
     ),
+    savePage: jest.fn(),
   };
-  const videosPageRepo = { savePage: jest.fn() };
   const getService = { findEntityOrFail: jest.fn(), findVideosOf: jest.fn() };
   const s3 = { upload: jest.fn(), delete: jest.fn() };
-  const routeService = {
+  const rotaMockBase = {
     findRouteByEntityId: jest.fn(),
     upsertRouteWithAvailablePath: jest.fn(),
   };
+  const getRouteService = rotaMockBase;
+  const updateRouteService = rotaMockBase;
   const mediaItemProcessor = {
     deleteMediaItems: jest.fn(),
     processMediaItemsPolymorphic: jest.fn(),
@@ -108,8 +113,8 @@ describe('UpdateVideosPageService', () => {
 
     getService.findEntityOrFail.mockResolvedValue(buildPage());
     getService.findVideosOf.mockResolvedValue([]);
-    routeService.findRouteByEntityId.mockResolvedValue(route);
-    routeService.upsertRouteWithAvailablePath.mockResolvedValue(route);
+    getRouteService.findRouteByEntityId.mockResolvedValue(route);
+    updateRouteService.upsertRouteWithAvailablePath.mockResolvedValue(route);
     videosPageRepo.savePage.mockImplementation((page: VideosPage) => page);
     mediaItemProcessor.buildBaseMediaItem.mockImplementation(
       (item: Record<string, unknown>) =>
@@ -122,11 +127,11 @@ describe('UpdateVideosPageService', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         UpdateVideosPageService,
-        { provide: DataSource, useValue: dataSource },
         { provide: VideosPageRepository, useValue: videosPageRepo },
         { provide: GetVideosPageService, useValue: getService },
         { provide: AwsS3Service, useValue: s3 },
-        { provide: RouteService, useValue: routeService },
+        { provide: GetRouteService, useValue: getRouteService },
+        { provide: UpdateRouteService, useValue: updateRouteService },
         { provide: MediaItemProcessor, useValue: mediaItemProcessor },
       ],
     }).compile();
@@ -137,8 +142,10 @@ describe('UpdateVideosPageService', () => {
   it('atualiza a página e a rota dentro de uma transação', async () => {
     const result = await service.execute('page-id', validDto(), {});
 
-    expect(dataSource.transaction).toHaveBeenCalledTimes(1);
-    expect(routeService.upsertRouteWithAvailablePath).toHaveBeenCalledWith(
+    expect(videosPageRepo.runInTransaction).toHaveBeenCalledTimes(1);
+    expect(
+      updateRouteService.upsertRouteWithAvailablePath,
+    ).toHaveBeenCalledWith(
       'route-id',
       expect.objectContaining({ title: 'Galeria revisada' }),
       'galeria_videos_',
@@ -338,7 +345,7 @@ describe('UpdateVideosPageService', () => {
   });
 
   it('falha quando a página não tem rota', async () => {
-    routeService.findRouteByEntityId.mockResolvedValue(null);
+    getRouteService.findRouteByEntityId.mockResolvedValue(null);
 
     await expect(
       service.execute('page-id', validDto(), {}),

@@ -7,7 +7,7 @@ import {
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { DocumentsRepository } from '../repositories/documents.repository';
-import { RouteService } from 'src/modules/routes/route.service';
+import { DeleteRouteService } from 'src/modules/routes/services/delete-route.service';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
 import { DOCUMENT_MEDIA_TARGET_TYPES } from '../constants';
 
@@ -18,7 +18,7 @@ export class DeleteDocumentService {
   constructor(
     private readonly documentRepo: DocumentsRepository,
     private readonly s3Service: AwsS3Service,
-    private readonly routeService: RouteService,
+    private readonly deleteRouteService: DeleteRouteService,
 
     private readonly mediaItemProcessor: MediaItemProcessor,
   ) {}
@@ -48,7 +48,10 @@ export class DeleteDocumentService {
       }
 
       await this.documentRepo.remove(document);
-      await this.routeService.removeRouteByEntity(MediaTargetType.Document, id);
+      await this.deleteRouteService.removeRouteByEntity(
+        MediaTargetType.Document,
+        id,
+      );
       this.logger.log(`🛤️ Rota removida`);
 
       this.logger.log(`✅ Documento removido com sucesso: ID=${id}`);

@@ -1,10 +1,10 @@
 import { Test } from '@nestjs/testing';
-import { DataSource, EntityManager } from 'typeorm';
+import { EntityManager } from 'typeorm';
 import {
   AppInternalException,
   AppValidationException,
 } from 'src/shared/exceptions';
-import { RouteService } from 'src/modules/routes/route.service';
+import { CreateRouteService } from 'src/modules/routes/services/create-route.service';
 import { RouteType } from 'src/modules/routes/route-page.entity';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
@@ -76,23 +76,19 @@ const validDto = (overrides: Record<string, unknown> = {}) =>
 
 describe('IdeasPageCreateService', () => {
   const manager = {} as EntityManager;
-  const queryRunner = {
-    connect: jest.fn(),
-    startTransaction: jest.fn(),
-    commitTransaction: jest.fn(),
-    rollbackTransaction: jest.fn(),
-    release: jest.fn(),
-    manager,
-  };
-  const dataSource = { createQueryRunner: jest.fn(() => queryRunner) };
+  // A transação passou a ser aberta pelo repositório: o caso de uso entrega
+  // o bloco de escritas e não conhece mais `DataSource`.
   const ideasPageRepository = {
+    runInTransaction: jest.fn((run: (m: EntityManager) => Promise<unknown>) =>
+      run(manager),
+    ),
     createPage: jest.fn(),
     savePage: jest.fn(),
     createSection: jest.fn(),
     findByIdWithSections: jest.fn(),
     findSectionsOfPage: jest.fn(),
   };
-  const routeService = {
+  const createRouteService = {
     generateAvailablePath: jest.fn(),
     createRouteWithManager: jest.fn(),
   };
@@ -118,19 +114,18 @@ describe('IdeasPageCreateService', () => {
       buildPage([buildSection('s1')]),
     );
     ideasPageRepository.findSectionsOfPage.mockResolvedValue([]);
-    routeService.generateAvailablePath.mockResolvedValue(
+    createRouteService.generateAvailablePath.mockResolvedValue(
       'galeria_ideias_ideias',
     );
-    routeService.createRouteWithManager.mockResolvedValue(route);
+    createRouteService.createRouteWithManager.mockResolvedValue(route);
     mediaItemProcessor.processMediaItemsPolymorphic.mockResolvedValue([]);
     mediaItemProcessor.findManyMediaItemsByTargets.mockResolvedValue([]);
 
     const moduleRef = await Test.createTestingModule({
       providers: [
         IdeasPageCreateService,
-        { provide: DataSource, useValue: dataSource },
         { provide: IdeasPageRepository, useValue: ideasPageRepository },
-        { provide: RouteService, useValue: routeService },
+        { provide: CreateRouteService, useValue: createRouteService },
         { provide: AwsS3Service, useValue: awsS3Service },
         { provide: MediaItemProcessor, useValue: mediaItemProcessor },
       ],
@@ -147,11 +142,11 @@ describe('IdeasPageCreateService', () => {
       {},
     );
 
-    expect(routeService.generateAvailablePath).toHaveBeenCalledWith(
+    expect(createRouteService.generateAvailablePath).toHaveBeenCalledWith(
       'Ideias',
       'galeria_ideias_',
     );
-    expect(routeService.createRouteWithManager).toHaveBeenCalledWith(
+    expect(createRouteService.createRouteWithManager).toHaveBeenCalledWith(
       manager,
       expect.objectContaining({ public: false, entityType: 'IdeasPage' }),
     );
@@ -160,7 +155,7 @@ describe('IdeasPageCreateService', () => {
       expect.objectContaining({ title: 'Abertura', public: false }),
       manager,
     );
-    expect(queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
+    expect(ideasPageRepository.runInTransaction).toHaveBeenCalledTimes(1);
     expect(result.id).toBe('page-id');
   });
 
@@ -233,17 +228,18 @@ describe('IdeasPageCreateService', () => {
       buildSection('s1'),
     ]);
     mediaItemProcessor.findManyMediaItemsByTargets.mockResolvedValue([orphan]);
-    routeService.createRouteWithManager.mockRejectedValue(new Error('db down'));
+    createRouteService.createRouteWithManager.mockRejectedValue(
+      new Error('db down'),
+    );
 
     await expect(
       service.createIdeasPage(validDto(), {}),
     ).rejects.toBeInstanceOf(AppInternalException);
 
-    expect(queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
+    expect(ideasPageRepository.runInTransaction).toHaveBeenCalledTimes(1);
     expect(mediaItemProcessor.deleteMediaItems).toHaveBeenCalledWith(
       [orphan],
       expect.any(Function),
     );
-    expect(queryRunner.release).toHaveBeenCalledTimes(1);
   });
 });

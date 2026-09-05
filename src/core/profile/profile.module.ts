@@ -5,12 +5,13 @@ import { CreateProfileService } from './services/profile/create-profile.service'
 import { GetAllProfilesService } from './services/profile/get-all-profiles.service';
 import { GetOneProfileService } from './services/profile/get-one-profile.service';
 import { UpdateProfileService } from './services/profile/update-profile.service';
+import { GetProfileBlocksService } from './services/profile/get-profile-blocks.service';
 import { DeleteProfileService } from './services/profile/delete-profile.service';
-import { UserRepository } from '../user/user.repository';
 import { PersonalDataRepository } from './repositories/personal-data.repository';
 import { UserPreferencesRepository } from './repositories/user-preferences.repository';
 import { ProfilesListingRepository } from './repositories/profiles-listing.repository';
 import { UserEntity } from '../user/entities/user.entity';
+import { UserModule } from '../user/user.module';
 import { PersonalData } from './entities/personal-data.entity';
 import { UserPreferences } from './entities/user-preferences.entity';
 import { AuthModule } from '../auth/auth.module';
@@ -20,6 +21,7 @@ import { MediaModule } from 'src/shared/media/media.module';
   imports: [
     TypeOrmModule.forFeature([UserEntity, PersonalData, UserPreferences]),
     forwardRef(() => AuthModule),
+    forwardRef(() => UserModule),
     MediaModule,
   ],
   controllers: [ProfileController],
@@ -29,7 +31,7 @@ import { MediaModule } from 'src/shared/media/media.module';
     GetOneProfileService,
     UpdateProfileService,
     DeleteProfileService,
-    UserRepository,
+    GetProfileBlocksService,
     PersonalDataRepository,
     UserPreferencesRepository,
     ProfilesListingRepository,
@@ -40,8 +42,7 @@ import { MediaModule } from 'src/shared/media/media.module';
     GetOneProfileService,
     UpdateProfileService,
     DeleteProfileService,
-    PersonalDataRepository,
-    UserPreferencesRepository,
+    GetProfileBlocksService,
   ],
 })
 export class ProfileModule {}

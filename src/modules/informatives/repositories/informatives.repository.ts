@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder } from 'typeorm';
+import {
+  DataSource,
+  EntityManager,
+  Repository,
+  SelectQueryBuilder,
+} from 'typeorm';
 
 import { InformativeEntity } from '../entities/informative.entity';
 import { QueryInformativesDto } from '../dto/query-informatives.dto';
@@ -15,9 +20,52 @@ import {
 @Injectable()
 export class InformativesRepository {
   constructor(
+    private readonly dataSource: DataSource,
     @InjectRepository(InformativeEntity)
     private readonly repo: Repository<InformativeEntity>,
   ) {}
+
+  /**
+   * Roda um conjunto de escritas numa transação só.
+   *
+   * Abrir e fechar transação é acesso ao banco, e mora aqui. O caso de uso
+   * continua decidindo o que é atômico, mas não conhece `QueryRunner`, commit
+   * nem rollback.
+   */
+  async runInTransaction<T>(
+    work: (manager: EntityManager) => Promise<T>,
+  ): Promise<T> {
+    return this.dataSource.transaction(work);
+  }
+
+  /** Cria o informativo dentro da transação em curso. */
+  async createInTransaction(
+    manager: EntityManager,
+    data: { title: string; description: string; public: boolean },
+  ): Promise<InformativeEntity> {
+    const repo = manager.getRepository(InformativeEntity);
+
+    return repo.save(repo.create(data));
+  }
+
+  /** Grava o informativo como está — por exemplo, depois de vincular a rota. */
+  async saveInTransaction(
+    manager: EntityManager,
+    informative: InformativeEntity,
+  ): Promise<InformativeEntity> {
+    return manager.save(InformativeEntity, informative);
+  }
+
+  /** Aplica os campos recebidos sobre o informativo e grava. */
+  async updateInTransaction(
+    manager: EntityManager,
+    informative: InformativeEntity,
+    changes: { title?: string; description?: string; public?: boolean },
+  ): Promise<InformativeEntity> {
+    const merged = manager.merge(InformativeEntity, informative, changes);
+
+    return manager.save(InformativeEntity, merged);
+  }
 
   private baseQB(): SelectQueryBuilder<InformativeEntity> {
     return this.repo

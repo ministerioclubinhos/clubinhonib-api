@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 
 import { UserRepository } from '../user.repository';
+import { NotifyAccountChangesService } from './notify-account-changes.service';
 import { UpdateUserDto } from '../dto/update-user.dto';
 import { UserEntity } from '../entities/user.entity';
 
@@ -30,6 +31,7 @@ export class UpdateUserService {
     private readonly createCoordinatorProfileService: CreateCoordinatorProfilesService,
     private readonly updateCoordinatorProfileService: UpdateCoordinatorProfilesService,
     private readonly deleteCoordinatorProfileService: DeleteCoordinatorProfilesService,
+    private readonly notifyAccountChanges: NotifyAccountChangesService,
   ) {}
 
   async update(id: string, dto: Partial<UpdateUserDto>): Promise<UserEntity> {
@@ -79,8 +81,70 @@ export class UpdateUserService {
       await this.applyActiveChange(id, nextRole, nextActive);
     }
 
+    const previousEmail = current.email;
+    const emailChanged = dto.email !== undefined && dto.email !== previousEmail;
+
     const user = await this.userRepo.update(id, dto);
+
+    this.notifyAboutChanges(user, {
+      emailChanged,
+      previousEmail,
+      roleChanged,
+      previousRole: current.role,
+      activeChanged,
+      nextActive,
+    });
+
     return user;
+  }
+
+  /**
+   * Conta à pessoa o que a coordenação mudou na conta dela.
+   *
+   * Os avisos são independentes entre si — diferente de `applyRoleChange` e
+   * `applyActiveChange`, que se excluem porque a troca de papel já recria o
+   * perfil com o `active` novo. Aqui, quem tem papel **e** acesso alterados na
+   * mesma requisição precisa saber das duas coisas: são fatos distintos, e
+   * calar um deles deixaria a pessoa sem entender metade do que aconteceu.
+   *
+   * Nada aqui bloqueia nem propaga: a alteração já está gravada.
+   */
+  private notifyAboutChanges(
+    user: UserEntity,
+    changes: {
+      emailChanged: boolean;
+      previousEmail: string;
+      roleChanged: boolean;
+      previousRole: UserRole;
+      activeChanged: boolean;
+      nextActive: boolean;
+    },
+  ): void {
+    if (changes.emailChanged) {
+      this.notifyAccountChanges.emailAddressChangedInBackground(
+        changes.previousEmail,
+        user.name,
+        user.email,
+      );
+    }
+
+    if (changes.roleChanged) {
+      this.notifyAccountChanges.roleChangedInBackground(
+        user,
+        changes.previousRole,
+      );
+    }
+
+    if (!changes.activeChanged) return;
+
+    if (changes.nextActive) {
+      // Liberar um pré-cadastro e reativar uma conta suspensa chegam aqui do
+      // mesmo jeito; a mensagem de boas-vindas serve para os dois.
+      this.notifyAccountChanges.accountApprovedInBackground(user);
+      return;
+    }
+
+    this.notifyAccountChanges.accountDeactivatedInBackground(user);
   }
 
   /**
@@ -89,6 +153,19 @@ export class UpdateUserService {
    * Trocar de papel remove o perfil antigo — e, com ele, o vínculo com o
    * clubinho, que não faz sentido no papel novo — e cria o do papel novo.
    */
+  /**
+   * Guarda (ou limpa) o refresh token da sessão.
+   *
+   * Quem emite o token é o `auth`, mas a coluna é do usuário: o contrato mora
+   * aqui para o outro módulo não alcançar o repositório por dentro.
+   */
+  async updateRefreshToken(
+    id: string,
+    refreshToken: string | null,
+  ): Promise<void> {
+    await this.userRepo.updateRefreshToken(id, refreshToken);
+  }
+
   private async applyRoleChange(
     userId: string,
     nextRole: UserRole,

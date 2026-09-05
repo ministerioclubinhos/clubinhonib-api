@@ -5,6 +5,8 @@ import { ClubsController } from './clubs.controller';
 import { DeleteClubsService } from './services/delete-clubs.service';
 import { UpdateClubsService } from './services/update-clubs.service';
 import { GetClubsService } from './services/get-clubs.service';
+import { GetClubRecipientsService } from './services/get-club-recipients.service';
+import { UserModule } from 'src/core/user/user.module';
 import { CreateClubsService } from './services/create-clubs.service';
 
 import { ClubsRepository } from './repositories/clubs.repository';
@@ -27,12 +29,17 @@ import { EventModule } from 'src/modules/pages/event-page/event.module';
     forwardRef(() => ChildrenModule),
     forwardRef(() => AuthModule),
     forwardRef(() => EventModule),
+    // Quem decide se uma pessoa pode receber um aviso é o módulo de usuário.
+    // `forwardRef` porque ele chega de volta aqui pelos perfis de professor e
+    // de coordenador — é o mesmo laço dos outros seis imports acima.
+    forwardRef(() => UserModule),
   ],
   controllers: [ClubsController],
   providers: [
     DeleteClubsService,
     UpdateClubsService,
     GetClubsService,
+    GetClubRecipientsService,
     CreateClubsService,
     ClubsRepository,
   ],
@@ -40,6 +47,7 @@ import { EventModule } from 'src/modules/pages/event-page/event.module';
     DeleteClubsService,
     UpdateClubsService,
     GetClubsService,
+    GetClubRecipientsService,
     CreateClubsService,
     ClubsRepository,
     TypeOrmModule,

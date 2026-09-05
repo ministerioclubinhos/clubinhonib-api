@@ -16,6 +16,7 @@ import {
   normalizedRole,
 } from '../utils';
 import { GetClubsService } from './get-clubs.service';
+import { UserRole } from 'src/core/auth/auth.types';
 
 @Injectable()
 export class UpdateClubsService {
@@ -35,7 +36,7 @@ export class UpdateClubsService {
     assertCanManageClubs(context);
     await this.assertAccessToClub(id, context);
 
-    if (normalizedRole(context) === 'coordinator') {
+    if (normalizedRole(context) === UserRole.COORDINATOR) {
       await this.assertCoordinatorAssignment(dto, context);
       await this.assertTeachersInScope(dto.teacherProfileIds, id, context);
     }
@@ -82,7 +83,7 @@ export class UpdateClubsService {
     id: string,
     context: ClubAccessContext,
   ): Promise<void> {
-    if (normalizedRole(context) !== 'coordinator') return;
+    if (normalizedRole(context) !== UserRole.COORDINATOR) return;
 
     const allowed = await this.clubsRepository.userHasAccessToClub(id, context);
     if (!allowed) {

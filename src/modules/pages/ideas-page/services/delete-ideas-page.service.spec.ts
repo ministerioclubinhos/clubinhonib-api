@@ -1,11 +1,11 @@
 import { Test } from '@nestjs/testing';
-import { DataSource, EntityManager } from 'typeorm';
+import { EntityManager } from 'typeorm';
 import {
   AppInternalException,
   AppNotFoundException,
   ErrorCode,
 } from 'src/shared/exceptions';
-import { RouteService } from 'src/modules/routes/route.service';
+import { DeleteRouteService } from 'src/modules/routes/services/delete-route.service';
 import { RouteType } from 'src/modules/routes/route-page.entity';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
@@ -49,14 +49,16 @@ const buildPage = (
 
 describe('IdeasPageDeleteService', () => {
   const manager = {} as EntityManager;
-  const dataSource = {
-    transaction: jest.fn((run: (m: EntityManager) => Promise<unknown>) =>
+  // A transação passou a ser aberta pelo repositório: o caso de uso entrega
+  // o bloco de escritas e não conhece mais `DataSource`.
+  const ideasPageRepository = {
+    runInTransaction: jest.fn((run: (m: EntityManager) => Promise<unknown>) =>
       run(manager),
     ),
+    removePage: jest.fn(),
   };
-  const ideasPageRepository = { removePage: jest.fn() };
   const getService = { findEntityOrFail: jest.fn() };
-  const routeService = {
+  const deleteRouteService = {
     removeRoute: jest.fn(),
     removeRouteByEntity: jest.fn(),
   };
@@ -76,10 +78,9 @@ describe('IdeasPageDeleteService', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         IdeasPageDeleteService,
-        { provide: DataSource, useValue: dataSource },
         { provide: IdeasPageRepository, useValue: ideasPageRepository },
         { provide: IdeasPageGetService, useValue: getService },
-        { provide: RouteService, useValue: routeService },
+        { provide: DeleteRouteService, useValue: deleteRouteService },
         { provide: AwsS3Service, useValue: awsS3Service },
         { provide: MediaItemProcessor, useValue: mediaItemProcessor },
       ],
@@ -113,7 +114,7 @@ describe('IdeasPageDeleteService', () => {
       expect.objectContaining({ id: 'page-id' }),
       manager,
     );
-    expect(routeService.removeRoute).toHaveBeenCalledWith('route-id');
+    expect(deleteRouteService.removeRoute).toHaveBeenCalledWith('route-id');
   });
 
   it('remove a rota pela entidade quando a página não a carrega', async () => {
@@ -121,7 +122,7 @@ describe('IdeasPageDeleteService', () => {
 
     await service.removePage('page-id');
 
-    expect(routeService.removeRouteByEntity).toHaveBeenCalledWith(
+    expect(deleteRouteService.removeRouteByEntity).toHaveBeenCalledWith(
       'IdeasPage',
       'page-id',
     );

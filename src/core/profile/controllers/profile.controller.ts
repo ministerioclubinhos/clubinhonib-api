@@ -60,7 +60,8 @@ export class ProfileController {
       );
     }
 
-    return { role: payload.role?.toLowerCase(), userId: payload.sub };
+    // O papel vai como veio: quem normaliza é `normalizeRole`.
+    return { role: payload.role, userId: payload.sub };
   }
 
   @Post()

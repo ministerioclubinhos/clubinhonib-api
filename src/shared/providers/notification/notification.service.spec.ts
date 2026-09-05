@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { NotificationService } from './notification.service';
 import { EmailService } from 'src/shared/email';
 import { TwilioService } from '../twilio/twilio.service';
-import { UserRepository } from 'src/core/user/user.repository';
+import { GetUsersService } from 'src/core/user/services/get-user.service';
 import { FeedbackCategory } from 'src/modules/feedbacks/entities/feedback-category.enum';
 import { SiteUrlService } from 'src/shared/site-url/site-url.service';
 import { ContactEntity } from 'src/modules/contacts/entities/contact.entity';
@@ -28,7 +28,7 @@ const createTwilioServiceMock = () => ({
   sendWhatsApp: jest.fn().mockResolvedValue(undefined),
 });
 
-const createUserRepositoryMock = () => ({
+const createGetUsersServiceMock = () => ({
   findAdminEmails: jest
     .fn()
     .mockResolvedValue(['admin1@nib.com', 'admin2@nib.com']),
@@ -41,7 +41,7 @@ describe('NotificationService', () => {
   let service: NotificationService;
   let emailService: ReturnType<typeof createEmailServiceMock>;
   let twilioService: ReturnType<typeof createTwilioServiceMock>;
-  let userRepository: ReturnType<typeof createUserRepositoryMock>;
+  let getUsersService: ReturnType<typeof createGetUsersServiceMock>;
 
   const mockContact: ContactEntity = {
     id: 'contact-1',
@@ -57,7 +57,7 @@ describe('NotificationService', () => {
   beforeEach(async () => {
     emailService = createEmailServiceMock();
     twilioService = createTwilioServiceMock();
-    userRepository = createUserRepositoryMock();
+    getUsersService = createGetUsersServiceMock();
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -77,7 +77,7 @@ describe('NotificationService', () => {
               `https://clubinhonib.com/${segments.join('/')}`,
           },
         },
-        { provide: UserRepository, useValue: userRepository },
+        { provide: GetUsersService, useValue: getUsersService },
       ],
     }).compile();
 
@@ -87,7 +87,7 @@ describe('NotificationService', () => {
   it('busca os e-mails de admins no banco e dispara notificação por e-mail e whatsapp para novo contato', async () => {
     await service.notifyNewContact(mockContact);
 
-    expect(userRepository.findAdminEmails.mock.calls).toHaveLength(1);
+    expect(getUsersService.findAdminEmails.mock.calls).toHaveLength(1);
     expect(emailService.sendContactNotification.mock.calls[0]).toEqual([
       ['admin1@nib.com', 'admin2@nib.com'],
       expect.objectContaining({
@@ -110,8 +110,8 @@ describe('NotificationService', () => {
       { email: 'maria@exemplo.com' },
     );
 
-    expect(userRepository.findAdminEmails).toHaveBeenCalled();
-    expect(userRepository.findByEmail).toHaveBeenCalledWith(
+    expect(getUsersService.findAdminEmails).toHaveBeenCalled();
+    expect(getUsersService.findByEmail).toHaveBeenCalledWith(
       'maria@exemplo.com',
     );
     expect(emailService.sendIdeaSharedNotification).toHaveBeenCalledWith(
@@ -135,8 +135,8 @@ describe('NotificationService', () => {
       { email: 'maria@exemplo.com' },
     );
 
-    expect(userRepository.findAdminEmails).toHaveBeenCalled();
-    expect(userRepository.findByEmail).toHaveBeenCalledWith(
+    expect(getUsersService.findAdminEmails).toHaveBeenCalled();
+    expect(getUsersService.findByEmail).toHaveBeenCalledWith(
       'maria@exemplo.com',
     );
     expect(emailService.sendImageSharedNotification).toHaveBeenCalledWith(
@@ -160,7 +160,7 @@ describe('NotificationService', () => {
       'google',
     );
 
-    expect(userRepository.findAdminEmails).toHaveBeenCalled();
+    expect(getUsersService.findAdminEmails).toHaveBeenCalled();
     expect(
       emailService.sendNewUserRegistrationNotification,
     ).toHaveBeenCalledWith(
@@ -183,7 +183,7 @@ describe('NotificationService', () => {
       createdAt: new Date('2026-03-10T12:00:00Z'),
     });
 
-    expect(userRepository.findAdminEmails).toHaveBeenCalled();
+    expect(getUsersService.findAdminEmails).toHaveBeenCalled();
     expect(emailService.sendCommentNotification).toHaveBeenCalledWith(
       ['admin1@nib.com', 'admin2@nib.com'],
       expect.objectContaining({

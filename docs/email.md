@@ -25,17 +25,108 @@ src/shared/email/                # o domínio: assunto, conteúdo e destinatári
 
 Um caso de uso nunca monta assunto nem HTML: chama um método do `EmailService`.
 
+## Toda notificação fica atrás de uma feature flag
+
+**Regra obrigatória: todo e-mail que a aplicação dispara tem uma feature flag
+própria.** Não existe e-mail sem interruptor, e não existe interruptor
+compartilhado entre dois e-mails.
+
+Uma flag por notificação, e nunca a flag do recurso que a origina: desligar o
+formulário de contato e parar de avisar a equipe sobre os contatos que já
+chegaram são decisões diferentes, e um interruptor só não sabe distinguir as
+duas.
+
+### Onde a checagem acontece
+
+No `EmailService`, que é o funil por onde todo e-mail passa. Os métodos públicos
+não enviam direto — eles passam por `dispatch` (envio único) ou `dispatchBulk`
+(envio em massa), que consultam a flag antes:
+
+```ts
+async sendPasswordRecovery(recipient, data): Promise<void> {
+  await this.dispatch(EmailNotification.PasswordRecovery, async () => {
+    await this.send(recipient.email, passwordRecoveryEmail({ ...data }));
+  });
+}
+```
+
+A checagem mora aqui, e não em cada caso de uso, porque assim a flag não depende
+de quem dispara lembrar de consultá-la. Um envio em massa bloqueado devolve
+`{ recipients: 0, sent: 0, failed: 0 }`: contar como enviado o que ninguém
+recebeu tornaria o log de quem chamou uma ficção.
+
+### Como adicionar um e-mail novo
+
+Os cinco passos são obrigatórios, e os três primeiros não compilam sem os
+outros:
+
+1. **`EmailNotification`** (`types.ts`) — um valor para a notificação;
+2. **`FeatureFlagKeys`** (`core/feature-flags/enums/`) — a chave, com prefixo
+   `email_`, que mantém todas juntas na listagem ordenada por chave;
+3. **`EMAIL_NOTIFICATION_FLAGS`** (`constants.ts`) — o mapa de um para o outro.
+   O `satisfies Record<EmailNotification, FeatureFlagKeys>` reprova o valor novo
+   que ficar sem flag;
+4. **`DEFAULT_FEATURE_FLAGS`** (`core/feature-flags/constants.ts`) — a flag no
+   catálogo de fábrica, **`enabled: true`** e `targetRoles: []`. Sem isso o
+   interruptor nunca aparece no painel;
+5. **o método de envio** passa por `dispatch` ou `dispatchBulk`.
+
+`notification-flags.spec.ts` cobra os cinco. Um método `send*` novo que não
+esteja na tabela de disparo reprova, e a única forma de fazê-lo passar é
+cumprir o processo acima.
+
+### Por que ligadas, e por que `targetRoles` vazio
+
+Toda flag de e-mail nasce **ligada**. A flag existe para desligar um envio, e
+desligar é um ato deliberado; semear desligado silenciaria de uma vez avisos que
+já funcionavam — inclusive a recuperação de senha, no primeiro boot depois do
+deploy.
+
+Pelo mesmo motivo, uma chave que não está no banco vale como **ligada**
+(`EMAIL_SEND_WHEN_FLAG_MISSING`). A carga de flags do boot engole a própria
+falha para não impedir a API de subir, então "não encontrei a flag" é um estado
+possível, e ele não pode significar caixa de entrada vazia para todo mundo.
+
+`targetRoles` fica vazio porque um e-mail sai para uma lista de endereços, não
+para uma sessão: não há perfil a comparar. Por isso o gate usa
+`isSwitchedOn(key, whenMissing)`, e não `isEnabled(key, role)` — este último
+responderia `false` para qualquer flag com perfis alvo, e um administrador que
+preenchesse `targetRoles` no painel silenciaria o envio sem nunca ter desligado
+nada.
+
+### O atraso de um minuto
+
+O serviço de flags guarda a resposta por 60 segundos. Desligar um e-mail no
+painel leva até esse tempo para valer — aceitável para um interruptor
+administrativo, e é o que evita uma consulta ao banco por destinatário em um
+aviso para toda a base.
+
 ## A casca e os blocos
 
 `renderEmailLayout({ title, recipientName?, body })` devolve o e-mail inteiro —
-cabeçalho verde da marca, cartão central de 600px, rodapé — e é a única peça que
-conhece o HTML da moldura. O miolo é montado com os blocos de `blocks.ts`
-(`paragraph`, `heading`, `button`, `linkFallback`, `note`, `dataTable`,
-`quoteBlock`) e juntado por `composeBody`.
+cabeçalho azul royal com filete verde, cartão central de 600px, rodapé — e é a
+única peça que conhece o HTML da moldura. O miolo é montado com
+os blocos de `blocks.ts` (`paragraph`, `heading`, `button`, `linkFallback`,
+`note`, `alertNote`, `dataTable`, `quoteBlock`) e juntado por `composeBody`.
 
-O verde e o vermelho são cores de marca fortes: entram como **acento** — faixa
-do topo, filete da citação, fundo do botão — nunca como contorno de cada campo.
-Rótulos e separadores usam os tons neutros (`mutedText`, `border`, `surface`).
+A paleta é a do logo do Clubinho Bíblico para Crianças, e cada cor tem **um**
+papel:
+
+| Cor               | Hex       | Onde aparece                                 |
+| ----------------- | --------- | -------------------------------------------- |
+| Verde (principal) | `#55FF58` | filete do cabeçalho e fundo do botão de ação |
+| Azul royal        | `#30328B` | faixa do cabeçalho e cor do texto do corpo   |
+| Vermelho          | `#ED1B24` | só o bloco `alertNote`                       |
+| Amarelo           | `#FFDC04` | filete da citação (`quoteBlock`)             |
+
+Uma cor gasta em todo lugar deixa de significar algo, então nenhuma delas vira
+contorno de campo: rótulos e separadores usam os tons neutros (`mutedText`,
+`border`, `surface`). O botão leva rótulo em azul, e não em branco — o verde é
+claro demais para carregar texto branco por cima.
+
+O nome da marca no cabeçalho sai na Lilita One, a display arredondada mais
+próxima da do logo, pedida por `<link>`. Gmail e Outlook ignoram fonte externa;
+para eles vale `EMAIL_DISPLAY_FALLBACK`, uma pilha de sem-serifa pesada.
 
 Regras que a casca garante:
 
@@ -50,15 +141,61 @@ Regras que a casca garante:
 
 ## E-mails existentes
 
-| E-mail | Disparo | Template |
-|---|---|---|
-| Recuperação de senha | `POST /auth/forgot-password` | `password-recovery.template.ts` |
-| Senha alterada | `POST /auth/reset-password` | `password-changed.template.ts` |
-| Confirmação de e-mail | registro, login de conta inativa, `POST /auth/resend-verification` | `email-verification.template.ts` |
-| Aviso de novo contato | `POST /contact` | `contact-notification.template.ts` |
-| Nova avaliação do site | `POST /site-feedbacks` | `site-feedback-notification.template.ts` |
-| Novo material da semana | `POST /week-material-pages` | `week-material-announcement.template.ts` |
-| Evento criado, alterado ou cancelado | `POST`, `PUT` e `DELETE` de `/events` | `event-announcement.template.ts` |
+| E-mail                               | Disparo                                                            | Template                                         |
+| ------------------------------------ | ------------------------------------------------------------------ | ------------------------------------------------ |
+| Recuperação de senha                 | `POST /auth/forgot-password`                                       | `password-recovery.template.ts`                  |
+| Senha alterada                       | `POST /auth/reset-password`                                        | `password-changed.template.ts`                   |
+| Confirmação de e-mail                | registro, login de conta inativa, `POST /auth/resend-verification` | `email-verification.template.ts`                 |
+| Aviso de novo contato                | `POST /contact`                                                    | `contact-notification.template.ts`               |
+| Nova avaliação do site               | `POST /site-feedbacks`                                             | `site-feedback-notification.template.ts`         |
+| Novo material da semana              | `POST /week-material-pages`                                        | `week-material-announcement.template.ts`         |
+| Evento criado, alterado ou cancelado | `POST`, `PUT` e `DELETE` de `/events`                              | `event-announcement.template.ts`                 |
+| Aviso de novo comentário             | `POST /comments`                                                   | `comment-notification.template.ts`               |
+| Nova ideia compartilhada             | ideias do site                                                     | `idea-shared-notification.template.ts`           |
+| Novas imagens compartilhadas         | imagens do site                                                    | `image-shared-notification.template.ts`          |
+| Novo pré-cadastro                    | registro pelo site                                                 | `new-user-registration-notification.template.ts` |
+| **Senha trocada pelo painel**        | `PATCH /profile/password`                                          | reusa `password-changed.template.ts`             |
+| **E-mail de login trocado**          | `PATCH /profile`, `PUT /users/:id`                                 | `email-address-changed.template.ts`              |
+| **Cadastro aprovado**                | `PUT /users/:id` com `active: true`                                | `account-approved.template.ts`                   |
+| **Papel alterado**                   | `PUT /users/:id` com `role` novo                                   | `role-changed.template.ts`                       |
+| **Conta desativada**                 | `PUT /users/:id` com `active: false`                               | `account-deactivated.template.ts`                |
+| **Conta excluída**                   | `DELETE /users/:id`                                                | `account-deleted.template.ts`                    |
+| **Conta criada pela coordenação**    | `POST /users`                                                      | `account-created-by-admin.template.ts`           |
+| **Novo informativo**                 | `POST /informatives`                                               | `informative-published.template.ts`              |
+| **Novo documento**                   | `POST /documents`                                                  | `document-published.template.ts`                 |
+| **Dia sem Clubinho**                 | `POST /club-control/exceptions`                                    | `club-day-cancelled.template.ts`                 |
+| **Confirmação de contato**           | `POST /contact`, para quem escreveu                                | `contact-receipt.template.ts`                    |
+| **Pagelas pendentes**                | job de domingo às 8h                                               | `missing-pagela-reminder.template.ts`            |
+| **Resumo semanal**                   | job de segunda às 8h                                               | `coordinator-weekly-summary.template.ts`         |
+| **Decisão por Cristo**               | `POST /accepted-christs`                                           | `accepted-christ-registered.template.ts`         |
+
+Os três últimos e o "Dia sem Clubinho" têm público recortado; os demais avisos
+gerais vão para toda a base ativa. Ver **Quem recebe cada aviso** abaixo.
+
+## Quem recebe cada aviso
+
+Há quatro públicos, e cada um vem de um lugar:
+
+| Público           | De onde sai                                              | Usado por                                                  |
+| ----------------- | -------------------------------------------------------- | ---------------------------------------------------------- |
+| A própria pessoa  | o registro em questão                                    | avisos de conta                                            |
+| Administradores   | `GetUsersService.findAdminEmails()`                      | avisos internos                                            |
+| Toda a base ativa | `GetUsersService.findActiveRecipients()`                 | material, evento, informativo, documento, dia sem Clubinho |
+| Um clubinho       | `GetClubRecipientsService.forClub()`                     | pagelas pendentes, decisão por Cristo                      |
+| Um coordenador    | `GetCoordinatorProfilesService.findAllActiveWithClubs()` | resumo semanal                                             |
+
+**A régua de elegibilidade é uma só, e mora no `core/user`.** As consultas de
+clubinho já trazem `teachers[].user.email` e `coordinator.user.email`, mas não
+sabem nada de `active` nem de `noticesUnsubscribedAt` — trariam o professor
+desativado e quem pediu para sair dos avisos. Por isso
+`GetClubRecipientsService` responde **quem** tem a ver com o clube e
+`GetUsersService.findNoticeRecipientsByIds()` responde **se essa pessoa pode
+receber**. Nenhum módulo reescreve essa regra.
+
+Três e-mails saem **sem** rodapé de descadastro, e é de propósito: a troca de
+endereço de login (vai para um endereço que já não é da conta), a exclusão de
+conta (a linha do usuário não existe mais, e não há token a assinar) e a
+confirmação de contato (quem escreveu pelo site não está na base).
 
 ## Descadastro
 
@@ -142,7 +279,7 @@ return internalNoticeEmail({
   detailsHeading: 'Detalhes da ideia',
   rows: [
     { label: 'Título', value: data.title },
-    { label: 'Autor', value: data.authorName ?? '' },   // some se vazio
+    { label: 'Autor', value: data.authorName ?? '' }, // some se vazio
     { label: 'Data', value: formatBrazilianDateTime(data.sharedAt) },
   ],
   sections: [{ heading: 'Descrição', text: data.description }],
@@ -189,11 +326,11 @@ responde.
 Toda mensagem que chega pelo site avisa os administradores no momento em que é
 gravada:
 
-| Entrada | Serviço | Aviso |
-| --- | --- | --- |
-| `POST /contact` | `CreateContactService` | `notifyNewContact` — e-mail **e** WhatsApp |
-| `POST /site-feedbacks` | `CreateFeedbackService` | `notifyNewSiteFeedback` |
-| `POST /comments` | `CreateCommentService` | `notifyNewComment` |
+| Entrada                | Serviço                 | Aviso                                      |
+| ---------------------- | ----------------------- | ------------------------------------------ |
+| `POST /contact`        | `CreateContactService`  | `notifyNewContact` — e-mail **e** WhatsApp |
+| `POST /site-feedbacks` | `CreateFeedbackService` | `notifyNewSiteFeedback`                    |
+| `POST /comments`       | `CreateCommentService`  | `notifyNewComment`                         |
 
 O aviso de comentário existia e **nunca era chamado**: postar um comentário não
 avisava ninguém, e ele ficava parado no painel esperando publicação. Cada um dos
@@ -256,16 +393,16 @@ lugar só.
 
 ## Variáveis
 
-| Variável | Para quê |
-|---|---|
-| `SMTP_HOST` | `smtp.gmail.com` |
-| `SMTP_PORT` | `587` (STARTTLS) ou `465` (TLS direto) |
-| `SMTP_USER` | conta Gmail que autentica |
-| `SMTP_PASSWORD` | **Senha de App** do Google; a senha da conta não funciona com 2FA |
-| `MAIL_FROM_NAME` | nome exibido como remetente |
+| Variável            | Para quê                                                                                               |
+| ------------------- | ------------------------------------------------------------------------------------------------------ |
+| `SMTP_HOST`         | `smtp.gmail.com`                                                                                       |
+| `SMTP_PORT`         | `587` (STARTTLS) ou `465` (TLS direto)                                                                 |
+| `SMTP_USER`         | conta Gmail que autentica                                                                              |
+| `SMTP_PASSWORD`     | **Senha de App** do Google; a senha da conta não funciona com 2FA                                      |
+| `MAIL_FROM_NAME`    | nome exibido como remetente                                                                            |
 | `MAIL_FROM_ADDRESS` | endereço do remetente; o Gmail reescreve o que não for a conta autenticada ou um alias verificado dela |
-| `MAIL_CONTACT_TO` | destinatários do aviso de contato, separados por vírgula |
-| `SITE_BASE_URL` | base dos links enviados; sem ela vale o mapa por `ENVIRONMENT` |
+| `MAIL_CONTACT_TO`   | destinatários do aviso de contato, separados por vírgula                                               |
+| `SITE_BASE_URL`     | base dos links enviados; sem ela vale o mapa por `ENVIRONMENT`                                         |
 
 Sem `SMTP_USER`/`SMTP_PASSWORD` a aplicação sobe normalmente, registra o aviso e
 recusa cada envio com `EMAIL_SEND_ERROR` — em vez de fingir que enviou.

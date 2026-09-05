@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
+  DataSource,
   EntityManager,
   LessThanOrEqual,
   MoreThanOrEqual,
@@ -24,11 +25,25 @@ import { MeditationContent } from '../types';
 @Injectable()
 export class MeditationRepository {
   constructor(
+    private readonly dataSource: DataSource,
     @InjectRepository(MeditationEntity)
     private readonly meditationRepo: Repository<MeditationEntity>,
     @InjectRepository(DayEntity)
     private readonly dayRepo: Repository<DayEntity>,
   ) {}
+
+  /**
+   * Roda um conjunto de escritas numa transação só.
+   *
+   * Abrir e fechar transação é acesso ao banco, e mora aqui. O caso de uso
+   * continua decidindo o que é atômico, mas não conhece `QueryRunner`, commit
+   * nem rollback.
+   */
+  async runInTransaction<T>(
+    work: (manager: EntityManager) => Promise<T>,
+  ): Promise<T> {
+    return this.dataSource.transaction(work);
+  }
 
   private scoped(manager?: EntityManager): Repository<MeditationEntity> {
     return manager

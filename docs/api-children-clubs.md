@@ -714,3 +714,50 @@ values exactly.
 
 ---
 ⬅️ [Back to Documentation Hub](README.md)
+
+---
+
+## Decisões (`/accepted-christs`)
+
+### `POST /accepted-christs`
+
+Registra que uma criança aceitou ou se reconciliou com Jesus.
+
+- **Acesso**: exige sessão. Administrador, coordenador e professor registram;
+  qualquer outro papel recebe `403` `ACCESS_DENIED`.
+- **Recorte**: a criança é buscada pelo `GetChildrenService`, que já aplica o
+  filtro de papel — o professor só alcança a turma dele, o coordenador os
+  clubinhos que coordena. Criança fora do alcance responde `404`
+  `CHILD_NOT_FOUND` com a mesma mensagem de "não existe": a resposta não conta
+  em qual clubinho ela está.
+- **Corpo** (`CreateAcceptedChristDto`):
+
+  ```jsonc
+  {
+    "childId": "uuid-da-crianca",   // obrigatório
+    "decision": "ACCEPTED",         // 'ACCEPTED' | 'RECONCILED'; opcional
+    "notes": "texto até 500 chars"  // opcional; vazio equivale a ausente
+  }
+  ```
+
+- **Resposta** `201` (`AcceptedChristResponseDto`):
+
+  ```json
+  {
+    "id": "uuid-da-decisao",
+    "decision": "ACCEPTED",
+    "childId": "uuid-da-crianca",
+    "notes": null,
+    "createdAt": "2026-03-10T12:00:00.000Z",
+    "updatedAt": "2026-03-10T12:00:00.000Z"
+  }
+  ```
+
+  A criança sai apenas pelo id. A rota devolvia a entidade do TypeORM, e com
+  ela a relação `child` inteira — responsável, telefone e endereço em cada
+  decisão gravada.
+
+> **Histórico**: até setembro de 2026 esta rota não tinha guard nenhum, e ainda
+> imprimia o corpo da requisição no log da aplicação. `src/app.module.spec.ts`
+> agora falha se um controller nascer sem `@UseGuards` fora da lista de
+> públicos deliberados.

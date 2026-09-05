@@ -8,7 +8,7 @@ import {
   FEEDBACK_CATEGORY_LABELS,
   FEEDBACK_MAX_RATING,
 } from 'src/modules/feedbacks/constants';
-import { UserRepository } from 'src/core/user/user.repository';
+import { GetUsersService } from 'src/core/user/services/get-user.service';
 import { SiteUrlService } from 'src/shared/site-url/site-url.service';
 import { ADMIN_PANEL_PATHS } from './constants';
 
@@ -25,17 +25,27 @@ export class NotificationService {
     private readonly emailService: EmailService,
     private readonly twilioService: TwilioService,
     private readonly configService: ConfigService,
-    private readonly userRepository: UserRepository,
+    private readonly getUsersService: GetUsersService,
     private readonly siteUrlService: SiteUrlService,
   ) {}
 
+  /**
+   * Avisa a equipe sobre um contato do site — e confirma o recebimento a quem
+   * escreveu.
+   *
+   * A confirmação é um terceiro canal aqui, e não um serviço à parte, porque é
+   * o mesmo evento: a mensagem chegou. Os três correm juntos e independentes —
+   * o WhatsApp fora do ar não pode impedir a equipe de receber o e-mail, nem
+   * calar a confirmação de quem escreveu.
+   */
   async notifyNewContact(contact: ContactEntity): Promise<void> {
     const results = await Promise.allSettled([
       this.sendContactEmail(contact),
       this.sendContactWhatsApp(contact),
+      this.sendContactReceipt(contact),
     ]);
 
-    const channels = ['E-mail', 'WhatsApp'];
+    const channels = ['E-mail', 'WhatsApp', 'Confirmação ao remetente'];
     results.forEach((result, index) => {
       if (result.status === 'rejected') {
         this.logger.error(
@@ -61,7 +71,7 @@ export class NotificationService {
     createdAt?: Date;
   }): Promise<void> {
     try {
-      const adminEmails = await this.userRepository.findAdminEmails();
+      const adminEmails = await this.getUsersService.findAdminEmails();
 
       await this.emailService.sendSiteFeedbackNotification(adminEmails, {
         name: feedback.name,
@@ -86,11 +96,11 @@ export class NotificationService {
     author?: { email?: string },
   ): Promise<void> {
     try {
-      const adminEmails = await this.userRepository.findAdminEmails();
+      const adminEmails = await this.getUsersService.findAdminEmails();
       let authorName: string | undefined;
 
       if (author?.email) {
-        const user = await this.userRepository.findByEmail(author.email);
+        const user = await this.getUsersService.findByEmail(author.email);
         if (user) {
           authorName = user.name;
         }
@@ -116,11 +126,11 @@ export class NotificationService {
     author?: { email?: string },
   ): Promise<void> {
     try {
-      const adminEmails = await this.userRepository.findAdminEmails();
+      const adminEmails = await this.getUsersService.findAdminEmails();
       let authorName: string | undefined;
 
       if (author?.email) {
-        const user = await this.userRepository.findByEmail(author.email);
+        const user = await this.getUsersService.findByEmail(author.email);
         if (user) {
           authorName = user.name;
         }
@@ -146,7 +156,7 @@ export class NotificationService {
     provider: 'google' | 'normal',
   ): Promise<void> {
     try {
-      const adminEmails = await this.userRepository.findAdminEmails();
+      const adminEmails = await this.getUsersService.findAdminEmails();
 
       await this.emailService.sendNewUserRegistrationNotification(adminEmails, {
         name: user.name ?? '',
@@ -171,7 +181,7 @@ export class NotificationService {
     createdAt?: Date;
   }): Promise<void> {
     try {
-      const adminEmails = await this.userRepository.findAdminEmails();
+      const adminEmails = await this.getUsersService.findAdminEmails();
       await this.emailService.sendCommentNotification(adminEmails, {
         name: comment.name,
         comment: comment.comment,
@@ -188,8 +198,22 @@ export class NotificationService {
     }
   }
 
+  /**
+   * Confirma, para quem escreveu, que a mensagem chegou.
+   *
+   * O formulário é público e não guarda nada do lado de quem preencheu: sem
+   * esta cópia, a pessoa fica sem registro do que enviou e sem saber se chegou.
+   */
+  private async sendContactReceipt(contact: ContactEntity): Promise<void> {
+    await this.emailService.sendContactReceipt(contact.email, {
+      name: contact.name,
+      message: contact.message,
+      receivedAt: contact.createdAt ?? new Date(),
+    });
+  }
+
   private async sendContactEmail(contact: ContactEntity): Promise<void> {
-    const adminEmails = await this.userRepository.findAdminEmails();
+    const adminEmails = await this.getUsersService.findAdminEmails();
     await this.emailService.sendContactNotification(adminEmails, {
       name: contact.name,
       email: contact.email,

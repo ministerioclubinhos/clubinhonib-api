@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DataSource, EntityManager } from 'typeorm';
+import { EntityManager } from 'typeorm';
 import {
   AppException,
   AppInternalException,
@@ -7,7 +7,8 @@ import {
   ErrorCode,
 } from 'src/shared/exceptions';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
-import { RouteService } from 'src/modules/routes/route.service';
+import { GetRouteService } from 'src/modules/routes/services/get-route.service';
+import { UpdateRouteService } from 'src/modules/routes/services/update-route.service';
 import { RouteEntity, RouteType } from 'src/modules/routes/route-page.entity';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
@@ -38,11 +39,11 @@ export class WeekMaterialsPageUpdateService {
   private readonly logger = new Logger(WeekMaterialsPageUpdateService.name);
 
   constructor(
-    private readonly dataSource: DataSource,
     private readonly pageRepo: WeekMaterialsPageRepository,
     private readonly getService: WeekMaterialsPageGetService,
     private readonly s3: AwsS3Service,
-    private readonly routeService: RouteService,
+    private readonly getRouteService: GetRouteService,
+    private readonly updateRouteService: UpdateRouteService,
     private readonly mediaItemProcessor: MediaItemProcessor,
   ) {}
 
@@ -79,7 +80,7 @@ export class WeekMaterialsPageUpdateService {
         currentWeek: dto.currentWeek ?? page.currentWeek ?? false,
       };
 
-      const updatedPage = await this.dataSource.transaction(
+      const updatedPage = await this.pageRepo.runInTransaction(
         async (manager: EntityManager) => {
           const savedRoute = await this.upsertRoute(
             route,
@@ -124,7 +125,7 @@ export class WeekMaterialsPageUpdateService {
 
   /** Publishes a page as the current week material, clearing the previous one. */
   async setCurrentWeek(id: string): Promise<WeekMaterialsPageResponseDTO> {
-    const page = await this.dataSource.transaction(
+    const page = await this.pageRepo.runInTransaction(
       async (manager: EntityManager) => {
         const target = await this.pageRepo.findOnePageById(id, manager);
         if (!target) {
@@ -156,7 +157,7 @@ export class WeekMaterialsPageUpdateService {
   }
 
   private async loadRoute(pageId: string): Promise<RouteEntity> {
-    const route = await this.routeService.findRouteByEntityId(pageId);
+    const route = await this.getRouteService.findRouteByEntityId(pageId);
     if (!route) {
       throw new AppNotFoundException(
         ErrorCode.ROUTE_NOT_FOUND,
@@ -172,7 +173,7 @@ export class WeekMaterialsPageUpdateService {
     pageId: string,
     manager: EntityManager,
   ): Promise<RouteEntity> {
-    return this.routeService.upsertRouteWithAvailablePath(
+    return this.updateRouteService.upsertRouteWithAvailablePath(
       route.id,
       {
         title: content.title,

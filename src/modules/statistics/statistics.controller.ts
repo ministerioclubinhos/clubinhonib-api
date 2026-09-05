@@ -19,6 +19,21 @@ import {
   ClubAttendanceQueryDto,
   WeeklyAttendanceQueryDto,
 } from './dto/attendance-query.dto';
+import {
+  ClubAttendanceAnalysisDto,
+  WeeklyAttendanceDto,
+} from './dto/club-attendance-analysis.dto';
+import {
+  AcceptedChristsChartDataDto,
+  CombinedInsightsDto,
+  PagelasChartDataDto,
+} from './dto/chart-data-response.dto';
+import { OverviewStatsResponseDto } from './dto/overview-stats-response.dto';
+import { PagelasStatsResponseDto } from './dto/pagelas-stats-response.dto';
+import { AcceptedChristsStatsResponseDto } from './dto/accepted-christs-stats-response.dto';
+import { ChildrenStatsResponseDto } from './dto/children-stats-response.dto';
+import { ClubsStatsResponseDto } from './dto/clubs-stats-response.dto';
+import { TeachersStatsResponseDto } from './dto/teachers-stats-response.dto';
 
 @Controller('statistics')
 @UseGuards(JwtAuthGuard, AdminRoleGuard)
@@ -28,7 +43,9 @@ export class StatisticsController {
   constructor(private readonly statisticsService: StatisticsService) {}
 
   @Get('pagelas/charts')
-  async getPagelasChartData(@Query() filters: PagelasStatsQueryDto) {
+  async getPagelasChartData(
+    @Query() filters: PagelasStatsQueryDto,
+  ): Promise<PagelasChartDataDto> {
     const started = Date.now();
     this.logger.log(
       `GET /statistics/pagelas/charts filters=${JSON.stringify(filters)}`,
@@ -51,7 +68,7 @@ export class StatisticsController {
   @Get('accepted-christs/charts')
   async getAcceptedChristsChartData(
     @Query() filters: AcceptedChristsStatsQueryDto,
-  ) {
+  ): Promise<AcceptedChristsChartDataDto> {
     const started = Date.now();
     this.logger.log(
       `GET /statistics/accepted-christs/charts filters=${JSON.stringify(filters)}`,
@@ -73,7 +90,9 @@ export class StatisticsController {
   }
 
   @Get('insights')
-  async getCombinedInsights(@Query() filters: PagelasStatsQueryDto) {
+  async getCombinedInsights(
+    @Query() filters: PagelasStatsQueryDto,
+  ): Promise<CombinedInsightsDto> {
     const started = Date.now();
     this.logger.log(
       `GET /statistics/insights filters=${JSON.stringify(filters)}`,
@@ -95,7 +114,7 @@ export class StatisticsController {
   }
 
   @Get('overview')
-  async getOverviewStatistics() {
+  async getOverviewStatistics(): Promise<OverviewStatsResponseDto> {
     const started = Date.now();
     this.logger.log(`GET /statistics/overview`);
     try {
@@ -114,7 +133,9 @@ export class StatisticsController {
   }
 
   @Get('pagelas')
-  async getPagelasStatistics(@Query() filters: PagelasStatsQueryDto) {
+  async getPagelasStatistics(
+    @Query() filters: PagelasStatsQueryDto,
+  ): Promise<PagelasStatsResponseDto> {
     const started = Date.now();
     this.logger.log(
       `GET /statistics/pagelas filters=${JSON.stringify(filters)}`,
@@ -137,7 +158,7 @@ export class StatisticsController {
   @Get('accepted-christs')
   async getAcceptedChristsStatistics(
     @Query() filters: AcceptedChristsStatsQueryDto,
-  ) {
+  ): Promise<AcceptedChristsStatsResponseDto> {
     const started = Date.now();
     this.logger.log(
       `GET /statistics/accepted-christs filters=${JSON.stringify(filters)}`,
@@ -159,7 +180,9 @@ export class StatisticsController {
   }
 
   @Get('children')
-  async getChildrenStats(@Query() filters: ChildrenStatsQueryDto) {
+  async getChildrenStats(
+    @Query() filters: ChildrenStatsQueryDto,
+  ): Promise<ChildrenStatsResponseDto> {
     const started = Date.now();
     this.logger.log(
       `GET /statistics/children filters=${JSON.stringify(filters)}`,
@@ -181,7 +204,9 @@ export class StatisticsController {
   }
 
   @Get('clubs')
-  async getClubsStats(@Query() filters: ClubsStatsQueryDto) {
+  async getClubsStats(
+    @Query() filters: ClubsStatsQueryDto,
+  ): Promise<ClubsStatsResponseDto> {
     const started = Date.now();
     this.logger.log(`GET /statistics/clubs filters=${JSON.stringify(filters)}`);
     try {
@@ -201,7 +226,9 @@ export class StatisticsController {
   }
 
   @Get('teachers')
-  async getTeachersStats(@Query() filters: TeachersStatsQueryDto) {
+  async getTeachersStats(
+    @Query() filters: TeachersStatsQueryDto,
+  ): Promise<TeachersStatsResponseDto> {
     const started = Date.now();
     this.logger.log(
       `GET /statistics/teachers filters=${JSON.stringify(filters)}`,
@@ -226,21 +253,21 @@ export class StatisticsController {
   async analyzeClubAttendance(
     @Param('clubId', ParseUUIDPipe) clubId: string,
     @Query() query: ClubAttendanceQueryDto,
-  ) {
+  ): Promise<ClubAttendanceAnalysisDto> {
     const { year, startDate, endDate, page, limit } = query;
     const started = Date.now();
     this.logger.log(
       `GET /statistics/attendance/club/${clubId}?year=${year}&page=${page ?? 1}&limit=${limit ?? 50}`,
     );
     try {
-      const result = (await this.statisticsService.analyzeClubAttendance(
+      const result = await this.statisticsService.analyzeClubAttendance(
         clubId,
         year,
         startDate,
         endDate,
         page,
         limit,
-      )) as { timeline?: unknown[]; missingWeeks?: unknown[] };
+      );
       this.logger.log(
         `GET /statistics/attendance/club/${clubId} -> success in ${Date.now() - started}ms timeline=${result.timeline?.length ?? 0} missingWeeks=${result.missingWeeks?.length ?? 0}`,
       );
@@ -255,19 +282,21 @@ export class StatisticsController {
   }
 
   @Get('attendance/week')
-  async analyzeWeeklyAttendance(@Query() query: WeeklyAttendanceQueryDto) {
+  async analyzeWeeklyAttendance(
+    @Query() query: WeeklyAttendanceQueryDto,
+  ): Promise<WeeklyAttendanceDto> {
     const { year, week, page, limit } = query;
     const started = Date.now();
     this.logger.log(
       `GET /statistics/attendance/week?year=${year}&week=${week}&page=${page ?? 1}&limit=${limit ?? 50}`,
     );
     try {
-      const result = (await this.statisticsService.analyzeWeeklyAttendance(
+      const result = await this.statisticsService.analyzeWeeklyAttendance(
         year,
         week,
         page,
         limit,
-      )) as { clubs?: unknown[]; pagination?: { total?: number } };
+      );
       this.logger.log(
         `GET /statistics/attendance/week -> success in ${Date.now() - started}ms clubs=${result.clubs?.length ?? 0} total=${result.pagination?.total ?? 0}`,
       );

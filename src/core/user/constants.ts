@@ -51,3 +51,26 @@ export const USER_MEDIA_TARGET = 'UserEntity';
 
 /** Nome do campo do form-data que carrega o arquivo da foto. */
 export const USER_IMAGE_FIELD_KEY = 'file';
+
+/**
+ * Caminhos do site usados nos avisos de conta.
+ *
+ * Ficam aqui, e não montados na hora, para o link do e-mail e o link do painel
+ * não divergirem quando a rota mudar.
+ */
+export const USER_EMAIL_PATHS = {
+  login: 'login',
+  contact: 'contato',
+} as const;
+
+/**
+ * O papel em texto legível.
+ *
+ * O enum é inglês e o e-mail é português; sem isto a pessoa receberia "seu
+ * papel mudou para coordinator".
+ */
+export const USER_ROLE_LABELS = {
+  admin: 'Administrador',
+  coordinator: 'Coordenador',
+  teacher: 'Professor',
+} as const;

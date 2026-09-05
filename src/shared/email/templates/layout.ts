@@ -1,6 +1,7 @@
 import {
   EMAIL_BRAND,
   EMAIL_COLORS,
+  EMAIL_DISPLAY_FALLBACK,
   EMAIL_MAX_WIDTH_PX,
   UNSUBSCRIBE_FOOTER,
 } from '../constants';
@@ -29,8 +30,9 @@ export interface EmailLayoutParams {
  * clientes de e-mail renderizam de forma parecida; as classes existem só para
  * as media queries de mobile e de tema escuro, que Gmail e Outlook aplicam.
  *
- * O verde da marca aparece como faixa do topo, e não como contorno de cada
- * elemento; o vermelho fica reservado ao botão de ação.
+ * Cada cor da marca tem um papel e só aparece nele: o azul royal é a faixa do
+ * cabeçalho, o verde fecha essa faixa e pinta o botão, o amarelo marca a
+ * citação e o vermelho fica no aviso. Nenhuma delas vira contorno de campo.
  */
 export function renderEmailLayout({
   title,
@@ -58,17 +60,20 @@ export function renderEmailLayout({
   <meta name="color-scheme" content="light dark">
   <meta name="supported-color-schemes" content="light dark">
   <title>${safeTitle}</title>
+  <!--[if !mso]><!-->
+  <link href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap" rel="stylesheet">
+  <!--<![endif]-->
   <style>
     body { margin: 0; padding: 0; width: 100% !important; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
     img { border: 0; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; }
 
     @media only screen and (max-width: ${EMAIL_MAX_WIDTH_PX}px) {
       .email-container { width: 100% !important; border-radius: 0 !important; }
-      .content-padding { padding: 24px 20px !important; }
-      .header-padding { padding: 24px 20px !important; }
-      .footer-padding { padding: 20px !important; }
-      .brand-mobile { font-size: 18px !important; }
-      .title-mobile { font-size: 18px !important; }
+      .content-padding { padding: 28px 22px !important; }
+      .header-padding { padding: 26px 22px !important; }
+      .footer-padding { padding: 24px 22px !important; }
+      .brand-mobile { font-size: 14px !important; }
+      .title-mobile { font-size: 20px !important; }
     }
 
     /*
@@ -83,6 +88,7 @@ export function renderEmailLayout({
       .text-primary { color: #EDEFF3 !important; }
       .text-muted { color: #9BA3AF !important; }
       .border-color { border-color: #333840 !important; }
+      .alert-bg { background-color: #2E1F20 !important; }
     }
 
     /* O Outlook.com marca o corpo em vez de suportar a media query acima. */
@@ -92,10 +98,11 @@ export function renderEmailLayout({
     [data-ogsc] .text-primary { color: #EDEFF3 !important; }
     [data-ogsc] .text-muted { color: #9BA3AF !important; }
     [data-ogsc] .border-color { border-color: #333840 !important; }
+    [data-ogsc] .alert-bg { background-color: #2E1F20 !important; }
   </style>
 </head>
 <body class="body-bg" style="margin: 0; padding: 0; background-color: ${EMAIL_COLORS.bodyBackground}; font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-  <table width="100%" border="0" cellspacing="0" cellpadding="0" class="body-bg" style="background-color: ${EMAIL_COLORS.bodyBackground}; padding: 32px 12px;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" class="body-bg" style="background-color: ${EMAIL_COLORS.bodyBackground}; padding: 40px 12px;">
     <tr>
       <td align="center">
         <!--[if mso]>
@@ -103,16 +110,16 @@ export function renderEmailLayout({
         <tr>
         <td style="padding:0;">
         <![endif]-->
-        <table class="email-container card-bg" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: ${EMAIL_MAX_WIDTH_PX}px; background-color: ${EMAIL_COLORS.cardBackground}; border-radius: 12px; overflow: hidden;">
+        <table class="email-container card-bg" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: ${EMAIL_MAX_WIDTH_PX}px; background-color: ${EMAIL_COLORS.cardBackground}; border-radius: 14px; overflow: hidden; box-shadow: 0 1px 3px rgba(48, 50, 139, 0.08);">
           <tr>
-            <td class="header-padding" style="background-color: ${EMAIL_COLORS.primaryText}; border-bottom: 4px solid ${EMAIL_COLORS.brandGreen}; padding: 28px 32px;">
-              <p class="brand-mobile" style="margin: 0 0 6px 0; color: ${EMAIL_COLORS.onDark}; font-size: 20px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase;">${EMAIL_BRAND.name}</p>
-              <p class="title-mobile" style="margin: 0; color: ${EMAIL_COLORS.onDark}; font-size: 20px; font-weight: 600;">${safeTitle}</p>
+            <td class="header-padding" style="background-color: ${EMAIL_COLORS.headerBackground}; border-bottom: 4px solid ${EMAIL_COLORS.brandGreen}; padding: 28px 32px;">
+              <p class="brand-mobile" style="margin: 0 0 10px 0; color: ${EMAIL_COLORS.brandGreen}; font-family: 'Lilita One', ${EMAIL_DISPLAY_FALLBACK}; font-size: 15px; font-weight: 400; letter-spacing: 1.4px; text-transform: uppercase;">${EMAIL_BRAND.name}</p>
+              <p class="title-mobile" style="margin: 0; color: ${EMAIL_COLORS.onDark}; font-size: 24px; font-weight: 700; line-height: 1.3; letter-spacing: -0.2px;">${safeTitle}</p>
             </td>
           </tr>
 
           <tr>
-            <td class="content-padding" style="padding: 32px;">
+            <td class="content-padding" style="padding: 36px 32px;">
               ${greeting}
               <div class="text-primary" style="color: ${EMAIL_COLORS.primaryText}; font-size: 16px; line-height: 1.6;">
 ${body}
@@ -121,10 +128,10 @@ ${body}
           </tr>
 
           <tr>
-            <td class="footer-padding border-color" style="border-top: 1px solid ${EMAIL_COLORS.border}; padding: 24px 32px; text-align: center;">
-              <p class="text-muted" style="margin: 0; color: ${EMAIL_COLORS.mutedText}; font-size: 13px; font-weight: 600;">${EMAIL_BRAND.name}</p>
-              <p class="text-muted" style="margin: 4px 0 0; color: ${EMAIL_COLORS.mutedText}; font-size: 12px;">${EMAIL_BRAND.tagline}</p>
-              <p class="text-muted" style="margin: 12px 0 0; color: ${EMAIL_COLORS.mutedText}; font-size: 11px;">&copy; ${year} ${EMAIL_BRAND.name}</p>
+            <td class="footer-padding border-color" style="border-top: 1px solid ${EMAIL_COLORS.border}; padding: 28px 32px; text-align: center;">
+              <p class="text-primary" style="margin: 0; color: ${EMAIL_COLORS.primaryText}; font-size: 12px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase;">${EMAIL_BRAND.name}</p>
+              <p class="text-muted" style="margin: 6px 0 0; color: ${EMAIL_COLORS.mutedText}; font-size: 13px;">${EMAIL_BRAND.tagline}</p>
+              <p class="text-muted" style="margin: 14px 0 0; color: ${EMAIL_COLORS.mutedText}; font-size: 11px;">&copy; ${year} ${EMAIL_BRAND.name}</p>
               ${unsubscribeLine}
             </td>
           </tr>

@@ -6,7 +6,6 @@ import {
 } from 'src/shared/exceptions';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { DataSource, QueryRunner } from 'typeorm';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
@@ -16,7 +15,7 @@ import {
 } from 'src/shared/media/media-item/media-item.entity';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
 import { ImageSectionRepository } from '../repository/image-section.repository';
-import { ImagePageRepository } from 'src/modules/pages/image-page/repositories/image-page.repository';
+import { ImagePageGetService } from 'src/modules/pages/image-page/services/get-image-page.service';
 import { UpdateImageSectionDto } from '../dto/update-image-section.dto';
 import { MediaItemDto } from 'src/shared/share-dto/media-item-dto';
 import { ImageSectionResponseDto } from '../dto/image-section-response.dto';
@@ -28,11 +27,10 @@ export class ImageSectionUpdateService {
 
   constructor(
     private readonly configService: ConfigService,
-    private readonly dataSource: DataSource,
     private readonly awsS3Service: AwsS3Service,
     private readonly mediaItemProcessor: MediaItemProcessor,
     private readonly sectionRepo: ImageSectionRepository,
-    private readonly pageRepo: ImagePageRepository,
+    private readonly imagePageGetService: ImagePageGetService,
   ) {}
 
   async updateSection(
@@ -41,10 +39,6 @@ export class ImageSectionUpdateService {
     filesDict: Record<string, Express.Multer.File>,
   ): Promise<ImageSectionResponseDto> {
     this.logger.log(`🚀 Iniciando atualização da seção com ID: ${id}`);
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
     // Os arquivos sobem fora da transação: o rastreador permite apagá-los do
     // bucket quando a atualização falha depois do upload.
     const uploads = new S3UploadTracker((file: Express.Multer.File) =>
@@ -52,7 +46,7 @@ export class ImageSectionUpdateService {
     );
 
     try {
-      const section = await this.sectionRepo.findOneBy({ id });
+      const section = await this.sectionRepo.findById(id);
       if (!section) {
         throw new AppNotFoundException(
           ErrorCode.RESOURCE_NOT_FOUND,
@@ -72,7 +66,7 @@ export class ImageSectionUpdateService {
         );
       }
 
-      const page = await this.pageRepo.findById(pageIdFromEnv);
+      const page = await this.imagePageGetService.findEntity(pageIdFromEnv);
       if (!page) {
         throw new AppNotFoundException(
           ErrorCode.RESOURCE_NOT_FOUND,
@@ -91,19 +85,21 @@ export class ImageSectionUpdateService {
         dto.mediaItems,
         section.id,
         filesDict,
-        queryRunner,
         uploads,
       );
       section.caption = dto.caption;
       section.description = dto.description;
       section.public = dto.public || false;
       section.page = page;
-      const savedSection = await queryRunner.manager.save(section);
 
-      await queryRunner.commitTransaction();
+      // A transação é aberta pelo repositório; aqui só se decide o que entra
+      // nela. O rollback acontece sozinho quando o bloco lança.
+      const savedSection = await this.sectionRepo.runInTransaction((manager) =>
+        this.sectionRepo.saveInTransaction(manager, section),
+      );
+
       return toImageSectionResponse(savedSection, processedMedia);
     } catch (error: unknown) {
-      await queryRunner.rollbackTransaction();
       await this.mediaItemProcessor.discardUnreferencedUploads(
         uploads.uploadedUrls,
         (url: string) => this.awsS3Service.delete(url),
@@ -118,15 +114,12 @@ export class ImageSectionUpdateService {
         'Erro ao atualizar a seção',
         error as Error,
       );
-    } finally {
-      await queryRunner.release();
     }
   }
 
   private async deleteObsoleteMedia(
     existingMedia: MediaItemEntity[],
     incomingMedia: MediaItemDto[],
-    // _queryRunner: QueryRunner,
   ): Promise<void> {
     const incomingIds = incomingMedia
       .map((m) => m.id)
@@ -144,7 +137,6 @@ export class ImageSectionUpdateService {
     mediaItems: MediaItemDto[],
     sectionId: string,
     filesDict: Record<string, Express.Multer.File>,
-    queryRunner: QueryRunner,
     uploads: S3UploadTracker,
   ): Promise<MediaItemEntity[]> {
     const processed: MediaItemEntity[] = [];
@@ -155,7 +147,6 @@ export class ImageSectionUpdateService {
           mediaInput,
           sectionId,
           filesDict,
-          queryRunner,
           uploads,
         );
         processed.push(updated);
@@ -208,12 +199,13 @@ export class ImageSectionUpdateService {
     mediaInput: MediaItemDto,
     sectionId: string,
     filesDict: Record<string, Express.Multer.File>,
-    queryRunner: QueryRunner,
     uploads: S3UploadTracker,
   ): Promise<MediaItemEntity> {
-    const existingMedia = await queryRunner.manager.findOneBy(MediaItemEntity, {
-      id: mediaInput.id,
-    });
+    // Quem conhece a persistência da mídia é o módulo de mídia; aqui só se
+    // pergunta por ela.
+    const existingMedia = await this.mediaItemProcessor.findMediaItemById(
+      mediaInput.id ?? '',
+    );
     if (!existingMedia) {
       throw new AppNotFoundException(
         ErrorCode.RESOURCE_NOT_FOUND,

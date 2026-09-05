@@ -1,7 +1,7 @@
 import { Test } from '@nestjs/testing';
 
 import { UserRole } from 'src/core/auth/auth.types';
-import { MediaItemRepository } from 'src/shared/media/media-item-repository';
+import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { AppForbiddenException } from 'src/shared/exceptions';
 
 import { PROFILES_MAX_LIMIT } from '../../constants';
@@ -18,7 +18,7 @@ describe('GetAllProfilesService', () => {
   };
   const personalDataRepository = { findByUserIds: jest.fn() };
   const userPreferencesRepository = { findByUserIds: jest.fn() };
-  const mediaItemRepository = { findManyByTargets: jest.fn() };
+  const mediaItemProcessor = { findManyMediaItemsByTargets: jest.fn() };
 
   const buildQuery = (overrides: Partial<QueryProfilesDto> = {}) =>
     Object.assign(new QueryProfilesDto(), { page: 1, limit: 12 }, overrides);
@@ -33,7 +33,7 @@ describe('GetAllProfilesService', () => {
           provide: UserPreferencesRepository,
           useValue: userPreferencesRepository,
         },
-        { provide: MediaItemRepository, useValue: mediaItemRepository },
+        { provide: MediaItemProcessor, useValue: mediaItemProcessor },
       ],
     }).compile();
 
@@ -64,7 +64,7 @@ describe('GetAllProfilesService', () => {
     listingRepository.findBirthdaysOfCurrentMonth.mockResolvedValue([]);
     personalDataRepository.findByUserIds.mockResolvedValue([]);
     userPreferencesRepository.findByUserIds.mockResolvedValue([]);
-    mediaItemRepository.findManyByTargets.mockResolvedValue([]);
+    mediaItemProcessor.findManyMediaItemsByTargets.mockResolvedValue([]);
   });
 
   it('barra quem não pode listar perfis', async () => {

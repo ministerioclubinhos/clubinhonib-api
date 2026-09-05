@@ -1,9 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 
-import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
-import { MediaItemRepository } from 'src/shared/media/media-item-repository';
+import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
-import { UserRepository } from 'src/core/user/user.repository';
+import { GetUsersService } from 'src/core/user/services/get-user.service';
 
 import { PersonalDataRepository } from '../../repositories/personal-data.repository';
 import { UserPreferencesRepository } from '../../repositories/user-preferences.repository';
@@ -20,27 +19,21 @@ export class UpdateProfileService {
   private readonly logger = new Logger(UpdateProfileService.name);
 
   constructor(
-    private readonly userRepository: UserRepository,
+    private readonly getUsersService: GetUsersService,
     private readonly personalDataRepository: PersonalDataRepository,
     private readonly userPreferencesRepository: UserPreferencesRepository,
-    private readonly mediaItemRepository: MediaItemRepository,
+    private readonly mediaItemProcessor: MediaItemProcessor,
   ) {}
 
   async execute(
     userId: string,
     dto: UpdateCompleteProfileDto,
   ): Promise<CompleteProfileResponseDto> {
-    const user = await this.userRepository.findById(userId);
-    if (!user) {
-      throw new AppNotFoundException(
-        ErrorCode.USER_NOT_FOUND,
-        'Usuário não encontrado',
-      );
-    }
+    const user = await this.getUsersService.findOne(userId);
 
     const personalData = await this.savePersonalData(userId, dto.personalData);
     const preferences = await this.savePreferences(userId, dto.preferences);
-    const [image] = await this.mediaItemRepository.findByTarget(
+    const [image] = await this.mediaItemProcessor.findMediaItemsByTarget(
       userId,
       MediaTargetType.User,
     );

@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing';
-import { DataSource } from 'typeorm';
-import { RouteService } from 'src/modules/routes/route.service';
+import { EntityManager } from 'typeorm';
+import { CreateRouteService } from 'src/modules/routes/services/create-route.service';
 import { RouteType } from 'src/modules/routes/route-page.entity';
 import {
   AppInternalException,
@@ -42,18 +42,18 @@ const validDto = (
   });
 
 describe('WeekMaterialsPageCreateService', () => {
-  const queryRunner = {
-    connect: jest.fn(),
-    startTransaction: jest.fn(),
-    commitTransaction: jest.fn(),
-    rollbackTransaction: jest.fn(),
-    release: jest.fn(),
-    manager: {},
+  const manager = {} as EntityManager;
+  // A transação passou a ser aberta pelo repositório: o caso de uso entrega
+  // o bloco de escritas e não conhece mais `DataSource`.
+  const pageRepo = {
+    runInTransaction: jest.fn((run: (m: EntityManager) => Promise<unknown>) =>
+      run(manager),
+    ),
+    createPage: jest.fn(),
+    savePage: jest.fn(),
   };
-  const dataSource = { createQueryRunner: jest.fn(() => queryRunner) };
-  const pageRepo = { createPage: jest.fn(), savePage: jest.fn() };
   const s3 = { upload: jest.fn(), delete: jest.fn() };
-  const routeService = {
+  const createRouteService = {
     generateAvailablePath: jest.fn(),
     createRouteWithManager: jest.fn(),
   };
@@ -95,19 +95,18 @@ describe('WeekMaterialsPageCreateService', () => {
     pageRepo.savePage.mockImplementation(
       (page: WeekMaterialsPageEntity) => page,
     );
-    routeService.generateAvailablePath.mockResolvedValue(
+    createRouteService.generateAvailablePath.mockResolvedValue(
       'materiais_semanal_semana_1',
     );
-    routeService.createRouteWithManager.mockResolvedValue(savedRoute);
+    createRouteService.createRouteWithManager.mockResolvedValue(savedRoute);
     mediaItemProcessor.processMediaItemsPolymorphic.mockResolvedValue([]);
 
     const moduleRef = await Test.createTestingModule({
       providers: [
         WeekMaterialsPageCreateService,
-        { provide: DataSource, useValue: dataSource },
         { provide: WeekMaterialsPageRepository, useValue: pageRepo },
         { provide: AwsS3Service, useValue: s3 },
-        { provide: RouteService, useValue: routeService },
+        { provide: CreateRouteService, useValue: createRouteService },
         { provide: MediaItemProcessor, useValue: mediaItemProcessor },
         {
           provide: AnnounceWeekMaterialService,
@@ -135,12 +134,11 @@ describe('WeekMaterialsPageCreateService', () => {
 
     const result = await service.createWeekMaterialsPage(validDto(), {});
 
-    expect(routeService.generateAvailablePath).toHaveBeenCalledWith(
+    expect(createRouteService.generateAvailablePath).toHaveBeenCalledWith(
       'Semana 1',
       WEEK_MATERIAL_ROUTE_PATH_PREFIX,
     );
-    expect(queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
-    expect(queryRunner.release).toHaveBeenCalledTimes(1);
+    expect(pageRepo.runInTransaction).toHaveBeenCalledTimes(1);
     expect(result.id).toBe('page-id');
     expect(result.videos.map((i) => i.id)).toEqual(['media-id']);
   });
@@ -150,7 +148,7 @@ describe('WeekMaterialsPageCreateService', () => {
 
     expect(pageRepo.createPage).toHaveBeenCalledWith(
       expect.objectContaining({ currentWeek: false }),
-      queryRunner.manager,
+      manager,
     );
   });
 
@@ -159,12 +157,9 @@ describe('WeekMaterialsPageCreateService', () => {
 
     expect(pageRepo.createPage).toHaveBeenCalledWith(
       expect.objectContaining({ title: 'Semana 1', currentWeek: false }),
-      queryRunner.manager,
+      manager,
     );
-    expect(pageRepo.savePage).toHaveBeenCalledWith(
-      expect.anything(),
-      queryRunner.manager,
-    );
+    expect(pageRepo.savePage).toHaveBeenCalledWith(expect.anything(), manager);
   });
 
   it('rejects uploaded media that did not declare its multipart field', async () => {
@@ -183,7 +178,7 @@ describe('WeekMaterialsPageCreateService', () => {
     await expect(
       service.createWeekMaterialsPage(dto, {}),
     ).rejects.toBeInstanceOf(AppValidationException);
-    expect(dataSource.createQueryRunner).not.toHaveBeenCalled();
+    expect(pageRepo.runInTransaction).not.toHaveBeenCalled();
   });
 
   it('rolls back and removes orphan media when media processing fails', async () => {
@@ -201,12 +196,11 @@ describe('WeekMaterialsPageCreateService', () => {
       service.createWeekMaterialsPage(validDto(), {}),
     ).rejects.toBeInstanceOf(AppInternalException);
 
-    expect(queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
+    expect(pageRepo.runInTransaction).toHaveBeenCalledTimes(1);
     expect(mediaItemProcessor.deleteMediaItems).toHaveBeenCalledWith(
       [orphan],
       expect.any(Function),
     );
-    expect(queryRunner.release).toHaveBeenCalledTimes(1);
   });
 
   it('preserves an application error raised during creation', async () => {

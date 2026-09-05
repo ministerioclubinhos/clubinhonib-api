@@ -1,4 +1,47 @@
 /**
+ * Cada e-mail que a aplicação sabe disparar.
+ *
+ * É a lista que amarra template, método de envio e feature flag: um e-mail novo
+ * entra aqui primeiro, e as três pontas passam a cobrá-lo.
+ */
+export enum EmailNotification {
+  PasswordRecovery = 'password-recovery',
+  PasswordChanged = 'password-changed',
+  EmailVerification = 'email-verification',
+  ContactNotification = 'contact-notification',
+  CommentNotification = 'comment-notification',
+  SiteFeedbackNotification = 'site-feedback-notification',
+  IdeaSharedNotification = 'idea-shared-notification',
+  ImageSharedNotification = 'image-shared-notification',
+  NewUserRegistrationNotification = 'new-user-registration-notification',
+  WeekMaterialAnnouncement = 'week-material-announcement',
+  EventCreated = 'event-created',
+  EventUpdated = 'event-updated',
+  EventCancelled = 'event-cancelled',
+
+  /* Conta e acesso — respostas a algo que mexeu na conta da pessoa. */
+  EmailAddressChanged = 'email-address-changed',
+  AccountApproved = 'account-approved',
+  RoleChanged = 'role-changed',
+  AccountDeactivated = 'account-deactivated',
+  AccountDeleted = 'account-deleted',
+  AccountCreatedByAdmin = 'account-created-by-admin',
+
+  /* Publicações que vão para toda a base. */
+  InformativePublished = 'informative-published',
+  DocumentPublished = 'document-published',
+  ClubDayCancelled = 'club-day-cancelled',
+
+  /* Confirmação para quem escreveu pelo site. */
+  ContactReceipt = 'contact-receipt',
+
+  /* Operacional do clubinho. */
+  MissingPagelaReminder = 'missing-pagela-reminder',
+  CoordinatorWeeklySummary = 'coordinator-weekly-summary',
+  AcceptedChristRegistered = 'accepted-christ-registered',
+}
+
+/**
  * Quem recebe um e-mail nominal.
  *
  * O id entra porque o rodapé leva um link de descadastro assinado para aquela
@@ -139,4 +182,160 @@ export interface BulkEmailResult {
   /** Mensagens entregues ao transporte, uma por pessoa. */
   sent: number;
   failed: number;
+}
+
+/* ------------------------------------------------------------------ *
+ * Conta e acesso
+ * ------------------------------------------------------------------ */
+
+/** Dados do aviso de que o endereço de login mudou. Vai para o antigo. */
+export interface EmailAddressChangedEmailData {
+  recipientName: string;
+  /** O endereço novo, para a pessoa reconhecer — ou estranhar — a troca. */
+  newEmail: string;
+  changedAt: Date;
+  /** Onde pedir socorro se não foi a pessoa quem trocou. */
+  supportUrl?: string;
+}
+
+/** Dados do aviso de que o pré-cadastro foi liberado. */
+export interface AccountApprovedEmailData {
+  recipientName: string;
+  loginLink: string;
+  unsubscribeUrl?: string;
+}
+
+/** Dados do aviso de mudança de papel. */
+export interface RoleChangedEmailData {
+  recipientName: string;
+  /** Papel em texto legível, já traduzido. */
+  previousRole: string;
+  currentRole: string;
+  loginLink: string;
+  unsubscribeUrl?: string;
+}
+
+/** Dados do aviso de conta desativada. */
+export interface AccountDeactivatedEmailData {
+  recipientName: string;
+  unsubscribeUrl?: string;
+}
+
+/** Dados do aviso de conta excluída. */
+export interface AccountDeletedEmailData {
+  recipientName: string;
+}
+
+/** Dados das boas-vindas de uma conta criada pela coordenação. */
+export interface AccountCreatedByAdminEmailData {
+  recipientName: string;
+  /** Papel em texto legível. */
+  role: string;
+  /** Link com token para a pessoa definir a própria senha. */
+  passwordSetupLink: string;
+  /** Quanto tempo o link acima vale, em horas. */
+  validityHours: number;
+  unsubscribeUrl?: string;
+}
+
+/* ------------------------------------------------------------------ *
+ * Publicações para toda a base
+ * ------------------------------------------------------------------ */
+
+/** Dados do aviso de informativo publicado. */
+export interface InformativePublishedEmailData {
+  title: string;
+  description?: string;
+  informativeLink: string;
+  unsubscribeUrl?: string;
+}
+
+/** Dados do aviso de documento novo. */
+export interface DocumentPublishedEmailData {
+  name: string;
+  description?: string;
+  documentLink: string;
+  unsubscribeUrl?: string;
+}
+
+/** Dados do aviso de que uma data não terá Clubinho. */
+export interface ClubDayCancelledEmailData {
+  /** Data em `YYYY-MM-DD`; o template formata. */
+  date: string;
+  reason: string;
+  /** Observação da coordenação, quando existe. */
+  notes?: string;
+  /** Vale todo ano na mesma data. */
+  isRecurrent: boolean;
+  unsubscribeUrl?: string;
+}
+
+/* ------------------------------------------------------------------ *
+ * Confirmação para quem escreveu
+ * ------------------------------------------------------------------ */
+
+/** Dados da confirmação de contato recebido, enviada a quem escreveu. */
+export interface ContactReceiptEmailData {
+  name: string;
+  /** A mensagem de volta, para a pessoa saber o que chegou. */
+  message: string;
+  receivedAt: Date;
+}
+
+/* ------------------------------------------------------------------ *
+ * Operacional do clubinho
+ * ------------------------------------------------------------------ */
+
+/** Uma criança que ficou sem pagela na semana. */
+export interface MissingChildSummary {
+  childId: string;
+  childName: string;
+}
+
+/** Dados do lembrete de pagela faltando em um clubinho. */
+export interface MissingPagelaReminderEmailData {
+  clubNumber: number;
+  /** Semana letiva que fechou. */
+  academicWeek: number;
+  academicYear: number;
+  /** Data em que o clubinho deveria ter acontecido, em `YYYY-MM-DD`. */
+  expectedDate: string | null;
+  totalChildren: number;
+  withPagela: number;
+  missing: MissingChildSummary[];
+  pagelasLink: string;
+  unsubscribeUrl?: string;
+}
+
+/** A linha de um clubinho no resumo do coordenador. */
+export interface CoordinatorSummaryClub {
+  clubNumber: number;
+  /** Status já em texto legível. */
+  status: string;
+  totalChildren: number;
+  withPagela: number;
+  missing: number;
+}
+
+/** Dados do resumo semanal de um coordenador. */
+export interface CoordinatorWeeklySummaryEmailData {
+  recipientName: string;
+  academicWeek: number;
+  academicYear: number;
+  clubs: CoordinatorSummaryClub[];
+  /** Quantos clubinhos fecharam a semana sem pendência. */
+  clubsOk: number;
+  panelLink: string;
+  unsubscribeUrl?: string;
+}
+
+/** Dados do aviso de decisão por Cristo registrada. */
+export interface AcceptedChristRegisteredEmailData {
+  childName: string;
+  clubNumber: number;
+  /** Decisão já em texto legível. */
+  decision: string;
+  registeredAt: Date;
+  panelLink?: string;
+  unsubscribeUrl?: string;
 }

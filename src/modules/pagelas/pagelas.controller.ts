@@ -47,7 +47,8 @@ export class PagelasController {
    */
   private async contextOf(request: Request): Promise<PagelaAccessContext> {
     const payload = await this.authContext.tryGetPayload(request);
-    return { role: payload?.role?.toLowerCase(), userId: payload?.sub ?? null };
+    // O papel vai como veio: quem normaliza é `normalizeRole`.
+    return { role: payload?.role, userId: payload?.sub ?? null };
   }
 
   @Post()

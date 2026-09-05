@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DataSource, EntityManager } from 'typeorm';
+import { EntityManager } from 'typeorm';
 import {
   AppException,
   AppInternalException,
@@ -7,7 +7,8 @@ import {
   ErrorCode,
 } from 'src/shared/exceptions';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
-import { RouteService } from 'src/modules/routes/route.service';
+import { GetRouteService } from 'src/modules/routes/services/get-route.service';
+import { UpdateRouteService } from 'src/modules/routes/services/update-route.service';
 import { RouteEntity, RouteType } from 'src/modules/routes/route-page.entity';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
@@ -44,10 +45,10 @@ export class IdeasPageUpdateService {
   private readonly logger = new Logger(IdeasPageUpdateService.name);
 
   constructor(
-    private readonly dataSource: DataSource,
     private readonly ideasPageRepository: IdeasPageRepository,
     private readonly getService: IdeasPageGetService,
-    private readonly routeService: RouteService,
+    private readonly getRouteService: GetRouteService,
+    private readonly updateRouteService: UpdateRouteService,
     private readonly awsS3Service: AwsS3Service,
     private readonly mediaItemProcessor: MediaItemProcessor,
   ) {}
@@ -78,23 +79,25 @@ export class IdeasPageUpdateService {
 
       await this.syncSections(page, dto.sections, filesDict, uploads);
 
-      await this.dataSource.transaction(async (manager: EntityManager) => {
-        await this.upsertRoute(route, dto, page.id, manager);
+      await this.ideasPageRepository.runInTransaction(
+        async (manager: EntityManager) => {
+          await this.upsertRoute(route, dto, page.id, manager);
 
-        // Só as colunas da página são gravadas. `save()` arrastaria em cascata
-        // as seções carregadas junto dela, que já estão desatualizadas depois
-        // da sincronização acima, e reverteria o que acabou de ser salvo.
-        await this.ideasPageRepository.updateContent(
-          page.id,
-          {
-            title: dto.title,
-            subtitle: dto.subtitle ?? page.subtitle ?? '',
-            description: dto.description,
-            public: dto.public ?? page.public,
-          },
-          manager,
-        );
-      });
+          // Só as colunas da página são gravadas. `save()` arrastaria em cascata
+          // as seções carregadas junto dela, que já estão desatualizadas depois
+          // da sincronização acima, e reverteria o que acabou de ser salvo.
+          await this.ideasPageRepository.updateContent(
+            page.id,
+            {
+              title: dto.title,
+              subtitle: dto.subtitle ?? page.subtitle ?? '',
+              description: dto.description,
+              public: dto.public ?? page.public,
+            },
+            manager,
+          );
+        },
+      );
 
       this.logger.log(`Página de ideias atualizada. ID=${page.id}`);
 
@@ -120,7 +123,7 @@ export class IdeasPageUpdateService {
   }
 
   private async loadRoute(pageId: string): Promise<RouteEntity> {
-    const route = await this.routeService.findRouteByEntityId(pageId);
+    const route = await this.getRouteService.findRouteByEntityId(pageId);
     if (!route) {
       throw new AppNotFoundException(
         ErrorCode.ROUTE_NOT_FOUND,
@@ -140,7 +143,7 @@ export class IdeasPageUpdateService {
     pageId: string,
     manager: EntityManager,
   ): Promise<RouteEntity> {
-    return this.routeService.upsertRouteWithAvailablePath(
+    return this.updateRouteService.upsertRouteWithAvailablePath(
       route.id,
       {
         title: dto.title,

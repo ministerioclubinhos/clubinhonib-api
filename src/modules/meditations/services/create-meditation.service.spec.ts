@@ -1,11 +1,11 @@
 import { Test } from '@nestjs/testing';
-import { DataSource } from 'typeorm';
+import { EntityManager } from 'typeorm';
 import {
   AppConflictException,
   AppInternalException,
   AppValidationException,
 } from 'src/shared/exceptions';
-import { RouteService } from 'src/modules/routes/route.service';
+import { CreateRouteService } from 'src/modules/routes/services/create-route.service';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import {
@@ -48,21 +48,18 @@ const validDto = (
   });
 
 describe('CreateMeditationService', () => {
-  const queryRunner = {
-    connect: jest.fn(),
-    startTransaction: jest.fn(),
-    commitTransaction: jest.fn(),
-    rollbackTransaction: jest.fn(),
-    release: jest.fn(),
-    manager: {},
-  };
-  const dataSource = { createQueryRunner: jest.fn(() => queryRunner) };
+  const manager = {} as EntityManager;
+  // A transação passou a ser aberta pelo repositório: o caso de uso entrega o
+  // bloco de escritas e não conhece mais `DataSource`.
   const meditationRepo = {
     findOverlapping: jest.fn(),
     createMeditation: jest.fn(),
+    runInTransaction: jest.fn((run: (m: EntityManager) => Promise<unknown>) =>
+      run(manager),
+    ),
   };
   const s3Service = { upload: jest.fn(), delete: jest.fn() };
-  const routeService = {
+  const createRouteService = {
     generateAvailablePath: jest.fn(),
     createRouteWithManager: jest.fn(),
   };
@@ -91,8 +88,12 @@ describe('CreateMeditationService', () => {
 
     meditationRepo.findOverlapping.mockResolvedValue(null);
     meditationRepo.createMeditation.mockResolvedValue(savedMeditation);
-    routeService.generateAvailablePath.mockResolvedValue('meditacao_semana');
-    routeService.createRouteWithManager.mockResolvedValue({ id: 'route-id' });
+    createRouteService.generateAvailablePath.mockResolvedValue(
+      'meditacao_semana',
+    );
+    createRouteService.createRouteWithManager.mockResolvedValue({
+      id: 'route-id',
+    });
     mediaItemProcessor.buildBaseMediaItem.mockImplementation(
       (item: Record<string, unknown>) =>
         Object.assign(new MediaItemEntity(), item),
@@ -104,10 +105,9 @@ describe('CreateMeditationService', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         CreateMeditationService,
-        { provide: DataSource, useValue: dataSource },
         { provide: MeditationRepository, useValue: meditationRepo },
         { provide: AwsS3Service, useValue: s3Service },
-        { provide: RouteService, useValue: routeService },
+        { provide: CreateRouteService, useValue: createRouteService },
         { provide: MediaItemProcessor, useValue: mediaItemProcessor },
       ],
     }).compile();
@@ -115,17 +115,20 @@ describe('CreateMeditationService', () => {
     service = moduleRef.get(CreateMeditationService);
   });
 
-  it('cria meditação, rota e mídia em uma transação confirmada', async () => {
+  it('cria meditação, rota e mídia em uma transação só', async () => {
     const result = await service.create(validDto());
 
+    // Meditação e rota entram na mesma transação, com o mesmo `manager`.
+    expect(meditationRepo.runInTransaction).toHaveBeenCalledTimes(1);
     expect(meditationRepo.createMeditation).toHaveBeenCalledWith(
       expect.objectContaining({ topic: 'Semana da gratidão' }),
       expect.any(Array),
-      queryRunner.manager,
+      manager,
     );
-    expect(routeService.createRouteWithManager).toHaveBeenCalledTimes(1);
-    expect(queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
-    expect(queryRunner.release).toHaveBeenCalledTimes(1);
+    expect(createRouteService.createRouteWithManager).toHaveBeenCalledWith(
+      manager,
+      expect.objectContaining({ entityType: 'Meditation' }),
+    );
     expect(result.id).toBe('meditation-id');
   });
 
@@ -143,7 +146,7 @@ describe('CreateMeditationService', () => {
     await expect(
       service.create(validDto({ startDate: '2026-09-01' })),
     ).rejects.toBeInstanceOf(AppValidationException);
-    expect(dataSource.createQueryRunner).not.toHaveBeenCalled();
+    expect(meditationRepo.runInTransaction).not.toHaveBeenCalled();
   });
 
   it('recusa sobreposição com meditação existente', async () => {
@@ -152,7 +155,7 @@ describe('CreateMeditationService', () => {
     await expect(service.create(validDto())).rejects.toBeInstanceOf(
       AppConflictException,
     );
-    expect(dataSource.createQueryRunner).not.toHaveBeenCalled();
+    expect(meditationRepo.runInTransaction).not.toHaveBeenCalled();
   });
 
   it('exige o arquivo quando a mídia é um upload', async () => {
@@ -166,10 +169,12 @@ describe('CreateMeditationService', () => {
       },
     });
 
+    // O bloco lança dentro da transação, e o repositório desfaz o que já
+    // tinha sido gravado.
     await expect(service.create(dto)).rejects.toBeInstanceOf(
       AppValidationException,
     );
-    expect(queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
+    expect(meditationRepo.runInTransaction).toHaveBeenCalledTimes(1);
   });
 
   it('sobe o arquivo e guarda os metadados quando há upload', async () => {
@@ -214,7 +219,7 @@ describe('CreateMeditationService', () => {
       AppInternalException,
     );
 
-    expect(queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
+    expect(meditationRepo.runInTransaction).toHaveBeenCalledTimes(1);
     expect(mediaItemProcessor.deleteMediaItems).toHaveBeenCalledWith(
       [orphan],
       expect.any(Function),

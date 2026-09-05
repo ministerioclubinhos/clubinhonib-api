@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { QueryRunner } from 'typeorm';
+import { EntityManager } from 'typeorm';
 
 import { AppValidationException, ErrorCode } from 'src/shared/exceptions';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
@@ -31,23 +31,22 @@ export class IdeasSectionMediaService {
     private readonly mediaItemProcessor: MediaItemProcessor,
   ) {}
 
-  /** Mídias já gravadas para a seção. */
+  /** Mídias já gravadas para a seção, lidas dentro da transação em curso. */
   async findExisting(
     sectionId: string,
-    queryRunner: QueryRunner,
+    manager: EntityManager,
   ): Promise<MediaItemEntity[]> {
-    return queryRunner.manager.find(MediaItemEntity, {
-      where: {
-        targetId: sectionId,
-        targetType: MediaTargetType.IdeasSection,
-      },
-    });
+    return this.mediaItemProcessor.findMediaItemsByTargetInTransaction(
+      manager,
+      sectionId,
+      MediaTargetType.IdeasSection,
+    );
   }
 
   async deleteMedia(
     existingMedia: MediaItemEntity[],
     requestedMedias: IdeasSectionMediaItemDto[],
-    queryRunner: QueryRunner,
+    manager: EntityManager,
   ): Promise<void> {
     const requestedMediaIds = requestedMedias
       .map((media) => media.id)
@@ -68,7 +67,10 @@ export class IdeasSectionMediaService {
         await this.awsS3Service.delete(media.url);
       }
 
-      await queryRunner.manager.delete(MediaItemEntity, { id: media.id });
+      await this.mediaItemProcessor.deleteMediaItemByIdInTransaction(
+        manager,
+        media.id,
+      );
     }
   }
 
@@ -77,7 +79,7 @@ export class IdeasSectionMediaService {
     sectionId: string,
     oldMedia: MediaItemEntity[],
     filesDict: UploadedFilesDict,
-    queryRunner: QueryRunner,
+    manager: EntityManager,
     uploads: S3UploadTracker,
   ): Promise<MediaItemEntity[]> {
     const oldById = new Map(oldMedia.map((item) => [item.id, item]));
@@ -90,7 +92,7 @@ export class IdeasSectionMediaService {
           mediaInput,
           sectionId,
           filesDict,
-          queryRunner,
+          manager,
           uploads,
           oldById.get(mediaInput.id),
         );
@@ -172,7 +174,7 @@ export class IdeasSectionMediaService {
     mediaInput: IdeasSectionMediaItemDto,
     targetId: string,
     filesDict: UploadedFilesDict,
-    queryRunner: QueryRunner,
+    manager: EntityManager,
     uploads: S3UploadTracker,
     previous?: MediaItemEntity,
   ): Promise<MediaItemEntity> {
@@ -224,10 +226,10 @@ export class IdeasSectionMediaService {
       media.size = mediaInput.size || previous?.size || media.size;
     }
 
-    const savedMedia = await queryRunner.manager.save(MediaItemEntity, {
-      ...media,
-      id: mediaInput.id,
-    });
+    const savedMedia = await this.mediaItemProcessor.saveMediaItemInTransaction(
+      manager,
+      { ...media, id: mediaInput.id },
+    );
 
     if (
       previous?.isLocalFile &&

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { EntityManager } from 'typeorm';
 import { AppValidationException, ErrorCode } from 'src/shared/exceptions';
 import { MediaItemEntity, UploadType } from './media-item/media-item.entity';
 import { MediaItemRepository } from './media-item-repository';
@@ -16,7 +17,17 @@ export interface MediaItemInput {
   isLocalFile?: boolean;
   fileField?: string;
   id?: string;
-  [key: string]: any;
+  /**
+   * O nome do campo do multipart, como o formulário o envia.
+   *
+   * Este módulo lê `fileField`; `fieldKey` chega junto porque é o nome que os
+   * DTOs de página usam, e cada caso de uso copia um no outro. Ambos são
+   * declarados porque a alternativa era um `[key: string]: any`, que tornava
+   * qualquer objeto aceitável aqui.
+   */
+  fieldKey?: string;
+  /** Alguns formulários mandam o tipo de upload também com este nome. */
+  type?: UploadType;
 }
 
 @Injectable()
@@ -24,6 +35,16 @@ export class MediaItemProcessor {
   private readonly logger = new Logger(MediaItemProcessor.name);
 
   constructor(private readonly mediaRepo: MediaItemRepository) {}
+
+  /**
+   * Uma mídia pelo id.
+   *
+   * Existe para os casos de uso não alcançarem a tabela de mídia por conta
+   * própria: quem conhece a persistência da mídia é este módulo.
+   */
+  async findMediaItemById(id: string): Promise<MediaItemEntity | null> {
+    return this.mediaRepo.findById(id);
+  }
 
   async findMediaItemsByTarget(
     targetId: string,
@@ -86,6 +107,53 @@ export class MediaItemProcessor {
     media.targetId = targetId;
     media.targetType = targetType;
     return media;
+  }
+
+  /**
+   * Mídias de um alvo, lidas dentro da transação em curso.
+   *
+   * Existe para os casos de uso participarem de uma transação sem alcançar a
+   * tabela de mídia por conta própria.
+   */
+  async findMediaItemsByTargetInTransaction(
+    manager: EntityManager,
+    targetId: string,
+    targetType: string,
+  ): Promise<MediaItemEntity[]> {
+    return this.mediaRepo.findByTargetInTransaction(
+      manager,
+      targetId,
+      targetType,
+    );
+  }
+
+  /** Grava a mídia dentro da transação em curso. */
+  async saveMediaItemInTransaction(
+    manager: EntityManager,
+    media: Partial<MediaItemEntity>,
+  ): Promise<MediaItemEntity> {
+    return this.mediaRepo.saveInTransaction(manager, media);
+  }
+
+  /** Apaga uma mídia pelo id, dentro da transação em curso. */
+  async deleteMediaItemByIdInTransaction(
+    manager: EntityManager,
+    id: string,
+  ): Promise<void> {
+    await this.mediaRepo.deleteByIdInTransaction(manager, id);
+  }
+
+  /** Apaga todas as mídias de um alvo, dentro da transação em curso. */
+  async deleteMediaItemsByTargetInTransaction(
+    manager: EntityManager,
+    targetId: string,
+    targetType: string,
+  ): Promise<void> {
+    await this.mediaRepo.deleteByTargetInTransaction(
+      manager,
+      targetId,
+      targetType,
+    );
   }
 
   async saveMediaItem(media: MediaItemEntity): Promise<MediaItemEntity> {

@@ -137,6 +137,22 @@ Repositories MUST NOT own HTTP concerns, user-facing presentation, role policy, 
 
 AWS S3, SMTP, Twilio, Google authentication, and all third-party integrations MUST remain behind injectable providers in `src/shared/providers/` or a feature-owned `providers/` directory. Email content — subject, template and recipients — belongs to `src/shared/email/`, never to the transport or to a use case; see [`email.md`](email.md).
 
+**Every e-mail notification MUST sit behind its own feature flag.** One flag per
+notification — never the flag of the feature that originates it, and never
+absent: turning off the contact form and stopping the alerts about contacts that
+already arrived are different decisions. The check lives in `EmailService`
+(`dispatch` / `dispatchBulk`), which is the funnel every e-mail passes through,
+so the flag never depends on the use case remembering to consult it.
+
+A new e-mail requires all five, and the first three do not compile without each
+other: a value in `EmailNotification`; an `email_`-prefixed key in
+`FeatureFlagKeys`; the pair in `EMAIL_NOTIFICATION_FLAGS`; the flag seeded in
+`DEFAULT_FEATURE_FLAGS` with `enabled: true` and empty `targetRoles`; and the
+send method routed through `dispatch`/`dispatchBulk`. Flags are seeded enabled
+because the flag exists to turn an e-mail **off**, and seeding them off would
+silence working notifications — password recovery included — on the first boot
+after deploy. `notification-flags.spec.ts` enforces all five.
+
 Providers own client configuration, timeouts, retries, vendor payloads, and error translation. Services consume typed, vendor-neutral methods. Tests MUST mock providers and MUST NOT call live services.
 
 ## 5. TypeScript, DTOs, Enums, and Validation
@@ -353,7 +369,10 @@ describe('CreateClubsService', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('delegates persistence and returns the created club', async () => {
-    authContext.tryGetPayload.mockResolvedValue({ role: 'admin', sub: 'user-id' });
+    authContext.tryGetPayload.mockResolvedValue({
+      role: 'admin',
+      sub: 'user-id',
+    });
     clubsRepository.createClub.mockResolvedValue({
       id: 'club-id',
       number: 12,
@@ -369,7 +388,9 @@ describe('CreateClubsService', () => {
     }).compile();
 
     const service = moduleRef.get(CreateClubsService);
-    await expect(service.create(validDto, authenticatedRequest)).resolves.toMatchObject({
+    await expect(
+      service.create(validDto, authenticatedRequest),
+    ).resolves.toMatchObject({
       id: 'club-id',
     });
     expect(clubsRepository.createClub).toHaveBeenCalledTimes(1);

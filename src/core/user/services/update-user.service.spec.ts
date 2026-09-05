@@ -11,6 +11,7 @@ import { UpdateTeacherProfilesService } from 'src/modules/teacher-profiles/servi
 import { UserEntity } from '../entities/user.entity';
 import { UserRepository } from '../user.repository';
 import { UpdateUserService } from './update-user.service';
+import { NotifyAccountChangesService } from './notify-account-changes.service';
 
 describe('UpdateUserService · perfis de professor e coordenador', () => {
   const userRepo = {
@@ -39,6 +40,14 @@ describe('UpdateUserService · perfis de professor e coordenador', () => {
       ...overrides,
     }) as UserEntity;
 
+  /** Os avisos são disparados sem `await`; aqui só interessa se saíram. */
+  const notifyAccountChanges = {
+    emailAddressChangedInBackground: jest.fn(),
+    roleChangedInBackground: jest.fn(),
+    accountApprovedInBackground: jest.fn(),
+    accountDeactivatedInBackground: jest.fn(),
+  };
+
   const buildService = async (): Promise<UpdateUserService> => {
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -58,6 +67,10 @@ describe('UpdateUserService · perfis de professor e coordenador', () => {
         {
           provide: DeleteCoordinatorProfilesService,
           useValue: deleteCoordinator,
+        },
+        {
+          provide: NotifyAccountChangesService,
+          useValue: notifyAccountChanges,
         },
       ],
     }).compile();

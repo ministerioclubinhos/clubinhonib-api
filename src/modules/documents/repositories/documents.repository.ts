@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder } from 'typeorm';
+import {
+  DataSource,
+  EntityManager,
+  Repository,
+  SelectQueryBuilder,
+} from 'typeorm';
 
 import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 
@@ -18,9 +23,57 @@ import {
 @Injectable()
 export class DocumentsRepository {
   constructor(
+    private readonly dataSource: DataSource,
     @InjectRepository(DocumentEntity)
     private readonly repo: Repository<DocumentEntity>,
   ) {}
+
+  /**
+   * Roda um conjunto de escritas numa transação só.
+   *
+   * Abrir e fechar transação é acesso ao banco, e mora aqui. O caso de uso
+   * continua decidindo o que é atômico — recebe o `EntityManager` e o repassa
+   * a este repositório e aos serviços de outros módulos que participam da mesma
+   * transação —, mas não conhece `QueryRunner`, commit nem rollback.
+   */
+  async runInTransaction<T>(
+    work: (manager: EntityManager) => Promise<T>,
+  ): Promise<T> {
+    return this.dataSource.transaction(work);
+  }
+
+  /** Cria o documento dentro da transação em curso. */
+  async createInTransaction(
+    manager: EntityManager,
+    data: { name: string; description?: string },
+  ): Promise<DocumentEntity> {
+    const repo = manager.getRepository(DocumentEntity);
+    const document = repo.create({
+      name: data.name,
+      description: data.description,
+    });
+
+    return repo.save(document);
+  }
+
+  /** Grava o documento como está — por exemplo, depois de vincular a rota. */
+  async saveInTransaction(
+    manager: EntityManager,
+    document: DocumentEntity,
+  ): Promise<DocumentEntity> {
+    return manager.save(DocumentEntity, document);
+  }
+
+  /** Aplica os campos recebidos sobre o documento e grava. */
+  async updateInTransaction(
+    manager: EntityManager,
+    document: DocumentEntity,
+    changes: { name?: string; description?: string },
+  ): Promise<DocumentEntity> {
+    const merged = manager.merge(DocumentEntity, document, changes);
+
+    return manager.save(DocumentEntity, merged);
+  }
 
   private baseQB(): SelectQueryBuilder<DocumentEntity> {
     return this.repo

@@ -1,10 +1,15 @@
+import { UserRole } from 'src/core/auth/auth.types';
+
 /** Paginação padrão da listagem de perfis. */
 export const PROFILES_DEFAULT_PAGE = 1;
 export const PROFILES_DEFAULT_LIMIT = 12;
 export const PROFILES_MAX_LIMIT = 100;
 
 /** Papéis que enxergam a listagem de perfis dos outros. */
-export const PROFILE_LIST_ROLES = ['admin', 'coordinator'] as const;
+export const PROFILE_LIST_ROLES = [
+  UserRole.ADMIN,
+  UserRole.COORDINATOR,
+] as const;
 
 /** Campo pelo qual a listagem de perfis pode ser ordenada. */
 export enum ProfileSortField {

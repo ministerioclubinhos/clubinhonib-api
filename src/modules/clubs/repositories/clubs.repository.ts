@@ -26,11 +26,14 @@ import { toClubSelectOption } from '../mappers';
 import { ClubAccessContext as RoleCtx } from '../types';
 import {
   CLUBS_DEFAULT_LIMIT,
+  CLUBS_MAX_LIMIT,
   CLUBS_DEFAULT_PAGE,
   CLUB_DEFAULT_ORDER,
   CLUB_DEFAULT_SORT,
   CLUB_SORT_COLUMNS,
 } from '../constants';
+import { normalizeRole } from 'src/core/auth/role.utils';
+import { UserRole } from 'src/core/auth/auth.types';
 
 @Injectable()
 export class ClubsRepository {
@@ -82,13 +85,13 @@ export class ClubsRepository {
   }
 
   private applyRoleFilter(qb: SelectQueryBuilder<ClubEntity>, ctx?: RoleCtx) {
-    const role = ctx?.role?.toLowerCase();
+    const role = normalizeRole(ctx?.role);
     const userId = ctx?.userId;
-    if (!role || role === 'admin' || !userId) return;
+    if (!role || role === UserRole.ADMIN || !userId) return;
 
-    if (role === 'coordinator') {
+    if (role === UserRole.COORDINATOR) {
       qb.andWhere('coord_user.id = :uid', { uid: userId }).distinct(true);
-    } else if (role === 'teacher') {
+    } else if (role === UserRole.TEACHER) {
       qb.andWhere('teacher_user.id = :uid', { uid: userId }).distinct(true);
     } else {
       qb.andWhere('1 = 0');
@@ -132,11 +135,15 @@ export class ClubsRepository {
   ): Promise<{ items: ClubEntity[]; total: number }> {
     const {
       page = CLUBS_DEFAULT_PAGE,
-      limit = CLUBS_DEFAULT_LIMIT,
+      limit: limitPedido = CLUBS_DEFAULT_LIMIT,
       searchString,
       sort = CLUB_DEFAULT_SORT,
       order = CLUB_DEFAULT_ORDER,
     } = q;
+
+    // O `@Max` do DTO cobre quem chega pela rota; o teto aqui cobre quem chama
+    // o repositório por dentro, como `users` e `children` já fazem.
+    const limit = Math.min(Math.max(limitPedido, 1), CLUBS_MAX_LIMIT);
 
     const qb = this.buildClubBaseQB().distinct(true);
     this.applyRoleFilter(qb, ctx);
@@ -521,12 +528,12 @@ export class ClubsRepository {
   }
 
   async userHasAccessToClub(clubId: string, ctx?: RoleCtx): Promise<boolean> {
-    const role = ctx?.role?.toLowerCase();
+    const role = normalizeRole(ctx?.role);
     const userId = ctx?.userId;
-    if (!role || role === 'admin') return true;
+    if (!role || role === UserRole.ADMIN) return true;
     if (!userId) return false;
 
-    if (role !== 'coordinator') return false;
+    if (role !== UserRole.COORDINATOR) return false;
 
     const qb = this.clubRepo
       .createQueryBuilder('club')

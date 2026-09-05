@@ -13,6 +13,17 @@ export const EMAIL_VERIFICATION_RESEND_COOLDOWN_MINUTES = 5;
 /** Validade do link de recuperação de senha, em minutos. */
 export const PASSWORD_RESET_TTL_MINUTES = 30;
 
+/**
+ * Validade do link que a coordenação envia junto com uma conta recém-criada,
+ * em horas.
+ *
+ * Bem mais longo que os 30 minutos da recuperação, e de propósito: ninguém
+ * pediu esse e-mail, então ele chega quando chega — no meio de uma reunião, no
+ * fim do dia — e um link que morre antes de a pessoa abrir a caixa de entrada
+ * só gera um pedido de "esqueci minha senha" no dia seguinte.
+ */
+export const PASSWORD_SETUP_TTL_HOURS = 48;
+
 /** Mensagens devolvidas no bloco `emailVerification` das respostas de auth. */
 export const EMAIL_VERIFICATION_MESSAGES = {
   sent: 'Enviamos um e-mail de confirmação para o seu endereço. Verifique sua caixa de entrada.',

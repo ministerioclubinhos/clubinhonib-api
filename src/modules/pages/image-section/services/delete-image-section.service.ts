@@ -4,7 +4,6 @@ import {
   ErrorCode,
 } from 'src/shared/exceptions';
 import { Injectable, Logger } from '@nestjs/common';
-import { DataSource } from 'typeorm';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
@@ -16,20 +15,15 @@ export class ImageSectionDeleteService {
   private readonly logger = new Logger(ImageSectionDeleteService.name);
 
   constructor(
-    private readonly dataSource: DataSource,
     private readonly sectionRepository: ImageSectionRepository,
     private readonly mediaItemProcessor: MediaItemProcessor,
     private readonly awsS3Service: AwsS3Service,
   ) {}
 
   async deleteSection(id: string): Promise<void> {
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
     try {
       this.logger.debug(`🔍 Buscando seção com ID: ${id}`);
-      const section = await this.sectionRepository.findOneBy({ id });
+      const section = await this.sectionRepository.findById(id);
 
       if (!section) {
         this.logger.warn(`⚠️ Seção com id=${id} não encontrada`);
@@ -59,12 +53,14 @@ export class ImageSectionDeleteService {
       }
 
       this.logger.debug(`🗑️ Removendo a seção do banco de dados`);
-      await queryRunner.manager.remove(section);
+      // A transação é aberta pelo repositório; aqui só se decide o que entra
+      // nela. O rollback acontece sozinho quando o bloco lança.
+      await this.sectionRepository.runInTransaction((manager) =>
+        this.sectionRepository.removeInTransaction(manager, section),
+      );
 
-      await queryRunner.commitTransaction();
       this.logger.debug(`✅ Seção removida com sucesso: ID=${id}`);
     } catch (error: unknown) {
-      await queryRunner.rollbackTransaction();
       const errStack = error instanceof Error ? error.stack : undefined;
       this.logger.error(
         'Erro ao remover a seção. Rollback executado.',
@@ -77,8 +73,6 @@ export class ImageSectionDeleteService {
         'Erro ao remover a seção',
         error as Error,
       );
-    } finally {
-      await queryRunner.release();
     }
   }
 }

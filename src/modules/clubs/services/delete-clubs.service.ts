@@ -4,6 +4,7 @@ import { SyncClubEventService } from 'src/modules/pages/event-page/services/sync
 import { ClubsRepository } from '../repositories/clubs.repository';
 import { ClubAccessContext } from '../types';
 import { assertCanManageClubs, normalizedRole } from '../utils';
+import { UserRole } from 'src/core/auth/auth.types';
 
 @Injectable()
 export class DeleteClubsService {
@@ -21,7 +22,7 @@ export class DeleteClubsService {
     assertCanManageClubs(context);
 
     // Coordenador só remove o que está sob a coordenação dele.
-    if (normalizedRole(context) === 'coordinator') {
+    if (normalizedRole(context) === UserRole.COORDINATOR) {
       const allowed = await this.clubsRepository.userHasAccessToClub(
         id,
         context,

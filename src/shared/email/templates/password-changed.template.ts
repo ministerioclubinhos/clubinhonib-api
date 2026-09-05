@@ -1,7 +1,7 @@
 import { EMAIL_SUBJECTS } from '../constants';
 import { EmailContent, PasswordChangedEmailData } from '../types';
 import { joinTextLines, unsubscribeTextLines } from '../utils';
-import { button, composeBody, note, paragraph } from './blocks';
+import { alertNote, button, composeBody, paragraph } from './blocks';
 import { renderEmailLayout } from './layout';
 
 const TITLE = 'Senha alterada';
@@ -20,7 +20,7 @@ export function passwordChangedEmail(
       paragraph('Sua senha foi alterada com sucesso.'),
       paragraph('Agora você já pode acessar sua conta com a nova senha.'),
       button('Acessar plataforma', data.loginLink),
-      note(warning),
+      alertNote(warning),
     ]),
     unsubscribeUrl: data.unsubscribeUrl,
   });

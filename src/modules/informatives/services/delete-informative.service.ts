@@ -5,7 +5,7 @@ import {
   AppInternalException,
   ErrorCode,
 } from 'src/shared/exceptions';
-import { RouteService } from 'src/modules/routes/route.service';
+import { DeleteRouteService } from 'src/modules/routes/services/delete-route.service';
 
 import { InformativesRepository } from '../repositories/informatives.repository';
 import { GetInformativeService } from './get-informative.service';
@@ -17,7 +17,7 @@ export class DeleteInformativeService {
   constructor(
     private readonly informativeRepo: InformativesRepository,
     private readonly getService: GetInformativeService,
-    private readonly routeService: RouteService,
+    private readonly deleteRouteService: DeleteRouteService,
   ) {}
 
   async execute(id: string): Promise<void> {
@@ -32,7 +32,7 @@ export class DeleteInformativeService {
       await this.informativeRepo.remove(informative);
 
       if (routeId) {
-        await this.routeService.removeRoute(routeId);
+        await this.deleteRouteService.removeRoute(routeId);
         this.logger.log(`🧹 Rota associada removida: routeId=${routeId}`);
       }
 

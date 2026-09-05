@@ -1,16 +1,23 @@
 import { AppForbiddenException, ErrorCode } from 'src/shared/exceptions';
 import { CLUB_DISTRICT_FALLBACK, CLUB_MANAGER_ROLES } from './constants';
+import { UserRole } from 'src/core/auth/auth.types';
+import { normalizeRole } from 'src/core/auth/role.utils';
 import { ClubAccessContext } from './types';
 
-/** Papel em minúsculas, que é como as regras comparam. */
-export function normalizedRole(context: ClubAccessContext): string {
-  return context.role?.toLowerCase() ?? '';
+/** O papel de quem chamou, ou `undefined` quando não é um papel conhecido. */
+export function normalizedRole(
+  context: ClubAccessContext,
+): UserRole | undefined {
+  return normalizeRole(context.role);
 }
 
 /** Só administrador e coordenador administram clubinhos. */
 export function canManageClubs(context: ClubAccessContext): boolean {
-  return (CLUB_MANAGER_ROLES as readonly string[]).includes(
-    normalizedRole(context),
+  const role = normalizedRole(context);
+
+  return (
+    role !== undefined &&
+    (CLUB_MANAGER_ROLES as readonly UserRole[]).includes(role)
   );
 }
 
@@ -59,7 +66,7 @@ export function assertCanTakeTeachers(args: {
   const { context, targetClubId, currentClubIdByTeacher, accessibleClubIds } =
     args;
 
-  if (normalizedRole(context) !== 'coordinator') return;
+  if (normalizedRole(context) !== UserRole.COORDINATOR) return;
 
   for (const [, currentClubId] of currentClubIdByTeacher) {
     if (!currentClubId || currentClubId === targetClubId) continue;

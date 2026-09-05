@@ -5,6 +5,7 @@ import { DeleteCoordinatorProfilesService } from 'src/modules/coordinator-profil
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { USER_MEDIA_TARGET } from '../constants';
+import { NotifyAccountChangesService } from './notify-account-changes.service';
 
 @Injectable()
 export class DeleteUserService {
@@ -16,9 +17,15 @@ export class DeleteUserService {
     private readonly deleteCoordinatorProfileService: DeleteCoordinatorProfilesService,
     private readonly mediaItemProcessor: MediaItemProcessor,
     private readonly s3Service: AwsS3Service,
+    private readonly notifyAccountChanges: NotifyAccountChangesService,
   ) {}
 
   async remove(id: string): Promise<{ message: string }> {
+    // Lido antes de qualquer coisa: a exclusão é física, e depois dela não há
+    // mais endereço nem nome para quem avisar. Um usuário que já não existe
+    // segue adiante em silêncio — apagar continua sendo o que foi pedido.
+    const user = await this.userRepo.findById(id);
+
     const userImage = await this.mediaItemProcessor.findMediaItemByTarget(
       id,
       USER_MEDIA_TARGET,
@@ -34,6 +41,14 @@ export class DeleteUserService {
     await this.deleteTeacherProfileService.removeByUserId(id);
     await this.deleteCoordinatorProfileService.removeByUserId(id);
     await this.userRepo.delete(id);
+
+    if (user) {
+      this.notifyAccountChanges.accountDeletedInBackground(
+        user.email,
+        user.name,
+      );
+    }
+
     return { message: 'Usuário removido com sucesso' };
   }
 }

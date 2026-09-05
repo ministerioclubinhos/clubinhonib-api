@@ -1,3 +1,5 @@
+import { EmailRecipient } from 'src/shared/email';
+
 import { CLUB_SORT_FIELDS } from './constants';
 
 /**
@@ -16,3 +18,17 @@ export type ClubSortField = (typeof CLUB_SORT_FIELDS)[number];
 
 /** Direção da ordenação. */
 export type ClubSortOrder = 'ASC' | 'DESC';
+
+/**
+ * As pessoas que um aviso de clubinho alcança.
+ *
+ * Só quem pode receber entra aqui: professor desativado e quem se descadastrou
+ * já ficaram de fora antes de a lista ser montada.
+ */
+export interface ClubRecipients {
+  clubId: string;
+  clubNumber: number;
+  teachers: EmailRecipient[];
+  /** Nulo quando o clubinho ainda não tem coordenador vinculado. */
+  coordinator: EmailRecipient | null;
+}

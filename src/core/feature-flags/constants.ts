@@ -1,6 +1,15 @@
 export const FEATURE_FLAGS_CACHE_TTL = 60000;
 
 /**
+ * Sufixo da chave de cache da leitura sem perfil.
+ *
+ * O cache guarda `chave:perfil`, e `isSwitchedOn` não tem perfil. Um escopo
+ * próprio evita que a resposta sem recorte responda no lugar da resposta de
+ * alguém que não fez login, e vice-versa.
+ */
+export const SWITCH_CACHE_SCOPE = '__switch__';
+
+/**
  * Chaves aposentadas, removidas do banco no boot.
  *
  * Elas nomeavam o perfil em vez do recurso, ou duplicavam outra flag. Ficar
@@ -245,6 +254,219 @@ export const DEFAULT_FEATURE_FLAGS = [
     description: 'Moderação dos comentários enviados ao site.',
     enabled: true,
     targetRoles: ['admin', 'coordinator'],
+  },
+
+  /*
+   * As flags dos e-mails.
+   *
+   * Todas nascem ligadas: a flag existe para **desligar** um envio, e semeá-la
+   * desligada silenciaria de uma vez avisos que já funcionavam — inclusive a
+   * recuperação de senha, no primeiro boot depois do deploy.
+   *
+   * `targetRoles` fica vazio de propósito. Um e-mail sai para uma lista de
+   * endereços, não para uma sessão: não há perfil a comparar, e preencher a
+   * lista aqui só criaria um recorte que nunca casa.
+   */
+  {
+    key: 'email_password_recovery',
+    name: 'E-mail: Recuperação de Senha',
+    description:
+      'Envio do link de redefinição de senha. Desligar tranca quem esqueceu a senha para fora da conta.',
+    enabled: true,
+    targetRoles: [],
+  },
+  {
+    key: 'email_password_changed',
+    name: 'E-mail: Senha Alterada',
+    description:
+      'Aviso de que a senha da conta mudou. É como a pessoa descobre uma troca que não foi ela quem fez.',
+    enabled: true,
+    targetRoles: [],
+  },
+  {
+    key: 'email_verification',
+    name: 'E-mail: Confirmação de Endereço',
+    description:
+      'Envio do link que confirma o e-mail e ativa o acesso. Desligar impede novos cadastros de concluírem.',
+    enabled: true,
+    targetRoles: [],
+  },
+  {
+    key: 'email_contact_notification',
+    name: 'E-mail: Aviso de Novo Contato',
+    description:
+      'Aviso à coordenação quando alguém escreve pelo formulário de contato.',
+    enabled: true,
+    targetRoles: [],
+  },
+  {
+    key: 'email_comment_notification',
+    name: 'E-mail: Aviso de Novo Comentário',
+    description:
+      'Aviso à coordenação quando um professor posta um comentário na Área do Professor.',
+    enabled: true,
+    targetRoles: [],
+  },
+  {
+    key: 'email_site_feedback_notification',
+    name: 'E-mail: Aviso de Nova Avaliação',
+    description: 'Aviso à coordenação quando o site recebe uma avaliação.',
+    enabled: true,
+    targetRoles: [],
+  },
+  {
+    key: 'email_idea_shared_notification',
+    name: 'E-mail: Aviso de Nova Ideia',
+    description:
+      'Aviso à coordenação quando uma ideia é compartilhada pelo site.',
+    enabled: true,
+    targetRoles: [],
+  },
+  {
+    key: 'email_image_shared_notification',
+    name: 'E-mail: Aviso de Novas Imagens',
+    description:
+      'Aviso à coordenação quando imagens do Clubinho são compartilhadas pelo site.',
+    enabled: true,
+    targetRoles: [],
+  },
+  {
+    key: 'email_new_user_registration',
+    name: 'E-mail: Aviso de Novo Pré-cadastro',
+    description: 'Aviso à coordenação quando alguém faz pré-cadastro no site.',
+    enabled: true,
+    targetRoles: [],
+  },
+  {
+    key: 'email_week_material_announcement',
+    name: 'E-mail: Novo Material da Semana',
+    description:
+      'Aviso a toda a base quando um material da semana entra no ar.',
+    enabled: true,
+    targetRoles: [],
+  },
+  {
+    key: 'email_event_created',
+    name: 'E-mail: Novo Evento na Agenda',
+    description: 'Aviso a toda a base quando um evento entra na agenda.',
+    enabled: true,
+    targetRoles: [],
+  },
+  {
+    key: 'email_event_updated',
+    name: 'E-mail: Evento Atualizado',
+    description: 'Aviso a toda a base quando um evento da agenda muda.',
+    enabled: true,
+    targetRoles: [],
+  },
+  {
+    key: 'email_event_cancelled',
+    name: 'E-mail: Evento Cancelado',
+    description: 'Aviso a toda a base quando um evento sai da agenda.',
+    enabled: true,
+    targetRoles: [],
+  },
+  {
+    key: 'email_address_changed',
+    name: 'E-mail: Endereço de Login Trocado',
+    description:
+      'Aviso ao endereço ANTIGO quando o e-mail de login muda. É como a pessoa descobre uma troca que não foi ela quem fez.',
+    enabled: true,
+    targetRoles: [],
+  },
+  {
+    key: 'email_account_approved',
+    name: 'E-mail: Cadastro Aprovado',
+    description:
+      'Aviso à pessoa de que o pré-cadastro dela foi liberado e o acesso já funciona.',
+    enabled: true,
+    targetRoles: [],
+  },
+  {
+    key: 'email_role_changed',
+    name: 'E-mail: Papel Alterado',
+    description:
+      'Aviso à pessoa de que o papel dela mudou. Trocar de papel também desfaz o vínculo com o clubinho.',
+    enabled: true,
+    targetRoles: [],
+  },
+  {
+    key: 'email_account_deactivated',
+    name: 'E-mail: Conta Desativada',
+    description:
+      'Aviso à pessoa de que o acesso foi suspenso. Reversível pela coordenação.',
+    enabled: true,
+    targetRoles: [],
+  },
+  {
+    key: 'email_account_deleted',
+    name: 'E-mail: Conta Excluída',
+    description: 'Aviso à pessoa de que a conta foi removida em definitivo.',
+    enabled: true,
+    targetRoles: [],
+  },
+  {
+    key: 'email_account_created',
+    name: 'E-mail: Conta Criada pela Coordenação',
+    description:
+      'Boas-vindas com o link para a pessoa definir a própria senha.',
+    enabled: true,
+    targetRoles: [],
+  },
+  {
+    key: 'email_informative_published',
+    name: 'E-mail: Novo Informativo',
+    description: 'Aviso a toda a base quando um informativo é publicado.',
+    enabled: true,
+    targetRoles: [],
+  },
+  {
+    key: 'email_document_published',
+    name: 'E-mail: Novo Documento',
+    description:
+      'Aviso a toda a base quando um documento entra na área do professor.',
+    enabled: true,
+    targetRoles: [],
+  },
+  {
+    key: 'email_club_day_cancelled',
+    name: 'E-mail: Dia sem Clubinho',
+    description:
+      'Aviso a toda a base quando uma data é marcada como dia em que não haverá Clubinho.',
+    enabled: true,
+    targetRoles: [],
+  },
+  {
+    key: 'email_contact_receipt',
+    name: 'E-mail: Confirmação de Contato',
+    description:
+      'Confirmação para quem escreveu pelo formulário de contato, dizendo que a mensagem chegou.',
+    enabled: true,
+    targetRoles: [],
+  },
+  {
+    key: 'email_missing_pagela_reminder',
+    name: 'E-mail: Lembrete de Pagela Faltando',
+    description:
+      'Lembrete de domingo aos professores e ao coordenador do clubinho que fechou a semana com pagela faltando.',
+    enabled: true,
+    targetRoles: [],
+  },
+  {
+    key: 'email_weekly_club_summary',
+    name: 'E-mail: Resumo Semanal do Coordenador',
+    description:
+      'Resumo de segunda-feira para cada coordenador, com a semana dos clubinhos sob responsabilidade dele.',
+    enabled: true,
+    targetRoles: [],
+  },
+  {
+    key: 'email_accepted_christ',
+    name: 'E-mail: Decisão por Cristo Registrada',
+    description:
+      'Aviso ao coordenador e aos professores do clubinho quando a decisão de uma criança é registrada.',
+    enabled: true,
+    targetRoles: [],
   },
 ];
 

@@ -13,6 +13,7 @@ import { toFeatureFlagResponse } from '../mappers';
 import { audienceOfRoles, isTargetedForRole, targetRolesOf } from '../utils';
 import {
   FEATURE_FLAGS_CACHE_TTL,
+  SWITCH_CACHE_SCOPE,
   FEATURE_FLAGS_DEFAULT_LIMIT,
   FEATURE_FLAGS_DEFAULT_PAGE,
   FEATURE_FLAG_AUDIENCES,
@@ -148,6 +149,36 @@ export class GetFeatureFlagsService {
 
     const flag = await this.repository.findByKey(key);
     const enabled = flag ? isTargetedForRole(flag, role) : false;
+
+    this.cache.set(cacheKey, { enabled, timestamp: Date.now() });
+    return enabled;
+  }
+
+  /**
+   * Se a flag está ligada, sem olhar perfil nenhum.
+   *
+   * Existe para as notificações por e-mail. `isEnabled` compara `targetRoles`
+   * com o perfil de quem pergunta, e um e-mail não tem quem pergunte: ele sai
+   * para uma lista de endereços, disparado por um job ou por um formulário
+   * público, sem sessão. Passar `null` para `isEnabled` faria qualquer flag com
+   * perfis alvo responder `false` — um administrador que preenchesse
+   * `targetRoles` no painel silenciaria o envio sem nunca ter desligado nada.
+   *
+   * `whenMissing` decide a resposta para uma chave que não está no banco. As
+   * flags de fábrica são semeadas no boot, mas essa carga engole a própria
+   * falha para não impedir a API de subir — então "não encontrei a flag" é um
+   * estado possível, e quem chama declara o que ele significa.
+   */
+  async isSwitchedOn(key: string, whenMissing: boolean): Promise<boolean> {
+    const cacheKey = `${key}:${SWITCH_CACHE_SCOPE}`;
+    const cached = this.cache.get(cacheKey);
+
+    if (cached && Date.now() - cached.timestamp < FEATURE_FLAGS_CACHE_TTL) {
+      return cached.enabled;
+    }
+
+    const flag = await this.repository.findByKey(key);
+    const enabled = flag ? flag.enabled : whenMissing;
 
     this.cache.set(cacheKey, { enabled, timestamp: Date.now() });
     return enabled;

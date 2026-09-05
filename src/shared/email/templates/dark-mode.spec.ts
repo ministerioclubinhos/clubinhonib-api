@@ -1,4 +1,5 @@
 import {
+  alertNote,
   button,
   dataTable,
   heading,
@@ -7,6 +8,7 @@ import {
   paragraph,
   quoteBlock,
 } from './blocks';
+import { EMAIL_COLORS } from '../constants';
 import { renderEmailLayout } from './layout';
 
 /** Classes que o bloco de tema escuro sabe repintar. */
@@ -15,6 +17,7 @@ const THEMED = [
   'text-muted',
   'border-color',
   'surface-bg',
+  'alert-bg',
   'card-bg',
   'body-bg',
 ];
@@ -29,12 +32,12 @@ const isThemed = (tag: string): boolean =>
   THEMED.some((className) => tag.includes(className));
 
 /**
- * A faixa do cabeçalho e o botão são escuros ou saturados nos dois temas, com
- * texto branco: não entram no bloco escuro de propósito.
+ * O cabeçalho e o botão são cores de marca nos dois temas, com texto que já
+ * contrasta: não entram no bloco escuro de propósito.
  */
 const isIntentionallyFixed = (tag: string): boolean =>
   tag.includes('header-padding') ||
-  tag.includes('background-color: #EB1E26') ||
+  tag.includes(`background-color: ${EMAIL_COLORS.buttonBackground}`) ||
   tag.includes('brand-mobile') ||
   tag.includes('title-mobile') ||
   tag.includes('<a href=');
@@ -48,6 +51,7 @@ describe('tema escuro', () => {
       { label: 'E-mail', value: 'ana@exemplo.com', as: 'email' },
     ]),
     quoteBlock('Uma citação.'),
+    alertNote('Um aviso.'),
     button('Ação', 'https://clubinhonib.com'),
     linkFallback('https://clubinhonib.com'),
     note('Uma observação.'),
@@ -83,10 +87,22 @@ describe('tema escuro', () => {
 
   it('o cabeçalho é escuro com texto branco nos dois temas', () => {
     // Antes era faixa verde com texto azul: quando o cliente invertia por
-    // conta própria, sobrava texto claro sobre verde claro.
+    // conta própria, sobrava texto claro sobre verde claro. Hoje o azul royal
+    // do logo carrega a faixa e o verde fica só no filete de baixo.
     expect(html).toContain(
-      'background-color: #2F3290; border-bottom: 4px solid',
+      `background-color: ${EMAIL_COLORS.headerBackground}; border-bottom: 4px solid`,
     );
-    expect(html).toContain('color: #FFFFFF');
+    expect(html).toContain(`color: ${EMAIL_COLORS.onDark}`);
+  });
+
+  /**
+   * O verde é claro nos dois temas; texto branco por cima some. O azul-marinho
+   * do rótulo é o que mantém o botão legível quando o cliente escurece tudo.
+   */
+  it('o botão mantém o verde da marca com texto azul-marinho', () => {
+    expect(html).toContain(
+      `background-color: ${EMAIL_COLORS.buttonBackground}`,
+    );
+    expect(html).toContain(`color: ${EMAIL_COLORS.buttonText}`);
   });
 });

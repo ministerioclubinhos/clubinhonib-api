@@ -1,5 +1,5 @@
 import { Test } from '@nestjs/testing';
-import { DataSource, EntityManager } from 'typeorm';
+import { EntityManager } from 'typeorm';
 import {
   AppInternalException,
   AppNotFoundException,
@@ -12,7 +12,7 @@ import {
   MediaType,
   UploadType,
 } from 'src/shared/media/media-item/media-item.entity';
-import { RouteService } from 'src/modules/routes/route.service';
+import { UpdateRouteService } from 'src/modules/routes/services/update-route.service';
 import { DocumentsRepository } from '../repositories/documents.repository';
 import { DocumentEntity } from '../entities/document.entity';
 import { UpdateDocumentService } from './update-document.service';
@@ -64,19 +64,25 @@ describe('UpdateDocumentService', () => {
     save: jest.fn((_entity: unknown, value: unknown) => value),
   } as unknown as EntityManager;
 
-  const dataSource = {
-    transaction: jest.fn((run: (m: EntityManager) => Promise<unknown>) =>
+  // A transação passou a ser aberta pelo repositório: o caso de uso entrega o
+  // bloco de escritas e não conhece mais `DataSource`.
+  const documentRepo = {
+    findByIdWithRoute: jest.fn(),
+    runInTransaction: jest.fn((run: (m: EntityManager) => Promise<unknown>) =>
       run(manager),
     ),
+    updateInTransaction: jest.fn(
+      (_manager: EntityManager, document: object, changes: object) =>
+        Object.assign(document, changes),
+    ),
   };
-  const documentRepo = { findByIdWithRoute: jest.fn() };
   const s3Service = { upload: jest.fn(), delete: jest.fn() };
   const mediaProcessor = {
     findMediaItemsByTargetAnyType: jest.fn(),
     cleanAndReplaceMediaItems: jest.fn(),
     discardUnreferencedUploads: jest.fn(),
   };
-  const routeService = { upsertRouteWithAvailablePath: jest.fn() };
+  const updateRouteService = { upsertRouteWithAvailablePath: jest.fn() };
 
   let service: UpdateDocumentService;
 
@@ -87,7 +93,7 @@ describe('UpdateDocumentService', () => {
       storedMedia,
     ]);
     mediaProcessor.cleanAndReplaceMediaItems.mockResolvedValue([storedMedia]);
-    routeService.upsertRouteWithAvailablePath.mockResolvedValue({
+    updateRouteService.upsertRouteWithAvailablePath.mockResolvedValue({
       id: 'route-1',
       path: 'documento_manual_revisado',
     });
@@ -95,11 +101,10 @@ describe('UpdateDocumentService', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         UpdateDocumentService,
-        { provide: DataSource, useValue: dataSource },
         { provide: DocumentsRepository, useValue: documentRepo },
         { provide: AwsS3Service, useValue: s3Service },
         { provide: MediaItemProcessor, useValue: mediaProcessor },
-        { provide: RouteService, useValue: routeService },
+        { provide: UpdateRouteService, useValue: updateRouteService },
       ],
     }).compile();
 
@@ -112,7 +117,9 @@ describe('UpdateDocumentService', () => {
     expect(saved.name).toBe('Manual revisado');
     // `path` é único: a rota precisa de um endereço livre, e não de um gerado
     // direto do título.
-    expect(routeService.upsertRouteWithAvailablePath).toHaveBeenCalledWith(
+    expect(
+      updateRouteService.upsertRouteWithAvailablePath,
+    ).toHaveBeenCalledWith(
       'route-1',
       expect.objectContaining({ title: 'Manual revisado' }),
       'documento_',

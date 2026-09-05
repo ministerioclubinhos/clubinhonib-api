@@ -1,5 +1,5 @@
 import { AddressEntity } from 'src/modules/addresses/entities/address.entity/address.entity';
-import { AcceptedChristShortDto } from 'src/modules/accepted-christs/dtos/accepted-christ-short.dto';
+import { toAcceptedChristShort } from 'src/modules/accepted-christs/mappers';
 
 import {
   AddressResponseDto,
@@ -54,14 +54,8 @@ export const toChildListItemDto = (entity: ChildEntity): ChildListItemDto => ({
   guardianPhone: entity.guardianPhone,
   isActive: entity.isActive,
   clubId: entity.club?.id ?? null,
-  acceptedChrists: (entity.acceptedChrists ?? []).map(
-    (accepted): AcceptedChristShortDto => ({
-      id: accepted.id,
-      decision: accepted.decision,
-      createdAt: accepted.createdAt.toISOString(),
-      updatedAt: accepted.updatedAt.toISOString(),
-    }),
-  ),
+  // O recorte curto é montado pelo módulo dono da decisão, num lugar só.
+  acceptedChrists: (entity.acceptedChrists ?? []).map(toAcceptedChristShort),
 });
 
 export const toChildResponseDto = (entity: ChildEntity): ChildResponseDto => ({

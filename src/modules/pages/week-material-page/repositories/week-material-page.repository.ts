@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository, SelectQueryBuilder } from 'typeorm';
+import {
+  DataSource,
+  EntityManager,
+  Repository,
+  SelectQueryBuilder,
+} from 'typeorm';
 import { WeekMaterialsPageEntity } from '../entities/week-material-page.entity';
 import {
   WEEK_MATERIALS_DEFAULT_LIMIT,
@@ -16,9 +21,23 @@ import { WeekMaterialPageContent } from '../types';
 @Injectable()
 export class WeekMaterialsPageRepository {
   constructor(
+    private readonly dataSource: DataSource,
     @InjectRepository(WeekMaterialsPageEntity)
     private readonly pageRepo: Repository<WeekMaterialsPageEntity>,
   ) {}
+
+  /**
+   * Roda um conjunto de escritas numa transação só.
+   *
+   * Abrir e fechar transação é acesso ao banco, e mora aqui. O caso de uso
+   * continua decidindo o que é atômico, mas não conhece `QueryRunner`, commit
+   * nem rollback.
+   */
+  async runInTransaction<T>(
+    work: (manager: EntityManager) => Promise<T>,
+  ): Promise<T> {
+    return this.dataSource.transaction(work);
+  }
 
   private scoped(manager?: EntityManager): Repository<WeekMaterialsPageEntity> {
     return manager

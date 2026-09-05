@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Request } from 'express';
 
 import { ChildrenRepository } from '../repositories/children.repository';
-import { AddressesService } from '../../addresses/addresses.service';
+import { CreateAddressService } from '../../addresses/services/create-address.service';
 import { GetClubsService } from '../../clubs/services/get-clubs.service';
 import { AppForbiddenException, ErrorCode } from 'src/shared/exceptions';
 
@@ -18,7 +18,7 @@ import { toDateOnly } from '../utils';
 export class CreateChildrenService {
   constructor(
     private readonly childrenRepo: ChildrenRepository,
-    private readonly addressesService: AddressesService,
+    private readonly createAddressService: CreateAddressService,
     private readonly getClubsService: GetClubsService,
     private readonly authContextService: AuthContextService,
   ) {}
@@ -58,7 +58,7 @@ export class CreateChildrenService {
     }
 
     if (dto.address) {
-      const address = this.addressesService.create(dto.address);
+      const address = this.createAddressService.build(dto.address);
       child.address = address;
     }
 

@@ -11,8 +11,14 @@ import {
   AUTH_EMAIL_PATHS,
   AUTH_TOKEN_BYTES,
   PASSWORD_RESET_TTL_MINUTES,
+  PASSWORD_SETUP_TTL_HOURS,
 } from '../constants';
 import { AppBusinessException, ErrorCode } from 'src/shared/exceptions';
+import {
+  ForgotPasswordResponseDto,
+  ResetPasswordResponseDto,
+  ValidateResetTokenResponseDto,
+} from '../dto/auth-response.dto';
 
 /**
  * A recuperação responde sempre isto, com ou sem conta correspondente.
@@ -40,7 +46,9 @@ export class PasswordRecoveryService {
    * diferente por e-mail inexistente entrega ao atacante quais endereços estão
    * cadastrados.
    */
-  async forgotPassword(data: ForgotPasswordDto) {
+  async forgotPassword(
+    data: ForgotPasswordDto,
+  ): Promise<ForgotPasswordResponseDto> {
     const user = await this.getUsersService.findByEmail(data.email);
 
     if (!user) {
@@ -73,7 +81,33 @@ export class PasswordRecoveryService {
     return GENERIC_FORGOT_PASSWORD_RESPONSE;
   }
 
-  async validateResetToken(token: string) {
+  /**
+   * Emite um link para a pessoa **definir** a primeira senha.
+   *
+   * É o mesmo token da recuperação, com validade maior: quem chama é a criação
+   * de conta pela coordenação, e a alternativa — mandar uma senha provisória no
+   * corpo do e-mail — deixaria uma credencial válida guardada para sempre na
+   * caixa de entrada.
+   *
+   * Não manda e-mail: devolve a URL, e quem pediu decide o que dizer. Assim o
+   * texto das boas-vindas mora no módulo de usuário, e não no de autenticação.
+   */
+  async issuePasswordSetupLink(userId: string): Promise<string> {
+    const token = crypto.randomBytes(AUTH_TOKEN_BYTES).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + PASSWORD_SETUP_TTL_HOURS);
+
+    // Invalida o que houver antes de emitir: dois links vivos para a mesma
+    // conta significam que o mais antigo continua servindo se vazar.
+    await this.passwordResetTokenRepo.invalidateTokensForUser(userId);
+    await this.passwordResetTokenRepo.createToken(userId, token, expiresAt);
+
+    return this.siteUrlService.buildUrl(AUTH_EMAIL_PATHS.passwordReset, token);
+  }
+
+  async validateResetToken(
+    token: string,
+  ): Promise<ValidateResetTokenResponseDto> {
     const validToken = await this.passwordResetTokenRepo.findValidToken(token);
     if (!validToken) {
       throw new AppBusinessException(
@@ -84,7 +118,9 @@ export class PasswordRecoveryService {
     return { valid: true, email: validToken.user.email };
   }
 
-  async resetPassword(dto: ResetPasswordDto) {
+  async resetPassword(
+    dto: ResetPasswordDto,
+  ): Promise<ResetPasswordResponseDto> {
     const validToken = await this.passwordResetTokenRepo.findValidToken(
       dto.token,
     );

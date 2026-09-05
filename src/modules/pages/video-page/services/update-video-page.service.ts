@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DataSource, EntityManager } from 'typeorm';
+import { EntityManager } from 'typeorm';
 import {
   AppException,
   AppInternalException,
@@ -7,7 +7,8 @@ import {
   ErrorCode,
 } from 'src/shared/exceptions';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
-import { RouteService } from 'src/modules/routes/route.service';
+import { GetRouteService } from 'src/modules/routes/services/get-route.service';
+import { UpdateRouteService } from 'src/modules/routes/services/update-route.service';
 import { RouteEntity, RouteType } from 'src/modules/routes/route-page.entity';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
@@ -38,11 +39,11 @@ export class UpdateVideosPageService {
   private readonly logger = new Logger(UpdateVideosPageService.name);
 
   constructor(
-    private readonly dataSource: DataSource,
     private readonly videosPageRepo: VideosPageRepository,
     private readonly getService: GetVideosPageService,
     private readonly s3: AwsS3Service,
-    private readonly routeService: RouteService,
+    private readonly getRouteService: GetRouteService,
+    private readonly updateRouteService: UpdateRouteService,
     private readonly mediaItemProcessor: MediaItemProcessor,
   ) {}
 
@@ -78,7 +79,7 @@ export class UpdateVideosPageService {
         public: dto.public,
       };
 
-      const updatedPage = await this.dataSource.transaction(
+      const updatedPage = await this.videosPageRepo.runInTransaction(
         async (manager: EntityManager) => {
           page.name = content.name;
           page.description = content.description;
@@ -114,7 +115,7 @@ export class UpdateVideosPageService {
   }
 
   private async loadRoute(pageId: string): Promise<RouteEntity> {
-    const route = await this.routeService.findRouteByEntityId(pageId);
+    const route = await this.getRouteService.findRouteByEntityId(pageId);
     if (!route) {
       throw new AppNotFoundException(
         ErrorCode.ROUTE_NOT_FOUND,
@@ -130,7 +131,7 @@ export class UpdateVideosPageService {
     pageId: string,
     manager: EntityManager,
   ): Promise<RouteEntity> {
-    return this.routeService.upsertRouteWithAvailablePath(
+    return this.updateRouteService.upsertRouteWithAvailablePath(
       route.id,
       {
         title: content.name,

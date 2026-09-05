@@ -1,5 +1,5 @@
 import { Test } from '@nestjs/testing';
-import { DataSource, EntityManager } from 'typeorm';
+import { EntityManager } from 'typeorm';
 import {
   AppConflictException,
   AppInternalException,
@@ -54,12 +54,11 @@ const fullWeek = [
 
 describe('UpdateMeditationService', () => {
   const manager = {} as EntityManager;
-  const dataSource = {
-    transaction: jest.fn((run: (m: EntityManager) => Promise<unknown>) =>
+  // A transação passou a ser aberta pelo repositório.
+  const meditationRepo = {
+    runInTransaction: jest.fn((run: (m: EntityManager) => Promise<unknown>) =>
       run(manager),
     ),
-  };
-  const meditationRepo = {
     findOverlapping: jest.fn(),
     saveMeditation: jest.fn(),
     removeDays: jest.fn(),
@@ -91,7 +90,6 @@ describe('UpdateMeditationService', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         UpdateMeditationService,
-        { provide: DataSource, useValue: dataSource },
         { provide: MeditationRepository, useValue: meditationRepo },
         { provide: GetMeditationService, useValue: getService },
         { provide: AwsS3Service, useValue: s3Service },

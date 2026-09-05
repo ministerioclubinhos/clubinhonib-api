@@ -29,6 +29,18 @@ import {
   WeekQueryDto,
   YearParamDto,
 } from '../dto/club-control-query.dto';
+import {
+  ClubControlDashboardResponseDto,
+  ClubExceptionResponseDto,
+  ClubPeriodResponseDto,
+  ClubsWeekCheckResponseDto,
+  CurrentAcademicWeekDto,
+  DeleteResultDto,
+  PaginatedClubExceptionsDto,
+  PaginatedClubPeriodsDto,
+} from '../dto/club-control-contracts.dto';
+import { ClubCheckResultDto } from '../dto/club-check-result.dto';
+import { DetailedIndicatorsResultDto } from '../dto/detailed-indicators-result.dto';
 
 interface PaginatedResult {
   items?: unknown[];
@@ -62,7 +74,9 @@ export class ClubControlController {
   constructor(private readonly clubControlService: ClubControlService) {}
 
   @Post('periods')
-  async createPeriod(@Body() dto: CreateClubPeriodDto) {
+  async createPeriod(
+    @Body() dto: CreateClubPeriodDto,
+  ): Promise<ClubPeriodResponseDto> {
     const started = Date.now();
     this.logger.log(`POST /club-control/periods year=${dto.year}`);
     try {
@@ -80,7 +94,9 @@ export class ClubControlController {
   }
 
   @Get('periods/:year')
-  async getPeriodByYear(@Param() params: YearParamDto) {
+  async getPeriodByYear(
+    @Param() params: YearParamDto,
+  ): Promise<ClubPeriodResponseDto | null> {
     const { year } = params;
     const started = Date.now();
     this.logger.log(`GET /club-control/periods/${year}`);
@@ -99,7 +115,9 @@ export class ClubControlController {
   }
 
   @Get('periods')
-  async getAllPeriods(@Query() query: PaginationQueryDto) {
+  async getAllPeriods(
+    @Query() query: PaginationQueryDto,
+  ): Promise<PaginatedClubPeriodsDto> {
     const started = Date.now();
     const p = query.page;
     const l = query.limit;
@@ -128,7 +146,7 @@ export class ClubControlController {
   async updatePeriod(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateClubPeriodDto,
-  ) {
+  ): Promise<ClubPeriodResponseDto> {
     const started = Date.now();
     this.logger.log(`PUT /club-control/periods/${id}`);
     try {
@@ -148,7 +166,9 @@ export class ClubControlController {
   }
 
   @Delete('periods/:id')
-  async deletePeriod(@Param('id', ParseUUIDPipe) id: string) {
+  async deletePeriod(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<DeleteResultDto> {
     const started = Date.now();
     this.logger.log(`DELETE /club-control/periods/${id}`);
     try {
@@ -177,7 +197,9 @@ export class ClubControlController {
   }
 
   @Post('exceptions')
-  async createException(@Body() dto: CreateClubExceptionDto) {
+  async createException(
+    @Body() dto: CreateClubExceptionDto,
+  ): Promise<ClubExceptionResponseDto> {
     const started = Date.now();
     this.logger.log(
       `POST /club-control/exceptions date=${dto.exceptionDate} type=${dto.type ?? 'other'}`,
@@ -200,7 +222,7 @@ export class ClubControlController {
   async updateException(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateClubExceptionDto,
-  ) {
+  ): Promise<ClubExceptionResponseDto> {
     const started = Date.now();
     this.logger.log(`PATCH /club-control/exceptions/${id}`);
     try {
@@ -220,7 +242,9 @@ export class ClubControlController {
   }
 
   @Get('exceptions/:date')
-  async getExceptionByDate(@Param() params: DateParamDto) {
+  async getExceptionByDate(
+    @Param() params: DateParamDto,
+  ): Promise<ClubExceptionResponseDto | null> {
     const { date } = params;
     const started = Date.now();
     this.logger.log(`GET /club-control/exceptions/${date}`);
@@ -239,7 +263,9 @@ export class ClubControlController {
   }
 
   @Get('exceptions')
-  async getExceptionsByPeriod(@Query() query: ExceptionsQueryDto) {
+  async getExceptionsByPeriod(
+    @Query() query: ExceptionsQueryDto,
+  ): Promise<PaginatedClubExceptionsDto> {
     const started = Date.now();
     const { startDate, endDate, page: p, limit: l } = query;
     this.logger.log(
@@ -269,7 +295,9 @@ export class ClubControlController {
   }
 
   @Delete('exceptions/:id')
-  async deleteException(@Param('id', ParseUUIDPipe) id: string) {
+  async deleteException(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<DeleteResultDto> {
     const started = Date.now();
     this.logger.log(`DELETE /club-control/exceptions/${id}`);
     try {
@@ -301,7 +329,7 @@ export class ClubControlController {
   async checkClubWeek(
     @Param('clubId', ParseUUIDPipe) clubId: string,
     @Query() query: RequiredWeekQueryDto,
-  ) {
+  ): Promise<ClubCheckResultDto> {
     const { year, week } = query;
     const started = Date.now();
     this.logger.log(
@@ -326,7 +354,9 @@ export class ClubControlController {
   }
 
   @Get('check/week')
-  async checkAllClubsWeek(@Query() query: WeekQueryDto) {
+  async checkAllClubsWeek(
+    @Query() query: WeekQueryDto,
+  ): Promise<ClubsWeekCheckResponseDto> {
     const started = Date.now();
 
     const DEFAULT_PAGE = 1;
@@ -373,7 +403,9 @@ export class ClubControlController {
   }
 
   @Get('dashboard')
-  async getCurrentWeekDashboard(@Query() query: PaginationQueryDto) {
+  async getCurrentWeekDashboard(
+    @Query() query: PaginationQueryDto,
+  ): Promise<ClubControlDashboardResponseDto> {
     const started = Date.now();
     this.logger.log(`GET /club-control/dashboard`);
     try {
@@ -394,7 +426,7 @@ export class ClubControlController {
   }
 
   @Get('current-week')
-  async getCurrentWeek() {
+  async getCurrentWeek(): Promise<CurrentAcademicWeekDto | null> {
     const started = Date.now();
     this.logger.log(`GET /club-control/current-week`);
     try {
@@ -412,7 +444,9 @@ export class ClubControlController {
   }
 
   @Get('indicators/detailed')
-  async getDetailedIndicators(@Query() query: DetailedIndicatorsQueryDto) {
+  async getDetailedIndicators(
+    @Query() query: DetailedIndicatorsQueryDto,
+  ): Promise<DetailedIndicatorsResultDto> {
     const started = Date.now();
     const y = query.year;
     const w = query.week;

@@ -1,9 +1,22 @@
+import { UserRole } from 'src/core/auth/auth.types';
+
 /** Papéis que podem administrar clubinhos. Professor só enxerga o próprio. */
-export const CLUB_MANAGER_ROLES = ['admin', 'coordinator'] as const;
+export const CLUB_MANAGER_ROLES = [
+  UserRole.ADMIN,
+  UserRole.COORDINATOR,
+] as const;
 
 /** Paginação padrão da listagem. */
 export const CLUBS_DEFAULT_PAGE = 1;
 export const CLUBS_DEFAULT_LIMIT = 10;
+
+/**
+ * Teto de itens por página.
+ *
+ * Era a única listagem sem teto: `?limit=100000` trazia a tabela inteira numa
+ * requisição só. O mesmo valor de `users` e `children`.
+ */
+export const CLUBS_MAX_LIMIT = 100;
 
 /** Campos aceitos na ordenação, e o padrão. */
 export const CLUB_SORT_FIELDS = [

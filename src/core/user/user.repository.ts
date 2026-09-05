@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { UserEntity } from './entities/user.entity';
 import { GetUsersQueryDto } from './dto/get-users-query.dto';
 import { UserRole } from 'src/core/auth/auth.types';
@@ -58,6 +58,33 @@ export class UserRepository {
   async findActiveRecipients(): Promise<EmailRecipient[]> {
     return this.repo.find({
       where: { active: true, noticesUnsubscribedAt: IsNull() },
+      select: { id: true, name: true, email: true },
+      order: { email: 'ASC' },
+    });
+  }
+
+  /**
+   * Dos ids informados, quem pode receber um aviso.
+   *
+   * É a mesma régua de `findActiveRecipients`, aplicada a um recorte: conta
+   * ativa e ninguém que pediu para sair da lista. Existe porque os avisos de
+   * clubinho partem de uma pessoa conhecida — os professores daquele clube, o
+   * coordenador dele —, e as consultas de clube não sabem nada de elegibilidade:
+   * elas trariam professor inativo e quem já se descadastrou.
+   *
+   * Quem chama diz **quem**; quem decide **se pode** é este método, para a regra
+   * não ser reescrita em cada módulo que precisar avisar alguém.
+   */
+  async findNoticeRecipientsByIds(ids: string[]): Promise<EmailRecipient[]> {
+    const unique = [...new Set(ids.filter((id) => id.trim().length > 0))];
+    if (unique.length === 0) return [];
+
+    return this.repo.find({
+      where: {
+        id: In(unique),
+        active: true,
+        noticesUnsubscribedAt: IsNull(),
+      },
       select: { id: true, name: true, email: true },
       order: { email: 'ASC' },
     });

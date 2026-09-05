@@ -1,11 +1,11 @@
 import { Test } from '@nestjs/testing';
-import { DataSource, EntityManager } from 'typeorm';
+import { EntityManager } from 'typeorm';
 import {
   AppInternalException,
   AppNotFoundException,
   ErrorCode,
 } from 'src/shared/exceptions';
-import { RouteService } from 'src/modules/routes/route.service';
+import { DeleteRouteService } from 'src/modules/routes/services/delete-route.service';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
@@ -24,15 +24,16 @@ const meditation = Object.assign(new MeditationEntity(), {
 
 describe('DeleteMeditationService', () => {
   const manager = {} as EntityManager;
-  const dataSource = {
-    transaction: jest.fn((run: (m: EntityManager) => Promise<unknown>) =>
+  // A transação passou a ser aberta pelo repositório.
+  const meditationRepo = {
+    removeMeditation: jest.fn(),
+    runInTransaction: jest.fn((run: (m: EntityManager) => Promise<unknown>) =>
       run(manager),
     ),
   };
-  const meditationRepo = { removeMeditation: jest.fn() };
   const getService = { findEntityOrFail: jest.fn() };
   const s3Service = { delete: jest.fn() };
-  const routeService = { removeRouteByEntity: jest.fn() };
+  const deleteRouteService = { removeRouteByEntity: jest.fn() };
   const mediaItemProcessor = {
     findMediaItemsByTarget: jest.fn(),
     deleteMediaItems: jest.fn(),
@@ -48,11 +49,10 @@ describe('DeleteMeditationService', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         DeleteMeditationService,
-        { provide: DataSource, useValue: dataSource },
         { provide: MeditationRepository, useValue: meditationRepo },
         { provide: GetMeditationService, useValue: getService },
         { provide: AwsS3Service, useValue: s3Service },
-        { provide: RouteService, useValue: routeService },
+        { provide: DeleteRouteService, useValue: deleteRouteService },
         { provide: MediaItemProcessor, useValue: mediaItemProcessor },
       ],
     }).compile();
@@ -78,7 +78,7 @@ describe('DeleteMeditationService', () => {
       meditation,
       manager,
     );
-    expect(routeService.removeRouteByEntity).toHaveBeenCalledWith(
+    expect(deleteRouteService.removeRouteByEntity).toHaveBeenCalledWith(
       'Meditation',
       'meditation-id',
     );

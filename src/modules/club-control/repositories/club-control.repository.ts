@@ -17,6 +17,7 @@ import {
   WeekdayStatsDto,
 } from '../dto/detailed-indicators-helpers.dto';
 import { DeepPartial, FindOptionsWhere } from 'typeorm';
+import { ChildNotAttendingDto } from '../dto/club-control-contracts.dto';
 
 @Injectable()
 export class ClubControlRepository {
@@ -286,7 +287,7 @@ export class ClubControlRepository {
     );
 
     let totalChildrenNotAttending = 0;
-    const childrenNotAttendingList: any[] = [];
+    const childrenNotAttendingList: ChildNotAttendingDto[] = [];
 
     clubsResults.forEach((result) => {
       if (result.children.notAttendingCount > 0) {

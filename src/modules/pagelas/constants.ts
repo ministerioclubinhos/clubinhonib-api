@@ -1,3 +1,5 @@
+import { UserRole } from 'src/core/auth/auth.types';
+
 /**
  * Papéis que podem trabalhar com pagelas.
  *
@@ -5,10 +7,14 @@
  * está sob o alcance deles — a regra de alcance mora em
  * `PagelasRepository.applyAccessFilter`.
  */
-export const PAGELA_ROLES = ['admin', 'coordinator', 'teacher'] as const;
+export const PAGELA_ROLES = [
+  UserRole.ADMIN,
+  UserRole.COORDINATOR,
+  UserRole.TEACHER,
+] as const;
 
 /** Papel que não tem o alcance limitado a clubinho algum. */
-export const PAGELA_UNRESTRICTED_ROLE = 'admin';
+export const PAGELA_UNRESTRICTED_ROLE = UserRole.ADMIN;
 
 /** Paginação padrão da listagem. */
 export const PAGELAS_DEFAULT_PAGE = 1;

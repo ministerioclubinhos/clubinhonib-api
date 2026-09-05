@@ -187,9 +187,9 @@ const page = `<!DOCTYPE html>
   <title>Preview dos e-mails</title>
   <style>
     body { margin: 0; padding: 24px; background: #eceff3; font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; }
-    h1 { color: #2F3290; margin-bottom: 4px; }
+    h1 { color: #30328B; margin-bottom: 4px; }
     .card { background: #fff; border-radius: 12px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.1); margin-bottom: 24px; }
-    .card h2 { margin: 0 0 4px; font-size: 16px; color: #2F3290; }
+    .card h2 { margin: 0 0 4px; font-size: 16px; color: #30328B; }
     .card header p { margin: 0 0 12px; font-size: 13px; color: #6B7280; }
     .modes { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); }
     .tag { display: inline-block; margin-bottom: 6px; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; background: #E6E8EC; color: #6B7280; }

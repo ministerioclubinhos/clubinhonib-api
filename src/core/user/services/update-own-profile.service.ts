@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { UserRepository } from '../user.repository';
+import { NotifyAccountChangesService } from './notify-account-changes.service';
 import { UpdateOwnProfileDto } from '../dto/update-own-profile.dto';
 import { UserEntity } from '../entities/user.entity';
 import {
@@ -12,7 +13,10 @@ import {
 export class UpdateOwnProfileService {
   private readonly logger = new Logger(UpdateOwnProfileService.name);
 
-  constructor(private readonly userRepo: UserRepository) {}
+  constructor(
+    private readonly userRepo: UserRepository,
+    private readonly notifyAccountChanges: NotifyAccountChangesService,
+  ) {}
 
   async updateOwnProfile(
     userId: string,
@@ -58,9 +62,23 @@ export class UpdateOwnProfileService {
       return currentUser;
     }
 
+    // Guardado antes do update: depois dele, o endereço antigo já se foi, e é
+    // exatamente para ele que o aviso precisa ir.
+    const previousEmail = currentUser.email;
+    const emailChanged =
+      updateData.email !== undefined && updateData.email !== previousEmail;
+
     const updatedUser = await this.userRepo.update(userId, updateData);
 
     this.logger.log(`Perfil atualizado para o usuário: ${userId}`);
+
+    if (emailChanged) {
+      this.notifyAccountChanges.emailAddressChangedInBackground(
+        previousEmail,
+        updatedUser.name,
+        updatedUser.email,
+      );
+    }
 
     return updatedUser;
   }

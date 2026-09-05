@@ -8,7 +8,7 @@ import { digitsOf, escapeHtml, safeUrl } from '../utils';
 
 /** Parágrafo comum do corpo. */
 export function paragraph(text: string): string {
-  return `<p class="text-primary" style="margin: 0 0 16px 0; color: ${EMAIL_COLORS.primaryText}; font-size: 16px; line-height: 1.6;">${escapeHtml(text)}</p>`;
+  return `<p class="text-primary" style="margin: 0 0 16px 0; color: ${EMAIL_COLORS.primaryText}; font-size: 16px; line-height: 1.65;">${escapeHtml(text)}</p>`;
 }
 
 /** Título de uma seção dentro do corpo. */
@@ -17,8 +17,11 @@ export function heading(text: string): string {
 }
 
 /**
- * Botão de ação. Um link fora de http(s) não vira botão: o texto some junto,
- * para o e-mail nunca carregar um esquema inesperado.
+ * Botão de ação, no verde principal da marca. O texto vai em azul-marinho: o
+ * verde é claro demais para carregar texto branco por cima.
+ *
+ * Um link fora de http(s) não vira botão: o texto some junto, para o e-mail
+ * nunca carregar um esquema inesperado.
  */
 export function button(label: string, url: string): string {
   const href = safeUrl(url);
@@ -26,8 +29,8 @@ export function button(label: string, url: string): string {
 
   return `<table border="0" cellspacing="0" cellpadding="0" style="margin: 28px 0;">
         <tr>
-          <td align="center" style="background-color: ${EMAIL_COLORS.accent}; border-radius: 8px;">
-            <a href="${href}" style="display: inline-block; padding: 14px 28px; color: ${EMAIL_COLORS.cardBackground}; font-size: 15px; font-weight: 700; text-decoration: none;">${escapeHtml(label)}</a>
+          <td align="center" style="background-color: ${EMAIL_COLORS.buttonBackground}; border-radius: 8px;">
+            <a href="${href}" style="display: inline-block; padding: 14px 28px; color: ${EMAIL_COLORS.buttonText}; font-size: 15px; font-weight: 700; letter-spacing: 0.2px; text-decoration: none;">${escapeHtml(label)}</a>
           </td>
         </tr>
       </table>`;
@@ -45,6 +48,24 @@ export function linkFallback(url: string): string {
 /** Observação discreta, como o prazo de validade de um link. */
 export function note(text: string): string {
   return `<p class="text-muted" style="margin: 12px 0 0 0; color: ${EMAIL_COLORS.mutedText}; font-size: 13px; line-height: 1.5;">${escapeHtml(text)}</p>`;
+}
+
+/**
+ * Aviso que a pessoa não pode deixar passar — uma senha que mudou sem ela ter
+ * pedido, por exemplo.
+ *
+ * É o único lugar onde o vermelho da marca aparece fora da faixa do topo:
+ * gasto em qualquer observação, ele deixa de significar alguma coisa. Para o
+ * resto existe `note`.
+ */
+export function alertNote(text: string): string {
+  return `<table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin: 20px 0 0 0;">
+        <tr>
+          <td class="alert-bg" style="background-color: ${EMAIL_COLORS.alertBackground}; border-left: 3px solid ${EMAIL_COLORS.brandRed}; border-radius: 0 6px 6px 0; padding: 14px 16px;">
+            <p class="text-primary" style="margin: 0; color: ${EMAIL_COLORS.primaryText}; font-size: 14px; line-height: 1.6;">${escapeHtml(text)}</p>
+          </td>
+        </tr>
+      </table>`;
 }
 
 /** Um par rótulo/valor da tabela de dados. */
@@ -108,12 +129,12 @@ ${cells}
 
 /**
  * Bloco de texto longo, preservando as quebras de linha do original. O filete
- * verde à esquerda marca a citação sem contornar tudo.
+ * amarelo à esquerda marca a citação sem contornar tudo.
  */
 export function quoteBlock(text: string): string {
   return `<table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin: 0 0 8px 0;">
         <tr>
-          <td class="surface-bg" style="background-color: ${EMAIL_COLORS.surface}; border-left: 3px solid ${EMAIL_COLORS.brandGreen}; border-radius: 0 6px 6px 0; padding: 16px 18px;">
+          <td class="surface-bg" style="background-color: ${EMAIL_COLORS.surface}; border-left: 3px solid ${EMAIL_COLORS.brandYellow}; border-radius: 0 6px 6px 0; padding: 16px 18px;">
             <p class="text-primary" style="margin: 0; color: ${EMAIL_COLORS.primaryText}; font-size: 15px; line-height: 1.6; white-space: pre-line;">${escapeHtml(text)}</p>
           </td>
         </tr>

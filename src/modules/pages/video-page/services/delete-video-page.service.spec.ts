@@ -1,11 +1,11 @@
 import { Test } from '@nestjs/testing';
-import { DataSource, EntityManager } from 'typeorm';
+import { EntityManager } from 'typeorm';
 import {
   AppInternalException,
   AppNotFoundException,
   ErrorCode,
 } from 'src/shared/exceptions';
-import { RouteService } from 'src/modules/routes/route.service';
+import { DeleteRouteService } from 'src/modules/routes/services/delete-route.service';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
@@ -24,15 +24,17 @@ const page = Object.assign(new VideosPage(), {
 
 describe('DeleteVideosPageService', () => {
   const manager = {} as EntityManager;
-  const dataSource = {
-    transaction: jest.fn((run: (m: EntityManager) => Promise<unknown>) =>
+  // A transação passou a ser aberta pelo repositório: o caso de uso entrega
+  // o bloco de escritas e não conhece mais `DataSource`.
+  const videosPageRepo = {
+    runInTransaction: jest.fn((run: (m: EntityManager) => Promise<unknown>) =>
       run(manager),
     ),
+    removePage: jest.fn(),
   };
-  const videosPageRepo = { removePage: jest.fn() };
   const getService = { findEntityOrFail: jest.fn(), findVideosOf: jest.fn() };
   const s3 = { delete: jest.fn() };
-  const routeService = {
+  const deleteRouteService = {
     removeRoute: jest.fn(),
     removeRouteByEntity: jest.fn(),
   };
@@ -48,11 +50,10 @@ describe('DeleteVideosPageService', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         DeleteVideosPageService,
-        { provide: DataSource, useValue: dataSource },
         { provide: VideosPageRepository, useValue: videosPageRepo },
         { provide: GetVideosPageService, useValue: getService },
         { provide: AwsS3Service, useValue: s3 },
-        { provide: RouteService, useValue: routeService },
+        { provide: DeleteRouteService, useValue: deleteRouteService },
         { provide: MediaItemProcessor, useValue: mediaItemProcessor },
       ],
     }).compile();
@@ -75,7 +76,7 @@ describe('DeleteVideosPageService', () => {
       expect.any(Function),
     );
     expect(videosPageRepo.removePage).toHaveBeenCalledWith(page, manager);
-    expect(routeService.removeRoute).toHaveBeenCalledWith('route-id');
+    expect(deleteRouteService.removeRoute).toHaveBeenCalledWith('route-id');
   });
 
   it('não chama a exclusão de mídia quando não há vídeo', async () => {

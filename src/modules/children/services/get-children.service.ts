@@ -19,6 +19,7 @@ import {
 } from '../mappers/child.mapper';
 import { ChildEntity } from '../entities/child.entity';
 import { AuthContextService } from 'src/core/auth/services/auth-context.service';
+import { AccessContext } from 'src/core/auth/auth.types';
 import { CHILDREN_SIMPLE_ORDER, CHILDREN_SIMPLE_ORDER_BY } from '../constants';
 
 @Injectable()
@@ -30,7 +31,22 @@ export class GetChildrenService {
 
   async findEntityOrFail(id: string, request: Request): Promise<ChildEntity> {
     const ctx = await this.authContextService.resolveAccessContext(request);
-    const entity = await this.childrenRepo.findOneForResponse(id, ctx);
+    return this.findEntityForContextOrFail(id, ctx);
+  }
+
+  /**
+   * A criança, se quem pediu alcança o clubinho dela.
+   *
+   * É o contrato que outros módulos consomem — nenhum deles alcança o
+   * repositório de crianças por dentro. A mesma mensagem serve para "não
+   * existe" e para "existe, mas fora do seu alcance": responder coisas
+   * diferentes contaria que aquela criança existe em outro clubinho.
+   */
+  async findEntityForContextOrFail(
+    id: string,
+    context: AccessContext,
+  ): Promise<ChildEntity> {
+    const entity = await this.childrenRepo.findOneForResponse(id, context);
     if (!entity) {
       throw new AppNotFoundException(
         ErrorCode.CHILD_NOT_FOUND,

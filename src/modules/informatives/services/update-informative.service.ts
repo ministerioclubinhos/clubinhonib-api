@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DataSource, EntityManager } from 'typeorm';
+import { EntityManager } from 'typeorm';
 
-import { RouteService } from 'src/modules/routes/route.service';
+import { CreateRouteService } from 'src/modules/routes/services/create-route.service';
+import { UpdateRouteService } from 'src/modules/routes/services/update-route.service';
 import { RouteEntity, RouteType } from 'src/modules/routes/route-page.entity';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
 
@@ -9,6 +10,7 @@ import { INFORMATIVE_ROUTE_PREFIX } from '../constants';
 import { UpdateInformativeDto } from '../dto/update-informative.dto';
 import { InformativeResponseDto } from '../dto/informative-response.dto';
 import { InformativeEntity } from '../entities/informative.entity';
+import { InformativesRepository } from '../repositories/informatives.repository';
 import { toInformativeResponse } from '../mappers';
 import { GetInformativeService } from './get-informative.service';
 
@@ -17,9 +19,10 @@ export class UpdateInformativeService {
   private readonly logger = new Logger(UpdateInformativeService.name);
 
   constructor(
-    private readonly dataSource: DataSource,
+    private readonly informativesRepo: InformativesRepository,
     private readonly getService: GetInformativeService,
-    private readonly routeService: RouteService,
+    private readonly createRouteService: CreateRouteService,
+    private readonly updateRouteService: UpdateRouteService,
   ) {}
 
   async execute(
@@ -30,25 +33,31 @@ export class UpdateInformativeService {
 
     const existing = await this.getService.findEntityOrFail(id);
 
-    const saved = await this.dataSource.transaction(async (manager) => {
-      const updated = manager.merge(InformativeEntity, existing, {
-        title: dto.title,
-        description: dto.description,
-        public: dto.public,
-      });
+    // A transação é aberta pelo repositório; aqui só se decide o que entra
+    // nela.
+    const saved = await this.informativesRepo.runInTransaction(
+      async (manager) => {
+        const informative = await this.informativesRepo.updateInTransaction(
+          manager,
+          existing,
+          {
+            title: dto.title,
+            description: dto.description,
+            public: dto.public,
+          },
+        );
 
-      const informative = await manager.save(InformativeEntity, updated);
+        informative.route = informative.route
+          ? await this.updateRoute(informative.route.id, dto, informative.id)
+          : await this.createRoute(manager, informative, dto);
 
-      informative.route = informative.route
-        ? await this.updateRoute(informative.route.id, dto, informative.id)
-        : await this.createRoute(manager, informative, dto);
+        // A rota nova precisa ficar gravada no informativo; sem isto o banner
+        // continuaria sem endereço público depois do save.
+        await this.informativesRepo.saveInTransaction(manager, informative);
 
-      // A rota nova precisa ficar gravada no informativo; sem isto o banner
-      // continuaria sem endereço público depois do save.
-      await manager.save(InformativeEntity, informative);
-
-      return informative;
-    });
+        return informative;
+      },
+    );
 
     this.logger.log(`✅ Informativo atualizado: ${saved.id}`);
     return toInformativeResponse(saved);
@@ -78,7 +87,7 @@ export class UpdateInformativeService {
   ): Promise<RouteEntity> {
     // `path` é único: resolver um endereço livre evita o conflito quando dois
     // informativos passam a ter o mesmo título.
-    const route = await this.routeService.upsertRouteWithAvailablePath(
+    const route = await this.updateRouteService.upsertRouteWithAvailablePath(
       routeId,
       this.routeData(dto, informativeId),
       INFORMATIVE_ROUTE_PREFIX,
@@ -94,12 +103,12 @@ export class UpdateInformativeService {
     informative: InformativeEntity,
     dto: UpdateInformativeDto,
   ): Promise<RouteEntity> {
-    const path = await this.routeService.generateAvailablePath(
+    const path = await this.createRouteService.generateAvailablePath(
       dto.title,
       INFORMATIVE_ROUTE_PREFIX,
     );
 
-    return this.routeService.createRouteWithManager(manager, {
+    return this.createRouteService.createRouteWithManager(manager, {
       title: dto.title,
       subtitle: dto.description,
       description: dto.description,

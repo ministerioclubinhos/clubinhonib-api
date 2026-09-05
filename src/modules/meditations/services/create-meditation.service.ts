@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DataSource, EntityManager } from 'typeorm';
+import { EntityManager } from 'typeorm';
 import {
   AppConflictException,
   AppException,
@@ -7,7 +7,7 @@ import {
   AppValidationException,
   ErrorCode,
 } from 'src/shared/exceptions';
-import { RouteService } from 'src/modules/routes/route.service';
+import { CreateRouteService } from 'src/modules/routes/services/create-route.service';
 import { RouteType } from 'src/modules/routes/route-page.entity';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
@@ -31,10 +31,9 @@ export class CreateMeditationService {
   private readonly logger = new Logger(CreateMeditationService.name);
 
   constructor(
-    private readonly dataSource: DataSource,
     private readonly meditationRepo: MeditationRepository,
     private readonly s3Service: AwsS3Service,
-    private readonly routeService: RouteService,
+    private readonly createRouteService: CreateRouteService,
     private readonly mediaItemProcessor: MediaItemProcessor,
   ) {}
 
@@ -49,12 +48,9 @@ export class CreateMeditationService {
 
     await this.assertNoOverlap(dto.startDate, dto.endDate);
 
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
-    let savedMeditation: MeditationEntity | null = null;
-    let savedMedia: MediaItemEntity | null = null;
+    // Fica fora do bloco porque o `catch` precisa do id para varrer a mídia
+    // que tenha sobrado da tentativa.
+    let savedMeditation: MeditationEntity | undefined;
 
     // Cada arquivo enviado fica registrado: se a criação falhar depois do
     // upload, o objeto é apagado do bucket em vez de ficar órfão.
@@ -63,30 +59,37 @@ export class CreateMeditationService {
     );
 
     try {
-      savedMeditation = await this.meditationRepo.createMeditation(
-        {
-          topic: dto.topic,
-          startDate: dto.startDate,
-          endDate: dto.endDate,
+      // A transação é aberta pelo repositório; aqui só se decide o que entra
+      // nela. O rollback acontece sozinho quando o bloco lança.
+      const { meditation, media } = await this.meditationRepo.runInTransaction(
+        async (manager) => {
+          const created = await this.meditationRepo.createMeditation(
+            {
+              topic: dto.topic,
+              startDate: dto.startDate,
+              endDate: dto.endDate,
+            },
+            dto.days,
+            manager,
+          );
+          savedMeditation = created;
+
+          await this.createRoute(dto, created, manager);
+          const savedMedia = await this.persistMedia(
+            dto.media,
+            created.id,
+            uploads,
+            file,
+          );
+
+          return { meditation: created, media: savedMedia };
         },
-        dto.days,
-        queryRunner.manager,
       );
 
-      await this.createRoute(dto, savedMeditation, queryRunner.manager);
-      savedMedia = await this.persistMedia(
-        dto.media,
-        savedMeditation.id,
-        uploads,
-        file,
-      );
+      this.logger.log(`Meditação criada. ID=${meditation.id}`);
 
-      await queryRunner.commitTransaction();
-      this.logger.log(`Meditação criada. ID=${savedMeditation.id}`);
-
-      return toMeditationResponse(savedMeditation, savedMedia);
+      return toMeditationResponse(meditation, media);
     } catch (error: unknown) {
-      await queryRunner.rollbackTransaction();
       await this.discardOrphanMedia(savedMeditation?.id);
       await this.mediaItemProcessor.discardUnreferencedUploads(
         uploads.uploadedUrls,
@@ -104,8 +107,6 @@ export class CreateMeditationService {
         'Erro inesperado ao criar meditação.',
         error as Error,
       );
-    } finally {
-      await queryRunner.release();
     }
   }
 
@@ -134,12 +135,12 @@ export class CreateMeditationService {
     meditation: MeditationEntity,
     manager: EntityManager,
   ): Promise<void> {
-    const path = await this.routeService.generateAvailablePath(
+    const path = await this.createRouteService.generateAvailablePath(
       dto.topic,
       MEDITATION_ROUTE_PATH_PREFIX,
     );
 
-    await this.routeService.createRouteWithManager(manager, {
+    await this.createRouteService.createRouteWithManager(manager, {
       title: meditation.topic,
       subtitle: '',
       description: `Meditação semanal de ${dto.startDate} a ${dto.endDate}`,

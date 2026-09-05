@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DataSource, EntityManager } from 'typeorm';
+import { EntityManager } from 'typeorm';
 import {
   AppException,
   AppInternalException,
@@ -7,7 +7,7 @@ import {
   ErrorCode,
 } from 'src/shared/exceptions';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
-import { RouteService } from 'src/modules/routes/route.service';
+import { CreateRouteService } from 'src/modules/routes/services/create-route.service';
 import { RouteType } from 'src/modules/routes/route-page.entity';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
@@ -31,9 +31,8 @@ export class ImagePageCreateService {
   private readonly logger = new Logger(ImagePageCreateService.name);
 
   constructor(
-    private readonly dataSource: DataSource,
     private readonly imagePageRepository: ImagePageRepository,
-    private readonly routeService: RouteService,
+    private readonly createRouteService: CreateRouteService,
     private readonly awsS3Service: AwsS3Service,
     private readonly mediaItemProcessor: MediaItemProcessor,
   ) {}
@@ -44,11 +43,9 @@ export class ImagePageCreateService {
   ): Promise<ImagePageResponseDto> {
     this.assertUploadedFiles(dto, filesDict);
 
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
-    let savedPage: ImagePageEntity | null = null;
+    // Fica fora do bloco porque o `catch` precisa do id para varrer a mídia
+    // que tenha sobrado da tentativa.
+    let savedPage: ImagePageEntity | undefined;
 
     // Cada arquivo enviado fica registrado: se a criação falhar depois do
     // upload, o objeto é apagado do bucket em vez de ficar órfão.
@@ -57,39 +54,44 @@ export class ImagePageCreateService {
     );
 
     try {
-      const manager = queryRunner.manager;
+      // A transação é aberta pelo repositório; aqui só se decide o que entra
+      // nela. O rollback acontece sozinho quando o bloco lança.
+      const { page, mediaBySection } =
+        await this.imagePageRepository.runInTransaction(async (manager) => {
+          let created = await this.imagePageRepository.createPage(
+            {
+              name: dto.title,
+              description: dto.description,
+              public: dto.public,
+            },
+            manager,
+          );
+          savedPage = created;
 
-      savedPage = await this.imagePageRepository.createPage(
-        {
-          name: dto.title,
-          description: dto.description,
-          public: dto.public,
-        },
-        manager,
-      );
+          created.route = await this.createRoute(dto, created, manager);
+          created = await this.imagePageRepository.savePage(created, manager);
+          savedPage = created;
 
-      savedPage.route = await this.createRoute(dto, savedPage, manager);
-      savedPage = await this.imagePageRepository.savePage(savedPage, manager);
+          const media = await this.createSections(
+            dto,
+            created,
+            filesDict,
+            manager,
+            uploads,
+          );
 
-      const mediaBySection = await this.createSections(
-        dto,
-        savedPage,
-        filesDict,
-        manager,
-        uploads,
-      );
+          const reloaded = await this.imagePageRepository.findByIdWithSections(
+            created.id,
+            manager,
+          );
 
-      const page = await this.imagePageRepository.findByIdWithSections(
-        savedPage.id,
-        manager,
-      );
+          return { page: reloaded ?? created, mediaBySection: media };
+        });
 
-      await queryRunner.commitTransaction();
-      this.logger.log(`Galeria criada. ID=${savedPage.id}`);
+      this.logger.log(`Galeria criada. ID=${page.id}`);
 
-      return toImagePageResponse(page ?? savedPage, mediaBySection);
+      return toImagePageResponse(page, mediaBySection);
     } catch (error: unknown) {
-      await queryRunner.rollbackTransaction();
       await this.discardOrphanMedia(savedPage?.id);
       await this.mediaItemProcessor.discardUnreferencedUploads(
         uploads.uploadedUrls,
@@ -107,8 +109,6 @@ export class ImagePageCreateService {
         'Erro ao criar a galeria. Nenhum dado foi salvo.',
         error as Error,
       );
-    } finally {
-      await queryRunner.release();
     }
   }
 
@@ -146,12 +146,12 @@ export class ImagePageCreateService {
     page: ImagePageEntity,
     manager: EntityManager,
   ) {
-    const path = await this.routeService.generateAvailablePath(
+    const path = await this.createRouteService.generateAvailablePath(
       dto.title,
       IMAGE_PAGE_ROUTE_PATH_PREFIX,
     );
 
-    return this.routeService.createRouteWithManager(manager, {
+    return this.createRouteService.createRouteWithManager(manager, {
       title: dto.title,
       subtitle: IMAGE_PAGE_ROUTE_SUBTITLE,
       description: dto.description,

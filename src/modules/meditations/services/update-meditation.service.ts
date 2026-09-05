@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DataSource, EntityManager } from 'typeorm';
+import { EntityManager } from 'typeorm';
 import {
   AppConflictException,
   AppException,
@@ -28,7 +28,6 @@ export class UpdateMeditationService {
   private readonly logger = new Logger(UpdateMeditationService.name);
 
   constructor(
-    private readonly dataSource: DataSource,
     private readonly meditationRepo: MeditationRepository,
     private readonly getService: GetMeditationService,
     private readonly s3Service: AwsS3Service,
@@ -63,7 +62,9 @@ export class UpdateMeditationService {
     );
 
     try {
-      const updated = await this.dataSource.transaction(
+      // A transação é aberta pelo repositório; aqui só se decide o que entra
+      // nela.
+      const updated = await this.meditationRepo.runInTransaction(
         async (manager: EntityManager) => {
           // Só os campos de conteúdo são copiados: um merge do DTO inteiro
           // deixaria `id` e `media` sobrescreverem a entidade.

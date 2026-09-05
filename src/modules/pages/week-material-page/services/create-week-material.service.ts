@@ -1,17 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DataSource, EntityManager } from 'typeorm';
+import { EntityManager } from 'typeorm';
 import {
   AppException,
   AppInternalException,
   ErrorCode,
 } from 'src/shared/exceptions';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
-import { RouteService } from 'src/modules/routes/route.service';
+import { CreateRouteService } from 'src/modules/routes/services/create-route.service';
 import { RouteType } from 'src/modules/routes/route-page.entity';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
 import { AnnounceWeekMaterialService } from './announce-week-material.service';
-import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 import { WeekMaterialsPageRepository } from '../repositories/week-material-page.repository';
 import { CreateWeekMaterialsPageDto } from '../dto/create-week-material.dto';
 import { WeekMaterialsPageResponseDTO } from '../dto/week-material-response.dto';
@@ -30,10 +29,9 @@ export class WeekMaterialsPageCreateService {
   private readonly logger = new Logger(WeekMaterialsPageCreateService.name);
 
   constructor(
-    private readonly dataSource: DataSource,
     private readonly pageRepo: WeekMaterialsPageRepository,
     private readonly s3: AwsS3Service,
-    private readonly routeService: RouteService,
+    private readonly createRouteService: CreateRouteService,
     private readonly mediaItemProcessor: MediaItemProcessor,
     private readonly announceService: AnnounceWeekMaterialService,
   ) {}
@@ -45,12 +43,9 @@ export class WeekMaterialsPageCreateService {
     const incomingMedia = normalizeIncomingMedia(dto);
     assertUploadFieldKeys(incomingMedia);
 
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
-    let savedPage: WeekMaterialsPageEntity | null = null;
-    let mediaItems: MediaItemEntity[] = [];
+    // Fica fora do bloco porque o `catch` precisa do id para varrer a mídia
+    // que tenha sobrado da tentativa.
+    let savedPage: WeekMaterialsPageEntity | undefined;
 
     // Cada arquivo enviado fica registrado: se a criação falhar depois do
     // upload, o objeto é apagado do bucket em vez de ficar órfão.
@@ -59,26 +54,34 @@ export class WeekMaterialsPageCreateService {
     );
 
     try {
-      savedPage = await this.persistPageWithRoute(dto, queryRunner.manager);
+      // A transação é aberta pelo repositório; aqui só se decide o que entra
+      // nela. O rollback acontece sozinho quando o bloco lança.
+      const { page, mediaItems } = await this.pageRepo.runInTransaction(
+        async (manager) => {
+          const created = await this.persistPageWithRoute(dto, manager);
+          savedPage = created;
 
-      mediaItems = await this.mediaItemProcessor.processMediaItemsPolymorphic(
-        incomingMedia,
-        savedPage.id,
-        WEEK_MATERIAL_ENTITY_TYPE,
-        filesDict,
-        uploads.upload,
+          const media =
+            await this.mediaItemProcessor.processMediaItemsPolymorphic(
+              incomingMedia,
+              created.id,
+              WEEK_MATERIAL_ENTITY_TYPE,
+              filesDict,
+              uploads.upload,
+            );
+
+          return { page: created, mediaItems: media };
+        },
       );
 
-      await queryRunner.commitTransaction();
-      this.logger.log(`Página de materiais criada. ID=${savedPage.id}`);
+      this.logger.log(`Página de materiais criada. ID=${page.id}`);
 
       // O aviso sai depois do commit e fora da requisição: são muitos
       // destinatários, e uma falha no e-mail não pode desfazer a página.
-      this.announceService.announceInBackground(savedPage);
+      this.announceService.announceInBackground(page);
 
-      return toWeekMaterialsPageResponse(savedPage, mediaItems);
+      return toWeekMaterialsPageResponse(page, mediaItems);
     } catch (error: unknown) {
-      await queryRunner.rollbackTransaction();
       await this.discardOrphanMedia(savedPage?.id);
       await this.mediaItemProcessor.discardUnreferencedUploads(
         uploads.uploadedUrls,
@@ -96,8 +99,6 @@ export class WeekMaterialsPageCreateService {
         'Erro ao criar a página de materiais.',
         error as Error,
       );
-    } finally {
-      await queryRunner.release();
     }
   }
 
@@ -117,12 +118,12 @@ export class WeekMaterialsPageCreateService {
       manager,
     );
 
-    const path = await this.routeService.generateAvailablePath(
+    const path = await this.createRouteService.generateAvailablePath(
       dto.pageTitle,
       WEEK_MATERIAL_ROUTE_PATH_PREFIX,
     );
 
-    page.route = await this.routeService.createRouteWithManager(manager, {
+    page.route = await this.createRouteService.createRouteWithManager(manager, {
       title: dto.pageTitle,
       subtitle: dto.pageSubtitle,
       description: dto.pageDescription,

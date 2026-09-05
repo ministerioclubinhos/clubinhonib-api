@@ -2,6 +2,7 @@ import { Type, Transform } from 'class-transformer';
 import {
   IsInt,
   IsOptional,
+  Max,
   Min,
   IsString,
   IsIn,
@@ -11,6 +12,7 @@ import {
 import {
   CLUBS_DEFAULT_LIMIT,
   CLUBS_DEFAULT_PAGE,
+  CLUBS_MAX_LIMIT,
   CLUB_DEFAULT_ORDER,
   CLUB_DEFAULT_SORT,
   CLUB_SORT_FIELDS,
@@ -28,6 +30,7 @@ export class QueryClubsDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(CLUBS_MAX_LIMIT)
   limit?: number = CLUBS_DEFAULT_LIMIT;
 
   @IsOptional()

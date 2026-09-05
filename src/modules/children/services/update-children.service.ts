@@ -2,7 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { Request } from 'express';
 
 import { ChildrenRepository } from '../repositories/children.repository';
-import { AddressesService } from '../../addresses/addresses.service';
+import { CreateAddressService } from '../../addresses/services/create-address.service';
+import { UpdateAddressService } from '../../addresses/services/update-address.service';
 import { GetClubsService } from '../../clubs/services/get-clubs.service';
 import {
   AppNotFoundException,
@@ -22,7 +23,8 @@ import { toDateOnly } from '../utils';
 export class UpdateChildrenService {
   constructor(
     private readonly childrenRepo: ChildrenRepository,
-    private readonly addressesService: AddressesService,
+    private readonly createAddressService: CreateAddressService,
+    private readonly updateAddressService: UpdateAddressService,
     private readonly getClubsService: GetClubsService,
     private readonly authContextService: AuthContextService,
   ) {}
@@ -78,9 +80,9 @@ export class UpdateChildrenService {
         entity.address = null;
       } else {
         if (entity.address) {
-          this.addressesService.merge(entity.address, dto.address);
+          this.updateAddressService.merge(entity.address, dto.address);
         } else {
-          entity.address = this.addressesService.create(dto.address);
+          entity.address = this.createAddressService.build(dto.address);
         }
       }
     }

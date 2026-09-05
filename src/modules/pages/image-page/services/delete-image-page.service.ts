@@ -1,12 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DataSource, EntityManager } from 'typeorm';
+import { EntityManager } from 'typeorm';
 import {
   AppException,
   AppInternalException,
   ErrorCode,
 } from 'src/shared/exceptions';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
-import { RouteService } from 'src/modules/routes/route.service';
+import { DeleteRouteService } from 'src/modules/routes/services/delete-route.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { ImagePageRepository } from '../repositories/image-page.repository';
 import { ImagePageGetService } from './get-image-page.service';
@@ -18,10 +18,9 @@ export class ImagePageDeleteService {
   private readonly logger = new Logger(ImagePageDeleteService.name);
 
   constructor(
-    private readonly dataSource: DataSource,
     private readonly imagePageRepository: ImagePageRepository,
     private readonly getService: ImagePageGetService,
-    private readonly routeService: RouteService,
+    private readonly deleteRouteService: DeleteRouteService,
     private readonly awsS3Service: AwsS3Service,
     private readonly mediaItemProcessor: MediaItemProcessor,
   ) {}
@@ -50,14 +49,16 @@ export class ImagePageDeleteService {
 
       // A página sai antes da rota: com a página removida, a chave estrangeira
       // deixa de apontar para a rota e a exclusão dela fica livre.
-      await this.dataSource.transaction(async (manager: EntityManager) => {
-        await this.imagePageRepository.removePage(page, manager);
-      });
+      await this.imagePageRepository.runInTransaction(
+        async (manager: EntityManager) => {
+          await this.imagePageRepository.removePage(page, manager);
+        },
+      );
 
       if (page.route?.id) {
-        await this.routeService.removeRoute(page.route.id);
+        await this.deleteRouteService.removeRoute(page.route.id);
       } else {
-        await this.routeService.removeRouteByEntity(
+        await this.deleteRouteService.removeRouteByEntity(
           IMAGE_PAGE_ENTITY_TYPE,
           page.id,
         );

@@ -26,6 +26,7 @@ import {
   TeacherSortField,
 } from '../constants';
 import { TeacherProfilesQueryDto } from '../dto/teacher-profiles.query.dto';
+import { normalizeRole } from 'src/core/auth/role.utils';
 
 /** Uma página de professores, como o banco a devolve. */
 export interface PaginatedTeachers {
@@ -468,16 +469,18 @@ export class TeacherProfilesRepository {
     clubId: string,
     ctx?: AccessContext,
   ): Promise<boolean> {
-    const role = ctx?.role?.toLowerCase();
+    const role = normalizeRole(ctx?.role);
     const userId = ctx?.userId;
-    if (!role || role === 'admin') return true;
+    // Sem papel reconhecido a checagem é dispensada: quem chega aqui já passou
+    // pelo guard, e o papel desconhecido não é escopo a restringir.
+    if (!role || role === UserRole.ADMIN) return true;
     if (!userId) return false;
 
     const qb = this.clubRepo
       .createQueryBuilder('club')
       .where('club.id = :clubId', { clubId });
 
-    if (role === 'coordinator') {
+    if (role === UserRole.COORDINATOR) {
       qb.leftJoin('club.coordinator', 'coord')
         .leftJoin('coord.user', 'coord_user')
         .andWhere('coord_user.id = :uid', { uid: userId });

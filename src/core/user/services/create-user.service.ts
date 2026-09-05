@@ -12,6 +12,8 @@ import { UpdateCoordinatorProfilesService } from 'src/modules/coordinator-profil
 import { UserRole } from 'src/core/auth/auth.types';
 import { AppConflictException, ErrorCode } from 'src/shared/exceptions';
 import { PASSWORD_SALT_ROUNDS } from '../constants';
+import { PasswordRecoveryService } from 'src/core/auth/services/password-recovery.service';
+import { NotifyAccountChangesService } from './notify-account-changes.service';
 
 @Injectable()
 export class CreateUserService {
@@ -23,6 +25,8 @@ export class CreateUserService {
     private readonly updateTeacherProfileService: UpdateTeacherProfilesService,
     private readonly createCoordinatorProfileService: CreateCoordinatorProfilesService,
     private readonly updateCoordinatorProfileService: UpdateCoordinatorProfilesService,
+    private readonly passwordRecoveryService: PasswordRecoveryService,
+    private readonly notifyAccountChanges: NotifyAccountChangesService,
   ) {}
 
   async create(dto: CreateUserDto): Promise<UserEntity> {
@@ -78,6 +82,34 @@ export class CreateUserService {
       );
     }
 
+    await this.welcome(user);
+
     return user;
+  }
+
+  /**
+   * Manda as boas-vindas com um link para a pessoa definir a própria senha.
+   *
+   * O `dto.password` que a coordenação digitou continua valendo como senha da
+   * conta; o link existe porque ela não tem como saber qual senha foi essa, e
+   * mandá-la no corpo do e-mail deixaria uma credencial guardada para sempre na
+   * caixa de entrada.
+   *
+   * A emissão do token é aguardada — sem link não há e-mail a enviar —, mas a
+   * falha não sobe: a conta foi criada, e o "esqueci minha senha" continua
+   * sendo um caminho de entrada.
+   */
+  private async welcome(user: UserEntity): Promise<void> {
+    try {
+      const link = await this.passwordRecoveryService.issuePasswordSetupLink(
+        user.id,
+      );
+      this.notifyAccountChanges.accountCreatedInBackground(user, link);
+    } catch (error: unknown) {
+      this.logger.error(
+        `Falha ao emitir o link de definição de senha do usuário ${user.id}.`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
   }
 }

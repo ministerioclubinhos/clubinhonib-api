@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DataSource } from 'typeorm';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
@@ -12,7 +11,6 @@ import { ImageSectionResponseDto } from '../dto/image-section-response.dto';
 import { toImageSectionResponse } from '../mappers';
 import { NotificationService } from 'src/shared/providers/notification/notification.service';
 import { UploadedFilesDict } from '../types';
-import { ImageSectionEntity } from 'src/modules/pages/image-page/entity/Image-section.entity';
 import {
   AppInternalException,
   AppValidationException,
@@ -24,7 +22,6 @@ export class ImageSectionCreateService {
   private readonly logger = new Logger(ImageSectionCreateService.name);
 
   constructor(
-    private readonly dataSource: DataSource,
     private readonly awsS3Service: AwsS3Service,
     private readonly mediaItemProcessor: MediaItemProcessor,
     private readonly imageSectionRepository: ImageSectionRepository,
@@ -46,10 +43,6 @@ export class ImageSectionCreateService {
       '🚀 Iniciando criação de seção órfã (sem página associada)',
     );
 
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
     // Os arquivos sobem antes do commit e sobrevivem ao rollback: o rastreador
     // permite apagá-los do bucket quando a criação falha.
     const uploads = new S3UploadTracker((file: Express.Multer.File) =>
@@ -57,33 +50,40 @@ export class ImageSectionCreateService {
     );
 
     try {
-      const section = queryRunner.manager.create(ImageSectionEntity, {
-        caption: dto.caption,
-        description: dto.description,
-        // Nasce fora do ar; publicar é decisão da administração.
-        public: false,
-        page: null,
-      });
+      // A transação é aberta pelo repositório; aqui só se decide o que entra
+      // nela. O rollback acontece sozinho quando o bloco lança.
+      const { savedSection, mediaItems } =
+        await this.imageSectionRepository.runInTransaction(async (manager) => {
+          const section = await this.imageSectionRepository.createInTransaction(
+            manager,
+            {
+              caption: dto.caption,
+              description: dto.description,
+              // Nasce fora do ar; publicar é decisão da administração.
+              public: false,
+              page: null,
+            },
+          );
 
-      const savedSection = await queryRunner.manager.save(section);
+          this.validateFiles(dto, filesDict);
 
-      this.validateFiles(dto, filesDict);
+          const preparedMediaItems = dto.mediaItems.map((item) => ({
+            ...item,
+            fileField: item.fieldKey,
+          }));
 
-      const preparedMediaItems = dto.mediaItems.map((item) => ({
-        ...item,
-        fileField: item.fieldKey,
-      }));
+          const media: MediaItemEntity[] =
+            await this.mediaItemProcessor.processMediaItemsPolymorphic(
+              preparedMediaItems,
+              section.id,
+              MediaTargetType.ImagesPage,
+              filesDict,
+              uploads.upload,
+            );
 
-      const mediaItems: MediaItemEntity[] =
-        await this.mediaItemProcessor.processMediaItemsPolymorphic(
-          preparedMediaItems,
-          savedSection.id,
-          MediaTargetType.ImagesPage,
-          filesDict,
-          uploads.upload,
-        );
+          return { savedSection: section, mediaItems: media };
+        });
 
-      await queryRunner.commitTransaction();
       this.logger.log(`Publicação de fotos criada. ID=${savedSection.id}`);
 
       // O aviso nunca derruba o envio: as fotos já estão na fila.
@@ -98,7 +98,6 @@ export class ImageSectionCreateService {
 
       return toImageSectionResponse(savedSection, mediaItems);
     } catch (error: unknown) {
-      await queryRunner.rollbackTransaction();
       await this.mediaItemProcessor.discardUnreferencedUploads(
         uploads.uploadedUrls,
         (url: string) => this.awsS3Service.delete(url),
@@ -113,8 +112,6 @@ export class ImageSectionCreateService {
         'Erro ao criar a seção',
         error as Error,
       );
-    } finally {
-      await queryRunner.release();
     }
   }
 

@@ -44,6 +44,16 @@ export class ImagePageGetService {
     return page;
   }
 
+  /**
+   * A galeria pelo id, sem carregar as seções, ou `null` quando não existe.
+   *
+   * É o que outro módulo precisa para vincular uma seção a esta página: quem
+   * decide o que fazer com a ausência é o chamador.
+   */
+  async findEntity(id: string): Promise<ImagePageEntity | null> {
+    return this.imagePageRepository.findById(id);
+  }
+
   /** Mídias das seções informadas, agrupadas por seção. */
   async findMediaOfSections(sectionIds: string[]): Promise<MediaBySection> {
     if (sectionIds.length === 0) return new Map();

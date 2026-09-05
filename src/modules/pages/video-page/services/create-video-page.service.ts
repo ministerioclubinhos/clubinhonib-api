@@ -1,12 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DataSource, EntityManager } from 'typeorm';
+import { EntityManager } from 'typeorm';
 import {
   AppException,
   AppInternalException,
   ErrorCode,
 } from 'src/shared/exceptions';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
-import { RouteService } from 'src/modules/routes/route.service';
+import { CreateRouteService } from 'src/modules/routes/services/create-route.service';
 import { RouteType } from 'src/modules/routes/route-page.entity';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
@@ -34,10 +34,9 @@ export class CreateVideosPageService {
   private readonly logger = new Logger(CreateVideosPageService.name);
 
   constructor(
-    private readonly dataSource: DataSource,
     private readonly videosPageRepo: VideosPageRepository,
     private readonly s3: AwsS3Service,
-    private readonly routeService: RouteService,
+    private readonly createRouteService: CreateRouteService,
     private readonly mediaItemProcessor: MediaItemProcessor,
   ) {}
 
@@ -49,11 +48,9 @@ export class CreateVideosPageService {
     assertUploadFieldKeys(incomingVideos);
     assertUploadFilesPresent(incomingVideos, filesDict);
 
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
-    let savedPage: VideosPage | null = null;
+    // Fica fora do bloco porque o `catch` precisa do id para varrer a mídia
+    // que tenha sobrado da tentativa.
+    let savedPage: VideosPage | undefined;
 
     // Cada arquivo enviado fica registrado: se a criação falhar depois do
     // upload, o objeto é apagado do bucket em vez de ficar órfão.
@@ -62,22 +59,30 @@ export class CreateVideosPageService {
     );
 
     try {
-      savedPage = await this.persistPageWithRoute(dto, queryRunner.manager);
+      // A transação é aberta pelo repositório; aqui só se decide o que entra
+      // nela. O rollback acontece sozinho quando o bloco lança.
+      const { page, videos } = await this.videosPageRepo.runInTransaction(
+        async (manager) => {
+          const created = await this.persistPageWithRoute(dto, manager);
+          savedPage = created;
 
-      const videos = await this.mediaItemProcessor.processMediaItemsPolymorphic(
-        incomingVideos,
-        savedPage.id,
-        VIDEO_PAGE_ENTITY_TYPE,
-        filesDict,
-        uploads.upload,
+          const media =
+            await this.mediaItemProcessor.processMediaItemsPolymorphic(
+              incomingVideos,
+              created.id,
+              VIDEO_PAGE_ENTITY_TYPE,
+              filesDict,
+              uploads.upload,
+            );
+
+          return { page: created, videos: media };
+        },
       );
 
-      await queryRunner.commitTransaction();
-      this.logger.log(`Página de vídeos criada. ID=${savedPage.id}`);
+      this.logger.log(`Página de vídeos criada. ID=${page.id}`);
 
-      return toVideosPageResponse(savedPage, videos);
+      return toVideosPageResponse(page, videos);
     } catch (error: unknown) {
-      await queryRunner.rollbackTransaction();
       await this.discardOrphanMedia(savedPage?.id);
       await this.mediaItemProcessor.discardUnreferencedUploads(
         uploads.uploadedUrls,
@@ -95,8 +100,6 @@ export class CreateVideosPageService {
         'Erro ao criar a página de vídeos.',
         error as Error,
       );
-    } finally {
-      await queryRunner.release();
     }
   }
 
@@ -113,12 +116,12 @@ export class CreateVideosPageService {
       manager,
     );
 
-    const path = await this.routeService.generateAvailablePath(
+    const path = await this.createRouteService.generateAvailablePath(
       dto.title,
       VIDEO_PAGE_ROUTE_PATH_PREFIX,
     );
 
-    page.route = await this.routeService.createRouteWithManager(manager, {
+    page.route = await this.createRouteService.createRouteWithManager(manager, {
       title: dto.title,
       subtitle: VIDEO_PAGE_ROUTE_SUBTITLE,
       description: dto.description,
