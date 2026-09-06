@@ -48,6 +48,9 @@ cp env/local.env.example env/local.env
 | `GOOGLE_CLIENT_ID` | login com Google | login com Google falha |
 | `TWILIO_ACCOUNT_SID` `TWILIO_AUTH_TOKEN` `TWILIO_WHATSAPP_FROM` `TWILIO_WHATSAPP_TO` | aviso de contato por WhatsApp | o aviso por WhatsApp é ignorado |
 | `FEED_CLUBINHO_PAGE_ID` | página de imagens usada como feed | a atualização de seção do feed falha |
+| `OBS_STORAGE` `OBS_LOCAL_DIR` `OBS_TTL_DAYS` | destino, pasta e retenção (dias) dos registros técnicos | `file`, `logs`, `1` |
+| `AUDIT_STORAGE` `AUDIT_LOCAL_DIR` `AUDIT_TTL_DAYS` `AUDIT_DEDUP_SECONDS` | destino, pasta, retenção e janela de desduplicação da auditoria | `file`, `audit`, `1`, `60` |
+| `LOG_DYNAMODB_TABLE_NAME` `LOG_DYNAMODB_ENDPOINT` | tabela DynamoDB compartilhada pelos dois fluxos e endpoint local opcional | obrigatória quando algum fluxo é `dynamodb`; sem endpoint usa a AWS |
 
 ### Não lidas pelo código, mas necessárias
 
@@ -62,6 +65,20 @@ cp env/local.env.example env/local.env
   SMTP do Gmail.
 - `MAIL_CONTACT_TO`: os avisos de contato vão para os administradores
   cadastrados no banco.
+
+## Observabilidade e auditoria
+
+Os dois fluxos aceitam `file` (JSONL em pasta local, um arquivo por dia UTC e
+por processo, **só para análise**: a API não lista nem apaga) ou `dynamodb`
+(tabela compartilhada, TTL por item, consultável e apagável pela tela de
+administração). No desenvolvimento, `dynamodb` aponta para o DynamoDB Local
+que o `run.sh` sobe no Docker (`LOG_DYNAMODB_ENDPOINT=http://localhost:8000`);
+a tabela é criada automaticamente se não existir. Variável
+ausente recebe o valor padrão acima; variável presente e inválida derruba a
+subida com mensagem segura. `file` explícito é recusado quando `ENVIRONMENT`
+é `staging`, `prod` ou `production`, porque o container não tem volume. As
+pastas `logs` e `audit` estão no `.gitignore`. Detalhes em
+[`../docs/observability-audit.md`](../docs/observability-audit.md).
 
 ## E-mail com Gmail
 

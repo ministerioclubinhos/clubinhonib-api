@@ -1143,29 +1143,48 @@ A entrega só está concluída quando:
 
 ## 21. Registro de decisões
 
-Preencher sem apagar o histórico:
+Preencher sem apagar o histórico. Em 2026-09-05 a implementação foi executada
+com os valores abaixo, **assumidos pelo implementador** na ausência de resposta
+do solicitante; cada linha indica onde a decisão está codificada para que possa
+ser revista sem arqueologia. Responsável: a pessoa que aprovar este diff.
 
 | ID | Decisão | Responsável | Data | Evidência/link |
 | --- | --- | --- | --- | --- |
-| D-001 | Pendente |  |  |  |
-| D-002 | Pendente |  |  |  |
-| D-003 | Pendente |  |  |  |
-| D-004 | Pendente |  |  |  |
-| D-005 | Pendente |  |  |  |
-| D-006 | Pendente |  |  |  |
-| D-007 | Pendente |  |  |  |
-| D-008 | Pendente |  |  |  |
-| D-009 | Pendente |  |  |  |
-| D-010 | Pendente |  |  |  |
-| D-011 | Pendente |  |  |  |
-| D-012 | Pendente |  |  |  |
-| D-013 | Pendente |  |  |  |
-| D-014 | Pendente |  |  |  |
-| D-015 | Pendente |  |  |  |
-| D-016 | Pendente |  |  |  |
-| D-017 | Pendente |  |  |  |
-| D-018 | Pendente |  |  |  |
-| D-019 | Pendente |  |  |  |
-| D-020 | Pendente |  |  |  |
-| D-021 | Pendente |  |  |  |
-| D-022 | Pendente |  |  |  |
+| D-001 | Ação sem identidade validada é `actorType=anonymous`, `actorId=null`. Login, Google, refresh, cadastro e complemento anunciam o UUID ao contexto assim que o resolvem (`AuthService.announceActor`). Nunca se confia em `userId` de body/query/param. | assumido pela implementação | 2026-09-05 | `src/core/request-context/utils.ts` (`actorFromRequestUser`), `src/core/auth/services/auth.service.ts` |
+| D-002 | Fronteiras auditadas: HTTP, jobs do `JobRunnerService` (via `ActionBoundaryService`), listeners de processo e bootstrap. Scripts em `scripts/` fora do Nest ficam fora desta entrega. | assumido | 2026-09-05 | `src/core/audit/services/action-boundary.service.ts`, `src/shared/scheduling/job-runner.service.ts` |
+| D-003 | Tentativas também são auditadas: 401/403 `denied`, 400/409/422 `rejected`, 404 `not_found`, 5xx `failed`. **Somente mutações** (`POST`/`PUT`/`PATCH`/`DELETE`): leituras não geram evento, por decisão do solicitante em 2026-09-05 (revê "todas as ações, inclusive leituras" da seção 2.2). | solicitante (métodos) / assumido (resultados) | 2026-09-05 | `src/core/audit/utils/audit-event.utils.ts` (`outcomeFromStatus`) |
+| D-004 | Agregação (opção 2): o primeiro evento de um fingerprint abre a janela e é gravado inteiro; os iguais dentro dela viram `audit_repeat` apontando para ele (contador no DynamoDB, linha própria em `file`). Nenhuma ação deixa de ser registrada. `0` desliga. | assumido | 2026-09-05 | `src/core/audit/services/audit-deduplication.service.ts`, `dynamodb-log-storage.provider.ts#writeRepeat` |
+| D-005 | Somente metadados. Sem `changedFields`, sem valores anteriores/posteriores, sem snapshots. | assumido | 2026-09-05 | `src/core/audit/types.ts` |
+| D-006 | *Best effort*: fila limitada (1000), escrita assíncrona, timeout 3 s, 1 retry em erro transitório, descarte contado, drenagem de 5 s no shutdown, emergência em stderr. A request nunca espera nem falha pelo storage. Sem outbox MySQL. | assumido | 2026-09-05 | `src/shared/providers/log-storage/delivery/log-delivery-queue.ts`, `constants.ts` |
+| D-007 | `LOG_DYNAMODB_TABLE_NAME` (uma tabela por ambiente) e `LOG_DYNAMODB_ENDPOINT` (só DynamoDB Local). Região em `AWS_REGION`. | assumido | 2026-09-05 | `src/shared/providers/log-storage/constants.ts` (`LogStorageEnv`) |
+| D-008 | API administrativa somente leitura para `admin`: `GET /log-records/observability` e `GET /log-records/audit`, paginação `page`/`limit` com `total`/`pageCount` (envelope `Paginated<T>`; o cursor opaco inicial foi substituído a pedido do solicitante em 2026-09-05, porque a tela precisa do total e do número de páginas), intervalo obrigatório de até 31 dias, filtros allowlisted. **Exclusão** de item (`DELETE .../:eventId?occurredAt`) e de intervalo (`DELETE ...?from&to`) adicionada a pedido do solicitante em 2026-09-05, revendo "nenhuma rota de exclusão"; a chamada é auditada. Com storage `file` a API responde `409 LOG_9101`: os JSONL são só para análise. Access patterns: por intervalo+tipo (PK por dia) e por `requestId` (GSI esparso). Sem GSI de ator/recurso: `actorId` é filtro dentro do intervalo. Consumidor humano: tela do frontend em `/adm/observabilidade-auditoria`. | assumido | 2026-09-05 | `src/core/log-records/`, `docs/observability-audit.md` §6 |
+| D-009 | `AUDIT_TTL_DAYS=1` é valor local inicial, não retenção de compliance. O exemplo de produção sugere 365 (auditoria) e 30 (técnico); política final pendente do negócio. | assumido | 2026-09-05 | `env/prod.env.example` |
+| D-010 | JSONL com extensão `.jsonl`, um objeto por linha, arquivo por dia UTC e processo. | assumido | 2026-09-05 | `file-log-storage.provider.ts`, `FILE_EXTENSION` |
+| D-011 | Persistem `error` e `fatal`. `warn`, `log`, `debug`, `verbose` só no stdout (um 4xx já fica na auditoria com código). | assumido | 2026-09-05 | `src/core/observability/constants.ts` (`PERSISTED_LOG_LEVELS`) |
+| D-012 | Stack é armazenada em todos os ambientes, sanitizada: cabeçalho redigido, caminhos relativos à raiz, até 20 frames, 8 KB. Mesma retenção do fluxo técnico. Não sai na API de listagem. | assumido | 2026-09-05 | `stack-location.utils.ts`, `mappers.ts` |
+| D-013 | IP e User-Agent não são registrados. | assumido | 2026-09-05 | nenhum campo no contrato |
+| D-014 | "Contexto de arquivos" = arquivo/linha/coluna do primeiro frame interno do stack. Metadados de upload (nome original, conteúdo, URL) estão na denylist. | assumido | 2026-09-05 | `SENSITIVE_KEYS` |
+| D-015 | Sim: `StructuredLoggerService` estende `ConsoleLogger`; stdout/stderr continuam como antes e o storage é adicional. | assumido | 2026-09-05 | `structured-logger.service.ts` |
+| D-016 | Limites: evento 64 KB, string 2 KB, mensagem 1 KB, metadata profundidade 3 / 20 chaves / 20 itens, 20 frames, fila 1000, timeout 3 s, 1 retry, 1 shard por dia (sem `SHARD#n` na chave até haver volume medido). Sem SLO de latência medido nesta entrega. | assumido | 2026-09-05 | `constants.ts` dos dois módulos |
+| D-017 | Não decidido em código: criptografia, PITR, deletion protection e tags são da infraestrutura, não entregue. | pendente | | §11.5 |
+| D-018 | Não decidido: sem alarme/canal. O sinal disponível é `[log-storage]` no stderr e `stats()` das filas. | pendente | | `docs/observability-audit.md` §7 |
+| D-019 | `/health` e demais `GET` **não** são auditados (só mutações). Rotas de mutação com handler são auditadas normalmente. 404 sem handler vira `http.unmatched.<METHOD> <rota sanitizada>`. Preflight `OPTIONS` é respondido pelo CORS antes do roteador e não é auditado. | assumido | 2026-09-05 | `unmatchedRouteName` |
+| D-020 | `resourceId` só de params allowlisted (`id`, `clubId`, `teacherId`, `coordinatorId`, `fromCoordinatorId`, `pageId`, `childId`, `key`) ou do `id` tipado do resultado em `POST`; UUIDs de criança/responsável/mídia entram como identificador técnico, sem nome. | assumido | 2026-09-05 | `SAFE_RESOURCE_ID_PARAMS` |
+| D-021 | Infraestrutura (CloudFormation, IAM, workflows) **não** entregue nem executada; código pronto para `dynamodb`. Desenvolvimento usa DynamoDB Local via Docker (`run.sh`), com tabela criada pelo script `dynamodb:local:ensure-table`/provisioner (só com endpoint local). A policy de produção precisa de `PutItem`, `UpdateItem`, `GetItem`, `Query`, `DeleteItem`, `BatchWriteItem` na tabela e `Query` no índice. Risco registrado: sem as variáveis no deploy, o padrão é `file` em container sem volume — os registros seriam efêmeros até a tabela existir. | pendente | | §11.5, `env/prod.env.example` |
+| D-022 | Uma tabela física por ambiente, nome por `LOG_DYNAMODB_TABLE_NAME`; conta/região da própria workload (`AWS_REGION`). `environment` também vai como atributo. | assumido | 2026-09-05 | `dynamodb-client.provider.ts` |
+
+### 21.1 Desvios documentados em relação ao plano
+
+- O registry de componentes ficou em `src/core/request-context/discovery/`
+  (não em `src/core/audit/discovery/`): o logger estruturado também precisa
+  dele para resolver o módulo de cada `context`, e observabilidade não pode
+  depender de auditoria.
+- `registerRepeat` não existe na porta: a repetição viaja como registro
+  `audit_repeat` pela mesma fila, o que preserva a ordem em relação ao primeiro
+  evento.
+- O filtro global é registrado por `APP_FILTER` no `AuditModule` (e não no
+  módulo raiz) porque é ali que vivem os serviços que ele recebe por injeção.
+- Variáveis ausentes recebem o padrão em vez de derrubar o boot (§12.3
+  previa falha): os arquivos reais `env/*.env` e os workflows de deploy não
+  possuem as variáveis, e derrubar produção por isso não era aceitável sem
+  autorização.

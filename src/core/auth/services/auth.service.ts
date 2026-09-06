@@ -1,4 +1,10 @@
-import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  Inject,
+  Optional,
+  forwardRef,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
@@ -16,6 +22,8 @@ import { UserRole, JwtPayload } from '../auth.types';
 import { EmailVerificationService } from './email-verification.service';
 import { UpdateTeacherProfilesService } from 'src/modules/teacher-profiles/services/update-teacher-profiles.service';
 import { NotificationService } from 'src/shared/providers/notification/notification.service';
+import { RequestContextService } from 'src/core/request-context/request-context.service';
+import { normalizeRole } from '../role.utils';
 import {
   AppUnauthorizedException,
   AppNotFoundException,
@@ -48,13 +56,29 @@ export class AuthService {
     @Inject(forwardRef(() => UpdateTeacherProfilesService))
     private readonly updateTeacherProfilesService: UpdateTeacherProfilesService,
     private readonly notificationService: NotificationService,
+    @Optional() private readonly requestContext?: RequestContextService,
   ) {
     this.googleClient = new OAuth2Client(
       configService.getOrThrow<string>('GOOGLE_CLIENT_ID'),
     );
   }
 
+  /**
+   * Informa ao contexto quem acabou de ser identificado.
+   *
+   * Login, cadastro e refresh são as únicas ações em que o ator só é conhecido
+   * depois do boundary; sem isto a auditoria as gravaria como anônimas. Só o
+   * UUID e o papel saem daqui — nunca token, e-mail ou nome.
+   */
+  private announceActor(user: UserEntity): void {
+    this.requestContext?.assignActor({
+      actorId: user.id,
+      actorRole: normalizeRole(user.role) ?? null,
+    });
+  }
+
   private generateTokens(user: UserEntity) {
+    this.announceActor(user);
     const payload = { sub: user.id, email: user.email, role: user.role };
 
     const accessToken = this.jwtService.sign(payload);
@@ -282,6 +306,7 @@ export class AuthService {
       );
     }
 
+    this.announceActor(user);
     await this.updateUserService.update(user.id, {
       name: data.name,
       phone: data.phone,
@@ -319,6 +344,7 @@ export class AuthService {
       role: data.role,
     });
 
+    this.announceActor(user);
     const emailVerification =
       await this.emailVerificationService.sendIfPending(user);
 

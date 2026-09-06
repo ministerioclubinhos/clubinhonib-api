@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -6,6 +6,12 @@ import { RouteModule } from './modules/routes/route.module';
 import { UserModule } from './core/user/user.module';
 import { AuthModule } from './core/auth/auth.module';
 import { FeatureFlagsModule } from './core/feature-flags/feature-flags.module';
+import { RequestContextModule } from './core/request-context/request-context.module';
+import { RequestContextMiddleware } from './core/request-context/request-context.middleware';
+import { ObservabilityModule } from './core/observability/observability.module';
+import { AuditModule } from './core/audit/audit.module';
+import { LogRecordsModule } from './core/log-records/log-records.module';
+import { LogStorageModule } from './shared/providers/log-storage/log-storage.module';
 import { AwsModule } from './shared/providers/aws/aws.module';
 import { EmailModule } from './shared/email';
 import { SiteUrlModule } from './shared/site-url';
@@ -42,6 +48,13 @@ import { ClubControlModule } from './modules/club-control/club-control.module';
       isGlobal: true,
       envFilePath: process.env.ENV_FILE || '.env',
     }),
+    // Contexto, storage, observabilidade e auditoria entram antes de tudo:
+    // são globais e todo módulo abaixo já nasce coberto por eles.
+    RequestContextModule,
+    LogStorageModule,
+    ObservabilityModule,
+    AuditModule,
+    LogRecordsModule,
     DatabaseModule,
     AwsModule,
     EmailModule,
@@ -79,4 +92,9 @@ import { ClubControlModule } from './modules/club-control/club-control.module';
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  /** O contexto de request precisa existir antes de qualquer guard ou rota. */
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(RequestContextMiddleware).forRoutes('*');
+  }
+}

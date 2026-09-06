@@ -1,5 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+
+import { AuditActionType, AuditOutcome } from 'src/core/audit/enums';
+import { ActionBoundaryService } from 'src/core/audit/services/action-boundary.service';
 
 import { JOB_SLOW_RUN_MS } from './constants';
 import {
@@ -44,7 +47,15 @@ export class JobRunnerService {
    */
   private readonly running = new Set<ScheduledJobName>();
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    /**
+     * Fronteira de auditoria dos jobs. Opcional para o runner continuar
+     * construível sozinho nos testes; com ela, cada execução vira uma ação
+     * auditada e todo erro logado no caminho carrega o nome do job.
+     */
+    @Optional() private readonly boundary?: ActionBoundaryService,
+  ) {}
 
   /** Se o agendador está ligado nesta instância. */
   get enabled(): boolean {
@@ -69,6 +80,27 @@ export class JobRunnerService {
       return this.skipped(job, JobSkipReason.AlreadyRunning);
     }
 
+    const execute = () => this.execute(job, task);
+    if (!this.boundary) return execute();
+
+    return this.boundary.run(
+      {
+        actionType: AuditActionType.ScheduledJob,
+        actionName: job,
+        jobName: job,
+      },
+      execute,
+      (result) =>
+        result.status === JobRunStatus.Completed
+          ? AuditOutcome.Succeeded
+          : AuditOutcome.Failed,
+    );
+  }
+
+  private async execute(
+    job: ScheduledJobName,
+    task: JobTask,
+  ): Promise<JobRunResult> {
     this.running.add(job);
     const startedAt = Date.now();
     this.logger.log(`Job "${job}" iniciado.`);

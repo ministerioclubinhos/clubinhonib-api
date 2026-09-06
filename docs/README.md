@@ -33,6 +33,7 @@ Welcome to the official documentation for the **Clubinho NIB API**. This hub ser
 | [**Profiles Admin**](api-profiles-admin.md)           | Role management for Teachers and Coordinators.                                 |
 | [**User & Auth**](auth-module.md)                     | Authentication flows, user management, and security.                           |
 | [**Feature Flags**](api-feature-flags.md)             | Dynamic feature toggling system.                                               |
+| [**Observabilidade e Auditoria**](observability-audit.md) | Registros técnicos e de ações: captura transversal, storage `file`/DynamoDB, API administrativa de consulta. |
 | [**Core / Health**](api-core-app.md)                  | Root endpoints and system health.                                              |
 
 ---

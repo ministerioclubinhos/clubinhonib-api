@@ -95,4 +95,7 @@ export enum ErrorCode {
   S3_DELETE_ERROR = 'INT_9006',
   S3_UPLOAD_ERROR = 'INT_9007',
   TRANSACTION_ERROR = 'INT_9008',
+
+  // Log records (91xx)
+  LOG_QUERY_UNAVAILABLE = 'LOG_9101',
 }

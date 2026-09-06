@@ -26,13 +26,16 @@
     "automation:seed-superuser": "node scripts/automations/bootstrap/seed-superuser.js",
     "s3:audit": "node scripts/s3/audit-orphans.js",
     "email:preview": "ts-node -r tsconfig-paths/register scripts/email/preview.ts",
+    "dynamodb:local:ensure-table": "node --require ts-node/register/transpile-only --require tsconfig-paths/register scripts/dynamodb-local/ensure-table.ts",
     "db:local:migration:generate": "cross-env ENV_FILE=env/local.env node --require ts-node/register/transpile-only --require tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:generate",
     "db:local:migration:deploy": "cross-env ENV_FILE=env/local.env node --require ts-node/register/transpile-only --require tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:run",
     "db:local:migration:status": "cross-env ENV_FILE=env/local.env node --require ts-node/register/transpile-only --require tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:show",
     "db:local:migration:revert": "cross-env ENV_FILE=env/local.env node --require ts-node/register/transpile-only --require tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:revert"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1127.0",
     "@aws-sdk/client-s3": "^3.758.0",
+    "@aws-sdk/lib-dynamodb": "^3.1127.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.1",
     "@nestjs/core": "^11.0.1",
