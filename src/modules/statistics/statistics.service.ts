@@ -47,6 +47,7 @@ import {
   toCount,
 } from './utils/metrics.utils';
 import { toDateOnly } from './utils/date.utils';
+import { toAddressSummary } from './utils/address.utils';
 import {
   ClubAttendanceAnalysisDto,
   WeeklyAttendanceDto,
@@ -770,12 +771,9 @@ export class StatisticsService {
         clubNumber: club.number,
         weekday: club.weekday,
         time: club.time || null,
-        address: {
-          city: club.address.city,
-          state: club.address.state,
-          district: club.address.district,
-          street: club.address.street,
-        },
+        // A relação é opcional: sem isto, um clubinho sem endereço derrubava a
+        // listagem inteira com erro interno.
+        address: toAddressSummary(club.address),
         coordinator: club.coordinator
           ? {
               id: club.coordinator.id,

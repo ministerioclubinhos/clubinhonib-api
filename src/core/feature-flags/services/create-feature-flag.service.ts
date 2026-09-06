@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 
-import { AppBusinessException, ErrorCode } from 'src/shared/exceptions';
+import { AppConflictException, ErrorCode } from 'src/shared/exceptions';
 
 import { FeatureFlagsRepository } from '../feature-flags.repository';
 import { CreateFeatureFlagDto } from '../dto/create-feature-flag.dto';
@@ -74,7 +74,7 @@ export class CreateFeatureFlagService implements OnModuleInit {
     const existing = await this.repository.findByKey(dto.key);
 
     if (existing) {
-      throw new AppBusinessException(
+      throw new AppConflictException(
         ErrorCode.RESOURCE_CONFLICT,
         `Já existe uma feature flag com a chave "${dto.key}"`,
       );

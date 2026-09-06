@@ -69,6 +69,10 @@ export class UpdateUserImageService {
         isLocalFile: body.isLocalFile as boolean | undefined,
         fieldKey: body.fieldKey as string | undefined,
       };
+    } else if (files.length > 0) {
+      // Só o arquivo, sem JSON: é como o painel administrativo envia a foto de
+      // um usuário. Recusar deixava toda troca de foto pelo painel em 422.
+      mediaDto = { uploadType: UploadType.UPLOAD, isLocalFile: true };
     } else {
       throw new AppValidationException(
         ErrorCode.VALIDATION_ERROR,

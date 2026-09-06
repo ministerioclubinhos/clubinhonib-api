@@ -98,7 +98,9 @@ are rejected with `VALIDATION_ERROR`.
 
 `PATCH` accepts the legacy `id` property for backward compatibility with the
 admin form, but the page updated is always the one identified by the route
-parameter.
+parameter. `currentWeek` is accepted in both `POST` and `PATCH` bodies for the
+same reason and is never applied: publishing goes only through
+`POST /week-material-pages/current-week/:id`.
 
 ### Media synchronization on update
 

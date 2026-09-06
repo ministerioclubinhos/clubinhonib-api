@@ -50,11 +50,13 @@ export class ImageSectionsRepository {
       );
     }
 
-    // Aprovada é a que já entrou na página do feed.
+    // Aprovada é a que já entrou na página do feed. O filtro usa o alias da
+    // página juntada: a coluna da FK se chama `pageId`, e `section.page_id`
+    // derrubava a consulta com erro interno.
     if (query.approved === true) {
-      qb.andWhere('section.page_id IS NOT NULL');
+      qb.andWhere('page.id IS NOT NULL');
     } else if (query.approved === false) {
-      qb.andWhere('section.page_id IS NULL');
+      qb.andWhere('page.id IS NULL');
     }
 
     if (query.hasMedia !== undefined) {
@@ -97,7 +99,7 @@ export class ImageSectionsRepository {
 
   /** Quantas fotos aguardam aprovação. */
   async countPending(): Promise<number> {
-    return this.baseQB().where('section.page_id IS NULL').getCount();
+    return this.baseQB().where('page.id IS NULL').getCount();
   }
 
   /** Carrega a seção com a página vinculada, quando existe. */

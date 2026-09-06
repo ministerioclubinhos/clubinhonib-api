@@ -53,7 +53,12 @@ export class AttachIdeasSectionService {
       );
     }
 
-    assertUploadsHaveFiles(dto.medias, filesDict);
+    // Só a mídia nova precisa vir com arquivo; a já gravada volta apenas com o
+    // id e a URL, e o serviço de mídia decide se a reaproveita.
+    assertUploadsHaveFiles(
+      dto.medias?.filter((media) => !media.id),
+      filesDict,
+    );
 
     const uploads = new S3UploadTracker((file: Express.Multer.File) =>
       this.awsS3Service.upload(file),

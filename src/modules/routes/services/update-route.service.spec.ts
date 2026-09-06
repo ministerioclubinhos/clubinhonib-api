@@ -2,7 +2,7 @@ import { Test } from '@nestjs/testing';
 import { EntityManager } from 'typeorm';
 
 import {
-  AppBusinessException,
+  AppConflictException,
   AppNotFoundException,
 } from 'src/shared/exceptions';
 
@@ -119,7 +119,7 @@ describe('UpdateRouteService', () => {
 
       await expect(
         service.updateRoute('route-id', { path: 'tomado' }),
-      ).rejects.toBeInstanceOf(AppBusinessException);
+      ).rejects.toBeInstanceOf(AppConflictException);
 
       expect(routeRepo.saveRoute).not.toHaveBeenCalled();
     });

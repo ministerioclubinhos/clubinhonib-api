@@ -85,6 +85,7 @@ describe('ImagePageUpdateService', () => {
       run(manager),
     ),
     savePage: jest.fn(),
+    findById: jest.fn(),
     findByIdWithSections: jest.fn(),
     findSectionById: jest.fn(),
     saveSection: jest.fn(),
@@ -125,6 +126,11 @@ describe('ImagePageUpdateService', () => {
       (page: ImagePageEntity) => page,
     );
     imagePageRepository.findByIdWithSections.mockResolvedValue(buildPage());
+    imagePageRepository.findById.mockImplementation(() => {
+      const fresh = buildPage();
+      delete (fresh as Partial<ImagePageEntity>).sections;
+      return Promise.resolve(fresh);
+    });
     imagePageRepository.createSection.mockResolvedValue(buildSection('nova'));
     mediaItemProcessor.findManyMediaItemsByTargets.mockResolvedValue([]);
     mediaItemProcessor.findMediaItemsByTarget.mockResolvedValue([]);
@@ -168,6 +174,25 @@ describe('ImagePageUpdateService', () => {
       manager,
     );
     expect(result.id).toBe('page-id');
+  });
+
+  it('grava a galeria a partir de uma leitura sem as seções antigas (cascade não as regrava)', async () => {
+    const stale = buildSection('stale');
+    getService.findEntityOrFail.mockResolvedValue(buildPage([stale]));
+
+    await service.updateImagePage('page-id', validDto({ sections: [] }), {});
+
+    // Antes, a instância com `sections` carregadas era salva depois da
+    // sincronização e o `cascade` reinseria a seção recém-removida.
+    expect(imagePageRepository.findById).toHaveBeenCalledWith(
+      'page-id',
+      manager,
+    );
+    const [saved] = imagePageRepository.savePage.mock.calls[0] as [
+      ImagePageEntity,
+      EntityManager,
+    ];
+    expect(saved.sections).toBeUndefined();
   });
 
   it('remove seções que sumiram do payload, junto das mídias', async () => {

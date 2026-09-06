@@ -57,6 +57,27 @@ describe('UpdateUserImageService', () => {
     service = moduleRef.get(UpdateUserImageService);
   });
 
+  it('aceita só o arquivo, sem imageData, como o painel administrativo envia', async () => {
+    mediaItemProcessor.findMediaItemByTarget.mockResolvedValue(null);
+
+    await service.updateUserImage('user-1', {}, [imageFile]);
+
+    expect(s3Service.upload).toHaveBeenCalledWith(imageFile);
+    expect(mediaItemProcessor.saveMediaItem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: 'https://s3/nova.png',
+        isLocalFile: true,
+        originalName: 'nova.png',
+      }),
+    );
+  });
+
+  it('sem arquivo e sem imageData continua recusando', async () => {
+    await expect(service.updateUserImage('user-1', {}, [])).rejects.toThrow(
+      'imageData é obrigatório',
+    );
+  });
+
   it('sobe a foto nova e grava antes de apagar a antiga', async () => {
     // Na ordem inversa, uma falha no upload deixava o usuário sem foto.
     await service.updateUserImage('user-1', body, [imageFile]);

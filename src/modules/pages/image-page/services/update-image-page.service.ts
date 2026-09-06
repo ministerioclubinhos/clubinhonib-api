@@ -64,12 +64,18 @@ export class ImagePageUpdateService {
 
       const updatedPage = await this.imagePageRepository.runInTransaction(
         async (manager: EntityManager) => {
-          page.name = dto.title;
-          page.description = dto.description;
-          page.public = dto.public;
-          page.route = await this.upsertRoute(route, dto, page.id, manager);
+          // A galeria carregada trouxe as seções antigas, e a relação tem
+          // `cascade`: salvar essa instância regravava as seções que a
+          // sincronização acabou de renomear ou remover, desfazendo a edição.
+          // A gravação parte de uma leitura sem as seções.
+          const target =
+            (await this.imagePageRepository.findById(page.id, manager)) ?? page;
+          target.name = dto.title;
+          target.description = dto.description;
+          target.public = dto.public;
+          target.route = await this.upsertRoute(route, dto, page.id, manager);
 
-          return this.imagePageRepository.savePage(page, manager);
+          return this.imagePageRepository.savePage(target, manager);
         },
       );
 

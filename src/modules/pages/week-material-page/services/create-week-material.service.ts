@@ -17,7 +17,11 @@ import { WeekMaterialsPageResponseDTO } from '../dto/week-material-response.dto'
 import { WeekMaterialsPageEntity } from '../entities/week-material-page.entity';
 import { toWeekMaterialsPageResponse } from '../mappers';
 import { MulterFilesDict } from '../types';
-import { assertUploadFieldKeys, normalizeIncomingMedia } from '../utils';
+import {
+  assertUploadFieldKeys,
+  assertUploadFilesPresent,
+  normalizeIncomingMedia,
+} from '../utils';
 import {
   WEEK_MATERIAL_ENTITY_TYPE,
   WEEK_MATERIAL_ROUTE_IMAGE_URL,
@@ -42,6 +46,10 @@ export class WeekMaterialsPageCreateService {
   ): Promise<WeekMaterialsPageResponseDTO> {
     const incomingMedia = normalizeIncomingMedia(dto);
     assertUploadFieldKeys(incomingMedia);
+    // Arquivo declarado e não enviado é erro de entrada (422). Sem esta
+    // checagem o processador de mídia estourava dentro da transação e a
+    // requisição respondia erro interno.
+    assertUploadFilesPresent(incomingMedia, filesDict);
 
     // Fica fora do bloco porque o `catch` precisa do id para varrer a mídia
     // que tenha sobrado da tentativa.

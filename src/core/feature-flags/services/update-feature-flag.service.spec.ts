@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing';
 
-import { AppBusinessException } from 'src/shared/exceptions';
+import { AppConflictException } from 'src/shared/exceptions';
 
 import { FeatureFlagsRepository } from '../feature-flags.repository';
 import { FeatureFlagEntity } from '../entities/feature-flag.entity';
@@ -66,7 +66,7 @@ describe('UpdateFeatureFlagService', () => {
 
     await expect(
       service.update('statistics', { key: 'pagelas' }),
-    ).rejects.toBeInstanceOf(AppBusinessException);
+    ).rejects.toBeInstanceOf(AppConflictException);
   });
 
   it('não procura conflito quando a chave não muda', async () => {

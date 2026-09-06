@@ -34,7 +34,13 @@ export class UpdateIdeasSectionService {
     filesDict: UploadedFilesDict,
   ): Promise<IdeasSectionResponseDto> {
     const existing = await this.getService.findEntityOrFail(id);
-    assertUploadsHaveFiles(dto.medias, filesDict);
+    // Só a mídia nova precisa vir com arquivo. A já gravada volta apenas com o
+    // id e a URL, e quem decide reaproveitá-la é o serviço de mídia; exigir o
+    // arquivo dela recusava toda edição de uma ideia que tivesse upload.
+    assertUploadsHaveFiles(
+      dto.medias?.filter((media) => !media.id),
+      filesDict,
+    );
 
     // Os arquivos sobem fora da transação: o rastreador permite apagá-los do
     // bucket quando a edição falha depois do upload.

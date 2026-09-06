@@ -118,7 +118,10 @@ export class IdeasSectionsRepository {
       order = IDEAS_SECTION_DEFAULT_ORDER,
     } = query;
 
-    const qb = this.baseQB().where('section.page_id IS NULL');
+    // Pendente é a que ainda não entrou em página nenhuma. O filtro usa o
+    // alias da página juntada: a coluna da FK se chama `pageId`, e
+    // `section.page_id` derrubava a fila inteira com erro interno.
+    const qb = this.baseQB().where('page.id IS NULL');
 
     const search = query.searchString?.trim();
     if (search) {

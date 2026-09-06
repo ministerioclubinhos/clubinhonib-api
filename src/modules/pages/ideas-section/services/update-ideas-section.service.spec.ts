@@ -3,8 +3,13 @@ import { EntityManager } from 'typeorm';
 
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
-import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
+import {
+  MediaItemEntity,
+  UploadType,
+} from 'src/shared/media/media-item/media-item.entity';
+import { AppValidationException } from 'src/shared/exceptions';
 import { IdeasSectionEntity } from 'src/modules/pages/ideas-page/entities/ideas-section.entity';
+import { IdeasSectionMediaType } from '../entities/ideas-section-media-type.enum';
 import { IdeasPageEntity } from 'src/modules/pages/ideas-page/entities/ideas-page.entity';
 
 import { UpdateIdeasSectionDto } from '../dto/update-ideas-section.dto';
@@ -114,6 +119,63 @@ describe('UpdateIdeasSectionService', () => {
       expect.objectContaining({ page: undefined }),
     );
     expect(resposta.pageId).toBeNull();
+  });
+
+  it('aceita mídia de upload já gravada reenviada só com id, sem arquivo novo', async () => {
+    getService.findEntityOrFail.mockResolvedValue(buildSection());
+    const reenviada = {
+      id: 'media-id',
+      title: 'Passo a passo',
+      uploadType: UploadType.UPLOAD,
+      mediaType: IdeasSectionMediaType.DOCUMENT,
+      isLocalFile: true,
+      url: 'https://s3/passo-a-passo.pdf',
+      originalName: 'passo-a-passo.pdf',
+    };
+
+    // Antes, a checagem de arquivos exigia o upload de novo e recusava toda
+    // edição de uma ideia que tivesse arquivo; quem reaproveita é o serviço
+    // de mídia.
+    await service.updateSection(
+      'section-id',
+      { ...dto, medias: [reenviada] },
+      {},
+    );
+
+    expect(mediaService.processSectionMedia).toHaveBeenCalledWith(
+      [reenviada],
+      'section-id',
+      [],
+      {},
+      manager,
+      expect.anything(),
+    );
+  });
+
+  it('recusa mídia nova de upload que veio sem arquivo, antes de abrir transação', async () => {
+    getService.findEntityOrFail.mockResolvedValue(buildSection());
+
+    await expect(
+      service.updateSection(
+        'section-id',
+        {
+          ...dto,
+          medias: [
+            {
+              title: 'Nova',
+              uploadType: UploadType.UPLOAD,
+              mediaType: IdeasSectionMediaType.IMAGE,
+              isLocalFile: true,
+              originalName: 'nova.png',
+              fieldKey: 'nova',
+            },
+          ],
+        },
+        {},
+      ),
+    ).rejects.toBeInstanceOf(AppValidationException);
+
+    expect(sectionRepo.runInTransaction).not.toHaveBeenCalled();
   });
 
   it('varre os arquivos já enviados quando a transação falha', async () => {

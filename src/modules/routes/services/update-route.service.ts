@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 
 import {
-  AppBusinessException,
+  AppConflictException,
   AppNotFoundException,
   ErrorCode,
 } from 'src/shared/exceptions';
@@ -36,7 +36,7 @@ export class UpdateRouteService {
       const existente = await this.routeRepo.findByPath(updateData.path);
 
       if (existente && existente.id !== id) {
-        throw new AppBusinessException(
+        throw new AppConflictException(
           ErrorCode.RESOURCE_CONFLICT,
           `A rota "${updateData.path}" já está em uso`,
         );

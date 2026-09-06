@@ -201,6 +201,20 @@ describe('WeekMaterialsPageUpdateService', () => {
       expect(result.currentWeek).toBe(true);
     });
 
+    it('ignores currentWeek sent in the payload: publishing has its own route', async () => {
+      getService.findOnePage.mockResolvedValue(
+        buildPage({ currentWeek: false }),
+      );
+
+      const result = await service.updateWeekMaterialsPage(
+        'page-id',
+        validDto({ currentWeek: true }),
+        {},
+      );
+
+      expect(result.currentWeek).toBe(false);
+    });
+
     it('removes media dropped by the client', async () => {
       const dropped = buildMedia('dropped');
       getService.findMediaOfPage.mockResolvedValue([dropped]);

@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing';
 
-import { AppBusinessException } from 'src/shared/exceptions';
+import { AppConflictException } from 'src/shared/exceptions';
 
 import { FeatureFlagsRepository } from '../feature-flags.repository';
 import { FeatureFlagEntity } from '../entities/feature-flag.entity';
@@ -120,7 +120,7 @@ describe('CreateFeatureFlagService', () => {
 
       await expect(
         service.create({ key: 'statistics', name: 'Outra' }),
-      ).rejects.toBeInstanceOf(AppBusinessException);
+      ).rejects.toBeInstanceOf(AppConflictException);
     });
 
     it('grava os perfis normalizados', async () => {

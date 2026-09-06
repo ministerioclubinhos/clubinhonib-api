@@ -181,6 +181,31 @@ describe('WeekMaterialsPageCreateService', () => {
     expect(pageRepo.runInTransaction).not.toHaveBeenCalled();
   });
 
+  it('rejects uploaded media whose file was not sent, before opening a transaction', async () => {
+    const dto = validDto({
+      documents: [
+        {
+          title: 'Lição',
+          description: 'Desc',
+          uploadType: UploadType.UPLOAD,
+          mediaType: MediaType.DOCUMENT,
+          isLocalFile: true,
+          fieldKey: 'licao',
+        },
+      ],
+    });
+
+    // The multipart field is declared but no file came under it: a client
+    // error, not an internal one.
+    await expect(
+      service.createWeekMaterialsPage(dto, {}),
+    ).rejects.toBeInstanceOf(AppValidationException);
+    expect(pageRepo.runInTransaction).not.toHaveBeenCalled();
+    expect(
+      mediaItemProcessor.processMediaItemsPolymorphic,
+    ).not.toHaveBeenCalled();
+  });
+
   it('rolls back and removes orphan media when media processing fails', async () => {
     const orphan = Object.assign(new MediaItemEntity(), {
       id: 'orphan',

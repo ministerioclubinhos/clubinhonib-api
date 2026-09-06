@@ -77,7 +77,10 @@ export class WeekMaterialsPageUpdateService {
         title: dto.pageTitle,
         subtitle: dto.pageSubtitle,
         description: dto.pageDescription,
-        currentWeek: dto.currentWeek ?? page.currentWeek ?? false,
+        // Publicar é exclusivo de `POST /current-week/:id`, que também
+        // desmarca a página anterior. Aplicar o flag aqui deixava duas
+        // páginas como "material da semana" ao mesmo tempo.
+        currentWeek: page.currentWeek ?? false,
       };
 
       const updatedPage = await this.pageRepo.runInTransaction(
