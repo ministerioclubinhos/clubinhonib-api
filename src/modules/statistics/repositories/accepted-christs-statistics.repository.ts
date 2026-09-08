@@ -95,8 +95,10 @@ export class AcceptedChristsStatisticsRepository {
 
     switch (groupBy) {
       case 'day':
-        dateFormat = 'DATE(ac.createdAt)';
-        groupByClause = 'DATE(ac.createdAt)';
+        // Texto, e não coluna de data: o driver devolveria um `Date`, que
+        // vira "Mon Mar 02 2026 …" no rótulo do gráfico.
+        dateFormat = "DATE_FORMAT(ac.createdAt, '%Y-%m-%d')";
+        groupByClause = "DATE_FORMAT(ac.createdAt, '%Y-%m-%d')";
         break;
       case 'week':
         dateFormat =
@@ -419,8 +421,10 @@ export class AcceptedChristsStatisticsRepository {
 
     switch (groupBy) {
       case 'day':
-        dateFormat = 'DATE(ac.createdAt)';
-        groupByClause = 'DATE(ac.createdAt)';
+        // Texto, e não coluna de data: o driver devolveria um `Date`, que
+        // vira "Mon Mar 02 2026 …" no rótulo do gráfico.
+        dateFormat = "DATE_FORMAT(ac.createdAt, '%Y-%m-%d')";
+        groupByClause = "DATE_FORMAT(ac.createdAt, '%Y-%m-%d')";
         break;
       case 'week':
         dateFormat =

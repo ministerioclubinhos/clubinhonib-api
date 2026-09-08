@@ -198,9 +198,13 @@ export class StatisticsFiltersService {
   } {
     switch (groupBy) {
       case 'day':
+        // `DATE()` devolve uma coluna de data, e o driver a entrega como
+        // objeto `Date` — que chegava no rótulo do eixo como
+        // "Mon Mar 02 2026 00:00:00 GMT-0400 (Amazon Standard Time)". As
+        // outras granularidades já vinham como texto; esta agora também.
         return {
-          format: 'DATE(pagela.referenceDate)',
-          groupBy: 'DATE(pagela.referenceDate)',
+          format: "DATE_FORMAT(pagela.referenceDate, '%Y-%m-%d')",
+          groupBy: "DATE_FORMAT(pagela.referenceDate, '%Y-%m-%d')",
         };
       case 'week':
         return {
