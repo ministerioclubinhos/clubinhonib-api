@@ -1173,31 +1173,21 @@ effectivenessScore = avgPresenceRate * 0.30 + avgMeditationRate * 0.30 + avgVers
 
 ## 8. Known Issues & Limitations
 
-### 8.1 Critical Issues
+### 8.1 Fixed
 
-#### Hardcoded Dates
-
-**Location**: `statistics-filters.service.ts`, lines 19-21
-
-```typescript
-// ISSUE: Hardcoded for 2025
-const periodStartDate = '2025-01-01';
-const periodEndDate = '2025-12-31';
-const periodYear = 2025;
-```
-
-**Impact**: Queries from 2026 onwards will use incorrect academic period calculations.
-
-**Recommended Fix**: Use dynamic academic period from `PeriodService`.
+| Issue | Was | Fixed by |
+|-------|-----|----------|
+| **Hardcoded 2025 dates** in `statistics-filters.service.ts` | Every query from 2026 on used the wrong academic period | The service now derives the period; no year literal remains in the module. |
+| **`thisMonth` and `last30Days` swapped** in `getOverviewStatistics` | `pagelas.thisMonth` received the rolling 30-day window and `recentActivity.last30Days` received month-to-date. Early in a month the dashboard inflated "this month" and made "last 30 days" tie with "last 7 days". | Destructuring reordered to match the promises; locked by `statistics.service.spec.ts`. |
+| **No caching** on `getOverviewStatistics` | ~30 queries on every page load, tab remount and per admin | One-entry cache, `OVERVIEW_CACHE_TTL_MS` (60s). The response takes no parameters and is admin-only, so one entry serves everyone. |
+| **In-memory grouping** in `getPagelasByAgeGroup` | `getMany()` pulled every matching pagela — with the child joined — into the process before counting | `GROUP BY` with the same 5/10/15 cut-offs as `ageGroup()`. |
 
 ---
 
-### 8.2 Performance Issues
+### 8.2 Open Performance Issues
 
 | Issue | Location | Impact | Recommendation |
 |-------|----------|--------|----------------|
-| No caching | `getOverviewStatistics` | 18 queries per request | Implement cache with 5-15 min TTL |
-| In-memory processing | `getPagelasByAgeGroup` | Memory issues at scale | Use SQL GROUP BY |
 | N+1 queries | `getClubsWithStats` | 7 queries per request | Consolidate with JOINs |
 
 ### 8.3 Scalability Estimates
@@ -1215,6 +1205,7 @@ const periodYear = 2025;
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2026-09-07 | 2.1 | §8 rewritten: the hardcoded-2025 issue was already fixed and no longer exists; records the swapped-window fix, the overview cache and the age-group `GROUP BY`. |
 | 2026-01-20 | 2.0 | Complete rewrite with full endpoint and DTO documentation |
 | - | 1.0 | Initial checklist version |
 

@@ -8,6 +8,7 @@ import { AcceptedChristsStatisticsRepository } from './repositories/accepted-chr
 import { StatisticsPeriodService } from './services/statistics-period.service';
 import { AcademicWeekService } from '../club-control/services/academic-week.service';
 import { PagelasStatsQueryDto } from './dto/pagelas-stats-query.dto';
+import { OVERVIEW_CACHE_TTL_MS } from './constants';
 import { AcceptedChristsStatsQueryDto } from './dto/accepted-christs-stats-query.dto';
 import { PagelasStatsResponseDto } from './dto/pagelas-stats-response.dto';
 import { AcceptedChristsStatsResponseDto } from './dto/accepted-christs-stats-response.dto';
@@ -171,7 +172,24 @@ export class StatisticsService {
     };
   }
 
+  /**
+   * O panorama, guardado por um minuto.
+   *
+   * A resposta não depende de quem pergunta nem de filtro nenhum — a rota é
+   * exclusiva do administrador e não recebe parâmetros —, então uma entrada só
+   * serve a todos. Ver `OVERVIEW_CACHE_TTL_MS` para o porquê do prazo.
+   */
+  private overviewCache: {
+    value: OverviewStatsResponseDto;
+    computedAt: number;
+  } | null = null;
+
   async getOverviewStatistics(): Promise<OverviewStatsResponseDto> {
+    const cached = this.overviewCache;
+    if (cached && Date.now() - cached.computedAt < OVERVIEW_CACHE_TTL_MS) {
+      return cached.value;
+    }
+
     const now = new Date();
     const currentYear = now.getFullYear();
 
@@ -224,10 +242,15 @@ export class StatisticsService {
       totalCounts,
       activeCountsThisMonth,
       pagelasThisWeek,
-      pagelasThisMonth,
+      // A ordem aqui é a ordem das promises abaixo. `pagelasThisMonth` e
+      // `pagelasLast30Days` estavam trocados: o "este mês" da tela recebia a
+      // janela móvel de 30 dias e o "últimos 30 dias" recebia o mês corrente.
+      // No dia 7 de um mês, isso mostrava 30 dias de dados como "este mês" e
+      // fazia "últimos 30 dias" empatar com "últimos 7 dias".
+      pagelasLast30Days,
       pagelasLastSixWeeks,
       pagelasLast7Days,
-      pagelasLast30Days,
+      pagelasThisMonth,
       acceptedChristsThisWeek,
       acceptedChristsThisMonth,
       acceptedChristsThisYear,
@@ -311,7 +334,7 @@ export class StatisticsService {
       threeMonthsAgoAcceptedChrists,
     );
 
-    return {
+    const overview: OverviewStatsResponseDto = {
       summary: {
         totalChildren: totalCounts.totalChildren,
         totalClubs: totalCounts.totalClubs,
@@ -391,6 +414,10 @@ export class StatisticsService {
         topCities: geographicDistribution.topCities.slice(0, 10),
       },
     };
+
+    this.overviewCache = { value: overview, computedAt: Date.now() };
+
+    return overview;
   }
 
   async getPagelasStatistics(

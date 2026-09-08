@@ -31,6 +31,28 @@ import {
  * de 3.400 linhas. O bloco alcança uma tabela e o serviço de filtros, e nada
  * mais — por isso sai inteiro.
  */
+/**
+ * A faixa etária calculada no banco, com os mesmos cortes de `ageGroup()`.
+ *
+ * Repetida no `SELECT` e no `GROUP BY` porque o MySQL não aceita apelido de
+ * coluna no agrupamento — daí a constante, para as duas não divergirem.
+ */
+const AGE_GROUP_SQL = `CASE
+  WHEN TIMESTAMPDIFF(YEAR, child.birthDate, CURDATE()) <= 5 THEN '0-5'
+  WHEN TIMESTAMPDIFF(YEAR, child.birthDate, CURDATE()) <= 10 THEN '6-10'
+  WHEN TIMESTAMPDIFF(YEAR, child.birthDate, CURDATE()) <= 15 THEN '11-15'
+  ELSE '16+'
+END`;
+
+/** Uma linha do agrupamento por faixa etária, como o driver a devolve. */
+interface AgeGroupRaw {
+  ageGroup: string;
+  total: string;
+  presentCount: string | null;
+  meditationCount: string | null;
+  verseCount: string | null;
+}
+
 @Injectable()
 export class PagelasStatisticsRepository {
   constructor(
@@ -237,10 +259,20 @@ export class PagelasStatisticsRepository {
     });
   }
 
+  /**
+   * Pagelas por faixa etária, agrupadas pelo banco.
+   *
+   * Antes esta consulta fazia `getMany()` com a criança carregada junto e
+   * contava as faixas em JavaScript: sem filtro, isso trazia a tabela inteira
+   * de pagelas para a memória do processo. A conta é a mesma de
+   * `ageGroup()` — os cortes em 5, 10 e 15 anos —, feita agora onde os dados
+   * estão. `TIMESTAMPDIFF` em anos já desconta o aniversário que ainda não
+   * chegou, que é a mesma regra de `ageInYears`.
+   */
   async getPagelasByAgeGroup(filters: PagelasStatsQueryDto) {
     const query = this.pagelasRepository
       .createQueryBuilder('pagela')
-      .leftJoinAndSelect('pagela.child', 'child')
+      .leftJoin('pagela.child', 'child')
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
       .leftJoin('child.address', 'address')
@@ -249,41 +281,29 @@ export class PagelasStatisticsRepository {
 
     this.filtersService.applyPagelasFilters(query, filters);
 
-    const pagelas = await query.getMany();
+    const rows = await query
+      .select(AGE_GROUP_SQL, 'ageGroup')
+      .addSelect('COUNT(pagela.id)', 'total')
+      .addSelect('SUM(pagela.present)', 'presentCount')
+      .addSelect('SUM(pagela.didMeditation)', 'meditationCount')
+      .addSelect('SUM(pagela.recitedVerse)', 'verseCount')
+      .groupBy(AGE_GROUP_SQL)
+      .getRawMany<AgeGroupRaw>();
 
-    const ageGroups = new Map<string, AgeGroupStats>();
+    return rows.map((row) => {
+      const total = Number(row.total);
+      // `SUM` de um grupo sem linhas devolve `NULL`; aqui isso é zero.
+      const rate = (count: string | null) =>
+        total > 0 ? (Number(count ?? 0) / total) * 100 : 0;
 
-    pagelas.forEach((pagela) => {
-      const age = ageInYears(pagela.child.birthDate);
-      const ageGroup = toAgeGroup(age);
-
-      if (!ageGroups.has(ageGroup)) {
-        ageGroups.set(ageGroup, {
-          ageGroup,
-          total: 0,
-          presentCount: 0,
-          meditationCount: 0,
-          verseCount: 0,
-        });
-      }
-
-      const group = ageGroups.get(ageGroup)!;
-      group.total++;
-      if (pagela.present) group.presentCount++;
-      if (pagela.didMeditation) group.meditationCount++;
-      if (pagela.recitedVerse) group.verseCount++;
+      return {
+        ageGroup: row.ageGroup,
+        total,
+        presenceRate: rate(row.presentCount),
+        meditationRate: rate(row.meditationCount),
+        verseRecitationRate: rate(row.verseCount),
+      };
     });
-
-    return Array.from(ageGroups.values()).map((group) => ({
-      ageGroup: group.ageGroup,
-      total: group.total,
-      presenceRate:
-        group.total > 0 ? (group.presentCount / group.total) * 100 : 0,
-      meditationRate:
-        group.total > 0 ? (group.meditationCount / group.total) * 100 : 0,
-      verseRecitationRate:
-        group.total > 0 ? (group.verseCount / group.total) * 100 : 0,
-    }));
   }
 
   async getPagelasByClub(filters: PagelasStatsQueryDto) {
