@@ -36,6 +36,27 @@ export function assertCanManageClubs(context: ClubAccessContext): void {
   }
 }
 
+/**
+ * Só administrador exclui um clubinho.
+ *
+ * É a única operação de clubinho fechada para a coordenação, e a razão é ser a
+ * única irreversível: o coordenador muda dia, horário, endereço e equipe, e
+ * pode **desativar** o clubinho — que tira o encontro do calendário e preserva
+ * o histórico, com volta. A exclusão apaga a linha e desvincula as crianças.
+ *
+ * O erro é o de acesso negado, e não "não encontrado": esconder a existência do
+ * clubinho não faria sentido para quem o coordena e o vê na própria listagem.
+ */
+export function assertCanDeleteClub(context: ClubAccessContext): void {
+  if (normalizedRole(context) === UserRole.ADMIN) return;
+
+  throw new AppForbiddenException(
+    ErrorCode.CLUB_ACCESS_DENIED,
+    'Apenas um administrador pode excluir um clubinho. ' +
+      'Para tirá-lo do ar preservando o histórico, desative-o.',
+  );
+}
+
 /** Horário em `HH:mm`, ou `null` quando não há. */
 export function toDisplayTime(value?: string | null): string | null {
   return typeof value === 'string' ? value.slice(0, 5) : null;
@@ -47,34 +68,4 @@ export function formatClubOptionLabel(
   district?: string | null,
 ): string {
   return `Clubinho ${number} : ${district?.trim() || CLUB_DISTRICT_FALLBACK}`;
-}
-
-/**
- * Um coordenador só traz para o clubinho dele um professor que já esteja sob a
- * sua coordenação.
- *
- * Vincular passou a mover o professor entre clubinhos; sem esta conferência, o
- * formulário do clubinho seria a porta dos fundos para tirar um professor da
- * turma de outra coordenação.
- */
-export function assertCanTakeTeachers(args: {
-  context: ClubAccessContext;
-  targetClubId: string | null;
-  currentClubIdByTeacher: Map<string, string | null>;
-  accessibleClubIds: Set<string>;
-}): void {
-  const { context, targetClubId, currentClubIdByTeacher, accessibleClubIds } =
-    args;
-
-  if (normalizedRole(context) !== UserRole.COORDINATOR) return;
-
-  for (const [, currentClubId] of currentClubIdByTeacher) {
-    if (!currentClubId || currentClubId === targetClubId) continue;
-    if (accessibleClubIds.has(currentClubId)) continue;
-
-    throw new AppForbiddenException(
-      ErrorCode.CLUB_ACCESS_DENIED,
-      'Um dos professores está em um clubinho de outra coordenação',
-    );
-  }
 }

@@ -18,6 +18,7 @@ import {
 } from '../entities/event.entity';
 import { toEventResponse } from '../mappers';
 import { AnnounceEventService } from './announce-event.service';
+import { ClubMeetingScheduleService } from './club-meeting-schedule.service';
 import { EVENT_FILE_FIELD, EVENT_MEDIA_TARGET_TYPE } from '../constants';
 
 @Injectable()
@@ -29,6 +30,7 @@ export class CreateEventService {
     private readonly s3Service: AwsS3Service,
     private readonly mediaItemProcessor: MediaItemProcessor,
     private readonly announceService: AnnounceEventService,
+    private readonly scheduleService: ClubMeetingScheduleService,
   ) {}
 
   async create(
@@ -58,7 +60,11 @@ export class CreateEventService {
 
       this.announceService.announceInBackground('created', savedEvent);
 
-      return toEventResponse(savedEvent, media);
+      return toEventResponse(
+        savedEvent,
+        media,
+        await this.occurrencesOf(savedEvent),
+      );
     } catch (error: unknown) {
       await this.mediaItemProcessor.discardUnreferencedUploads(
         uploads.uploadedUrls,
@@ -117,5 +123,18 @@ export class CreateEventService {
     );
 
     return this.mediaItemProcessor.saveMediaItem(media);
+  }
+
+  /**
+   * Em que dias o evento acontece, para a resposta.
+   *
+   * Sem isto o corpo do `POST`/`PATCH` voltava com `occurrences` vazio — que no
+   * contrato significa "não acontece em dia nenhum". A tela recarrega a agenda
+   * depois de salvar e não chegava a mostrar o erro, mas qualquer cliente que
+   * lesse a resposta veria um evento sem data.
+   */
+  private async occurrencesOf(event: EventEntity): Promise<string[]> {
+    const byEvent = await this.scheduleService.occurrencesByEvent([event]);
+    return byEvent.get(event.id) ?? [];
   }
 }

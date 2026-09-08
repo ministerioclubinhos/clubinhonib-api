@@ -138,6 +138,25 @@ ChildResponseDto
 
 #### 5. PUT `/children/:id`
 
+**Who may change the child's club:**
+
+| Role | Move to another club | Unlink (`clubId: null`) |
+| --- | --- | --- |
+| Admin | Any club | Yes |
+| Coordinator | Only clubs under their coordination | No — `403` (`CHILD_7002`) |
+| Teacher | No — `403` (`CHILD_7002`) | No — `403` |
+
+The rule applies to a **change**, not to the field being present: the form
+resends `clubId` untouched on every edit, so a teacher fixing a phone number
+must not trip on it. Unlinking used to have no check at all — moving went
+through the scope test, `clubId: null` went straight through. A child with no
+club leaves the coordination that was following them and becomes visible to
+every role (the role filter hands over `club_id IS NULL` to everyone), so
+cutting the link is admin-only.
+
+On `/area-das-criancas` the club field is shown but locked for a teacher — the
+API refuses the change anyway, and the helper text points at the coordination.
+
 Update a child.
 
 **Request Body:**
@@ -174,7 +193,17 @@ ChildResponseDto
 
 #### 6. DELETE `/children/:id`
 
-Remove a child.
+Remove a child. **Admin only** — `403` (`CHILD_7002`) for anyone else.
+
+Deleting is the only child operation closed to coordinators and teachers, and
+the reason is that it is the only irreversible one: the row is gone and with it
+the pagela history. `PATCH /children/:id/toggle-active` covers the real need —
+"this child does not come any more" — keeping the record and undoable, and stays
+open to every role.
+
+The route had no role guard at all: whoever could see a child could delete one.
+Since the role filter also hands over every child **with no club**
+(`c.club_id IS NULL`), a teacher could delete any child not yet assigned.
 
 **Response:**
 
@@ -414,13 +443,51 @@ club. Children keep their record with `clubId` set to `NULL`.
 
 ---
 
+### What a coordinator decides alone
+
+A coordinator manages the clubs under their coordination without going through
+an admin:
+
+| Operation | Allowed for a coordinator |
+| --- | --- |
+| Change the club's **weekday** and **time** | Yes, on their own clubs |
+| Add or remove **any** teacher, wherever that teacher is today | Yes, on their own clubs |
+| Change the club's address, number, active flag | Yes, on their own clubs |
+| **Deactivate** the club | Yes — it leaves the calendar and the history stays |
+| **Delete** the club | **No — admin only** |
+| Act on a club of another coordination | No — `404`, the club is hidden |
+| Move the club to another coordination | No — `403` |
+| Create, edit or delete an academic period or a calendar exception | No — admin only |
+
+Deleting is the only club operation closed to coordinators, and the reason is
+that it is the only irreversible one: the row is gone and the children are
+unlinked from it. Deactivating covers the same need with a way back, so the
+coordinator keeps it. `DELETE /clubs/:id` answers `403` with the message
+pointing at that alternative, and the club card hides the button for anyone who
+is not an admin (`clubLinkPermissionsOf().canDeleteClub`).
+
+Changing the weekday rebuilds the club's meeting series in the calendar from
+today: the whole series moves day, so keeping the old start date would claim
+meetings that never happened. See `SyncClubEventService`.
+
+---
+
 #### 8. PATCH `/clubs/:id/toggle-active`
 
 Activate or deactivate a club. Only admin and coordinator can use this endpoint.
 
-Deactivating a club removes its weekly meeting from the calendar; activating it
-puts the meeting back. Creating, updating and deleting a club keep that meeting
-in sync the same way — see `SyncClubEventService`. None of it sends e-mail.
+Deactivating a club removes **all** of its club days from the calendar — an
+inactive club has none. Activating it creates them again, valid from the day of
+the reactivation. Creating, updating and deleting a club keep those days in sync
+the same way — see `SyncClubEventService`. None of it sends e-mail.
+
+The week-by-week record of what happened lives in `club_control_logs`, not in
+the calendar: the calendar shows what is valid now.
+
+Which days the meeting actually falls on comes from the academic period and the
+calendar exceptions, computed at read time — with no active period for the year,
+the club has no meeting days at all. See "Encontro semanal do clubinho" in
+[`api-content-management.md`](api-content-management.md).
 
 **Response:**
 
@@ -602,7 +669,13 @@ ClubResponseDto
 
 2. **Permissions:**
    - **Children toggle-active:** All roles (admin, coordinator, teacher)
+   - **Children delete:** Admin only
    - **Clubs toggle-active:** Only admin and coordinator
+   - **Clubs delete:** Admin only
+
+   Deleting is admin-only on both, for the same reason: it is the only
+   irreversible operation, and deactivating covers the same need with a way
+   back.
 
 3. **Default Values:**
    - When creating a child/club without specifying `isActive`, default is `true` (active)

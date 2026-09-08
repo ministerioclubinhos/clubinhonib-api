@@ -1,8 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, FindOptionsWhere, Repository } from 'typeorm';
+import {
+  EntityManager,
+  FindOptionsWhere,
+  IsNull,
+  Not,
+  Repository,
+} from 'typeorm';
 import { EventEntity } from '../entities/event.entity';
-import { EventContent } from '../types';
+import { ClubMeetingSummary, EventContent } from '../types';
 
 @Injectable()
 export class EventRepository {
@@ -38,8 +44,30 @@ export class EventRepository {
     return this.scoped(manager).findOne({ where: { clubId } });
   }
 
+  /** Tira do calendário todos os dias de um clubinho. */
   async removeByClubId(clubId: string, manager?: EntityManager): Promise<void> {
     await this.scoped(manager).delete({ clubId });
+  }
+
+  /**
+   * Situação da série de cada clubinho que já tem encontro.
+   *
+   * Uma consulta só, com as três colunas que a reconciliação lê: perguntar
+   * clubinho por clubinho faria uma ida ao banco por linha da lista.
+   */
+  async findClubMeetingSummaries(
+    manager?: EntityManager,
+  ): Promise<ClubMeetingSummary[]> {
+    const rows = await this.scoped(manager).find({
+      where: { clubId: Not(IsNull()) },
+      select: ['id', 'clubId', 'title', 'description'],
+    });
+
+    return rows.map((row) => ({
+      clubId: row.clubId as string,
+      title: row.title,
+      description: row.description,
+    }));
   }
 
   async findById(

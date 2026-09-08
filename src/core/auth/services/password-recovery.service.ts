@@ -67,6 +67,10 @@ export class PasswordRecoveryService {
       expiresAt,
     );
 
+    // `EmailService` não lança: uma falha de envio é registrada lá e a resposta
+    // segue igual. É o que a rota precisa — ela responde a mesma coisa para
+    // endereço existente e inexistente, de propósito, e um erro só no caso do
+    // endereço que existe revelaria quem tem conta.
     await this.emailService.sendPasswordRecovery(
       { id: user.id, name: user.name, email: user.email },
       {
@@ -139,6 +143,9 @@ export class PasswordRecoveryService {
 
     await this.passwordResetTokenRepo.deleteToken(dto.token);
 
+    // O aviso é consequência, não parte da troca: quando ele sai, a senha já
+    // mudou e o token já foi apagado. `EmailService` não lança, então a
+    // resposta de sucesso não depende do provedor de e-mail estar de pé.
     await this.emailService.sendPasswordChanged(
       { id: user.id, name: user.name, email: user.email },
       {

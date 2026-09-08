@@ -12,13 +12,13 @@ export const EVENT_PAYLOAD_FIELD = 'eventData';
 /** Campo multipart do arquivo enviado. */
 export const EVENT_FILE_FIELD = 'file';
 
-/** Título do encontro semanal, por número do clubinho. */
+/** Título do dia de clubinho no calendário, por número do clubinho. */
 export const clubMeetingTitle = (clubNumber: number): string =>
-  `Clubinho #${clubNumber}`;
+  `Dia do Clubinho ${clubNumber}`;
 
-/** Descrição do encontro semanal. */
+/** Descrição do dia de clubinho no calendário. */
 export const clubMeetingDescription = (clubNumber: number): string =>
-  `Encontro semanal do Clubinho #${clubNumber}.`;
+  `Dia semanal do Clubinho ${clubNumber}`;
 
 /** Texto usado quando o clubinho não tem endereço cadastrado. */
 export const CLUB_MEETING_LOCATION_FALLBACK = 'Endereço não informado';

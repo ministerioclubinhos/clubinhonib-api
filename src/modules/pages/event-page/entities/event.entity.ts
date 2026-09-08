@@ -1,4 +1,4 @@
-import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from 'src/shared/share-entity/base.entity';
 import { ClubEntity } from 'src/modules/clubs/entities/club.entity';
 import { Weekday } from 'src/modules/clubs/entities/weekday.enum';
@@ -72,12 +72,23 @@ export class EventEntity extends BaseEntity {
   /**
    * Clubinho que originou o evento. Preenchido só nos encontros semanais, que
    * são criados e mantidos pela sincronização — não pelo formulário.
+   *
+   * `CASCADE`: os dias de um clubinho não existem sem ele. Desativar já apaga
+   * a linha pela sincronização; a cascata é a rede de segurança para o caso de
+   * o clubinho sumir por outro caminho.
    */
-  @Index()
   @ManyToOne(() => ClubEntity, { nullable: true, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'club_id' })
   club?: ClubEntity | null;
 
-  @Column({ name: 'club_id', type: 'varchar', nullable: true })
+  /**
+   * Único de propósito: um clubinho tem no máximo um encontro no calendário, e
+   * é o banco que impõe isso. Uma segunda linha para o mesmo clubinho passa a
+   * ser impossível — nem por corrida entre instâncias, nem por reprocessamento
+   * da rotina de reconciliação. Em MySQL a unicidade ignora `NULL`, então os
+   * encontros já encerrados, que perdem o vínculo quando o clubinho é excluído,
+   * convivem sem conflito.
+   */
+  @Column({ name: 'club_id', type: 'varchar', nullable: true, unique: true })
   clubId?: string | null;
 }

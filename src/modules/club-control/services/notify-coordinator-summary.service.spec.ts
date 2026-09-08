@@ -115,7 +115,8 @@ describe('NotifyCoordinatorSummaryService', () => {
         ],
         // Dois clubes, um pendente.
         clubsOk: 1,
-        panelLink: 'https://clubinhonib.com/adm/controle-clubinhos',
+        // O link abre o resumo das semanas, não o painel do administrador.
+        panelLink: 'https://clubinhonib.com/adm/resumo-semanal',
       }),
     );
   });

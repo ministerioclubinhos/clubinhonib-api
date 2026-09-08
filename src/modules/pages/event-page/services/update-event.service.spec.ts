@@ -16,6 +16,7 @@ import { EventRepository } from '../repositories/event.repository';
 import { EventEntity } from '../entities/event.entity';
 import { UpdateEventService } from './update-event.service';
 import { AnnounceEventService } from './announce-event.service';
+import { ClubMeetingScheduleService } from './club-meeting-schedule.service';
 
 const storedMedia = Object.assign(new MediaItemEntity(), {
   id: 'media-1',
@@ -58,6 +59,10 @@ describe('UpdateEventService', () => {
     findMediaOf: jest.fn(),
   };
   const s3Service = { upload: jest.fn(), delete: jest.fn() };
+  // Em que dias o evento acontece: a resposta do PATCH carrega isso.
+  const scheduleService = {
+    occurrencesByEvent: jest.fn().mockResolvedValue(new Map()),
+  };
   const announceService = { announceInBackground: jest.fn() };
   const mediaItemProcessor = {
     findMediaItemsByTarget: jest.fn(),
@@ -87,6 +92,7 @@ describe('UpdateEventService', () => {
         { provide: AwsS3Service, useValue: s3Service },
         { provide: MediaItemProcessor, useValue: mediaItemProcessor },
         { provide: AnnounceEventService, useValue: announceService },
+        { provide: ClubMeetingScheduleService, useValue: scheduleService },
       ],
     }).compile();
 
@@ -170,5 +176,18 @@ describe('UpdateEventService', () => {
     await expect(service.update('x', dto())).rejects.toBeInstanceOf(
       AppNotFoundException,
     );
+  });
+
+  it('devolve em que dias o evento acontece', async () => {
+    // Sem isto a resposta voltava com `occurrences` vazio — que no contrato
+    // significa "não acontece em dia nenhum". A tela recarrega a agenda depois
+    // de salvar e escondia o erro, mas o corpo da resposta estava mentindo.
+    scheduleService.occurrencesByEvent.mockResolvedValue(
+      new Map([['event-1', ['2026-04-12']]]),
+    );
+
+    const response = await service.update('event-1', { title: 'Festa' });
+
+    expect(response.occurrences).toEqual(['2026-04-12']);
   });
 });

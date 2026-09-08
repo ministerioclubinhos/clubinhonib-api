@@ -11,6 +11,7 @@ import { EventRepository } from '../repositories/event.repository';
 import { GetEventService } from './get-event.service';
 import { AnnounceEventService } from './announce-event.service';
 import { EVENT_MEDIA_TARGET_TYPE } from '../constants';
+import { assertNotClubMeeting } from '../utils';
 
 @Injectable()
 export class DeleteEventService {
@@ -27,6 +28,7 @@ export class DeleteEventService {
 
   async remove(id: string): Promise<void> {
     const event = await this.getService.findEntityOrFail(id);
+    assertNotClubMeeting(event);
 
     try {
       const media = await this.mediaItemProcessor.findMediaItemsByTarget(

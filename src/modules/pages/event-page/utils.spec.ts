@@ -1,7 +1,12 @@
-import { AppValidationException } from 'src/shared/exceptions';
+import {
+  AppBusinessException,
+  AppValidationException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import { CreateEventDto } from './dto/create-event.dto';
 import { Weekday } from 'src/modules/clubs/entities/weekday.enum';
 import {
+  assertNotClubMeeting,
   formatClubLocation,
   nextOccurrence,
   parseAndValidatePayload,
@@ -133,6 +138,33 @@ describe('utils do evento', () => {
       expect(today.getHours()).toBe(0);
       expect(today.getMinutes()).toBe(0);
       expect(today.getSeconds()).toBe(0);
+    });
+  });
+
+  describe('assertNotClubMeeting', () => {
+    it('deixa passar um evento comum da agenda', () => {
+      expect(() => assertNotClubMeeting({ clubId: null })).not.toThrow();
+      expect(() => assertNotClubMeeting({})).not.toThrow();
+    });
+
+    it('recusa mexer no encontro semanal de um clubinho', () => {
+      // Alterar por aqui seria desfeito na próxima sincronização, e excluir
+      // deixaria o clubinho sem encontro — antes desta trava, ainda disparava
+      // um e-mail de "evento cancelado" para toda a base.
+      expect(() => assertNotClubMeeting({ clubId: 'club-1' })).toThrow(
+        AppBusinessException,
+      );
+    });
+
+    it('devolve um código próprio, para a tela explicar o motivo', () => {
+      try {
+        assertNotClubMeeting({ clubId: 'club-1' });
+        throw new Error('deveria ter lançado');
+      } catch (error) {
+        expect((error as AppBusinessException).code).toBe(
+          ErrorCode.CLUB_MEETING_NOT_EDITABLE,
+        );
+      }
     });
   });
 });

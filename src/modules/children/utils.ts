@@ -4,6 +4,31 @@
  * Antes cada serviço carregava a sua cópia de `toDateOnlyStr`, e as quatro já
  * podiam divergir sem que nada acusasse.
  */
+import { AppForbiddenException, ErrorCode } from 'src/shared/exceptions';
+import { AccessContext, UserRole } from 'src/core/auth/auth.types';
+
+/**
+ * Só administrador exclui uma criança.
+ *
+ * É a única operação sobre a criança fechada para quem cuida do clubinho, e a
+ * razão é ser a única irreversível: a linha some, e com ela o histórico de
+ * pagelas e a presença nas estatísticas. **Desativar** cobre a necessidade real
+ * — "esta criança não vem mais" — mantendo o registro e podendo ser desfeito.
+ *
+ * A rota não tinha guarda de papel nenhuma: quem enxergava a criança podia
+ * apagá-la. Como o recorte por papel também entrega as crianças **sem
+ * clubinho**, um professor conseguia excluir qualquer criança ainda não
+ * vinculada.
+ */
+export function assertCanDeleteChild(context: AccessContext): void {
+  if (context.role === UserRole.ADMIN) return;
+
+  throw new AppForbiddenException(
+    ErrorCode.CHILD_ACCESS_DENIED,
+    'Apenas um administrador pode excluir uma criança. ' +
+      'Para registrar que ela não frequenta mais, desative-a.',
+  );
+}
 
 /**
  * Data em `YYYY-MM-DD`.
@@ -42,4 +67,42 @@ export function toIsoDateTime(value: unknown): string {
   return Number.isNaN(parsed.getTime())
     ? new Date().toISOString()
     : parsed.toISOString();
+}
+
+/**
+ * Quem pode mudar o clubinho de uma criança.
+ *
+ * O professor cuida da turma dele: edita a criança, mas não a move nem a
+ * desvincula. Antes o formulário oferecia o campo e a API aceitava — e o
+ * caminho mais fácil, limpar o campo, não tinha checagem nenhuma.
+ *
+ * O coordenador troca entre os clubinhos que coordena; o destino continua sendo
+ * conferido depois, contra o escopo dele.
+ */
+export function assertCanChangeChildClub(context: AccessContext): void {
+  if (context.role !== UserRole.TEACHER) return;
+
+  throw new AppForbiddenException(
+    ErrorCode.CHILD_ACCESS_DENIED,
+    'Um professor não altera o clubinho de uma criança. ' +
+      'Peça à coordenação para transferi-la.',
+  );
+}
+
+/**
+ * Desvincular é só do administrador.
+ *
+ * Uma criança sem clubinho sai do alcance de quem a acompanhava e passa a
+ * aparecer para todos os papéis — o recorte por papel entrega as crianças sem
+ * clubinho a qualquer professor ou coordenador. Tirar o vínculo é, na prática,
+ * soltar a criança da estrutura, e isso não é decisão de uma coordenação só.
+ */
+export function assertCanUnlinkChildClub(context: AccessContext): void {
+  if (context.role === UserRole.ADMIN) return;
+
+  throw new AppForbiddenException(
+    ErrorCode.CHILD_ACCESS_DENIED,
+    'Apenas um administrador pode deixar uma criança sem clubinho. ' +
+      'Para movê-la, escolha o novo clubinho.',
+  );
 }

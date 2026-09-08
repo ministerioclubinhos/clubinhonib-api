@@ -79,7 +79,9 @@ describe('UpdateTeacherProfilesService', () => {
      * Vincular move o professor entre clubinhos. Sem checar a turma atual, um
      * coordenador puxaria um professor da coordenação alheia para a dele.
      */
-    it('o coordenador não tira um professor de um clubinho que não coordena', async () => {
+    it('o coordenador traz um professor de qualquer clubinho', async () => {
+      // Ele monta a equipe do clubinho dele com quem quiser: vincular move o
+      // vínculo, e o professor sai do clubinho anterior.
       repo.findOneWithClubAndCoordinatorOrFail.mockResolvedValue({
         id: 'teacher-1',
         club: { id: 'club-de-outro' },
@@ -89,17 +91,38 @@ describe('UpdateTeacherProfilesService', () => {
       );
       const service = await buildService();
 
+      await service.assignClub(coordinator, 'teacher-1', 'club-meu');
+
+      expect(repo.assignTeacherToClub).toHaveBeenCalledWith(
+        'teacher-1',
+        'club-meu',
+      );
+    });
+
+    it('o destino continua tendo que ser um clubinho dele', async () => {
+      // O que limita a operação é para onde o professor vai, não de onde vem:
+      // ninguém empurra professor para o clubinho de outra coordenação.
+      repo.userHasAccessToClub.mockResolvedValue(false);
+      const service = await buildService();
+
       await expect(
-        service.assignClub(coordinator, 'teacher-1', 'club-meu'),
+        service.assignClub(coordinator, 'teacher-1', 'club-de-outro'),
       ).rejects.toBeInstanceOf(AppForbiddenException);
       expect(repo.assignTeacherToClub).not.toHaveBeenCalled();
     });
 
+    it('não precisa ler a turma atual do professor', async () => {
+      // A leitura era filtrada pelo papel: para um professor de outra
+      // coordenação ela devolvia 404 e a operação morria antes da regra.
+      const service = await buildService();
+
+      await service.assignClub(coordinator, 'teacher-1', 'club-2');
+
+      expect(repo.findOneWithClubAndCoordinatorOrFail).not.toHaveBeenCalled();
+      expect(repo.assignTeacherToClub).toHaveBeenCalled();
+    });
+
     it('o coordenador move um professor entre clubinhos que coordena', async () => {
-      repo.findOneWithClubAndCoordinatorOrFail.mockResolvedValue({
-        id: 'teacher-1',
-        club: { id: 'club-1' },
-      });
       const service = await buildService();
 
       await service.assignClub(coordinator, 'teacher-1', 'club-2');
@@ -108,19 +131,6 @@ describe('UpdateTeacherProfilesService', () => {
         'teacher-1',
         'club-2',
       );
-    });
-
-    it('não checa a turma atual de quem ainda não tem clubinho', async () => {
-      repo.findOneWithClubAndCoordinatorOrFail.mockResolvedValue({
-        id: 'teacher-1',
-        club: null,
-      });
-      const service = await buildService();
-
-      await service.assignClub(coordinator, 'teacher-1', 'club-2');
-
-      expect(repo.userHasAccessToClub).toHaveBeenCalledTimes(1);
-      expect(repo.assignTeacherToClub).toHaveBeenCalled();
     });
   });
 

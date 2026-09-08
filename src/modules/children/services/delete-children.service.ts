@@ -4,6 +4,7 @@ import { Request } from 'express';
 import { ChildrenRepository } from '../repositories/children.repository';
 import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import { AuthContextService } from 'src/core/auth/services/auth-context.service';
+import { assertCanDeleteChild } from '../utils';
 
 @Injectable()
 export class DeleteChildrenService {
@@ -14,6 +15,11 @@ export class DeleteChildrenService {
 
   async remove(id: string, request: Request): Promise<void> {
     const ctx = await this.authContextService.resolveAccessContext(request);
+
+    // Antes de procurar a criança: quem não pode excluir não precisa nem saber
+    // se ela existe, e a checagem de papel não depende de consulta ao banco.
+    assertCanDeleteChild(ctx);
+
     const entity = await this.childrenRepo.findOneForResponse(id, ctx);
     if (!entity) {
       throw new AppNotFoundException(

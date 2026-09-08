@@ -23,6 +23,7 @@
     "test:api": "node scripts/run-all-testes.js",
     "test:all": "node scripts/run-all-testes.js",
     "populate": "node scripts/run-all-testes.js",
+    "seed:weekly-summary": "node scripts/seed-weekly-summary-demo.js",
     "automation:seed-superuser": "node scripts/automations/bootstrap/seed-superuser.js",
     "s3:audit": "node scripts/s3/audit-orphans.js",
     "email:preview": "ts-node -r tsconfig-paths/register scripts/email/preview.ts",

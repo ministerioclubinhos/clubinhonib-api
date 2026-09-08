@@ -102,8 +102,11 @@ export class UserRepository {
    * E-mails de todos os administradores cadastrados no banco de dados.
    */
   async findAdminEmails(): Promise<string[]> {
+    // Só administrador ativo. Uma conta desativada continuava recebendo todo
+    // aviso interno — contato, comentário, avaliação, ideia, imagem,
+    // pré-cadastro — e é justamente a lista de quem não deveria mais receber.
     const admins = await this.repo.find({
-      where: { role: UserRole.ADMIN },
+      where: { role: UserRole.ADMIN, active: true },
       select: { email: true },
     });
     return admins

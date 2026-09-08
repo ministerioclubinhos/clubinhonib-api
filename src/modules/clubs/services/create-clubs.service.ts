@@ -6,11 +6,7 @@ import { CreateClubDto } from '../dto/create-club.dto';
 import { ClubResponseDto } from '../dto/club.response.dto';
 import { ClubAccessContext } from '../types';
 import { toClubResponse } from '../mappers';
-import {
-  assertCanManageClubs,
-  assertCanTakeTeachers,
-  normalizedRole,
-} from '../utils';
+import { assertCanManageClubs, normalizedRole } from '../utils';
 import { UserRole } from 'src/core/auth/auth.types';
 
 @Injectable()
@@ -32,8 +28,6 @@ export class CreateClubsService {
     if (normalizedRole(context) === UserRole.COORDINATOR) {
       dto.coordinatorProfileId = await this.ownCoordinatorProfileId(context);
     }
-
-    await this.assertTeachersInScope(dto.teacherProfileIds, context);
 
     const club = await this.clubsRepository.createClub(dto);
     this.logger.log(`Clubinho criado. ID=${club.id} número=${club.number}`);
@@ -64,29 +58,5 @@ export class CreateClubsService {
     }
 
     return profileId;
-  }
-
-  /**
-   * Trazer um professor de outro clubinho move o vínculo. O coordenador só
-   * move quem já está sob a coordenação dele.
-   */
-  private async assertTeachersInScope(
-    teacherProfileIds: string[] | undefined,
-    context: ClubAccessContext,
-  ): Promise<void> {
-    if (!teacherProfileIds?.length) return;
-
-    const [currentClubIdByTeacher, ownClubs] = await Promise.all([
-      this.clubsRepository.findCurrentClubIdsOfTeachers(teacherProfileIds),
-      this.clubsRepository.list(context),
-    ]);
-
-    assertCanTakeTeachers({
-      context,
-      // O clubinho ainda não existe: qualquer vínculo atual é uma mudança.
-      targetClubId: null,
-      currentClubIdByTeacher,
-      accessibleClubIds: new Set(ownClubs.map((club) => club.id)),
-    });
   }
 }

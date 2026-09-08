@@ -9,7 +9,12 @@ import { ChildEntity } from 'src/modules/children/entities/child.entity';
 import { PagelaEntity } from 'src/modules/pagelas/entities/pagela.entity';
 import { ClubWeekCheckService } from '../services/club-week-check.service';
 import { AcademicWeekService } from '../services/academic-week.service';
-import { PagelaChildIdRaw } from '../dto/club-control-raw.dto';
+import {
+  PagelaChildIdRaw,
+  SummaryChildRaw,
+  SummaryPagelaRaw,
+} from '../dto/club-control-raw.dto';
+import { toDateOnlyOrNull } from '../utils';
 import { ClubCheckResultDto } from '../dto/club-check-result.dto';
 import { DetailedIndicatorsResultDto } from '../dto/detailed-indicators-result.dto';
 import {
@@ -157,6 +162,27 @@ export class ClubControlRepository {
       .getOne();
   }
 
+  /**
+   * Todos os períodos letivos que valem, do mais antigo para o mais novo.
+   *
+   * Sem paginação de propósito: é um por ano, e quem monta o calendário precisa
+   * de todos de uma vez para saber em quais janelas um encontro semanal existe.
+   */
+  async findActivePeriods(): Promise<ClubPeriodEntity[]> {
+    return this.periodsRepository.find({
+      where: { isActive: true },
+      order: { startDate: 'ASC' },
+    });
+  }
+
+  /** Todas as datas sem Clubinho que valem hoje. */
+  async findActiveExceptions(): Promise<ClubExceptionEntity[]> {
+    return this.exceptionsRepository.find({
+      where: { isActive: true },
+      order: { exceptionDate: 'ASC' },
+    });
+  }
+
   async findExceptionsByPeriod(
     startDate?: string,
     endDate?: string,
@@ -256,6 +282,80 @@ export class ClubControlRepository {
 
   async findAllClubs(): Promise<ClubEntity[]> {
     return this.clubsRepository.find();
+  }
+
+  /**
+   * As crianças dos clubinhos informados, no recorte do resumo semanal.
+   *
+   * Uma consulta para todos os clubinhos de uma vez: o resumo cobre o período
+   * letivo inteiro, e perguntar por clubinho — como `findAllChildrenByClubId`
+   * faz — multiplicaria a varredura pelo número de semanas.
+   */
+  async findSummaryChildrenByClubIds(
+    clubIds: string[],
+  ): Promise<SummaryChildRaw[]> {
+    if (clubIds.length === 0) return [];
+
+    const rows = await this.childrenRepository
+      .createQueryBuilder('child')
+      .innerJoin('child.club', 'club')
+      .where('club.id IN (:...clubIds)', { clubIds })
+      .select('child.id', 'childId')
+      .addSelect('club.id', 'clubId')
+      .addSelect('child.isActive', 'isActive')
+      .addSelect('child.joinedAt', 'joinedAt')
+      .getRawMany<{
+        childId: string;
+        clubId: string;
+        isActive: number | boolean;
+        joinedAt: string | Date | null;
+      }>();
+
+    return rows.map((row) => ({
+      childId: row.childId,
+      clubId: row.clubId,
+      isActive: Boolean(row.isActive),
+      joinedAt: toDateOnlyOrNull(row.joinedAt),
+    }));
+  }
+
+  /**
+   * As pagelas do ano letivo nos clubinhos informados.
+   *
+   * Todas as semanas numa consulta só. `getChildrenWithPagela` responde por
+   * uma semana e um clubinho, o que serve à conferência de uma tela; aqui são
+   * dezenas de semanas, e repetir aquela consulta seria uma ida ao banco por
+   * célula do quadro.
+   */
+  async findSummaryPagelasByClubIds(
+    clubIds: string[],
+    year: number,
+  ): Promise<SummaryPagelaRaw[]> {
+    if (clubIds.length === 0) return [];
+
+    const rows = await this.pagelasRepository
+      .createQueryBuilder('pagela')
+      .innerJoin('pagela.child', 'child')
+      .innerJoin('child.club', 'club')
+      .where('club.id IN (:...clubIds)', { clubIds })
+      .andWhere('pagela.year = :year', { year })
+      .select('child.id', 'childId')
+      .addSelect('club.id', 'clubId')
+      .addSelect('pagela.week', 'week')
+      .addSelect('pagela.present', 'present')
+      .getRawMany<{
+        childId: string;
+        clubId: string;
+        week: number | string;
+        present: number | boolean;
+      }>();
+
+    return rows.map((row) => ({
+      childId: row.childId,
+      clubId: row.clubId,
+      week: Number(row.week),
+      present: Boolean(row.present),
+    }));
   }
   async getDetailedIndicators(
     year: number,

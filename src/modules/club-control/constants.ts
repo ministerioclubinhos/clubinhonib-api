@@ -48,8 +48,30 @@ export const CLUB_WEEK_STATUS_LABELS = {
   [ClubWeekStatus.OutOfPeriod]: 'Fora do período letivo',
 } as const satisfies Record<ClubWeekStatus, string>;
 
+/**
+ * Todos os status, na ordem do enum.
+ *
+ * `ClubStatusService` ainda devolve `string`; esta lista é o que permite
+ * estreitar aquele retorno para o enum sem espalhar comparações soltas.
+ */
+export const CLUB_WEEK_STATUS_VALUES = Object.values(ClubWeekStatus);
+
+/**
+ * Onde uma semana letiva está em relação a hoje.
+ *
+ * `AcademicWeekService.getWeekType` devolve a mesma informação em três
+ * booleanos; o resumo precisa dela numa palavra só para viajar no contrato.
+ */
+export enum ClubWeekTimeline {
+  Past = 'past',
+  Current = 'current',
+  Future = 'future',
+}
+
 /** Telas do painel para onde os avisos do clubinho apontam. */
 export const CLUB_CONTROL_PATHS = {
   pagelas: 'adm/pagelas',
   control: 'adm/controle-clubinhos',
+  /** O resumo semanal do coordenador, para onde o e-mail de segunda aponta. */
+  weeklySummary: 'adm/resumo-semanal',
 } as const;

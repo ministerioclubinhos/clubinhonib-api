@@ -22,3 +22,16 @@ export interface ClubWeekPendency {
   withPagela: number;
   missing: MissingChild[];
 }
+
+/**
+ * Uma exceção de calendário no recorte que o resumo semanal usa.
+ *
+ * Não é a entidade: o cálculo do quadro precisa da data, do motivo e de saber
+ * se ela repete todo ano — e nada mais. Assim a regra fica testável sem banco.
+ */
+export interface ClubWeekException {
+  /** `YYYY-MM-DD`. */
+  exceptionDate: string;
+  reason: string;
+  isRecurrent: boolean;
+}

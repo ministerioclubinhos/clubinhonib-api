@@ -51,6 +51,17 @@ export interface EmailRecipient {
   id: string;
   name: string;
   email: string;
+  /**
+   * Situação da conta de quem vai receber.
+   *
+   * Preenchido por `toEmailRecipient`, o único caminho de usuário para
+   * destinatário. Ausente nas listas que já vêm filtradas pela régua do
+   * `core/user` — ali não há inativo a barrar.
+   *
+   * `false` faz o envio ser recusado, exceto nas notificações declaradas em
+   * `EMAIL_NOTIFICATIONS_FOR_INACTIVE`.
+   */
+  active?: boolean;
 }
 
 /**

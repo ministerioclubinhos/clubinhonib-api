@@ -43,6 +43,8 @@ describe('EmailVerificationService', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     tokenRepo.findLatestValidOfUser.mockResolvedValue(null);
+    // `EmailService` não lança: devolve se a mensagem chegou a sair.
+    emailService.sendEmailVerification.mockResolvedValue(true);
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -185,6 +187,43 @@ describe('EmailVerificationService', () => {
         AppBusinessException,
       );
       expect(updateUserService.update).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * O cadastro não depende do provedor de e-mail estar de pé.
+   *
+   * `send` é usado por sete caminhos do `AuthService` — cadastro, login, login
+   * com Google. Em todos, a conta já existe e o token já está gravado quando o
+   * e-mail sai. Um limite diário do provedor virava erro 500 no login.
+   */
+  describe('quando o provedor de e-mail está fora', () => {
+    beforeEach(() => {
+      emailService.sendEmailVerification.mockResolvedValue(false);
+    });
+
+    it('não derruba o fluxo: devolve que não saiu e segue', async () => {
+      const result = await service.sendIfPending(buildUser());
+
+      expect(result).toEqual({
+        verificationEmailSent: false,
+        message: EMAIL_VERIFICATION_MESSAGES.failed,
+      });
+    });
+
+    it('o token continua gravado, para o reenvio funcionar depois', async () => {
+      await service.sendIfPending(buildUser());
+
+      expect(tokenRepo.createToken).toHaveBeenCalled();
+    });
+
+    it('o pedido explícito de reenvio também não estoura', async () => {
+      getUsersService.findByEmail.mockResolvedValue(buildUser());
+
+      await expect(service.resend('ana@exemplo.com')).resolves.toEqual({
+        verificationEmailSent: false,
+        message: EMAIL_VERIFICATION_MESSAGES.failed,
+      });
     });
   });
 });

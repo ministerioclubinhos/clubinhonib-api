@@ -22,5 +22,13 @@ export function roleLabel(role: UserRole | string): string {
  * pessoa — é o mesmo contrato de `findActiveRecipients`.
  */
 export function toEmailRecipient(user: UserEntity): EmailRecipient {
-  return { id: user.id, name: user.name, email: user.email };
+  // `active` viaja junto: é o que permite ao `EmailService` recusar um aviso
+  // endereçado a conta inativa sem precisar consultar o banco — e sem o módulo
+  // de e-mail passar a depender do de usuário.
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    active: user.active,
+  };
 }

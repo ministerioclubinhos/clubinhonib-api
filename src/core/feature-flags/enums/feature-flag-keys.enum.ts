@@ -15,6 +15,15 @@ export enum FeatureFlagKeys {
   CLUBINHO_FEED = 'clubinho_feed',
   STATISTICS = 'statistics',
   CLUB_CONTROL = 'club_control',
+  /**
+   * O resumo semanal dos clubinhos, no painel.
+   *
+   * Não confundir com `EMAIL_WEEKLY_CLUB_SUMMARY`: aquela liga o envio do
+   * e-mail de segunda-feira, esta liga a tela que o e-mail abre. São
+   * decisões diferentes — parar de mandar o aviso não deve trancar quem
+   * quiser consultar o histórico.
+   */
+  CLUB_WEEKLY_SUMMARY = 'club_weekly_summary',
   PAGELAS = 'pagelas',
 
   /**

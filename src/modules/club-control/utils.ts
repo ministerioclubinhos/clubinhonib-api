@@ -38,3 +38,19 @@ export function toDateOnly(date: Date): string {
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
+
+/**
+ * A data de uma coluna `date` como `YYYY-MM-DD`.
+ *
+ * Em consulta crua o driver do MySQL devolve `Date` para colunas `date`,
+ * construído à meia-noite **local**; em consulta por entidade a mesma coluna
+ * chega como texto. Quem lê os dois formatos precisa de um lugar só que os
+ * reduza ao dia de calendário — e `toISOString()` não serve, pelo motivo
+ * documentado em `toDateOnly`.
+ */
+export function toDateOnlyOrNull(
+  value: string | Date | null | undefined,
+): string | null {
+  if (!value) return null;
+  return value instanceof Date ? toDateOnly(value) : value.slice(0, 10);
+}

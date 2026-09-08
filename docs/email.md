@@ -55,6 +55,34 @@ de quem dispara lembrar de consultá-la. Um envio em massa bloqueado devolve
 `{ recipients: 0, sent: 0, failed: 0 }`: contar como enviado o que ninguém
 recebeu tornaria o log de quem chamou uma ficção.
 
+## Falha de envio nunca derruba fluxo
+
+**`dispatch` e `dispatchBulk` não lançam.** Nenhum e-mail da aplicação é o
+produto da operação que o disparou: quando a mensagem sai, a conta já foi
+criada, a senha já foi trocada, o material já foi publicado. Uma falha do
+provedor é registrada no log e a operação segue.
+
+A regra é estrutural, no funil, e não em cada chamador. Antes ela não existia, e
+o efeito era concreto: com o limite diário do Gmail estourado, o **login com
+Google** respondia 500 (`AuthService.googleLogin` → `sendIfPending` →
+`sendEmailVerification`), com a conta já criada do outro lado. E `resetPassword`
+respondia erro **depois** de trocar a senha e apagar o token — quem tentasse de
+novo ouvia "token inválido ou expirado", sem descobrir que a senha nova já valia.
+
+| Caminho | Com o provedor fora |
+| --- | --- |
+| Envio único (`dispatch`) | Registra o erro e devolve `false` |
+| Envio em massa (`dispatchBulk`) | O laço já conta por destinatário: `{ recipients: n, sent: 0, failed: n }` |
+| Flag desligada | `false` / `{ 0, 0, 0 }`, sem tentar enviar |
+
+`sendEmailVerification` é o **único** envio cujo retorno interessa a quem chama:
+a tela precisa dizer ao usuário se ele deve pedir o reenvio. Os outros ignoram o
+retorno, que é o comportamento certo para um aviso.
+
+`email.service.spec.ts` percorre os métodos públicos por reflexão e verifica um
+a um que nenhum lança com o provedor recusando — e reprova se um envio novo não
+entrar nessa verificação.
+
 ### Como adicionar um e-mail novo
 
 Os cinco passos são obrigatórios, e os três primeiros não compilam sem os
@@ -172,6 +200,12 @@ Regras que a casca garante:
 Os três últimos e o "Dia sem Clubinho" têm público recortado; os demais avisos
 gerais vão para toda a base ativa. Ver **Quem recebe cada aviso** abaixo.
 
+O botão do resumo semanal abre `adm/resumo-semanal`
+(`CLUB_CONTROL_PATHS.weeklySummary`), onde a semana relatada aparece ao lado de
+todas as anteriores. Antes ele apontava para `adm/controle-clubinhos`, que é
+rota exclusiva do administrador: o coordenador clicava e era redirecionado ao
+painel, sem nada sobre o resumo que acabara de ler.
+
 ## Quem recebe cada aviso
 
 Há quatro públicos, e cada um vem de um lugar:
@@ -196,6 +230,44 @@ Três e-mails saem **sem** rodapé de descadastro, e é de propósito: a troca d
 endereço de login (vai para um endereço que já não é da conta), a exclusão de
 conta (a linha do usuário não existe mais, e não há token a assinar) e a
 confirmação de contato (quem escreveu pelo site não está na base).
+
+## E-mail só vai para conta ativa
+
+A regra geral: **aviso só chega a quem está ativo.** As listas em massa já
+nasciam assim — `findActiveRecipients` e `findNoticeRecipientsByIds` filtram
+`active` e `noticesUnsubscribedAt`, e é a régua única do `core/user`. O que
+faltava era o outro caminho: o envio endereçado a **uma** pessoa, montado a
+partir da entidade, que não olhava a situação da conta.
+
+Agora `toEmailRecipient` leva `active` junto, e `EmailService.canReceive` recusa
+o envio quando a conta está inativa. A verificação mora no mesmo funil da flag,
+então nenhum chamador precisa lembrar dela — e o módulo de e-mail continua sem
+depender do de usuário, o que manteria o grafo com ciclo.
+
+### As exceções
+
+Oito notificações saem **mesmo com a conta inativa**, declaradas em
+`EMAIL_NOTIFICATIONS_FOR_INACTIVE`. É a mesma lógica do descadastro: cortá-las
+trancaria a pessoa para fora da própria conta, ou o destinatário nem é usuário
+da base.
+
+| Notificação | Por que é exceção |
+| --- | --- |
+| `EmailVerification` | A conta nasce inativa; é este e-mail que a ativa |
+| `AccountCreatedByAdmin` | Conta criada pela coordenação, ainda sem confirmação |
+| `PasswordRecovery` | Sem ela, quem não confirmou o e-mail não recupera a senha |
+| `PasswordChanged` | Aviso de segurança sobre a conta da pessoa |
+| `EmailAddressChanged` | Vai para o endereço **anterior**, que já não é da conta |
+| `AccountDeactivated` | A conta acabou de ficar inativa; o aviso é sobre isso |
+| `AccountDeleted` | A linha do usuário não existe mais |
+| `ContactReceipt` | Quem escreveu pelo site não está na base |
+
+A lista está presa em teste: ampliá-la sem querer reprova a suíte.
+
+**Administradores também.** `findAdminEmails()` passou a filtrar `active`. Uma
+conta de administrador desativada continuava recebendo todo aviso interno —
+contato, comentário, avaliação, ideia, imagem, pré-cadastro —, que é justamente
+a lista de quem não deveria mais receber nada.
 
 ## Descadastro
 

@@ -68,6 +68,8 @@ export enum ErrorCode {
   FEEDBACK_NOT_FOUND = 'CONTENT_8610',
   PAGELA_NOT_FOUND = 'CONTENT_8611',
   WEEK_MATERIAL_NOT_FOUND = 'CONTENT_8612',
+  /** O encontro de clubinho é mantido pelo cadastro do clubinho, não pela agenda. */
+  CLUB_MEETING_NOT_EDITABLE = 'CONTENT_8613',
 
   // Pages (87xx)
   PAGE_NOT_FOUND = 'PAGE_8701',

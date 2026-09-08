@@ -43,6 +43,80 @@ Checks the current status of the requested week (or current week if not specifie
 
 Aggregated metrics for the main dashboard.
 
+Every endpoint above requires the `admin` role — `ClubControlController` guards
+the whole class with `AdminRoleGuard`.
+
+### `GET /club-control/weekly-summary`
+
+The whole academic period seen from above: one row per academic week, one cell
+per club. It is the screen the Monday coordinator e-mail links to — the e-mail
+reports the week that closed, this answers "and the weeks before it?".
+
+- **Roles**: the transport guard is `AdminOrLeaderRoleGuard` — it lives in its
+  own controller because the class-level guard of `ClubControlController` is
+  admin-only and method guards add to it, never replace it. The **audience** is
+  the flag's, and the flag targets `coordinator` only.
+- **Feature flag**: `club_weekly_summary`, checked against the caller's role.
+  Out of the flag's audience answers `403 PERM_3003`, so today an `admin` call
+  is refused: the admin already has `/statistics`, which covers the whole base
+  in far more detail. Widening it is a change of `targetRoles` in the panel,
+  not a code change.
+- **Scope**: the clubs the caller already sees, resolved through
+  `GetClubsService.findAllSimple` — a coordinator gets their own clubs, an
+  admin gets every club. No id from the client widens that.
+- **Query**: `year` (defaults to the current academic year) and `clubId`
+  (narrows the set the session already sees; a club outside it answers `404`,
+  never an empty list).
+- **Cost**: three queries for the entire period — children, pagelas and
+  calendar exceptions — instead of the four-per-club-per-week that
+  `ClubWeekCheckService.checkClubWeek` costs.
+
+Response, abbreviated:
+
+```json
+{
+  "year": 2026,
+  "availableYears": [2026, 2025],
+  "currentWeek": 12,
+  "period": { "year": 2026, "startDate": "2026-03-02", "endDate": "2026-11-28", "totalWeeks": 40 },
+  "clubs": [{ "clubId": "…", "clubNumber": 12, "weekday": "wednesday", "isActive": true }],
+  "weeks": [
+    {
+      "week": 1,
+      "startDate": "2026-03-02",
+      "endDate": "2026-03-07",
+      "timeline": "past",
+      "counts": { "children": 10, "childrenWithPagela": 7, "childrenMissing": 3, "childrenPresent": 7, "completionRate": 70 },
+      "statusCounts": { "ok": 0, "partial": 1, "missing": 0, "pending": 0, "exception": 0, "inactive": 0, "outOfPeriod": 0 },
+      "clubs": [
+        {
+          "clubId": "…",
+          "clubNumber": 12,
+          "status": "partial",
+          "expectedDate": "2026-03-04",
+          "exceptionReason": null,
+          "counts": { "children": 10, "childrenWithPagela": 7, "childrenMissing": 3, "childrenPresent": 7, "completionRate": 70 }
+        }
+      ]
+    }
+  ],
+  "highlights": { "weeksElapsed": 12, "counts": { "…": 0 }, "bestWeek": 3, "worstWeek": 9, "weeksWithPendency": 4 }
+}
+```
+
+Rules the payload encodes:
+
+- `status` is the same seven-value enum the control panel uses, produced by the
+  same `ClubStatusService.determineStatus`.
+- A child only counts on a week whose expected date is on or after `joinedAt`;
+  a child who left counts on no week at all.
+- A deactivated club reports zeroed counts: charging a pagela to a club that
+  does not meet would invent a shortfall nobody can clear.
+- `highlights` covers only the weeks already elapsed. Future weeks start with
+  no pagela, and including them would make March look like a year behind.
+- A year with no registered period answers `200` with `period: null` and an
+  empty `weeks` list — it is a calendar that was never filled in, not an error.
+
 ---
 
 ## 2. Pagelas (Attendance)

@@ -30,6 +30,14 @@ export const EMAIL_VERIFICATION_MESSAGES = {
   alreadySent:
     'Um e-mail de confirmação já foi enviado há pouco. Verifique sua caixa de entrada e o spam.',
   verified: 'E-mail já confirmado.',
+  /**
+   * O envio falhou, mas a conta existe e o link está válido.
+   *
+   * O texto pede a reenvio em vez de sugerir que a conta ficou pela metade:
+   * quem lê isto acabou de se cadastrar ou de entrar, e o cadastro deu certo.
+   */
+  failed:
+    'Não conseguimos enviar o e-mail de confirmação agora. Você pode pedir o reenvio em instantes.',
 } as const;
 
 /** Caminhos do site usados nos links enviados por e-mail. */

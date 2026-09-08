@@ -36,6 +36,15 @@ export class EventResponseDto {
   /** Encontro semanal: `weekday` e `time` valem para todas as semanas. */
   isRecurring: boolean;
   weekday: Weekday | null;
+  /**
+   * Dias em que o evento acontece, em `YYYY-MM-DD`.
+   *
+   * Um evento comum traz a própria data. Um encontro de clubinho traz uma data
+   * por semana, já limitada ao período letivo e sem os dias de exceção — é o
+   * campo que o calendário desenha. Vem vazio para nada: um evento sem nenhuma
+   * data não é devolvido nas listagens.
+   */
+  occurrences: string[];
   time: string | null;
   /** Preenchido quando o evento veio de um clubinho. */
   clubId: string | null;

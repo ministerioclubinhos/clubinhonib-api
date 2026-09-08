@@ -22,8 +22,14 @@ import {
   DeleteResultDto,
   PaginatedClubExceptionsDto,
   PaginatedClubPeriodsDto,
+  ClubCalendarRulesDto,
 } from '../dto/club-control-contracts.dto';
-import { toClubExceptionResponse, toClubPeriodResponse } from '../mappers';
+import {
+  toClubExceptionResponse,
+  toClubExceptionWindow,
+  toClubPeriodResponse,
+  toClubPeriodWindow,
+} from '../mappers';
 import { ClubCheckResultDto } from '../dto/club-check-result.dto';
 import { ClubWeekStatus } from '../constants';
 import { ClubWeekPendency } from '../types';
@@ -162,7 +168,7 @@ export class ClubControlService {
       existing.type = dto.type || 'other';
       existing.notes = dto.notes;
       existing.isActive = dto.isActive ?? true;
-      existing.isRecurrent = dto.isRecurrent ?? true;
+      existing.isRecurrent = dto.isRecurrent ?? false;
 
       const reativada =
         await this.clubControlRepository.saveException(existing);
@@ -180,7 +186,10 @@ export class ClubControlService {
       type: dto.type || 'other',
       notes: dto.notes,
       isActive: dto.isActive ?? true,
-      isRecurrent: dto.isRecurrent ?? true,
+      // Não assumido: marcar uma data como recorrente a apaga do calendário em
+      // todos os anos seguintes. Feriado é recorrente; obra no salão não é, e
+      // supor que sim silenciosamente cancelaria um dia de Clubinho por ano.
+      isRecurrent: dto.isRecurrent ?? false,
     });
 
     // Depois de gravada e fora da requisição: a exceção já vale, e o aviso é
@@ -254,6 +263,30 @@ export class ClubControlService {
 
   async deleteException(id: string): Promise<DeleteResultDto> {
     return this.clubControlRepository.deleteException(id);
+  }
+
+  /**
+   * Período letivo e exceções em vigor, para quem precisa saber quando um
+   * encontro de clubinho acontece.
+   *
+   * Existe porque a agenda não guarda as datas dos encontros: ela as calcula a
+   * partir daqui na hora de responder. Assim, cadastrar um período ou uma
+   * exceção muda o calendário na consulta seguinte, sem regravar evento nenhum
+   * — e sem risco de duplicar linha.
+   *
+   * Sem nenhum período ativo, `periods` volta vazio e nenhum dia de clubinho
+   * existe. É a regra, não uma falha.
+   */
+  async getCalendarRules(): Promise<ClubCalendarRulesDto> {
+    const [periods, exceptions] = await Promise.all([
+      this.clubControlRepository.findActivePeriods(),
+      this.clubControlRepository.findActiveExceptions(),
+    ]);
+
+    return {
+      periods: periods.map(toClubPeriodWindow),
+      exceptions: exceptions.map(toClubExceptionWindow),
+    };
   }
 
   async checkClubWeek(

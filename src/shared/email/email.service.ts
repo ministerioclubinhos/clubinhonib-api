@@ -63,6 +63,7 @@ import {
 } from './templates';
 import {
   EMAIL_NOTIFICATION_FLAGS,
+  EMAIL_NOTIFICATIONS_FOR_INACTIVE,
   EMAIL_SEND_WHEN_FLAG_MISSING,
   UNSUBSCRIBE_PATH,
 } from './constants';
@@ -113,13 +114,63 @@ export class EmailService {
     return enabled;
   }
 
-  /** Envio único: a flag desligada simplesmente não envia. */
+  /**
+   * Envio único: a flag desligada simplesmente não envia.
+   *
+   * **Nunca lança.** Todo e-mail da aplicação passa por aqui, e nenhum deles é
+   * o produto da operação que o disparou: a conta já foi criada, a senha já foi
+   * trocada, o material já foi publicado. Deixar a falha subir transformava um
+   * limite diário do provedor de e-mail em erro 500 no login e no cadastro,
+   * com a operação já concluída do outro lado.
+   *
+   * O retorno diz se a mensagem chegou a ser entregue ao provedor, para quem
+   * precisa contar isso ao usuário — a confirmação de e-mail, por exemplo.
+   * Quem ignora o retorno segue em frente, que é o comportamento certo para um
+   * aviso.
+   */
   private async dispatch(
     notification: EmailNotification,
+    recipient: EmailRecipient | null,
     send: () => Promise<void>,
-  ): Promise<void> {
-    if (!(await this.isNotificationEnabled(notification))) return;
-    await send();
+  ): Promise<boolean> {
+    if (!this.canReceive(notification, recipient)) return false;
+    if (!(await this.isNotificationEnabled(notification))) return false;
+
+    try {
+      await send();
+      return true;
+    } catch (error: unknown) {
+      this.logger.error(
+        `Falha ao enviar o e-mail "${notification}". A operação que o disparou não é afetada.`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return false;
+    }
+  }
+
+  /**
+   * Aviso só vai para conta ativa.
+   *
+   * A exceção é a lista em `EMAIL_NOTIFICATIONS_FOR_INACTIVE`: e-mail de conta
+   * e de segurança continua saindo, porque cortá-lo trancaria a pessoa para
+   * fora da própria conta — a mesma lógica do descadastro.
+   *
+   * `recipient` é `null` nos envios endereçados a quem não é usuário da base
+   * (a confirmação de contato, a exclusão de conta) e nos envios em massa, cujas
+   * listas já chegam filtradas pela régua do `core/user`. Sem situação
+   * conhecida não há o que barrar.
+   */
+  private canReceive(
+    notification: EmailNotification,
+    recipient: EmailRecipient | null,
+  ): boolean {
+    if (recipient?.active !== false) return true;
+    if (EMAIL_NOTIFICATIONS_FOR_INACTIVE.has(notification)) return true;
+
+    this.logger.log(
+      `E-mail "${notification}" não enviado: a conta do destinatário está inativa.`,
+    );
+    return false;
   }
 
   /**
@@ -137,7 +188,19 @@ export class EmailService {
       return { recipients: 0, sent: 0, failed: 0 };
     }
 
-    return send();
+    // O laço em massa já trata destinatário a destinatário: um endereço
+    // recusado entra em `failed` e os outros seguem. O `try` aqui cobre o que
+    // acontece **em volta** dele — montar a lista, o próprio laço estourar —
+    // pelo mesmo motivo do envio único: nada disso é o produto da operação.
+    try {
+      return await send();
+    } catch (error: unknown) {
+      this.logger.error(
+        `Falha no envio em massa de "${notification}". A operação que o disparou não é afetada.`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return { recipients: 0, sent: 0, failed: 0 };
+    }
   }
 
   /**
@@ -158,45 +221,63 @@ export class EmailService {
     recipient: EmailRecipient,
     data: PasswordRecoveryEmailData,
   ): Promise<void> {
-    await this.dispatch(EmailNotification.PasswordRecovery, async () => {
-      await this.send(
-        recipient.email,
-        passwordRecoveryEmail({
-          ...data,
-          unsubscribeUrl: this.unsubscribeUrlFor(recipient),
-        }),
-      );
-    });
+    await this.dispatch(
+      EmailNotification.PasswordRecovery,
+      recipient,
+      async () => {
+        await this.send(
+          recipient.email,
+          passwordRecoveryEmail({
+            ...data,
+            unsubscribeUrl: this.unsubscribeUrlFor(recipient),
+          }),
+        );
+      },
+    );
   }
 
   async sendPasswordChanged(
     recipient: EmailRecipient,
     data: PasswordChangedEmailData,
   ): Promise<void> {
-    await this.dispatch(EmailNotification.PasswordChanged, async () => {
-      await this.send(
-        recipient.email,
-        passwordChangedEmail({
-          ...data,
-          unsubscribeUrl: this.unsubscribeUrlFor(recipient),
-        }),
-      );
-    });
+    await this.dispatch(
+      EmailNotification.PasswordChanged,
+      recipient,
+      async () => {
+        await this.send(
+          recipient.email,
+          passwordChangedEmail({
+            ...data,
+            unsubscribeUrl: this.unsubscribeUrlFor(recipient),
+          }),
+        );
+      },
+    );
   }
 
+  /**
+   * Devolve se a confirmação chegou a sair.
+   *
+   * É o único envio cujo resultado o fluxo precisa saber: a tela conta ao
+   * usuário se o e-mail foi enviado ou se ele deve pedir o reenvio.
+   */
   async sendEmailVerification(
     recipient: EmailRecipient,
     data: EmailVerificationEmailData,
-  ): Promise<void> {
-    await this.dispatch(EmailNotification.EmailVerification, async () => {
-      await this.send(
-        recipient.email,
-        emailVerificationEmail({
-          ...data,
-          unsubscribeUrl: this.unsubscribeUrlFor(recipient),
-        }),
-      );
-    });
+  ): Promise<boolean> {
+    return this.dispatch(
+      EmailNotification.EmailVerification,
+      recipient,
+      async () => {
+        await this.send(
+          recipient.email,
+          emailVerificationEmail({
+            ...data,
+            unsubscribeUrl: this.unsubscribeUrlFor(recipient),
+          }),
+        );
+      },
+    );
   }
 
   /**
@@ -207,24 +288,28 @@ export class EmailService {
     recipients: string[],
     data: ContactNotificationEmailData,
   ): Promise<void> {
-    await this.dispatch(EmailNotification.ContactNotification, async () => {
-      const unique = [
-        ...new Set(recipients.map((email) => email.trim())),
-      ].filter((email) => email.length > 0);
+    await this.dispatch(
+      EmailNotification.ContactNotification,
+      null,
+      async () => {
+        const unique = [
+          ...new Set(recipients.map((email) => email.trim())),
+        ].filter((email) => email.length > 0);
 
-      if (unique.length === 0) {
-        this.logger.warn(
-          'Nenhum administrador encontrado: aviso de contato não enviado.',
-        );
-        return;
-      }
+        if (unique.length === 0) {
+          this.logger.warn(
+            'Nenhum administrador encontrado: aviso de contato não enviado.',
+          );
+          return;
+        }
 
-      await this.smtpService.sendMail({
-        to: unique,
-        replyTo: data.email,
-        ...contactNotificationEmail(data),
-      });
-    });
+        await this.smtpService.sendMail({
+          to: unique,
+          replyTo: data.email,
+          ...contactNotificationEmail(data),
+        });
+      },
+    );
   }
 
   /**
@@ -234,23 +319,27 @@ export class EmailService {
     recipients: string[],
     data: CommentNotificationEmailData,
   ): Promise<void> {
-    await this.dispatch(EmailNotification.CommentNotification, async () => {
-      const unique = [
-        ...new Set(recipients.map((email) => email.trim())),
-      ].filter((email) => email.length > 0);
+    await this.dispatch(
+      EmailNotification.CommentNotification,
+      null,
+      async () => {
+        const unique = [
+          ...new Set(recipients.map((email) => email.trim())),
+        ].filter((email) => email.length > 0);
 
-      if (unique.length === 0) {
-        this.logger.warn(
-          'Nenhum administrador encontrado: aviso de comentário não enviado.',
-        );
-        return;
-      }
+        if (unique.length === 0) {
+          this.logger.warn(
+            'Nenhum administrador encontrado: aviso de comentário não enviado.',
+          );
+          return;
+        }
 
-      await this.smtpService.sendMail({
-        to: unique,
-        ...commentNotificationEmail(data),
-      });
-    });
+        await this.smtpService.sendMail({
+          to: unique,
+          ...commentNotificationEmail(data),
+        });
+      },
+    );
   }
 
   /**
@@ -268,6 +357,7 @@ export class EmailService {
   ): Promise<void> {
     await this.dispatch(
       EmailNotification.SiteFeedbackNotification,
+      null,
       async () => {
         const unique = [
           ...new Set(recipients.map((email) => email.trim())),
@@ -294,24 +384,28 @@ export class EmailService {
     recipients: string[],
     data: IdeaSharedNotificationEmailData,
   ): Promise<void> {
-    await this.dispatch(EmailNotification.IdeaSharedNotification, async () => {
-      const unique = [
-        ...new Set(recipients.map((email) => email.trim())),
-      ].filter((email) => email.length > 0);
+    await this.dispatch(
+      EmailNotification.IdeaSharedNotification,
+      null,
+      async () => {
+        const unique = [
+          ...new Set(recipients.map((email) => email.trim())),
+        ].filter((email) => email.length > 0);
 
-      if (unique.length === 0) {
-        this.logger.warn(
-          'Nenhum administrador encontrado: aviso de ideia compartilhada não enviado.',
-        );
-        return;
-      }
+        if (unique.length === 0) {
+          this.logger.warn(
+            'Nenhum administrador encontrado: aviso de ideia compartilhada não enviado.',
+          );
+          return;
+        }
 
-      await this.smtpService.sendMail({
-        to: unique,
-        replyTo: data.authorEmail,
-        ...ideaSharedNotificationEmail(data),
-      });
-    });
+        await this.smtpService.sendMail({
+          to: unique,
+          replyTo: data.authorEmail,
+          ...ideaSharedNotificationEmail(data),
+        });
+      },
+    );
   }
 
   /**
@@ -321,24 +415,28 @@ export class EmailService {
     recipients: string[],
     data: ImageSharedNotificationEmailData,
   ): Promise<void> {
-    await this.dispatch(EmailNotification.ImageSharedNotification, async () => {
-      const unique = [
-        ...new Set(recipients.map((email) => email.trim())),
-      ].filter((email) => email.length > 0);
+    await this.dispatch(
+      EmailNotification.ImageSharedNotification,
+      null,
+      async () => {
+        const unique = [
+          ...new Set(recipients.map((email) => email.trim())),
+        ].filter((email) => email.length > 0);
 
-      if (unique.length === 0) {
-        this.logger.warn(
-          'Nenhum administrador encontrado: aviso de imagens compartilhadas não enviado.',
-        );
-        return;
-      }
+        if (unique.length === 0) {
+          this.logger.warn(
+            'Nenhum administrador encontrado: aviso de imagens compartilhadas não enviado.',
+          );
+          return;
+        }
 
-      await this.smtpService.sendMail({
-        to: unique,
-        replyTo: data.authorEmail,
-        ...imageSharedNotificationEmail(data),
-      });
-    });
+        await this.smtpService.sendMail({
+          to: unique,
+          replyTo: data.authorEmail,
+          ...imageSharedNotificationEmail(data),
+        });
+      },
+    );
   }
 
   /**
@@ -350,6 +448,7 @@ export class EmailService {
   ): Promise<void> {
     await this.dispatch(
       EmailNotification.NewUserRegistrationNotification,
+      null,
       async () => {
         const unique = [
           ...new Set(recipients.map((email) => email.trim())),
@@ -433,31 +532,39 @@ export class EmailService {
     previousEmail: string,
     data: EmailAddressChangedEmailData,
   ): Promise<void> {
-    await this.dispatch(EmailNotification.EmailAddressChanged, async () => {
-      await this.send(previousEmail, emailAddressChangedEmail(data));
-    });
+    await this.dispatch(
+      EmailNotification.EmailAddressChanged,
+      null,
+      async () => {
+        await this.send(previousEmail, emailAddressChangedEmail(data));
+      },
+    );
   }
 
   async sendAccountApproved(
     recipient: EmailRecipient,
     data: AccountApprovedEmailData,
   ): Promise<void> {
-    await this.dispatch(EmailNotification.AccountApproved, async () => {
-      await this.send(
-        recipient.email,
-        accountApprovedEmail({
-          ...data,
-          unsubscribeUrl: this.unsubscribeUrlFor(recipient),
-        }),
-      );
-    });
+    await this.dispatch(
+      EmailNotification.AccountApproved,
+      recipient,
+      async () => {
+        await this.send(
+          recipient.email,
+          accountApprovedEmail({
+            ...data,
+            unsubscribeUrl: this.unsubscribeUrlFor(recipient),
+          }),
+        );
+      },
+    );
   }
 
   async sendRoleChanged(
     recipient: EmailRecipient,
     data: RoleChangedEmailData,
   ): Promise<void> {
-    await this.dispatch(EmailNotification.RoleChanged, async () => {
+    await this.dispatch(EmailNotification.RoleChanged, recipient, async () => {
       await this.send(
         recipient.email,
         roleChangedEmail({
@@ -472,15 +579,19 @@ export class EmailService {
     recipient: EmailRecipient,
     data: AccountDeactivatedEmailData,
   ): Promise<void> {
-    await this.dispatch(EmailNotification.AccountDeactivated, async () => {
-      await this.send(
-        recipient.email,
-        accountDeactivatedEmail({
-          ...data,
-          unsubscribeUrl: this.unsubscribeUrlFor(recipient),
-        }),
-      );
-    });
+    await this.dispatch(
+      EmailNotification.AccountDeactivated,
+      recipient,
+      async () => {
+        await this.send(
+          recipient.email,
+          accountDeactivatedEmail({
+            ...data,
+            unsubscribeUrl: this.unsubscribeUrlFor(recipient),
+          }),
+        );
+      },
+    );
   }
 
   /**
@@ -494,7 +605,7 @@ export class EmailService {
     email: string,
     data: AccountDeletedEmailData,
   ): Promise<void> {
-    await this.dispatch(EmailNotification.AccountDeleted, async () => {
+    await this.dispatch(EmailNotification.AccountDeleted, null, async () => {
       await this.send(email, accountDeletedEmail(data));
     });
   }
@@ -503,15 +614,19 @@ export class EmailService {
     recipient: EmailRecipient,
     data: AccountCreatedByAdminEmailData,
   ): Promise<void> {
-    await this.dispatch(EmailNotification.AccountCreatedByAdmin, async () => {
-      await this.send(
-        recipient.email,
-        accountCreatedByAdminEmail({
-          ...data,
-          unsubscribeUrl: this.unsubscribeUrlFor(recipient),
-        }),
-      );
-    });
+    await this.dispatch(
+      EmailNotification.AccountCreatedByAdmin,
+      recipient,
+      async () => {
+        await this.send(
+          recipient.email,
+          accountCreatedByAdminEmail({
+            ...data,
+            unsubscribeUrl: this.unsubscribeUrlFor(recipient),
+          }),
+        );
+      },
+    );
   }
 
   /* ---------------------------------------------------------------- *
@@ -569,7 +684,7 @@ export class EmailService {
     email: string,
     data: ContactReceiptEmailData,
   ): Promise<void> {
-    await this.dispatch(EmailNotification.ContactReceipt, async () => {
+    await this.dispatch(EmailNotification.ContactReceipt, null, async () => {
       await this.send(email, contactReceiptEmail(data));
     });
   }
@@ -597,6 +712,7 @@ export class EmailService {
   ): Promise<void> {
     await this.dispatch(
       EmailNotification.CoordinatorWeeklySummary,
+      recipient,
       async () => {
         await this.send(
           recipient.email,

@@ -40,6 +40,20 @@ export class AnnounceEventService {
   }
 
   async announce(change: EventChange, event: EventEntity): Promise<void> {
+    // Encontro de clubinho não é novidade de agenda: ele nasce do cadastro
+    // administrativo do clubinho e se repete toda semana. Avisar a base a cada
+    // criação, edição ou exclusão seria só ruído — e "evento cancelado" sobre
+    // um clubinho que continua existindo seria pior que ruído.
+    //
+    // A checagem mora aqui, e não só em quem chama, porque este é o último
+    // ponto antes do envio: qualquer caminho novo até a agenda passa por ele.
+    if (event.clubId) {
+      this.logger.debug(
+        `Evento ${event.id} é encontro de clubinho: aviso não enviado.`,
+      );
+      return;
+    }
+
     const recipients = await this.getUsersService.findActiveRecipients();
 
     // Eventos não têm página própria: o link leva para a agenda.

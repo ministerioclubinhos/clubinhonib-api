@@ -1,10 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import { SyncClubEventService } from 'src/modules/pages/event-page/services/sync-club-event.service';
 import { ClubsRepository } from '../repositories/clubs.repository';
 import { ClubAccessContext } from '../types';
-import { assertCanManageClubs, normalizedRole } from '../utils';
-import { UserRole } from 'src/core/auth/auth.types';
+import { assertCanDeleteClub } from '../utils';
 
 @Injectable()
 export class DeleteClubsService {
@@ -19,24 +17,13 @@ export class DeleteClubsService {
     id: string,
     context: ClubAccessContext,
   ): Promise<{ message: string }> {
-    assertCanManageClubs(context);
+    // Exclusão é só do administrador. O coordenador administra o clubinho
+    // dele — dia, horário, endereço, equipe — e pode desativá-lo, que é a
+    // operação com volta.
+    assertCanDeleteClub(context);
 
-    // Coordenador só remove o que está sob a coordenação dele.
-    if (normalizedRole(context) === UserRole.COORDINATOR) {
-      const allowed = await this.clubsRepository.userHasAccessToClub(
-        id,
-        context,
-      );
-      if (!allowed) {
-        throw new AppNotFoundException(
-          ErrorCode.CLUB_NOT_FOUND,
-          'Clubinho não encontrado',
-        );
-      }
-    }
-
-    // O encontro sai do calendário antes: depois da exclusão não há mais de
-    // onde tirar o vínculo.
+    // Os dias saem do calendário antes: depois da exclusão não há mais de onde
+    // tirar o vínculo.
     await this.syncClubEvent.removeForClub(id);
     await this.clubsRepository.deleteById(id);
 

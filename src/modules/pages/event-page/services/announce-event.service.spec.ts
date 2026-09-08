@@ -63,6 +63,26 @@ describe('AnnounceEventService', () => {
     );
   });
 
+  it.each([
+    ['created', 'sendEventCreated'],
+    ['updated', 'sendEventUpdated'],
+    ['cancelled', 'sendEventCancelled'],
+  ] as const)(
+    'não avisa ninguém sobre encontro de clubinho em %s',
+    async (change, method) => {
+      // O encontro nasce do cadastro administrativo do clubinho e se repete
+      // toda semana: avisar a base a cada criação, edição ou exclusão seria
+      // ruído — e "evento cancelado" sobre um clubinho que continua existindo
+      // seria pior que ruído.
+      const encontro = Object.assign(buildEvent(), { clubId: 'club-1' });
+
+      await service.announce(change, encontro);
+
+      expect(emailService[method]).not.toHaveBeenCalled();
+      expect(getUsersService.findActiveRecipients).not.toHaveBeenCalled();
+    },
+  );
+
   it('aponta para a agenda, já que evento não tem página própria', async () => {
     await service.announce('created', buildEvent());
 

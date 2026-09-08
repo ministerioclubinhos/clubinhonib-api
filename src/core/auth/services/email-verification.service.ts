@@ -119,7 +119,17 @@ export class EmailVerificationService {
     await this.tokenRepo.deleteAllOfUser(user.id);
     await this.tokenRepo.createToken(user.id, this.hash(token), expiresAt);
 
-    await this.emailService.sendEmailVerification(
+    // `EmailService` não lança: devolve se a mensagem saiu.
+    //
+    // `send` é usado por sete caminhos do `AuthService` — cadastro, login,
+    // login com Google — e em todos eles o e-mail é o passo **seguinte**, não o
+    // produto: a conta já foi criada e o token já está gravado. Um limite de
+    // envio do provedor não pode virar erro 500 no login, com a conta existindo
+    // do outro lado.
+    //
+    // Quando não sai, quem chamou recebe a mensagem de pedir o reenvio — que
+    // continua funcionando, porque o token permanece válido.
+    const enviado = await this.emailService.sendEmailVerification(
       { id: user.id, name: user.name, email: user.email },
       {
         recipientName: user.name,
@@ -130,9 +140,17 @@ export class EmailVerificationService {
       },
     );
 
+    if (!enviado) {
+      this.logger.warn(
+        `Confirmação de e-mail não enviada. O cadastro seguiu. ID=${user.id}`,
+      );
+    }
+
     return {
-      verificationEmailSent: true,
-      message: EMAIL_VERIFICATION_MESSAGES.sent,
+      verificationEmailSent: enviado,
+      message: enviado
+        ? EMAIL_VERIFICATION_MESSAGES.sent
+        : EMAIL_VERIFICATION_MESSAGES.failed,
     };
   }
 

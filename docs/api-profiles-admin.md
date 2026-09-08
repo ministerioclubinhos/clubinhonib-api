@@ -247,16 +247,18 @@ The same link can be created from three screens, and they must not disagree:
 is moved. The club form used to refuse instead, so the same choice answered
 differently depending on the screen the user happened to open.
 
-For a coordinator, the teacher's **current** club must also be within their
-scope — enforced by `assertCanAccessTeacherProfiles` plus the scope check on the
-profiles route, and by `assertCanTakeTeachers` on the clubs routes. Without it,
-the club form would be the back door for taking a teacher out of another
-coordinator's class.
+**A coordinator builds their own club's team with any teacher**, wherever that
+teacher currently is. What limits the operation is the **destination**, never
+the origin: `assertClubInScope` still requires the target club to be under the
+caller's coordination, so nobody pushes a teacher into someone else's club.
 
-The selector shows where the teacher would come from (`No Clubinho 13 — será
-movido`) and disables the ones out of reach, with the reason. It used to hide
-them entirely, so there was no way to tell why a teacher was missing from the
-list.
+The teacher's current club used to have to be within the coordinator's scope
+too. That check is gone from all three doors — it made a coordinator unable to
+staff their own club with a teacher who happened to be listed elsewhere.
+
+Consequence, by design: taking a teacher removes them from the club they were
+in, and the other coordinator is not notified. The selector spells the move out
+before it happens (`No Clubinho 13 — será movido`) and disables nothing.
 
 ### Club ↔ coordinator
 

@@ -147,3 +147,33 @@ export class ClubControlDashboardResponseDto extends ClubsWeekCheckResponseDto {
   /** No painel a semana corrente sempre vem, ainda que com campos nulos. */
   declare currentWeek: DashboardCurrentWeekDto;
 }
+
+/**
+ * Período letivo reduzido ao que o calendário precisa para saber até quando um
+ * encontro de clubinho vale.
+ */
+export class ClubPeriodWindowDto {
+  year: number;
+  startDate: string;
+  endDate: string;
+}
+
+/** Data sem Clubinho, reduzida ao que o calendário precisa. */
+export class ClubExceptionWindowDto {
+  exceptionDate: string;
+  /** Vale para o mesmo dia e mês em qualquer ano. */
+  isRecurrent: boolean;
+}
+
+/**
+ * O que define quando um encontro de clubinho acontece.
+ *
+ * Os dois conjuntos andam juntos porque a resposta a "esse clubinho tem
+ * encontro no dia X?" precisa dos dois ao mesmo tempo: a data tem que cair
+ * dentro de um período letivo ativo **e** ficar fora das exceções. Devolver um
+ * sem o outro convidaria quem chama a montar meia regra.
+ */
+export class ClubCalendarRulesDto {
+  periods: ClubPeriodWindowDto[];
+  exceptions: ClubExceptionWindowDto[];
+}

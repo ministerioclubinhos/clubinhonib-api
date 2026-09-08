@@ -28,12 +28,15 @@ lugares. Hoje é uma só, `children_area`, e o perfil sai da audiência.
 | `clubinho_feed` | Feed de fotos dos clubinhos |
 | `statistics` | Painel de estatísticas |
 | `club_control` | Controle operacional dos clubinhos |
+| `club_weekly_summary` | Resumo semanal dos clubinhos (a tela que o e-mail de segunda abre) |
 | `pagelas` | Gestão das pagelas no painel |
 
 ### Chaves aposentadas
 
-As chaves que nomeavam o perfil (`teacher_*`, `coordinator_*`, `admin_*`) e as
-`shelter-*` foram aposentadas: elas são removidas do banco no boot e não devem
+As chaves que nomeavam o perfil (`teacher_*`, `coordinator_*`, `admin_*`), as
+`shelter-*` e `email_coordinator_weekly_summary` — nome antigo de
+`email_weekly_club_summary`, de quando a chave dizia quem recebia em vez do que
+o e-mail é — foram aposentadas: elas são removidas do banco no boot e não devem
 voltar. Recriar uma delas no painel não adianta — o próximo boot a remove de
 novo. Flags criadas pela administração com outros nomes não são tocadas.
 

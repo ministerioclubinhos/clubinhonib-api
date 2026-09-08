@@ -14,7 +14,9 @@ import { EventEntity } from '../entities/event.entity';
 import { toEventResponse } from '../mappers';
 import { GetEventService } from './get-event.service';
 import { AnnounceEventService } from './announce-event.service';
+import { ClubMeetingScheduleService } from './club-meeting-schedule.service';
 import { EVENT_FILE_FIELD, EVENT_MEDIA_TARGET_TYPE } from '../constants';
+import { assertNotClubMeeting } from '../utils';
 
 @Injectable()
 export class UpdateEventService {
@@ -26,6 +28,7 @@ export class UpdateEventService {
     private readonly mediaItemProcessor: MediaItemProcessor,
     private readonly s3Service: AwsS3Service,
     private readonly announceService: AnnounceEventService,
+    private readonly scheduleService: ClubMeetingScheduleService,
   ) {}
 
   async update(
@@ -34,6 +37,7 @@ export class UpdateEventService {
     file?: Express.Multer.File,
   ): Promise<EventResponseDto> {
     const existing = await this.getService.findEntityOrFail(id);
+    assertNotClubMeeting(existing);
 
     // O arquivo sobe fora da gravação: o rastreador permite apagá-lo do bucket
     // quando a atualização falha depois do upload.
@@ -59,7 +63,11 @@ export class UpdateEventService {
 
       this.announceService.announceInBackground('updated', savedEvent);
 
-      return toEventResponse(savedEvent, await this.getService.findMediaOf(id));
+      return toEventResponse(
+        savedEvent,
+        await this.getService.findMediaOf(id),
+        await this.occurrencesOf(savedEvent),
+      );
     } catch (error: unknown) {
       await this.mediaItemProcessor.discardUnreferencedUploads(
         uploads.uploadedUrls,
@@ -124,5 +132,18 @@ export class UpdateEventService {
       (url: string) => this.s3Service.delete(url),
       uploads.upload,
     );
+  }
+
+  /**
+   * Em que dias o evento acontece, para a resposta.
+   *
+   * Sem isto o corpo do `POST`/`PATCH` voltava com `occurrences` vazio — que no
+   * contrato significa "não acontece em dia nenhum". A tela recarrega a agenda
+   * depois de salvar e não chegava a mostrar o erro, mas qualquer cliente que
+   * lesse a resposta veria um evento sem data.
+   */
+  private async occurrencesOf(event: EventEntity): Promise<string[]> {
+    const byEvent = await this.scheduleService.occurrencesByEvent([event]);
+    return byEvent.get(event.id) ?? [];
   }
 }

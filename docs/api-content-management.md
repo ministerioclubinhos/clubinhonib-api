@@ -428,18 +428,75 @@ Agenda de eventos. O evento não tem página própria: o site lista tudo em
 Cadastrar um clubinho — ou mudar dia, horário, endereço ou situação dele — cria
 e mantém **um** evento no calendário:
 
-- `isRecurring: true`, com `weekday` e `time` do clubinho; `date` guarda a
-  primeira ocorrência e é preservada nas edições. Quem exibe o calendário repete
-  o encontro nas semanas seguintes, então não existe uma linha por semana;
+- `isRecurring: true`, com `weekday` e `time` do clubinho. A linha guarda apenas
+  a **definição** da recorrência, e `date` é o piso dela. As datas em que o dia
+  de clubinho acontece **não** são gravadas;
 - `public: false` — dia, horário e endereço **não** aparecem no site aberto. Só
   quem está autenticado recebe esses eventos em `GET /events` e
   `GET /events/upcoming`;
-- `clubId` liga o evento ao clubinho: a edição atualiza a mesma linha, nunca
-  cria outra. Clubinho desativado ou removido perde o encontro;
+- `clubId` liga o evento ao clubinho e é **único**: a edição atualiza a mesma
+  linha, e uma segunda linha para o mesmo clubinho é recusada pelo banco;
 - `location` é o endereço em uma linha, ou "Endereço não informado";
-- **nenhum e-mail é disparado** por esses eventos. O encontro é operacional e
-  nasce de cadastro administrativo; avisar toda a base a cada clubinho seria
-  só ruído.
+- **nenhum e-mail é disparado** por esses eventos, em nenhuma operação. Criar,
+  editar e excluir um encontro de clubinho são silenciosos: o encontro é
+  operacional, nasce de cadastro administrativo e se repete toda semana. A
+  regra vive em `AnnounceEventService`, o último ponto antes do envio, para
+  valer em qualquer caminho até a agenda;
+- `PATCH /events/:id` e `DELETE /events/:id` **recusam** um encontro de
+  clubinho, com `CONTENT_8613` (`CLUB_MEETING_NOT_EDITABLE`). Alterar por ali
+  seria desfeito na sincronização seguinte, e excluir deixaria o clubinho sem
+  encontro. Para tirar um do calendário, desative ou exclua o clubinho.
+
+**Em que dias o encontro acontece**
+
+O campo `occurrences` da resposta traz as datas, calculadas a cada leitura:
+
+```
+occurrences = (weekday do clubinho) ∩ (período letivo ativo) − (exceções ativas)
+```
+
+O período letivo e as exceções vêm de `/club-control` (veja
+[`MODULO-CONTROLE`](../src/modules/club-control/MODULO-CONTROLE.md)). Disso
+decorrem as regras:
+
+| Situação | Efeito |
+| --- | --- |
+| Nenhum período letivo ativo para o ano | **Nenhum dia de clubinho existe.** O encontro não é devolvido nas listagens |
+| Período cadastrado depois | As datas passam a aparecer na consulta seguinte, sem regravar nada e sem job |
+| Exceção criada, excluída ou reativada | A data sai ou volta na consulta seguinte, para todos os clubinhos daquele dia da semana |
+| Exceção com `isRecurrent` | Vale para o mesmo dia e mês em qualquer ano |
+| Exceção fora do período letivo | Sem efeito |
+| Clubinho desativado ou excluído | **Todos** os dias saem do calendário: a linha é apagada. Clubinho inativo não tem dia nenhum |
+| Clubinho reativado | Os dias são criados de novo, valendo a partir do dia da reativação — não há data antiga a preservar, a desativação apagou a linha |
+| Dia da semana alterado | A série recomeça a partir de hoje — a data antiga descreveria encontros que nunca existiram |
+
+Um evento **comum** não responde ao período letivo: ele foi marcado à mão para
+um dia específico e traz esse único dia em `occurrences`.
+
+Nada disso escreve na tabela `events`. É por isso que não há rotina varrendo
+clubinhos quando um período ou uma exceção muda — e, por consequência, nenhuma
+chance de duplicar encontro.
+
+**Recorte de datas**
+
+`GET /events` e `GET /events/upcoming` aceitam `from` e `to` (`YYYY-MM-DD`),
+opcionais. Sem eles a resposta é a agenda inteira, como antes. Com eles, cada
+evento traz só as ocorrências do intervalo — quem desenha um mês pede o mês, em
+vez de carregar uma data por semana de cada período letivo cadastrado.
+
+```
+GET /events?from=2026-04-01&to=2026-04-30
+```
+
+Em `/events/upcoming` um `from` no passado é ignorado: "próximos" nunca olha
+para trás.
+
+**Fuso**
+
+Todo dia de calendário é lido em `America/Sao_Paulo`, nunca no fuso do
+processo — a API roda em contêiner, e contêiner roda em UTC. A definição está
+em `shared/calendar-day`, a mesma que o agendador usa para as expressões de
+cron.
 
 **Regras**
 

@@ -1,12 +1,16 @@
+import { APP_TIMEZONE } from 'src/shared/calendar-day';
+
 /**
  * Fuso em que toda expressão de agendamento é lida.
  *
  * Fixo, e nunca o fuso do servidor: um contêiner em UTC dispararia o aviso das
- * 8h para uma professora às 5h da manhã. O horário de verão brasileiro está
- * extinto, mas o fuso nomeado continua sendo a forma certa de dizer isso — a
- * regra volta a valer sozinha se a lei voltar.
+ * 8h para uma professora às 5h da manhã.
+ *
+ * É o mesmo fuso em que o calendário lê as datas — uma definição só, em
+ * `shared/calendar-day`, para que o agendador e a agenda nunca discordem sobre
+ * que dia é hoje.
  */
-export const SCHEDULING_TIMEZONE = 'America/Sao_Paulo';
+export const SCHEDULING_TIMEZONE = APP_TIMEZONE;
 
 /**
  * Liga o agendador nesta instância.

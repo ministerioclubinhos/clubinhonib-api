@@ -192,3 +192,36 @@ export const UNSUBSCRIBE_FOOTER = {
   question: 'Não quer mais receber os avisos do Clubinho?',
   action: 'Cancelar o recebimento',
 } as const;
+
+/**
+ * As notificações que saem mesmo para conta inativa.
+ *
+ * A regra geral é o contrário: aviso só vai para quem está ativo. Estas são a
+ * exceção porque cortá-las trancaria a pessoa para fora da própria conta, ou
+ * porque o destinatário nem é um usuário da base.
+ *
+ * É a mesma lógica do descadastro — quem sai da lista de avisos continua
+ * recebendo o que responde a algo que ele mesmo pediu.
+ *
+ * | Notificação | Por que é exceção |
+ * | --- | --- |
+ * | `EmailVerification` | A conta nasce inativa; é este e-mail que a ativa |
+ * | `AccountCreatedByAdmin` | A conta foi criada pelo admin e ainda não foi confirmada |
+ * | `PasswordRecovery` | Sem ela, quem não confirmou o e-mail não recupera a senha |
+ * | `PasswordChanged` | Aviso de segurança sobre a conta da pessoa |
+ * | `EmailAddressChanged` | Vai para o endereço **anterior**, que já não é da conta |
+ * | `AccountDeactivated` | A conta acabou de ficar inativa; o aviso é sobre isso |
+ * | `AccountDeleted` | A linha do usuário não existe mais |
+ * | `ContactReceipt` | Quem escreveu pelo site não está na base |
+ */
+export const EMAIL_NOTIFICATIONS_FOR_INACTIVE: ReadonlySet<EmailNotification> =
+  new Set([
+    EmailNotification.EmailVerification,
+    EmailNotification.AccountCreatedByAdmin,
+    EmailNotification.PasswordRecovery,
+    EmailNotification.PasswordChanged,
+    EmailNotification.EmailAddressChanged,
+    EmailNotification.AccountDeactivated,
+    EmailNotification.AccountDeleted,
+    EmailNotification.ContactReceipt,
+  ]);

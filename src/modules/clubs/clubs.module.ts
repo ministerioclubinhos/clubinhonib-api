@@ -8,6 +8,7 @@ import { GetClubsService } from './services/get-clubs.service';
 import { GetClubRecipientsService } from './services/get-club-recipients.service';
 import { UserModule } from 'src/core/user/user.module';
 import { CreateClubsService } from './services/create-clubs.service';
+import { BackfillClubEventsService } from './services/backfill-club-events.service';
 
 import { ClubsRepository } from './repositories/clubs.repository';
 import { ClubEntity } from './entities/club.entity';
@@ -41,6 +42,7 @@ import { EventModule } from 'src/modules/pages/event-page/event.module';
     GetClubsService,
     GetClubRecipientsService,
     CreateClubsService,
+    BackfillClubEventsService,
     ClubsRepository,
   ],
   exports: [

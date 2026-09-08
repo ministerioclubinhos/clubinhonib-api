@@ -40,24 +40,11 @@ export class UpdateTeacherProfilesService {
       'Sem acesso ao clubinho informado',
     );
 
-    // Vincular passou a mover o professor entre clubinhos. Sem esta checagem,
-    // um coordenador tiraria um professor da turma de outra coordenação para a
-    // dele com uma requisição só.
-    if (context.role !== UserRole.ADMIN) {
-      const teacher = await this.repo.findOneWithClubAndCoordinatorOrFail(
-        teacherId,
-        context,
-      );
-
-      if (teacher.club && teacher.club.id !== clubId) {
-        await this.assertClubInScope(
-          context,
-          teacher.club.id,
-          'Sem acesso ao clubinho atual do professor',
-        );
-      }
-    }
-
+    // A turma atual do professor não é verificada: um coordenador monta a
+    // equipe do clubinho dele com qualquer professor, venha ele de onde vier.
+    // Vincular move o vínculo, então o professor sai do clubinho anterior — e
+    // o que limita a operação é o **destino**, checado acima: ninguém empurra
+    // professor para o clubinho de outra coordenação.
     await this.repo.assignTeacherToClub(teacherId, clubId);
   }
 

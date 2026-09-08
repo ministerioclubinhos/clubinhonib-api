@@ -10,6 +10,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Req,
   UploadedFile,
   UseGuards,
@@ -25,6 +26,7 @@ import { AuthContextService } from 'src/core/auth/services/auth-context.service'
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { EventResponseDto } from './dto/event-response.dto';
+import { QueryEventsDto } from './dto/query-events.dto';
 import { CreateEventService } from './services/create-event.service';
 import { UpdateEventService } from './services/update-event.service';
 import { DeleteEventService } from './services/delete-event.service';
@@ -59,19 +61,29 @@ export class EventController {
   }
 
   @Get()
-  async findAll(@Req() request: Request): Promise<EventResponseDto[]> {
+  async findAll(
+    @Req() request: Request,
+    @Query() query: QueryEventsDto,
+  ): Promise<EventResponseDto[]> {
     this.logger.debug('GET /events');
 
     // Ler a sessão é transporte; a regra de visibilidade fica no caso de uso,
     // que recebe apenas o booleano.
-    return this.getService.findAll(await this.authContext.isLoggedIn(request));
+    return this.getService.findAll(
+      await this.authContext.isLoggedIn(request),
+      query,
+    );
   }
 
   @Get('upcoming')
-  async findUpcoming(@Req() request: Request): Promise<EventResponseDto[]> {
+  async findUpcoming(
+    @Req() request: Request,
+    @Query() query: QueryEventsDto,
+  ): Promise<EventResponseDto[]> {
     this.logger.debug('GET /events/upcoming');
     return this.getService.findUpcoming(
       await this.authContext.isLoggedIn(request),
+      query,
     );
   }
 

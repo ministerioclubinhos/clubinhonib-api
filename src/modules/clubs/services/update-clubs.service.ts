@@ -10,11 +10,7 @@ import { UpdateClubDto } from '../dto/update-club.dto';
 import { ClubResponseDto } from '../dto/club.response.dto';
 import { ClubAccessContext } from '../types';
 import { toClubResponse } from '../mappers';
-import {
-  assertCanManageClubs,
-  assertCanTakeTeachers,
-  normalizedRole,
-} from '../utils';
+import { assertCanManageClubs, normalizedRole } from '../utils';
 import { GetClubsService } from './get-clubs.service';
 import { UserRole } from 'src/core/auth/auth.types';
 
@@ -38,7 +34,6 @@ export class UpdateClubsService {
 
     if (normalizedRole(context) === UserRole.COORDINATOR) {
       await this.assertCoordinatorAssignment(dto, context);
-      await this.assertTeachersInScope(dto.teacherProfileIds, id, context);
     }
 
     const club = await this.clubsRepository.updateClub(id, dto);
@@ -122,29 +117,5 @@ export class UpdateClubsService {
         'Não é permitido atribuir outro coordenador',
       );
     }
-  }
-
-  /**
-   * Trazer um professor de outro clubinho move o vínculo. O coordenador só
-   * move quem já está sob a coordenação dele.
-   */
-  private async assertTeachersInScope(
-    teacherProfileIds: string[] | undefined,
-    targetClubId: string | null,
-    context: ClubAccessContext,
-  ): Promise<void> {
-    if (!teacherProfileIds?.length) return;
-
-    const [currentClubIdByTeacher, ownClubs] = await Promise.all([
-      this.clubsRepository.findCurrentClubIdsOfTeachers(teacherProfileIds),
-      this.clubsRepository.list(context),
-    ]);
-
-    assertCanTakeTeachers({
-      context,
-      targetClubId,
-      currentClubIdByTeacher,
-      accessibleClubIds: new Set(ownClubs.map((club) => club.id)),
-    });
   }
 }

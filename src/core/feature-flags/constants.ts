@@ -32,6 +32,13 @@ export const RETIRED_FEATURE_FLAGS = [
   'shelter-address',
   'shelter-management',
   'shelter-pagelas',
+  /**
+   * Nome antigo do resumo semanal, de antes de a chave descrever o conteúdo em
+   * vez do perfil que recebe. A chave que vale é `email_weekly_club_summary`;
+   * nenhum código lê esta, e ela só aparecia no painel como um interruptor que
+   * não fazia nada.
+   */
+  'email_coordinator_weekly_summary',
 ] as const;
 
 /**
@@ -113,6 +120,20 @@ export const DEFAULT_FEATURE_FLAGS = [
     description: 'Controle operacional dos clubinhos.',
     enabled: true,
     targetRoles: ['admin'],
+  },
+  {
+    key: 'club_weekly_summary',
+    name: 'Resumo Semanal dos Clubinhos',
+    description:
+      'Visão de semana, mês, trimestre e ano dos clubinhos do coordenador. É a tela que o resumo de segunda-feira abre.',
+    enabled: true,
+    /*
+     * Só o coordenador. O administrador tem as Estatísticas, que cobrem a base
+     * inteira com muito mais detalhe — dar a ele mais uma leitura dos mesmos
+     * números, recortada por clubinho, seria uma segunda porta para o mesmo
+     * lugar.
+     */
+    targetRoles: ['coordinator'],
   },
   {
     key: 'pagelas',

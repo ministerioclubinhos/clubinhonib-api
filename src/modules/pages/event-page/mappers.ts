@@ -27,10 +27,17 @@ export function toEventMediaResponse(
   };
 }
 
-/** Mapeia o evento e sua mídia para o contrato público. */
+/**
+ * Mapeia o evento e sua mídia para o contrato público.
+ *
+ * `occurrences` vem calculado de fora: as datas de um encontro de clubinho
+ * dependem do período letivo e das exceções, que o mapeamento não tem como
+ * consultar. Um evento comum recebe a própria data.
+ */
 export function toEventResponse(
   event: EventEntity,
   media: MediaItemEntity | null,
+  occurrences: string[] = [],
 ): EventResponseDto {
   return {
     id: event.id,
@@ -43,6 +50,7 @@ export function toEventResponse(
     public: event.public,
     isRecurring: event.isRecurring,
     weekday: event.weekday ?? null,
+    occurrences,
     time: event.time ?? null,
     clubId: event.clubId ?? null,
     media: media ? toEventMediaResponse(media) : null,

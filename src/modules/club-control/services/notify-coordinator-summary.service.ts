@@ -96,7 +96,14 @@ export class NotifyCoordinatorSummaryService {
           academicYear: week.year,
           clubs: pending.map(toSummaryClub),
           clubsOk: clubs.length - pending.length,
-          panelLink: this.siteUrlService.buildUrl(CLUB_CONTROL_PATHS.control),
+          // O e-mail conta a semana que fechou; o link abre o resumo, onde
+          // ela aparece ao lado de todas as anteriores. Antes apontava para o
+          // controle de clubinhos, que é do administrador: o coordenador
+          // clicava e caía no painel, sem nada sobre o resumo que acabara de
+          // ler.
+          panelLink: this.siteUrlService.buildUrl(
+            CLUB_CONTROL_PATHS.weeklySummary,
+          ),
         });
         sent += 1;
       } catch (error: unknown) {

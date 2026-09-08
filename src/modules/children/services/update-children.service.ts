@@ -17,7 +17,11 @@ import { toChildResponseDto } from '../mappers/child.mapper';
 import { ClubEntity } from '../../clubs/entities/club.entity';
 import { AuthContextService } from 'src/core/auth/services/auth-context.service';
 import { UserRole } from 'src/core/auth/auth.types';
-import { toDateOnly } from '../utils';
+import {
+  assertCanChangeChildClub,
+  assertCanUnlinkChildClub,
+  toDateOnly,
+} from '../utils';
 
 @Injectable()
 export class UpdateChildrenService {
@@ -54,14 +58,23 @@ export class UpdateChildrenService {
     if (dto.joinedAt !== undefined) entity.joinedAt = toDateOnly(dto.joinedAt);
     if (dto.isActive !== undefined) entity.isActive = dto.isActive;
 
-    if (dto.clubId !== undefined) {
-      if (dto.clubId === null) {
+    // O formulário reenvia o clubinho mesmo quando ninguém mexeu nele, então a
+    // regra vale para a **mudança**, não para o campo estar presente: um
+    // professor editando o telefone da criança não pode esbarrar nela.
+    const clubIdAtual = entity.club?.id ?? null;
+    const clubIdNovo = dto.clubId ?? null;
+
+    if (dto.clubId !== undefined && clubIdNovo !== clubIdAtual) {
+      assertCanChangeChildClub(ctx);
+
+      if (clubIdNovo === null) {
+        assertCanUnlinkChildClub(ctx);
         entity.club = null;
       } else {
-        await this.getClubsService.findOne(dto.clubId, ctx);
+        await this.getClubsService.findOne(clubIdNovo, ctx);
         if (ctx.role && ctx.role !== UserRole.ADMIN) {
           const allowed = await this.childrenRepo.userHasAccessToClub(
-            dto.clubId,
+            clubIdNovo,
             ctx,
           );
           if (!allowed) {
@@ -71,7 +84,7 @@ export class UpdateChildrenService {
             );
           }
         }
-        entity.club = { id: dto.clubId } as ClubEntity;
+        entity.club = { id: clubIdNovo } as ClubEntity;
       }
     }
 

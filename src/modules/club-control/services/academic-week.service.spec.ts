@@ -173,4 +173,62 @@ describe('AcademicWeekService', () => {
       expect(service.getWeekStartDate(new Date(2026, 2, 8)).getDate()).toBe(2);
     });
   });
+
+  describe('isExpectedDateWithinPeriod', () => {
+    /**
+     * É o guarda que faz o controle de pagela concordar com o calendário.
+     *
+     * A agenda calcula os dias de clubinho cruzando o dia da semana com o
+     * período letivo; o controle chega ao dia esperado por outra conta, a da
+     * semana letiva. As duas só concordam porque esta verificação existe: sem
+     * ela, um período que começa no meio da semana faria a semana 1 cobrar
+     * pagela de um dia que o calendário não tem.
+     */
+    const periodoQueComecaNaQuarta = Object.assign(new ClubPeriodEntity(), {
+      year: 2026,
+      startDate: '2026-03-04',
+      endDate: '2026-12-19',
+      isActive: true,
+    });
+
+    it('recusa o dia do clubinho anterior à abertura do período', () => {
+      // Clubinho de segunda, semana 1: 02/03 cai antes de o período abrir.
+      expect(
+        service.isExpectedDateWithinPeriod(
+          '2026-03-02',
+          periodoQueComecaNaQuarta,
+        ),
+      ).toBe(false);
+    });
+
+    it('aceita o dia do clubinho a partir da abertura', () => {
+      expect(
+        service.isExpectedDateWithinPeriod(
+          '2026-03-05',
+          periodoQueComecaNaQuarta,
+        ),
+      ).toBe(true);
+    });
+
+    it('recusa o dia posterior ao fim do período', () => {
+      expect(service.isExpectedDateWithinPeriod('2026-12-21', periodo)).toBe(
+        false,
+      );
+    });
+
+    it('aceita os extremos do período', () => {
+      expect(service.isExpectedDateWithinPeriod('2026-03-02', periodo)).toBe(
+        true,
+      );
+      expect(service.isExpectedDateWithinPeriod('2026-12-19', periodo)).toBe(
+        true,
+      );
+    });
+
+    it('sem período cadastrado, nenhum dia é esperado', () => {
+      expect(service.isExpectedDateWithinPeriod('2026-03-02', null)).toBe(
+        false,
+      );
+    });
+  });
 });

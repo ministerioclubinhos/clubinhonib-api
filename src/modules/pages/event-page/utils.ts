@@ -1,6 +1,10 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { AppValidationException, ErrorCode } from 'src/shared/exceptions';
+import {
+  AppBusinessException,
+  AppValidationException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import { Weekday } from 'src/modules/clubs/entities/weekday.enum';
 import {
   CLUB_MEETING_LOCATION_FALLBACK,
@@ -127,4 +131,25 @@ export function formatClubLocation(
   );
 
   return parts.length > 0 ? parts.join(' · ') : CLUB_MEETING_LOCATION_FALLBACK;
+}
+
+/**
+ * Recusa alterar ou excluir um encontro de clubinho pela agenda.
+ *
+ * Esses eventos são mantidos pelo cadastro do clubinho: `SyncClubEventService`
+ * regrava título, endereço, dia e horário a cada edição, então qualquer coisa
+ * feita aqui seria desfeita na próxima. Pior, a exclusão pela agenda deixaria o
+ * clubinho sem encontro até a próxima sincronização — e antes desta trava ela
+ * ainda disparava um e-mail de "evento cancelado" para toda a base.
+ *
+ * Para tirar o encontro do calendário, desative ou exclua o clubinho.
+ */
+export function assertNotClubMeeting(event: { clubId?: string | null }): void {
+  if (!event.clubId) return;
+
+  throw new AppBusinessException(
+    ErrorCode.CLUB_MEETING_NOT_EDITABLE,
+    'Este é o encontro semanal de um clubinho e é mantido pelo cadastro dele. ' +
+      'Para alterar ou remover, edite ou desative o clubinho.',
+  );
 }

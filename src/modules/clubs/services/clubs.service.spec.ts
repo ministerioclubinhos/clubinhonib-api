@@ -24,6 +24,7 @@ type RepoMock = jest.Mocked<
     | 'list'
     | 'userHasAccessToClub'
     | 'getCoordinatorProfileIdByUserId'
+    | 'findCurrentClubIdsOfTeachers'
   >
 >;
 
@@ -74,6 +75,9 @@ describe('casos de uso de clubinhos', () => {
       list: jest.fn().mockResolvedValue([]),
       userHasAccessToClub: jest.fn().mockResolvedValue(true),
       getCoordinatorProfileIdByUserId: jest.fn().mockResolvedValue('coord-1'),
+      // Existia para conferir de onde vinha cada professor. Continua no mock
+      // para os testes provarem que ninguém mais o chama.
+      findCurrentClubIdsOfTeachers: jest.fn().mockResolvedValue(new Map()),
     } as unknown as RepoMock;
 
     sync = {
@@ -119,6 +123,20 @@ describe('casos de uso de clubinhos', () => {
       expect(repo.createClub).not.toHaveBeenCalled();
     });
 
+    it('o coordenador cria o clubinho já com qualquer professor', async () => {
+      await createService.create(
+        {
+          number: 12,
+          weekday: Weekday.SATURDAY,
+          teacherProfileIds: ['t-de-outra-coordenacao'],
+        },
+        coordinator,
+      );
+
+      expect(repo.createClub).toHaveBeenCalled();
+      expect(repo.findCurrentClubIdsOfTeachers).not.toHaveBeenCalled();
+    });
+
     it('força o coordenador a criar sob a própria coordenação', async () => {
       const dto = {
         number: 12,
@@ -159,6 +177,84 @@ describe('casos de uso de clubinhos', () => {
         ),
       ).rejects.toBeInstanceOf(AppForbiddenException);
     });
+
+    /**
+     * O que o coordenador decide sozinho no clubinho dele.
+     *
+     * São as duas operações do dia a dia da coordenação: quando o clubinho se
+     * reúne e quem dá aula nele. Nenhuma delas passa por administrador.
+     */
+    describe('o que o coordenador pode no clubinho dele', () => {
+      it('muda o dia da semana', async () => {
+        await updateService.update(
+          'club-1',
+          { weekday: Weekday.FRIDAY },
+          coordinator,
+        );
+
+        expect(repo.updateClub).toHaveBeenCalledWith('club-1', {
+          weekday: Weekday.FRIDAY,
+        });
+      });
+
+      it('muda o horário', async () => {
+        await updateService.update('club-1', { time: '16:30' }, coordinator);
+
+        expect(repo.updateClub).toHaveBeenCalledWith('club-1', {
+          time: '16:30',
+        });
+      });
+
+      it('mudar o dia leva a alteração para o calendário', async () => {
+        // A série inteira muda de dia, e é a sincronização que refaz as datas.
+        await updateService.update(
+          'club-1',
+          { weekday: Weekday.FRIDAY },
+          coordinator,
+        );
+
+        expect(sync.syncFromClub).toHaveBeenCalledWith(club());
+      });
+
+      it('monta a equipe com qualquer professor, venha de onde vier', async () => {
+        // Vincular move o vínculo: o professor sai do clubinho anterior, mesmo
+        // que seja de outra coordenação. O coordenador é dono da equipe do
+        // clubinho dele.
+        await updateService.update(
+          'club-1',
+          { teacherProfileIds: ['t-de-outra-coordenacao'] },
+          coordinator,
+        );
+
+        expect(repo.updateClub).toHaveBeenCalledWith('club-1', {
+          teacherProfileIds: ['t-de-outra-coordenacao'],
+        });
+      });
+
+      it('remove um professor deixando-o fora da lista', async () => {
+        await updateService.update(
+          'club-1',
+          { teacherProfileIds: [] },
+          coordinator,
+        );
+
+        expect(repo.updateClub).toHaveBeenCalledWith('club-1', {
+          teacherProfileIds: [],
+        });
+      });
+
+      it('não consulta o clubinho atual dos professores', async () => {
+        // A conferência antiga custava duas consultas por edição e barrava
+        // quem viesse de outra coordenação.
+        await updateService.update(
+          'club-1',
+          { teacherProfileIds: ['t-1', 't-2'] },
+          coordinator,
+        );
+
+        expect(repo.findCurrentClubIdsOfTeachers).not.toHaveBeenCalled();
+      });
+    });
   });
 
   describe('ativar e desativar', () => {
@@ -178,7 +274,8 @@ describe('casos de uso de clubinhos', () => {
   });
 
   describe('exclusão', () => {
-    it('tira o encontro do calendário antes de apagar o clubinho', async () => {
+    it('tira os dias do calendário antes de apagar o clubinho', async () => {
+      // Depois da exclusão não há mais vínculo de onde partir.
       const order: string[] = [];
       sync.removeForClub.mockImplementation(() => {
         order.push('evento');
@@ -202,15 +299,30 @@ describe('casos de uso de clubinhos', () => {
       expect(repo.deleteById).not.toHaveBeenCalled();
     });
 
-    it('esconde o clubinho de outra coordenação', async () => {
-      repo.userHasAccessToClub.mockResolvedValue(false);
+    it('recusa o coordenador, mesmo no clubinho que ele coordena', async () => {
+      // É a única operação de clubinho fechada para a coordenação, e a razão é
+      // ser a única irreversível: a linha some e as crianças são desvinculadas.
+      // Para tirar o clubinho do ar com volta, existe desativar.
+      repo.userHasAccessToClub.mockResolvedValue(true);
 
       await expect(
         deleteService.remove('club-1', coordinator),
-      ).rejects.toBeInstanceOf(AppNotFoundException);
+      ).rejects.toBeInstanceOf(AppForbiddenException);
 
       expect(sync.removeForClub).not.toHaveBeenCalled();
       expect(repo.deleteById).not.toHaveBeenCalled();
+    });
+
+    it('o coordenador continua podendo desativar o clubinho dele', async () => {
+      // A alternativa com volta: some do calendário, o histórico fica.
+      repo.findOneOrFailForResponse.mockResolvedValue(club({ isActive: true }));
+      repo.updateClub.mockResolvedValue(club({ isActive: false }));
+
+      await updateService.toggleActive('club-1', coordinator);
+
+      expect(repo.updateClub).toHaveBeenCalledWith('club-1', {
+        isActive: false,
+      });
     });
   });
 
