@@ -1,0 +1,28 @@
+@startuml Contacts Flow - Clubinho NIB API
+!theme plain
+hide footbox
+title Contacts — public submission and admin inbox
+
+actor "Visitor / Admin" as Client
+participant ContactController as Controller
+participant "Create / Get / Update / Delete ContactService" as Service
+database "MySQL\nContactsRepository" as Repository
+participant NotificationService as Notify
+
+alt Public submission
+  Client -> Controller : POST /contact
+  Controller -> Service : validated contact DTO
+  Service -> Repository : persist unread message
+  Service -> Notify : notify admins and send receipt safely
+  Service --> Client : ContactResponseDto
+else Admin inbox
+  Client -> Controller : list, detail, unread count, mark or delete
+  Controller -> Service : admin request + filters
+  Service -> Repository : query or mutate message
+  Repository --> Client : shared page, DTO, count or message
+end
+
+note over Service, Notify
+  Message content and personal fields are never written to logs.
+end note
+@enduml

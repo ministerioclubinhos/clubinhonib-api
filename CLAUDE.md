@@ -12,6 +12,7 @@ Mandatory summary:
 - Enforce role, assigned-club scope, ownership, errors, privacy, statistics scope, and transactions in the API.
 - Toda notificação por e-mail fica atrás de uma feature flag PRÓPRIA — uma flag por notificação, nunca compartilhada com a flag do recurso de origem, nunca ausente. Um e-mail novo exige, em conjunto: valor em `EmailNotification`, chave `email_*` em `FeatureFlagKeys`, o par em `EMAIL_NOTIFICATION_FLAGS`, a flag semeada em `DEFAULT_FEATURE_FLAGS` com `enabled: true`, e o envio passando por `EmailService.dispatch`/`dispatchBulk`. Ver `docs/email.md`.
 - Every schema migration must come from the official TypeORM CLI/core `migration:generate` command. Never use `migration:create`, create/edit migrations manually, or use `synchronize` to deploy schema changes.
+- When a backend change creates or modifies a database schema or feature flow, create its PlantUML diagram if missing or update the existing one under `docs/diagrams/database/` or `docs/diagrams/flow/<feature-name>/`. Leave diagrams outside the current change untouched. Whenever a diagram is created or edited, ALWAYS generate its `.png` immediately (`npm run diagrams:generate`).
 - Behavior changes require Jest tests and synchronized docs.
 
 If this summary and the detailed guide differ, the detailed guide controls.

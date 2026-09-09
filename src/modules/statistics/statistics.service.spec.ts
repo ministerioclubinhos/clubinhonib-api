@@ -161,7 +161,9 @@ describe('StatisticsService.getOverviewStatistics', () => {
     const primeiraRodada = overviewRepository.getTotalCounts.mock.calls.length;
 
     await service.getOverviewStatistics();
-    expect(overviewRepository.getTotalCounts).toHaveBeenCalledTimes(primeiraRodada);
+    expect(overviewRepository.getTotalCounts).toHaveBeenCalledTimes(
+      primeiraRodada,
+    );
 
     // Passado o prazo, a conta é refeita.
     jest.setSystemTime(new Date(HOJE.getTime() + 61_000));

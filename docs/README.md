@@ -66,3 +66,13 @@ Welcome to the official documentation for the **Clubinho NIB API**. This hub ser
 | :-------------------------------------- | :------------------------------------------------------- |
 | [**User Module**](user-module.md)       | Account operations and basic user data.                  |
 | [**Profile Module**](profile-module.md) | Extended profile data (preferences, bio, personal info). |
+
+---
+
+## 📐 Diagrams & Architecture (PlantUML)
+
+| Category | Path | Description |
+| :--- | :--- | :--- |
+| **Diagram Index** | [`docs/diagrams/README.md`](diagrams/README.md) | Navigable list of database and feature diagrams. |
+| **Database Schemas** | [`docs/diagrams/database/`](diagrams/database/) | Database ER schema diagrams in PlantUML (`.puml`) and rendered images (`.png`). |
+| **Feature Flows** | [`docs/diagrams/flow/`](diagrams/flow/) | Feature-specific execution flow diagrams structured per feature folder (`.puml` + `.png`). |

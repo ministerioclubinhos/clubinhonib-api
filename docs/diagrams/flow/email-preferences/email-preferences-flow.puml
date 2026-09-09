@@ -1,0 +1,30 @@
+@startuml Email Preferences Flow - Clubinho NIB API
+!theme plain
+hide footbox
+
+title E-mail preferences — public unsubscribe
+
+actor Recipient
+participant EmailPreferencesController as Controller
+participant UpdateEmailPreferencesService as Service
+participant UnsubscribeTokenService as Token
+database "MySQL\nUserRepository" as Database
+
+Recipient -> Controller : POST /email-preferences/unsubscribe { token }
+Controller -> Service : unsubscribeFromNotices(token)
+Service -> Token : verify signed token
+Token --> Service : user id or invalid
+
+alt Invalid token or unknown user
+  Service --> Recipient : 422 same generic error
+else Known user
+  Service -> Database : find user; set noticesUnsubscribedAt once
+  Service --> Recipient : 200 unsubscribed=true
+end
+
+note over Recipient, Database
+  The token is the only credential. The operation is idempotent
+  and never reveals whether an account exists.
+end note
+
+@enduml

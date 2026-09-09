@@ -1,0 +1,27 @@
+@startuml Accepted Christs Flow - Clubinho NIB API
+!theme plain
+hide footbox
+title Accepted Christ — register a decision
+
+actor "Teacher / Coordinator / Admin" as Client
+participant AcceptedChristController as Controller
+participant CreateAcceptedChristService as Service
+participant GetChildrenService as Children
+database "MySQL\nAcceptedChristRepository" as Repository
+participant NotifyAcceptedChristService as Notify
+
+Client -> Controller : POST /accepted-christs
+Controller -> Service : access context + validated DTO
+Service -> Service : assert role may register decisions
+Service -> Children : find child within caller scope
+Children --> Service : child or scoped not-found
+Service -> Repository : create decision for child
+Repository --> Service : saved decision
+Service -> Notify : notify club team in background
+Service --> Client : AcceptedChristResponseDto
+
+note over Service, Notify
+  Notes are stored but never e-mailed or logged.
+  No club or no eligible recipient means no notification.
+end note
+@enduml

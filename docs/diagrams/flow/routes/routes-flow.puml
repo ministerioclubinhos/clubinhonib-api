@@ -1,0 +1,27 @@
+@startuml Routes Flow - Clubinho NIB API
+!theme plain
+hide footbox
+title Routes — public lookup and internal ownership
+
+actor Client
+participant RouteController as Controller
+participant "Get / Create / Update / Delete RouteService" as Service
+database "MySQL\nRouteRepository" as Repository
+participant "Owning content service" as Owner
+
+alt Public lookup
+  Client -> Controller : GET /routes or /routes/:id
+  Controller -> Service : list or id
+  Service -> Repository : find routes
+  Repository --> Client : RouteResponseDto[] or route/null
+else Content mutation
+  Owner -> Service : create/upsert/delete route with entity identity
+  Service -> Repository : choose unique path and persist with same transaction manager
+  Repository --> Owner : RouteEntity or completion
+end
+
+note over Service, Repository
+  Content services own when routes change.
+  The repository prevents path collision and supports transactional writes.
+end note
+@enduml

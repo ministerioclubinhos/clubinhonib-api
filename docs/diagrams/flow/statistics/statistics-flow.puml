@@ -1,0 +1,25 @@
+@startuml Statistics Flow - Clubinho NIB API
+!theme plain
+hide footbox
+title Statistics — filtered database aggregation
+
+actor Admin
+participant StatisticsController as Controller
+participant StatisticsService as Service
+participant "Period + Filter services" as Filters
+database "MySQL\nStatistics repositories" as Repository
+
+Admin -> Controller : GET /statistics/{report}
+Controller -> Service : validated report query
+Service -> Filters : normalize date, academic period and grouping
+Filters --> Service : effective filters
+Service -> Repository : execute report-specific aggregate queries
+Repository --> Service : counts, groups and time series
+Service -> Service : calculate documented rates and rankings
+Service --> Admin : explicit statistics DTO
+
+note over Filters, Repository
+  Aggregation stays in SQL, uses scoped boundaries and avoids duplicate joins.
+  Empty data is returned as an explicit empty/zero report state.
+end note
+@enduml

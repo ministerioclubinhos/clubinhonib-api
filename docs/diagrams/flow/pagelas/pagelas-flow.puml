@@ -1,0 +1,30 @@
+@startuml Pagelas Flow - Clubinho NIB API
+!theme plain
+hide footbox
+title Pagelas — scoped weekly records
+
+actor "Admin / Coordinator / Teacher" as Client
+participant PagelasController as Controller
+participant "Create / Get / Update / Delete PagelasService" as Service
+participant ResolvePagelaWeekService as Week
+database "MySQL\nPagelasRepository" as Repository
+
+Client -> Controller : list, detail or mutation
+Controller -> Service : DTO/query + role access context
+
+alt Create or change reference date
+  Service -> Repository : verify child is within caller reach
+  Repository --> Service : allowed or denied
+  Service -> Week : resolve academic year/week from period
+  Week --> Service : academic week or date-range error
+end
+
+Service -> Repository : scoped query, create, update or delete
+Repository --> Service : entity/page or not-found
+Service --> Client : PagelaResponseDto / shared page / message
+
+note over Week, Repository
+  One pagela per child and academic week is database-enforced.
+  Out-of-scope records look not found on reads.
+end note
+@enduml

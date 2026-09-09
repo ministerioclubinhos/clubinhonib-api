@@ -12,5 +12,6 @@ Read and follow [`AGENTS.md`](../AGENTS.md), [`docs/CLUBINHO_BACKEND_BEST_PRACTI
 - Require explicit input DTOs (request/query) and output DTOs (response contracts) for all endpoints and operations. ALWAYS create dedicated files for `types` and `constants`, ALWAYS use domain enums for finite sets (no magic strings), ALWAYS create dedicated `utils` files for pure functions/logic, use explicit return types, and NEVER use `any` under any circumstances.
 - Enforce guards, roles, assigned-club scope, ownership, transactions, standardized errors, and privacy-safe logs.
 - Generate every schema migration automatically with the official TypeORM CLI/core `migration:generate` command. Never use `migration:create`, create/edit a migration manually, or deploy schema changes with `synchronize`.
+- When a backend change creates or modifies a database schema or feature flow, create its PlantUML diagram if missing or update the existing one under `docs/diagrams/database/` or `docs/diagrams/flow/<feature-name>/`. Leave diagrams outside the current change untouched. Whenever a diagram is created or edited, ALWAYS generate its `.png` immediately (`npm run diagrams:generate`).
 - Pair behavior changes with Jest tests and docs.
 - Keep changes focused and preserve unrelated work.

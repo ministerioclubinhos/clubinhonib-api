@@ -1,0 +1,39 @@
+@startuml Video Pages Flow - Clubinho NIB API
+!theme plain
+hide footbox
+title Video pages — route and media lifecycle
+
+actor "Reader / Admin" as Client
+participant VideoPageController as Controller
+participant "VideoPage operation service" as Service
+database "MySQL\nVideo pages + media rows" as Repository
+participant RouteService as Route
+participant MediaItemProcessor as Media
+participant "AWS S3" as S3
+
+alt Read
+  Client -> Controller : authenticated list or public detail
+  Controller -> Service : query or id
+  Service -> Repository : load page and route
+  Service -> Media : load page videos
+  Service --> Client : summary page or full DTO
+else Admin create or update
+  Client -> Controller : multipart POST/PATCH
+  Controller -> Service : page + complete video payload
+  Service -> Repository : transaction: persist page
+  Service -> Route : create/upsert route in transaction
+  Service -> Media : diff links/uploads; preserve or replace files
+  Media -> S3 : upload/replace/delete owned files
+  Service --> Client : VideosPageResponseDto
+else Admin delete
+  Service -> Media : remove media rows
+  Media -> S3 : delete owned objects
+  Service -> Route : remove route
+  Service -> Repository : remove page
+  Service --> Client : 204
+end
+
+note over Repository, S3
+  Failed writes compensate persisted media and unreferenced uploads.
+end note
+@enduml

@@ -312,6 +312,29 @@ When behavior or a contract changes, update every applicable artifact:
 
 Documentation examples MUST be checked against current DTOs, roles, status codes, and response envelopes.
 
+### 11.6 PlantUML Diagrams for Database Schemas and Feature Flows
+
+PlantUML diagrams follow the scope of the current backend change. When a change
+creates or modifies a database schema or feature execution flow, create the
+affected diagram if it does not exist, or update it if it already exists. If a
+schema or feature is not changed by the current work, leave its existing diagram
+untouched and do not create a missing diagram merely as unrelated backfill.
+
+Store diagrams under the `docs/` folder as follows:
+
+1. **Database Schema Diagrams**:
+   - Stored under `docs/diagrams/database/`.
+   - Contains PlantUML ER / schema definition files (`.puml` or `.plantuml`) and their exported `.png` images (e.g. `database-schema.puml` and `database-schema.png`).
+
+2. **Feature Flow Diagrams**:
+   - Stored under `docs/diagrams/flow/`.
+   - Must contain a dedicated subfolder for each feature (e.g. `docs/diagrams/flow/auth/`, `docs/diagrams/flow/children/`, `docs/diagrams/flow/clubs/`).
+   - Inside each feature folder, place the PlantUML flow diagram file (`.puml`) and its rendered `.png` image.
+
+3. **Mandatory Immediate Rendering Rule**:
+   - Whenever creating or editing any `.puml` or `.plantuml` file, the corresponding `.png` image file **MUST be generated immediately right after**.
+   - Run `npm run diagrams:generate` or `node scripts/generate-diagrams.js` to render all updated diagrams automatically.
+
 ### 11.1 Dependency Injection and Configuration
 
 - NestJS providers are singleton by default. Never store request-specific mutable state on a service or repository instance.

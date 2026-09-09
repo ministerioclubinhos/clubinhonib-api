@@ -1,0 +1,39 @@
+@startuml Shared Ideas Flow - Clubinho NIB API
+!theme plain
+hide footbox
+title Shared ideas — moderation queue
+
+actor "Authenticated sender / Admin" as Client
+participant IdeasSectionController as Controller
+participant "IdeasSection operation service" as Service
+database "MySQL\nIdeas sections + media rows" as Repository
+participant MediaItemProcessor as Media
+participant "AWS S3" as S3
+participant NotificationService as Notify
+
+alt Submit
+  Client -> Controller : multipart POST /ideas-sections
+  Controller -> Service : text + files
+  Service -> Repository : create public=false with no page
+  Service -> Media : persist linked media
+  Media -> S3 : upload supplied files
+  Service -> Notify : notify admins safely
+  Service --> Client : pending IdeasSectionResponseDto
+else Review and publish
+  Client -> Controller : admin list/edit or attach/:pageId
+  Controller -> Service : reviewed DTO + target page
+  Service -> Repository : update same section and attach atomically
+  Service -> Media : synchronize reviewed media
+  Media -> S3 : upload/replace/delete changed files
+  Service --> Client : published DTO
+else Reject
+  Service -> Media : remove media rows
+  Media -> S3 : delete owned objects
+  Service -> Repository : delete pending section
+  Service --> Client : 204
+end
+
+note over Repository
+  A section already attached to a page cannot be attached again or deleted here.
+end note
+@enduml

@@ -1,0 +1,34 @@
+@startuml Email Flow - Clubinho NIB API
+!theme plain
+hide footbox
+title E-mail — gated, safe delivery
+
+participant "Feature use case" as Caller
+participant EmailService as Email
+participant GetFeatureFlagsService as Flags
+database "MySQL\nFeatureFlagsRepository" as Database
+participant UnsubscribeTokenService as Token
+participant SmtpService as SMTP
+
+Caller -> Email : send notification with typed data and recipient(s)
+Email -> Flags : isSwitchedOn(notification-specific flag)
+Flags -> Database : read flag state and target roles
+Database --> Flags : feature flag
+Flags --> Email : enabled / disabled
+
+alt Disabled, unsubscribed or inactive recipient
+  Email --> Caller : skipped result; business operation remains successful
+else Eligible delivery
+  Email -> Token : create recipient-specific unsubscribe token
+  Token --> Email : signed token
+  Email -> Email : render shared layout + notification template
+  Email -> SMTP : send one or bulk messages
+  SMTP --> Email : delivered or provider failure
+  Email --> Caller : success/failure result without throwing
+end
+
+note over Email, SMTP
+  Security/account e-mails may bypass inactive/unsubscribed suppression.
+  Every notification type has its own feature flag.
+end note
+@enduml

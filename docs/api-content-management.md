@@ -394,6 +394,10 @@ enquanto o problema existia.
 Agenda de eventos. O evento não tem página própria: o site lista tudo em
 `/eventos`.
 
+**Diagramas do fluxo**: [consulta e recorte por datas](diagrams/flow/events/events-query-flow.png),
+[operações administrativas](diagrams/flow/events/events-management-flow.png) e
+[sincronização dos encontros dos clubinhos](diagrams/flow/events/club-meeting-sync-flow.png).
+
 - `GET /` - Lista os eventos, do mais antigo para o mais novo. Sem sessão, só
   os públicos
 - `GET /upcoming` - Eventos de hoje em diante, mais os encontros semanais, que

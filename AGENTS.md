@@ -38,8 +38,9 @@ The backend best-practices document is the canonical detailed guide. This file i
 12. Never log tokens, passwords, authorization headers, children's data, guardian details, uploaded contents, or unnecessary personal data.
 13. Every behavior change requires tests. Bug fixes require a regression test. External services and databases must be mocked.
 14. Update API docs, implemented rules, error docs, and automation examples when their behavior changes.
-15. Do not modify environments, deployments, infrastructure, shared databases, or production data without explicit authorization.
-16. Preserve unrelated user changes and keep the final diff limited to the requested outcome.
+15. When a backend change creates or modifies a database schema or feature flow, maintain its PlantUML diagram under `docs/diagrams/`: create the affected diagram if it does not exist, or update it if it already exists. Leave diagrams for schemas and features outside the current change untouched. Database diagrams belong in `docs/diagrams/database/`; feature diagrams belong in `docs/diagrams/flow/<feature-name>/`, with a dedicated folder containing the `.puml` source and `.png` export. Whenever a diagram is created or edited, render its `.png` immediately via `npm run diagrams:generate`.
+16. Do not modify environments, deployments, infrastructure, shared databases, or production data without explicit authorization.
+17. Preserve unrelated user changes and keep the final diff limited to the requested outcome.
 
 ## Required Implementation Workflow
 

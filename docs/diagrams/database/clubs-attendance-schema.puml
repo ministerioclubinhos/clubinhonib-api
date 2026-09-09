@@ -1,0 +1,120 @@
+@startuml Clubs Attendance Schema - Clubinho NIB API
+!theme plain
+top to bottom direction
+skinparam linetype ortho
+hide circle
+
+title MySQL — clubs, calendar and attendance
+
+entity "addresses" as e_address {
+  * id : UUID <<PK>>
+}
+
+entity "clubs" as e_club {
+  * id : UUID <<PK>>
+  --
+  address_id : UUID <<FK,UQ>>
+  coordinator_profile_id : UUID? <<FK>>
+  number : int
+  weekday : enum
+  time : time?
+  isActive : boolean
+}
+
+entity "teacher_profiles\n(core)" as e_teacher {
+  * id : UUID <<PK>>
+  --
+  club_id : UUID? <<FK>>
+}
+
+entity "coordinator_profiles\n(core)" as e_coordinator {
+  * id : UUID <<PK>>
+}
+
+entity "children" as e_child {
+  * id : UUID <<PK>>
+  --
+  club_id : UUID? <<FK>>
+  address_id : UUID? <<FK,UQ>>
+  name : varchar(255)
+  isActive : boolean
+}
+
+entity "pagelas" as e_pagela {
+  * id : UUID <<PK>>
+  --
+  child_id : UUID <<FK>>
+  teacher_profile_id : UUID? <<FK>>
+  year + week : smallint <<UQ>>
+}
+
+entity "accepted_christs" as e_accepted {
+  * id : UUID <<PK>>
+  --
+  child_id : UUID <<FK>>
+  decision : enum?
+}
+
+entity "club_control_logs" as e_control_log {
+  * id : UUID <<PK>>
+  --
+  club_id : UUID <<FK>>
+  year + week : smallint
+  status : enum
+}
+
+entity "events" as e_event {
+  * id : UUID <<PK>>
+  --
+  club_id : UUID? <<FK,UQ>>
+  date : varchar
+  weekday : enum?
+  isRecurring : boolean
+  public : boolean
+}
+
+entity "academic_periods" as e_period {
+  * id : UUID <<PK>>
+  --
+  year : smallint <<UQ>>
+  startDate : date
+  endDate : date
+}
+
+entity "weekday_exceptions" as e_exception {
+  * id : UUID <<PK>>
+  --
+  exceptionDate : date <<UQ>>
+  isRecurrent : boolean
+  isActive : boolean
+}
+
+e_address "1" -- "0..1" e_club
+e_address "0..1" -- "0..1" e_child
+e_coordinator "0..1" -- "0..*" e_club
+e_club "0..1" -- "0..*" e_teacher
+e_club "0..1" -- "0..*" e_child
+e_child "1" -- "0..*" e_pagela
+e_teacher "0..1" -- "0..*" e_pagela
+e_child "1" -- "0..*" e_accepted
+e_club "1" -- "0..*" e_control_log
+e_club "0..1" -- "0..1" e_event
+
+note left of e_club
+  address_id: RESTRICT.
+  coordinator_profile_id: SET NULL.
+  Child/teacher club_id: SET NULL.
+end note
+
+note bottom of e_child
+  Child → pagelas/decisions: CASCADE.
+  Club → control logs/event: CASCADE.
+  Pagela teacher_profile_id: SET NULL.
+end note
+
+note bottom of e_period
+  academic_periods and weekday_exceptions define
+  valid meeting occurrences; they have no foreign key.
+end note
+
+@enduml

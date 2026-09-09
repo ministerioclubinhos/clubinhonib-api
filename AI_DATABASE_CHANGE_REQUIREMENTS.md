@@ -83,3 +83,15 @@ The generated output must be reviewed for:
 - consistency with MySQL and the application `DataSource`.
 
 Review does not authorize manual editing. Correct the source metadata and regenerate.
+
+## Database Schema Diagrams (PlantUML)
+
+Whenever entities, relationships, or table schemas are added or modified:
+
+1. Update or create the corresponding PlantUML database schema diagram `.puml` file under `docs/diagrams/database/` (e.g. `docs/diagrams/database/database-schema.puml`).
+2. Immediately render the updated `.png` image file using `npm run diagrams:generate` or `node scripts/generate-diagrams.js`.
+3. Verify that both the `.puml` source file and the rendered `.png` image file are committed together alongside the database entities and migration.
+
+If the current change does not alter entities, relationships, or table schemas,
+leave existing database diagrams untouched and do not create missing diagrams as
+unrelated backfill.

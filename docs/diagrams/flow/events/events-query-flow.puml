@@ -1,0 +1,37 @@
+@startuml Events Query Flow - Clubinho NIB API
+!theme plain
+hide footbox
+
+title Events — date-scoped queries
+
+actor "Frontend" as client
+participant EventController as controller
+participant GetEventService as service
+database "MySQL\nEvent + media repositories" as db
+participant ClubMeetingScheduleService as schedule
+participant "AWS S3" as s3
+
+client -> controller : GET /events?from&to or /events/upcoming?from&to
+controller -> controller : resolve public/private visibility
+controller -> service : findAll or findUpcoming(range)
+service -> db : load visible events + media metadata
+db --> service : events ordered by date
+service -> schedule : occurrencesByEvent(events, effective range)
+schedule -> schedule : apply academic periods and exceptions
+service --> client : 200 EventResponseDto[]
+client -> s3 : load media from returned URLs
+
+note over client, controller
+  Cards: week/month send from + to; all omits both.
+  Calendar: each visible month sends its first and last day.
+end note
+
+note over service, schedule
+  /upcoming clamps from to today in the app timezone.
+  Regular event: stored date within range.
+  Club meeting: weekday within academic periods and range,
+  excluding exceptions and dates before the series start.
+  Events without occurrences are omitted.
+end note
+
+@enduml

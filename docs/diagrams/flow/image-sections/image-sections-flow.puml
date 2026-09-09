@@ -1,0 +1,36 @@
+@startuml Shared Images Flow - Clubinho NIB API
+!theme plain
+hide footbox
+title Shared club images — moderation queue
+
+actor "Authenticated sender / Admin" as Client
+participant ImageSectionController as Controller
+participant "ImageSection operation service" as Service
+database "MySQL\nImage sections + media rows" as Repository
+participant MediaItemProcessor as Media
+participant "AWS S3" as S3
+participant NotificationService as Notify
+
+alt Submit
+  Client -> Controller : multipart POST /image-sections
+  Controller -> Service : caption + files + optional author
+  Service -> Repository : create public=false with no page
+  Service -> Media : persist uploaded images
+  Media -> S3 : upload supplied images
+  Service -> Notify : notify admins safely
+  Service --> Client : pending ImageSectionResponseDto
+else Review and approve
+  Client -> Controller : admin PATCH /image-sections/:id
+  Controller -> Service : reviewed DTO
+  Service -> Service : load configured FEED_CLUBINHO_PAGE_ID
+  Service -> Media : synchronize reviewed images
+  Media -> S3 : upload/replace/delete changed images
+  Service -> Repository : attach to feed page and persist visibility
+  Service --> Client : approved DTO
+else Reject
+  Service -> Media : remove media rows
+  Media -> S3 : delete owned objects
+  Service -> Repository : delete section
+  Service --> Client : 204
+end
+@enduml

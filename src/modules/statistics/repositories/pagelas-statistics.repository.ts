@@ -14,12 +14,9 @@ import {
   PagelasTimeSeriesRaw,
   PagelasTopPerformerRaw,
   PagelasWeeklyStatsRaw,
-  AgeGroupStats,
   ParticipationTimeStats,
 } from '../dto/statistics-raw-results.dto';
 import {
-  ageGroup as toAgeGroup,
-  ageInYears,
   monthsParticipating as countMonthsParticipating,
   participationTimeRange as toParticipationTimeRange,
 } from '../utils/metrics.utils';
