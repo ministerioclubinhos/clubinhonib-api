@@ -208,7 +208,18 @@ export class LessonDraftService {
 
   private async invalidateDownstream(lesson: LessonEntity, type: LessonStageType): Promise<void> { const index = LESSON_STAGE_ORDER.indexOf(type); for (const stage of lesson.stages.filter((item) => LESSON_STAGE_ORDER.indexOf(item.type) > index && item.status !== LessonStageStatus.NOT_STARTED)) { stage.status = LessonStageStatus.STALE; stage.approvedAt = null; stage.approvedById = null; await this.stages.save(stage); } lesson.status = LessonStatus.IN_PROGRESS; await this.lessons.save(lesson); }
 
-  async exportPdf(id: string): Promise<{ pdfBuffer: Buffer; fileName: string }> { const lesson = await this.getById(id); if (!lesson.stages.every((stage) => stage.status === LessonStageStatus.APPROVED)) throw new ConflictException('Todas as etapas devem estar aprovadas antes da exportação.'); const content = Object.fromEntries(lesson.stages.map((stage) => [stage.type, this.currentContent(stage)])); const docxBuffer = await this.docx.buildDocxFromTiptapOrStructuredJson(content); const pdfBuffer = await this.pdf.convertDocxToPdf(docxBuffer); return { pdfBuffer, fileName: `licao-semana-${lesson.weekNumber}.pdf` }; }
+  async exportPdf(id: string): Promise<{ pdfBuffer: Buffer; fileName: string }> { const lesson = await this.getById(id); if (!lesson.stages.every((stage) => stage.status === LessonStageStatus.APPROVED)) throw new ConflictException('Todas as etapas devem estar aprovadas antes da exportação.'); const content = Object.fromEntries(lesson.stages.map((stage) => { const version = stage.versions.find((item) => item.id === stage.currentVersionId); return [stage.type, { structuredDataJson: version?.structuredDataJson ?? {}, tiptapAstJson: version?.tiptapAstJson ?? null }]; })); const docxBuffer = await this.docx.buildDocxFromTiptapOrStructuredJson(content); const pdfBuffer = await this.pdf.convertDocxToPdf(docxBuffer); return { pdfBuffer, fileName: `licao-semana-${lesson.weekNumber}.pdf` }; }
+
+  async previewStagePdf(id: string, type: LessonStageType): Promise<{ pdfBuffer: Buffer; fileName: string }> {
+    const lesson = await this.getById(id); const stage = lesson.stages.find((item) => item.type === type);
+    if (!stage?.currentVersionId) throw new BadRequestException('Gere e salve o item antes de visualizar o PDF.');
+    const version = stage.versions.find((item) => item.id === stage.currentVersionId);
+    if (!version) throw new NotFoundException('Versão atual do item não encontrada.');
+    const input = { [type]: { structuredDataJson: version.structuredDataJson, tiptapAstJson: version.tiptapAstJson } };
+    const docxBuffer = await this.docx.buildDocxFromTiptapOrStructuredJson(input);
+    const pdfBuffer = await this.pdf.convertDocxToPdf(docxBuffer);
+    return { pdfBuffer, fileName: `preview-${type.toLowerCase()}-semana-${lesson.weekNumber}.pdf` };
+  }
 
   async publishToWeekMaterial(id: string): Promise<{ lesson: LessonEntity; weekMaterialId: string }> {
     const lesson = await this.getById(id);
@@ -223,5 +234,24 @@ export class LessonDraftService {
   }
 
   private checksum(value: JsonObject): string { return createHash('sha256').update(JSON.stringify(value)).digest('hex'); }
-  private toTiptap(value: JsonObject): JsonObject { const nodes: JsonObject[] = []; for (const [label, raw] of Object.entries(value)) { if (typeof raw === 'string') nodes.push({ type: 'paragraph', content: [{ type: 'text', text: `${label}: `, marks: [{ type: 'bold' }] }, { type: 'text', text: raw }] }); } return { type: 'doc', content: nodes }; }
+  private toTiptap(value: JsonObject): JsonObject {
+    const nodes: JsonObject[] = [];
+    const label = (key: string): string => key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ').toLocaleUpperCase('pt-BR');
+    const paragraph = (text: string): JsonObject => ({ type: 'paragraph', content: [{ type: 'text', text }] });
+    const append = (key: string, raw: unknown, depth = 2): void => {
+      if (['assets', 'printableAssets', 'visualScenes', 'visualConfig'].includes(key)) return;
+      nodes.push({ type: 'heading', attrs: { level: Math.min(depth, 3) }, content: [{ type: 'text', text: label(key) }] });
+      if (typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean') { nodes.push(paragraph(String(raw))); return; }
+      if (Array.isArray(raw)) {
+        raw.forEach((item, index) => {
+          if (typeof item === 'string') nodes.push({ type: 'bulletList', content: [{ type: 'listItem', content: [paragraph(item)] }] });
+          else if (item && typeof item === 'object') { nodes.push({ type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: `ITEM ${index + 1}` }] }); Object.entries(item as JsonObject).forEach(([childKey, child]) => append(childKey, child, 3)); }
+        });
+        return;
+      }
+      if (raw && typeof raw === 'object') Object.entries(raw as JsonObject).forEach(([childKey, child]) => append(childKey, child, 3));
+    };
+    Object.entries(value).forEach(([key, raw]) => append(key, raw));
+    return { type: 'doc', content: nodes };
+  }
 }
