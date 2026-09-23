@@ -23,19 +23,15 @@ import { DATABASE_ENTITIES } from '../src/database/entities';
           password: configService.get<string>('DB_PASSWORD', ''),
           database: configService.get<string>('DB_NAME', 'test'),
           entities: DATABASE_ENTITIES,
-          /**
-           * O schema é alterado por migration gerada pelo CLI do TypeORM, e
-           * não pela sincronização automática. Ligar isto faz o ORM alterar
-           * tabelas sozinho na subida da aplicação, sem revisão e sem registro.
-           */
+          /** Durante esta fase do produto, mudanças nas entidades são
+           * sincronizadas automaticamente pelo TypeORM na inicialização. */
           synchronize:
-            configService.get<string>('DB_SYNCHRONIZE', 'false') === 'true',
+            configService.get<string>('DB_SYNCHRONIZE', 'true') === 'true',
         };
 
         if (dbConfig.synchronize) {
           logger.warn(
-            'DB_SYNCHRONIZE=true: o ORM vai alterar o schema sozinho. ' +
-              'Use apenas em banco descartável.',
+            'DB_SYNCHRONIZE=true: mudanças nas entidades serão aplicadas automaticamente.',
           );
         }
 

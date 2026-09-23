@@ -34,6 +34,6 @@ import { AnnounceWeekMaterialService } from './services/announce-week-material.s
     WeekMaterialsPageRemoveService,
     AnnounceWeekMaterialService,
   ],
-  exports: [TypeOrmModule, WeekMaterialsPageGetService],
+  exports: [TypeOrmModule, WeekMaterialsPageGetService, WeekMaterialsPageCreateService],
 })
 export class WeekMaterialsPageModule {}

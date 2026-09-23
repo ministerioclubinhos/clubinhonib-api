@@ -30,6 +30,11 @@ import { AcceptedChristEntity } from 'src/modules/accepted-christs/entities/acce
 import { ClubPeriodEntity } from 'src/modules/club-control/entities/club-period.entity';
 import { ClubExceptionEntity } from 'src/modules/club-control/entities/club-exception.entity';
 import { ClubControlLogEntity } from 'src/modules/club-control/entities/club-control-log.entity';
+import { LessonEntity } from 'src/modules/ai-lessons/entities/lesson.entity';
+import { LessonStageEntity } from 'src/modules/ai-lessons/entities/lesson-stage.entity';
+import { LessonVersionEntity } from 'src/modules/ai-lessons/entities/lesson-version.entity';
+import { LessonCommentEntity } from 'src/modules/ai-lessons/entities/lesson-comment.entity';
+import { AdminLessonPromptEntity } from 'src/modules/ai-lessons/entities/admin-lesson-prompt.entity';
 
 /**
  * Todas as entidades registradas na aplicação.
@@ -71,4 +76,9 @@ export const DATABASE_ENTITIES = [
   ClubPeriodEntity,
   ClubExceptionEntity,
   ClubControlLogEntity,
+  LessonEntity,
+  LessonStageEntity,
+  LessonVersionEntity,
+  LessonCommentEntity,
+  AdminLessonPromptEntity,
 ];

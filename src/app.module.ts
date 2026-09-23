@@ -42,6 +42,8 @@ import { AcceptedChristsModule } from './modules/accepted-christs/accepted-chris
 import { StatisticsModule } from './modules/statistics/statistics.module';
 import { ClubControlModule } from './modules/club-control/club-control.module';
 
+import { AiLessonsModule } from './modules/ai-lessons/ai-lessons.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -88,6 +90,7 @@ import { ClubControlModule } from './modules/club-control/club-control.module';
     AcceptedChristsModule,
     StatisticsModule,
     ClubControlModule,
+    AiLessonsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
