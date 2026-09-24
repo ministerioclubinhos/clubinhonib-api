@@ -1,18 +1,18 @@
 import { ConflictException } from '@nestjs/common';
-import { Repository } from 'typeorm';
 import { AdminLessonPromptEntity } from '../entities/admin-lesson-prompt.entity';
 import { LessonStageType } from '../enums/lesson.enums';
 import { AdminLessonPromptService } from './admin-lesson-prompt.service';
+import { AdminLessonPromptRepository } from '../repositories/admin-lesson-prompt.repository';
 
 describe('AdminLessonPromptService', () => {
   const records: AdminLessonPromptEntity[] = [];
   const repository = {
-    find: jest.fn(async ({ where }: { where: { adminId: string } }) => records.filter((item) => item.adminId === where.adminId)),
-    findOne: jest.fn(async ({ where }: { where: { adminId: string; stage: LessonStageType } }) => records.find((item) => item.adminId === where.adminId && item.stage === where.stage) ?? null),
-    create: jest.fn((input: Partial<AdminLessonPromptEntity>) => Object.assign(new AdminLessonPromptEntity(), input, { id: 'prompt-1', lockVersion: 1 })),
-    save: jest.fn(async (entity: AdminLessonPromptEntity) => { const index = records.findIndex((item) => item.id === entity.id); if (index >= 0) { entity.lockVersion += 1; records[index] = entity; } else records.push(entity); return entity; }),
-    delete: jest.fn(async ({ adminId, stage }: { adminId: string; stage: LessonStageType }) => { const index = records.findIndex((item) => item.adminId === adminId && item.stage === stage); if (index >= 0) records.splice(index, 1); return { affected: index >= 0 ? 1 : 0, raw: [] }; }),
-  } as unknown as Repository<AdminLessonPromptEntity>;
+    findByAdminId: jest.fn(async (adminId: string) => records.filter((item) => item.adminId === adminId)),
+    findByAdminIdAndStage: jest.fn(async (adminId: string, stage: LessonStageType) => records.find((item) => item.adminId === adminId && item.stage === stage) ?? null),
+    createPrompt: jest.fn((input: Partial<AdminLessonPromptEntity>) => Object.assign(new AdminLessonPromptEntity(), input, { id: 'prompt-1', lockVersion: 1 })),
+    savePrompt: jest.fn(async (entity: AdminLessonPromptEntity) => { const index = records.findIndex((item) => item.id === entity.id); if (index >= 0) { entity.lockVersion += 1; records[index] = entity; } else records.push(entity); return entity; }),
+    deletePrompt: jest.fn(async (adminId: string, stage: LessonStageType) => { const index = records.findIndex((item) => item.adminId === adminId && item.stage === stage); if (index >= 0) records.splice(index, 1); }),
+  } as unknown as AdminLessonPromptRepository;
   const service = new AdminLessonPromptService(repository);
 
   beforeEach(() => { records.splice(0); jest.clearAllMocks(); });

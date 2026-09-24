@@ -22,10 +22,10 @@ export class LessonVersionEntity extends BaseEntity {
   structuredDataJson: Record<string, unknown> | null;
 
   @Column({ type: 'varchar', length: 500, nullable: true })
-  docxS3Key: string;
+  docxS3Key: string | null;
 
   @Column({ type: 'varchar', length: 500, nullable: true })
-  pdfS3Key: string;
+  pdfS3Key: string | null;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   changeSummary: string;

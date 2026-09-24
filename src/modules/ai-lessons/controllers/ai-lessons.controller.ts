@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Header, HttpCode, HttpStatus, Param, ParseEnumPipe, ParseUUIDPipe, Patch, Post, Query, Req, StreamableFile, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, HttpCode, HttpStatus, Param, ParseEnumPipe, ParseUUIDPipe, Patch, Post, Query, Req, StreamableFile, UseGuards } from '@nestjs/common';
 import { AuthRequest } from 'src/core/auth/auth.types';
 import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 import { AdminRoleGuard } from 'src/core/auth/guards/role-guard';
@@ -21,6 +21,7 @@ export class AiLessonsController {
   @Get('dashboard') dashboard() { return this.service.getDashboard(); }
   @Get() list(@Query('status') status?: LessonStatus, @Query('page') page?: number, @Query('limit') limit?: number) { return this.service.getDrafts(status, page, limit); }
   @Get(':id') get(@Param('id', ParseUUIDPipe) id: string) { return this.service.getById(id); }
+  @Delete(':id') @HttpCode(HttpStatus.OK) delete(@Param('id', ParseUUIDPipe) id: string) { return this.service.delete(id); }
   @Post(':id/stages/generate') generate(@Param('id', ParseUUIDPipe) id: string, @Body() dto: GenerateStageRequestDto, @Req() req: AuthRequest) { return this.service.generateStage(id, dto, req.user.userId); }
   @Patch(':id/stages/content') save(@Param('id', ParseUUIDPipe) id: string, @Body() dto: SaveTiptapContentDto, @Req() req: AuthRequest) { return this.service.saveContent(id, dto, req.user.userId); }
   @Post(':id/stages/complete-production') completeProduction(@Param('id', ParseUUIDPipe) id: string, @Body() dto: ReviewStageRequestDto) { return this.service.completeProductionStage(id, dto.stage); }
@@ -31,3 +32,4 @@ export class AiLessonsController {
   @Get(':id/stages/:stage/preview.pdf') @Header('Content-Type', 'application/pdf') async previewStage(@Param('id', ParseUUIDPipe) id: string, @Param('stage', new ParseEnumPipe(LessonStageType)) stage: LessonStageType): Promise<StreamableFile> { const result = await this.service.previewStagePdf(id, stage); return new StreamableFile(result.pdfBuffer, { disposition: `inline; filename="${result.fileName}"`, type: 'application/pdf' }); }
   @Post(':id/publish-week-material') publish(@Param('id', ParseUUIDPipe) id: string) { return this.service.publishToWeekMaterial(id); }
 }
+

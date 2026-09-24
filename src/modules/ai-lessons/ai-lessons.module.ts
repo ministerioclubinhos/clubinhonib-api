@@ -3,15 +3,17 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { LessonEntity } from './entities/lesson.entity';
 import { LessonVersionEntity } from './entities/lesson-version.entity';
 import { LessonCommentEntity } from './entities/lesson-comment.entity';
+import { LessonStageEntity } from './entities/lesson-stage.entity';
+import { AdminLessonPromptEntity } from './entities/admin-lesson-prompt.entity';
 import { AiLessonsController } from './controllers/ai-lessons.controller';
 import { OpenAiLessonService } from './services/open-ai-lesson.service';
 import { LessonDraftService } from './services/lesson-draft.service';
 import { DocxExporterService } from './services/docx-exporter.service';
 import { PdfLibreOfficeService } from './services/pdf-libreoffice.service';
-import { LessonStageEntity } from './entities/lesson-stage.entity';
-import { WeekMaterialsPageModule } from '../pages/week-material-page/week-material-page.module';
-import { AdminLessonPromptEntity } from './entities/admin-lesson-prompt.entity';
 import { AdminLessonPromptService } from './services/admin-lesson-prompt.service';
+import { WeekMaterialsPageModule } from '../pages/week-material-page/week-material-page.module';
+import { AiLessonsRepository } from './repositories/ai-lessons.repository';
+import { AdminLessonPromptRepository } from './repositories/admin-lesson-prompt.repository';
 
 @Module({
   imports: [
@@ -20,12 +22,14 @@ import { AdminLessonPromptService } from './services/admin-lesson-prompt.service
   ],
   controllers: [AiLessonsController],
   providers: [
+    AiLessonsRepository,
+    AdminLessonPromptRepository,
     OpenAiLessonService,
     LessonDraftService,
     DocxExporterService,
     PdfLibreOfficeService,
     AdminLessonPromptService,
   ],
-  exports: [LessonDraftService, OpenAiLessonService],
+  exports: [LessonDraftService, OpenAiLessonService, AiLessonsRepository, AdminLessonPromptRepository],
 })
 export class AiLessonsModule {}

@@ -1,8 +1,7 @@
 import { ConflictException, Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { AdminLessonPromptEntity } from '../entities/admin-lesson-prompt.entity';
 import { LESSON_STAGE_ORDER, LessonStageType } from '../enums/lesson.enums';
+import { AdminLessonPromptRepository } from '../repositories/admin-lesson-prompt.repository';
 
 export type AdminLessonPromptView = {
   stage: LessonStageType;
@@ -11,6 +10,41 @@ export type AdminLessonPromptView = {
   effectivePrompt: string;
   lockVersion: number | null;
 };
+
+// ... BASE_PROMPTS definition ...
+
+@Injectable()
+export class AdminLessonPromptService {
+  constructor(private readonly promptsRepo: AdminLessonPromptRepository) {}
+
+  async list(adminId: string): Promise<AdminLessonPromptView[]> {
+    const saved = await this.promptsRepo.findByAdminId(adminId);
+    return LESSON_STAGE_ORDER.map((stage) => this.view(stage, saved.find((item) => item.stage === stage) ?? null));
+  }
+
+  async effective(adminId: string, stage: LessonStageType): Promise<string> {
+    const saved = await this.promptsRepo.findByAdminIdAndStage(adminId, stage);
+    return saved?.customPrompt ?? BASE_PROMPTS[stage];
+  }
+
+  async save(adminId: string, stage: LessonStageType, prompt: string, lockVersion?: number): Promise<AdminLessonPromptView> {
+    const normalized = prompt.trim();
+    const current = await this.promptsRepo.findByAdminIdAndStage(adminId, stage);
+    if (current && lockVersion !== current.lockVersion) throw new ConflictException('O prompt foi alterado em outra sessão. Recarregue antes de salvar.');
+    const entity = current ?? this.promptsRepo.createPrompt({ adminId, stage, customPrompt: normalized });
+    entity.customPrompt = normalized;
+    return this.view(stage, await this.promptsRepo.savePrompt(entity));
+  }
+
+  async reset(adminId: string, stage: LessonStageType): Promise<AdminLessonPromptView> {
+    await this.promptsRepo.deletePrompt(adminId, stage);
+    return this.view(stage, null);
+  }
+
+  private view(stage: LessonStageType, entity: AdminLessonPromptEntity | null): AdminLessonPromptView {
+    return { stage, basePrompt: BASE_PROMPTS[stage], customPrompt: entity?.customPrompt ?? null, effectivePrompt: entity?.customPrompt ?? BASE_PROMPTS[stage], lockVersion: entity?.lockVersion ?? null };
+  }
+}
 
 const BASE_PROMPTS: Record<LessonStageType, string> = {
   [LessonStageType.LESSON]: `Produza somente a LIÇÃO BÍBLICA, seguindo o padrão editorial das lições manuais do Clubinho Bíblico NIB.
@@ -193,36 +227,3 @@ PROMPT DA ARTE
 - Composição horizontal dentro de cada meia folha A4 retrato e adequada a crianças de 5 a 11 anos.
 - Preserve época, personagens e fatos bíblicos; não represente Deus Pai fisicamente e trate morte, cruz e sofrimento com reverência e sem violência gráfica.`,
 };
-
-@Injectable()
-export class AdminLessonPromptService {
-  constructor(@InjectRepository(AdminLessonPromptEntity) private readonly prompts: Repository<AdminLessonPromptEntity>) {}
-
-  async list(adminId: string): Promise<AdminLessonPromptView[]> {
-    const saved = await this.prompts.find({ where: { adminId } });
-    return LESSON_STAGE_ORDER.map((stage) => this.view(stage, saved.find((item) => item.stage === stage) ?? null));
-  }
-
-  async effective(adminId: string, stage: LessonStageType): Promise<string> {
-    const saved = await this.prompts.findOne({ where: { adminId, stage } });
-    return saved?.customPrompt ?? BASE_PROMPTS[stage];
-  }
-
-  async save(adminId: string, stage: LessonStageType, prompt: string, lockVersion?: number): Promise<AdminLessonPromptView> {
-    const normalized = prompt.trim();
-    const current = await this.prompts.findOne({ where: { adminId, stage } });
-    if (current && lockVersion !== current.lockVersion) throw new ConflictException('O prompt foi alterado em outra sessão. Recarregue antes de salvar.');
-    const entity = current ?? this.prompts.create({ adminId, stage, customPrompt: normalized });
-    entity.customPrompt = normalized;
-    return this.view(stage, await this.prompts.save(entity));
-  }
-
-  async reset(adminId: string, stage: LessonStageType): Promise<AdminLessonPromptView> {
-    await this.prompts.delete({ adminId, stage });
-    return this.view(stage, null);
-  }
-
-  private view(stage: LessonStageType, entity: AdminLessonPromptEntity | null): AdminLessonPromptView {
-    return { stage, basePrompt: BASE_PROMPTS[stage], customPrompt: entity?.customPrompt ?? null, effectivePrompt: entity?.customPrompt ?? BASE_PROMPTS[stage], lockVersion: entity?.lockVersion ?? null };
-  }
-}
