@@ -37,7 +37,7 @@ export class DocxExporterService {
 
     const header = new Header({ children: [new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [new TableRow({ children: [new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [new ImageRun({ data: left, transformation: { width: 210, height: 84 }, type: 'png' })] })] }), new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new ImageRun({ data: right, transformation: { width: 210, height: 105 }, type: 'png' })] })] })] })] })] });
     const visualConfig = this.object(visualStage.visualConfig);
-    const landscapePages = await this.landscapeAssetPages([...(visualConfig.orientation === 'PORTRAIT' ? [] : [visualStage]), gameStage, verseVisualStage, fixationStage]);
+    const landscapePages = await this.landscapeAssetPages([...(visualConfig.orientation === 'PORTRAIT' ? [] : [{ stage: visualStage, imageOnly: true }]), { stage: gameStage, imageOnly: false }, { stage: verseVisualStage, imageOnly: true }, { stage: fixationStage, imageOnly: false }]);
     const portraitVisualPages = visualConfig.orientation === 'PORTRAIT' ? await this.portraitAssetPages(visualStage) : [];
     const supplementaryPages = await this.supplementaryPortraitPages(youngerMeditation, olderMeditation, manualWork);
     const sections = [
@@ -76,16 +76,16 @@ export class DocxExporterService {
   private addList(out: Paragraph[], label: string, value: unknown): void { if (!Array.isArray(value)) return; this.addHeading(out, label, 2); value.forEach((item) => this.addText(out, `• ${String(item)}`)); }
   private addQuestions(out: Paragraph[], value: unknown): void { if (!Array.isArray(value)) return; this.addHeading(out, 'PERGUNTAS DA LIÇÃO', 2); value.forEach((item, index) => { const q = this.object(item); this.addText(out, `${index + 1}. ${String(q.question ?? '')}\nResposta: ${String(q.answer ?? '')}`); }); }
   private addStage(out: Paragraph[], title: string, data: Json): void { if (!Object.keys(data).length) return; this.addHeading(out, title, 1); for (const [key, value] of Object.entries(data)) { if (key === 'assets' || key === 'printableAssets') continue; if (typeof value === 'string') this.addField(out, key, value); else if (Array.isArray(value) && value.every((v) => typeof v === 'string')) this.addList(out, key, value); } }
-  private async landscapeAssetPages(stages: Json[]): Promise<Paragraph[][]> {
+  private async landscapeAssetPages(entries: Array<{ stage: Json; imageOnly: boolean }>): Promise<Paragraph[][]> {
     const pages: Paragraph[][] = [];
-    for (const stage of stages) {
+    for (const { stage, imageOnly } of entries) {
       const rawAssets = stage.assets ?? stage.printableAssets;
       if (!Array.isArray(rawAssets)) continue;
       for (const raw of rawAssets) {
         const asset = this.object(raw);
         if (typeof asset.url !== 'string') continue;
         const image = await axios.get<ArrayBuffer>(asset.url, { responseType: 'arraybuffer', timeout: 30000 });
-        const displayText = typeof asset.displayText === 'string' ? asset.displayText.trim() : '';
+        const displayText = imageOnly ? '' : (typeof asset.displayText === 'string' ? asset.displayText.trim() : '');
         pages.push([
           ...(displayText ? [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: displayText.toLocaleUpperCase('pt-BR'), bold: true, size: 38, color: '111111' })], spacing: { before: 20, after: 40 }, keepNext: true })] : []),
           new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: Buffer.from(image.data), transformation: { width: 1070, height: displayText ? 675 : 758 }, type: 'png' })], spacing: { after: 0 } }),
@@ -125,12 +125,15 @@ export class DocxExporterService {
       if (!duplicate && typeof data.biblicalText === 'string') out.push(new Paragraph({ children: [new TextRun({ text: 'TEXTO BÍBLICO: ', bold: true }), new TextRun(data.biblicalText)] }));
       if (typeof data.introduction === 'string') out.push(new Paragraph({ children: [new TextRun(data.introduction)], spacing: { after: 40 } }));
       const activities = Array.isArray(data.activities) ? data.activities : [];
-      activities.forEach((raw, index) => { const activity = this.object(raw); out.push(new Paragraph({ children: [new TextRun({ text: `${index + 1}. ${String(activity.instruction ?? '')}`, bold: true, size: duplicate ? 16 : 18 })], spacing: { before: 40, after: 40 } })); });
       const assets = Array.isArray(data.printableAssets) ? data.printableAssets : [];
-      for (const raw of assets.slice(0, duplicate ? 2 : 3)) {
-        const asset = this.object(raw); if (typeof asset.url !== 'string') continue;
-        const image = await this.downloadImage(asset.url);
-        out.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: image, transformation: { width: duplicate ? 170 : 220, height: duplicate ? 105 : 135 }, type: 'png' })], spacing: { after: 25 } }));
+      for (let index = 0; index < activities.length; index += 1) {
+        const activity = this.object(activities[index]);
+        out.push(new Paragraph({ children: [new TextRun({ text: `${index + 1}. ${String(activity.instruction ?? '')}`, bold: true, size: duplicate ? 14 : 17 })], spacing: { before: 30, after: 20 } }));
+        const asset = this.object(assets[index]);
+        if (typeof asset.url === 'string') {
+          const image = await this.downloadImage(asset.url);
+          out.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: image, transformation: { width: duplicate ? 150 : 225, height: duplicate ? 88 : 135 }, type: 'png' })], spacing: { after: 20 } }));
+        }
       }
       out.push(new Paragraph({ shading: { fill: 'E5E5E5' }, children: [new TextRun({ text: 'FALANDO COM DEUS: ', bold: true, color: 'FFFFFF', shading: { fill: '686868' }, size: duplicate ? 15 : 18 }), new TextRun({ text: String(data.prayer ?? ''), size: duplicate ? 15 : 18 })], spacing: { before: 35, after: 35 } }));
       return out;

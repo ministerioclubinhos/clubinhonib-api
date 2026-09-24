@@ -47,12 +47,12 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
   [LessonStageType.MEDITATION_YOUNGER]: {
     key: 'clubinho.meditation-younger.canonical', version: '1.0.0', stage: LessonStageType.MEDITATION_YOUNGER,
     exactStructure: ['MEDITAÇÃO PARA CRIANÇAS MENORES', 'TÍTULO', 'NOME E DATA', 'VERSÍCULO PARA DECORAR', 'ATIVIDADES', 'FALANDO COM DEUS', 'PEÇAS IMPRIMÍVEIS'],
-    rules: [...sharedRules, 'Criar exatamente duas atividades simples e predominantemente visuais para crianças de 5 a 7 anos.', 'Usar o único versículo principal NVI aprovado, sem paráfrase.', 'Gerar ilustrações em line art preto e branco, com contornos grossos, áreas amplas e sem texto, adequadas para colorir em A4 retrato.', 'A composição final deve permitir duas cópias idênticas da meditação por folha A4, como no padrão manual.'],
+    rules: [...sharedRules, 'Criar exatamente duas atividades simples e exatamente duas imagens correspondentes, na mesma ordem, para crianças de 5 a 7 anos.', 'Usar o único versículo principal NVI aprovado, sem paráfrase.', 'Gerar ilustrações em line art preto e branco, com contornos grossos, áreas amplas e sem texto, adequadas para colorir em A4 retrato.', 'A composição final deve permitir duas cópias idênticas da meditação por folha A4, como no padrão manual.'],
   },
   [LessonStageType.MEDITATION_OLDER]: {
     key: 'clubinho.meditation-older.canonical', version: '1.0.0', stage: LessonStageType.MEDITATION_OLDER,
     exactStructure: ['MEDITAÇÃO PARA CRIANÇAS MAIORES', 'TÍTULO', 'NOME E DATA', 'VERSÍCULO PARA DECORAR', 'TEXTO BÍBLICO', 'ENTENDENDO A LIÇÃO', 'TRÊS DESAFIOS', 'GABARITO', 'FALANDO COM DEUS', 'PEÇAS IMPRIMÍVEIS'],
-    rules: [...sharedRules, 'Criar exatamente três desafios variados para crianças de 8 a 11 anos, incluindo compreensão bíblica e atividades como código, sequência, labirinto, associação ou encontre diferenças.', 'Cada desafio precisa ter instrução completa e gabarito determinístico para o professor.', 'Usar o único versículo principal NVI aprovado, sem paráfrase.', 'Gerar somente as ilustrações necessárias em line art preto e branco, sem texto dentro da imagem, para composição em uma folha A4 retrato.'],
+    rules: [...sharedRules, 'Criar exatamente três desafios variados e exatamente três imagens correspondentes, na mesma ordem, para crianças de 8 a 11 anos.', 'Cada desafio precisa ter instrução completa e gabarito determinístico para o professor.', 'Usar o único versículo principal NVI aprovado, sem paráfrase.', 'Gerar somente as ilustrações necessárias em line art preto e branco, sem texto dentro da imagem, para composição em uma folha A4 retrato.'],
   },
   [LessonStageType.MANUAL_WORK]: {
     key: 'clubinho.manual-work.canonical', version: '1.0.0', stage: LessonStageType.MANUAL_WORK,

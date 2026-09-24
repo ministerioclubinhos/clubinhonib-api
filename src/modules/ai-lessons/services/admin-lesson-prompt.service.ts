@@ -151,6 +151,7 @@ PÚBLICO E FORMATO
 
 CONTEÚDO OBRIGATÓRIO
 - Crie exatamente duas atividades diferentes e diretamente ligadas aos fatos centrais da lição.
+- Crie exatamente duas imagens, uma para cada atividade e na mesma ordem. Cada imagem deve ser necessária para executar a instrução, não meramente decorativa.
 - Cada atividade deve conter uma pequena explicação fiel à Bíblia, uma instrução executável e uma resposta/gabarito objetivo.
 - Priorize colorir, traçar, circular, ligar, completar palavra curta ou reconhecer personagem/objeto. Não dependa de leitura avançada.
 - Inclua uma oração final de uma frase, começando com “Jesus,” ou “Senhor,” e conectada à aplicação da lição.
@@ -169,6 +170,7 @@ PÚBLICO E FORMATO
 
 TRÊS DESAFIOS OBRIGATÓRIOS
 - Crie exatamente três atividades variadas e não repetitivas que cubram compreensão da narrativa, significado do ensino e aplicação/missão.
+- Crie exatamente três imagens, uma vinculada a cada desafio e na mesma ordem. Labirintos, diferenças, associações e códigos visuais devem vir completos e solucionáveis.
 - Combine recursos como código de símbolos/letras, sequência de letras, palavras embaralhadas, associação, labirinto, encontre diferenças ou preenchimento de frase bíblica.
 - Toda atividade deve ter instrução completa, dados suficientes para ser resolvida e resposta determinística. Gere um gabarito completo para revisão e uso do professor.
 - Não crie enigma ambíguo, informação ausente, símbolo sem legenda nem solução dependente de conhecimento fora da lição.

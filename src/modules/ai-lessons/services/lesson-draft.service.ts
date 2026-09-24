@@ -236,7 +236,8 @@ export class LessonDraftService {
   private checksum(value: JsonObject): string { return createHash('sha256').update(JSON.stringify(value)).digest('hex'); }
   private toTiptap(value: JsonObject): JsonObject {
     const nodes: JsonObject[] = [];
-    const label = (key: string): string => key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ').toLocaleUpperCase('pt-BR');
+    const labels: Record<string, string> = { title: 'TÍTULO', biblicalReference: 'TEXTO BÍBLICO', purpose: 'PROPÓSITO', songs: 'MÚSICAS', memoryVerse: 'VERSÍCULO PARA MEMORIZAR', text: 'TEXTO DO VERSÍCULO', reference: 'REFERÊNCIA', version: 'VERSÃO', principleExplanation: 'EXPLICAÇÃO DO PRINCÍPIO', story: 'LIÇÃO BÍBLICA', applicationAndAppeal: 'APLICAÇÃO E APELO', counseling: 'ACONSELHAMENTO / CANTINHO DO ACONSELHAMENTO', reviewQuestions: 'PERGUNTAS DA LIÇÃO', question: 'PERGUNTA', answer: 'RESPOSTA', closingPrayer: 'FALANDO COM DEUS', name: 'NOME', objective: 'OBJETIVO', materials: 'MATERIAIS', preparation: 'PREPARAÇÃO', steps: 'PASSO A PASSO', rulesAndSafety: 'REGRAS E SEGURANÇA', biblicalPrinciple: 'PRINCÍPIO BÍBLICO', verseText: 'TEXTO DO VERSÍCULO', verseReference: 'REFERÊNCIA DO VERSÍCULO', verseVersion: 'VERSÃO BÍBLICA', splitRationale: 'CRITÉRIO DA DIVISÃO', durationMinutes: 'DURAÇÃO EM MINUTOS', ageAdaptations: 'ADAPTAÇÕES POR IDADE', evaluation: 'COMO AVALIAR', ageGroup: 'FAIXA ETÁRIA', biblicalText: 'TEXTO BÍBLICO', introduction: 'ENTENDENDO A LIÇÃO', activities: 'ATIVIDADES', instruction: 'INSTRUÇÃO', prayer: 'FALANDO COM DEUS', printLayout: 'FORMATO DE IMPRESSÃO' };
+    const label = (key: string): string => labels[key] ?? key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ').toLocaleUpperCase('pt-BR');
     const paragraph = (text: string): JsonObject => ({ type: 'paragraph', content: [{ type: 'text', text }] });
     const append = (key: string, raw: unknown, depth = 2): void => {
       if (['assets', 'printableAssets', 'visualScenes', 'visualConfig'].includes(key)) return;
@@ -245,7 +246,11 @@ export class LessonDraftService {
       if (Array.isArray(raw)) {
         raw.forEach((item, index) => {
           if (typeof item === 'string') nodes.push({ type: 'bulletList', content: [{ type: 'listItem', content: [paragraph(item)] }] });
-          else if (item && typeof item === 'object') { nodes.push({ type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: `ITEM ${index + 1}` }] }); Object.entries(item as JsonObject).forEach(([childKey, child]) => append(childKey, child, 3)); }
+          else if (item && typeof item === 'object') {
+            const entry = item as JsonObject; const question = String(entry.question ?? '').trim(); const answer = String(entry.answer ?? '').trim();
+            if (question || answer) { nodes.push(paragraph(`${index + 1}. ${question}`)); if (answer) nodes.push(paragraph(`Resposta: ${answer}`)); }
+            else { nodes.push({ type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: `ATIVIDADE ${index + 1}` }] }); Object.entries(entry).filter(([childKey]) => childKey !== 'number').forEach(([childKey, child]) => append(childKey, child, 3)); }
+          }
         });
         return;
       }
