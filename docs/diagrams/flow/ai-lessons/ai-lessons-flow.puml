@@ -1,0 +1,40 @@
+@startuml
+title Estúdio Clubinho — produção e publicação idempotente
+actor Administrador
+participant Frontend
+participant "AI Lessons API" as API
+database MySQL
+participant OpenAI
+collections S3
+participant "Materiais da semana" as Week
+
+Administrador -> Frontend: cria pacote
+Frontend -> API: POST /lessons
+API -> MySQL: transação: lição + 8 etapas
+
+loop cada etapa
+  Administrador -> Frontend: gerar/revisar/concluir
+  Frontend -> API: gerar ou salvar versão
+  API -> OpenAI: conteúdo e imagens
+  OpenAI --> API: JSON / PNG
+  API -> S3: uploads rastreados
+  API -> MySQL: versão + etapa
+  note right of API
+    Falha remove uploads
+    ainda não referenciados
+  end note
+end
+
+Administrador -> Frontend: publicar
+Frontend -> API: POST /publish-week-material
+API -> MySQL: lock; READY -> PUBLISHING
+API -> Week: criar página e PDF
+Week --> API: weekMaterialId
+API -> MySQL: PUBLISHED + weekMaterialId
+API --> Frontend: vínculo persistido
+
+Administrador -> Frontend: publicar novamente
+Frontend -> API: POST /publish-week-material
+API -> MySQL: lê PUBLISHED + vínculo
+API --> Frontend: mesmo weekMaterialId
+@enduml

@@ -44,6 +44,7 @@ Welcome to the official documentation for the **Clubinho NIB API**. This hub ser
 | :-------------------------------------------------- | :----------------------------------------------------------------------------------- |
 | [**Content Management**](api-content-management.md) | CMS features: Pages, Meditations, Informatives, Documents.                           |
 | [**Week Materials**](api-week-materials.md)         | Weekly material pages: contract, media synchronization, and current-week publishing. |
+| [**Estúdio Clubinho**](api-ai-lessons.md)           | Produção versionada, revisão e publicação idempotente de lições.                       |
 | [**Communication**](api-communication.md)           | Feedback, Comments, and Contact forms.                                               |
 | [**E-mail**](email.md)                              | Transporte SMTP, a casca dos templates e a confirmação de endereço.                  |
 | [**Agendador**](scheduling.md)                      | Jobs por horário: o runner, `SCHEDULER_ENABLED` e como escrever um job.              |

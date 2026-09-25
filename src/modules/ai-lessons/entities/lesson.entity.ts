@@ -1,4 +1,4 @@
-import { Column, Entity, OneToMany } from 'typeorm';
+import { Column, Entity, Index, OneToMany } from 'typeorm';
 import { BaseEntity } from 'src/shared/share-entity/base.entity';
 import { LessonCommentEntity } from './lesson-comment.entity';
 import { LessonStageEntity } from './lesson-stage.entity';
@@ -12,7 +12,7 @@ export class LessonEntity extends BaseEntity {
   @Column({ type: 'varchar', length: 255 })
   theme: string;
 
-  @Column({ type: 'varchar', length: 255 })
+  @Column({ type: 'varchar', length: 500 })
   biblicalReference: string;
 
   @Column({
@@ -25,7 +25,18 @@ export class LessonEntity extends BaseEntity {
   @Column({ type: 'varchar', length: 36 })
   createdById: string;
 
-  @OneToMany(() => LessonStageEntity, (stage) => stage.lesson, { cascade: true })
+  @Index('idx_lessons_week_material_id')
+  @Column({
+    name: 'week_material_id',
+    type: 'varchar',
+    length: 36,
+    nullable: true,
+  })
+  weekMaterialId: string | null;
+
+  @OneToMany(() => LessonStageEntity, (stage) => stage.lesson, {
+    cascade: true,
+  })
   stages: LessonStageEntity[];
 
   @OneToMany(() => LessonCommentEntity, (c) => c.lesson, { cascade: true })

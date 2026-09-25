@@ -1,11 +1,14 @@
-import { Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, Unique } from 'typeorm';
 import { BaseEntity } from 'src/shared/share-entity/base.entity';
 import { LessonStageEntity } from './lesson-stage.entity';
 import { LessonVersionSource } from '../enums/lesson.enums';
 
 @Entity('lesson_versions')
+@Unique('uq_lesson_version_stage_number', ['stageId', 'versionNumber'])
 export class LessonVersionEntity extends BaseEntity {
-  @ManyToOne(() => LessonStageEntity, (stage) => stage.versions, { onDelete: 'CASCADE' })
+  @ManyToOne(() => LessonStageEntity, (stage) => stage.versions, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'stage_id' })
   stage: LessonStageEntity;
 
@@ -37,13 +40,23 @@ export class LessonVersionEntity extends BaseEntity {
   })
   createdSource: LessonVersionSource;
 
-  @Column({ name: 'openai_response_id', type: 'varchar', length: 100, nullable: true })
+  @Column({
+    name: 'openai_response_id',
+    type: 'varchar',
+    length: 100,
+    nullable: true,
+  })
   openAiResponseId: string | null;
 
   @Column({ name: 'admin_prompt_snapshot', type: 'text', nullable: true })
   adminPromptSnapshot: string | null;
 
-  @Column({ name: 'admin_prompt_checksum', type: 'char', length: 64, nullable: true })
+  @Column({
+    name: 'admin_prompt_checksum',
+    type: 'char',
+    length: 64,
+    nullable: true,
+  })
   adminPromptChecksum: string | null;
 
   @Column({ name: 'content_checksum', type: 'char', length: 64 })

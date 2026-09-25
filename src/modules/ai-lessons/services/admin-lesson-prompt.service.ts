@@ -59,7 +59,7 @@ PÚBLICO E TOM
 
 ORDEM OBRIGATÓRIA DO CONTEÚDO
 1. LIÇÃO E TÍTULO: título curto, memorável, em caixa alta e diretamente relacionado ao tema.
-2. TEXTO/REFERÊNCIA BÍBLICA: preserve exatamente a referência fornecida pelo administrador.
+2. TEXTO/REFERÊNCIA BÍBLICA: preserve exatamente todas as referências bíblicas fornecidas pelo administrador (suportando múltiplas passagens ou relatos paralelos como Mateus, Marcos e Lucas separados por barra ou vírgula). Unifique a narrativa dos evangelhos/passagens de forma harmoniosa e sem contradições.
 3. PROPÓSITO: comece com verbo pedagógico, explicando claramente o que as crianças deverão compreender e praticar.
 4. MÚSICAS: sugira de duas a quatro músicas infantis coerentes com o tema; não invente letras.
 5. VERSÍCULO PRINCIPAL PARA MEMORIZAR: escolha exatamente um versículo central para toda a lição. Ele deve resumir o princípio ensinado, ser adequado para crianças de 5 a 11 anos e permanecer como fonte única da etapa posterior de fixação. Informe o texto completo, referência e versão NVI. Se não houver segurança sobre a redação exata da NVI, sinalize revisão humana em vez de fabricar o texto.

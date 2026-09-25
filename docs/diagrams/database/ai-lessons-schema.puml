@@ -1,0 +1,30 @@
+@startuml
+title Estúdio Clubinho — schema essencial
+entity lessons {
+  * id : uuid
+  --
+  status : enum
+  week_material_id : uuid nullable <<index>>
+}
+entity lesson_stages {
+  * id : uuid
+  * lesson_id : uuid
+  type : enum
+  lock_version : int
+  --
+  UNIQUE(lesson_id, type)
+}
+entity lesson_versions {
+  * id : uuid
+  * stage_id : uuid
+  version_number : int
+  --
+  UNIQUE(stage_id, version_number)
+}
+entity week_material_pages {
+  * id : uuid
+}
+lessons ||--|{ lesson_stages
+lesson_stages ||--o{ lesson_versions
+lessons }o--o| week_material_pages : week_material_id
+@enduml
