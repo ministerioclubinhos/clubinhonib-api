@@ -61,7 +61,7 @@ export class LessonDraftService {
         this.repo.createLesson({
           theme: dto.theme.trim(),
           biblicalReference: dto.biblicalReference.trim(),
-          weekNumber: dto.weekNumber ?? 1,
+          weekNumber: dto.weekNumber,
           status: LessonStatus.DRAFT,
           createdById: userId,
           weekMaterialId: null,
@@ -246,6 +246,7 @@ export class LessonDraftService {
       let normalized = derivedVerseStages.includes(type)
         ? this.lockDerivedVerse(lesson, type, generated.content)
         : generated.content;
+      normalized = this.validateCanonicalContent(lesson, type, normalized);
       if (visualConfig) {
         const assets = Array.isArray(normalized.assets)
           ? normalized.assets
@@ -420,6 +421,72 @@ export class LessonDraftService {
       verseVersion: 'NVI',
       printableAssets: assets,
     };
+  }
+
+  private validateCanonicalContent(
+    lesson: LessonEntity,
+    type: LessonStageType,
+    generated: JsonObject,
+  ): JsonObject {
+    const normalize = (value: string): string =>
+      value.trim().replace(/\s+/g, ' ').toLocaleLowerCase('pt-BR');
+
+    if (type === LessonStageType.LESSON) {
+      const reference = lessonString(generated.biblicalReference);
+      if (normalize(reference) !== normalize(lesson.biblicalReference)) {
+        throw new ConflictException(
+          'A geração alterou as referências bíblicas informadas. Revise o tema e gere novamente.',
+        );
+      }
+      const verse = this.asObject(generated.memoryVerse);
+      if (
+        !lessonString(verse.text).trim() ||
+        !lessonString(verse.reference).trim() ||
+        lessonString(verse.version).trim().toUpperCase() !== 'NVI'
+      ) {
+        throw new ConflictException(
+          'A lição precisa definir um único versículo principal, com texto, referência e versão NVI.',
+        );
+      }
+      const scenes = Array.isArray(generated.visualScenes)
+        ? generated.visualScenes.map((item) => this.asObject(item))
+        : [];
+      const sceneIds = scenes.map((scene) => lessonString(scene.id).trim());
+      if (
+        sceneIds.some((id) => !/^scene-\d{2}$/.test(id)) ||
+        new Set(sceneIds).size !== sceneIds.length
+      ) {
+        throw new ConflictException(
+          'As cenas da lição precisam usar IDs únicos no formato scene-01, scene-02 e assim por diante.',
+        );
+      }
+    }
+
+    if (type === LessonStageType.LESSON_VISUALS) {
+      const sourceStage = lesson.stages.find(
+        (stage) => stage.type === LessonStageType.LESSON,
+      );
+      const source = sourceStage ? this.currentContent(sourceStage) : null;
+      const allowedIds = new Set(
+        (Array.isArray(source?.visualScenes) ? source.visualScenes : []).map(
+          (item) => lessonString(this.asObject(item).id).trim(),
+        ),
+      );
+      const assets = Array.isArray(generated.assets)
+        ? generated.assets.map((item) => this.asObject(item))
+        : [];
+      const assetIds = assets.map((asset) => lessonString(asset.id).trim());
+      if (
+        assetIds.some((id) => !allowedIds.has(id)) ||
+        new Set(assetIds).size !== assetIds.length
+      ) {
+        throw new ConflictException(
+          'Cada visual da história precisa corresponder a um sceneId único da lição aprovada.',
+        );
+      }
+    }
+
+    return generated;
   }
 
   private asObject(value: unknown): JsonObject {

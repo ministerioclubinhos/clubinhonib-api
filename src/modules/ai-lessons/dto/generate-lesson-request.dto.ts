@@ -1,11 +1,4 @@
-import {
-  IsInt,
-  IsOptional,
-  IsString,
-  MaxLength,
-  Min,
-  MinLength,
-} from 'class-validator';
+import { IsInt, IsString, MaxLength, Min, MinLength } from 'class-validator';
 
 export class GenerateLessonRequestDto {
   @IsString()
@@ -19,7 +12,6 @@ export class GenerateLessonRequestDto {
   biblicalReference: string;
 
   @IsInt()
-  @IsOptional()
   @Min(1)
-  weekNumber?: number;
+  weekNumber: number;
 }

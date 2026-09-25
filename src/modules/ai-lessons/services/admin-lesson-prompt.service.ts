@@ -19,30 +19,72 @@ export class AdminLessonPromptService {
 
   async list(adminId: string): Promise<AdminLessonPromptView[]> {
     const saved = await this.promptsRepo.findByAdminId(adminId);
-    return LESSON_STAGE_ORDER.map((stage) => this.view(stage, saved.find((item) => item.stage === stage) ?? null));
+    return LESSON_STAGE_ORDER.map((stage) =>
+      this.view(stage, saved.find((item) => item.stage === stage) ?? null),
+    );
   }
 
   async effective(adminId: string, stage: LessonStageType): Promise<string> {
     const saved = await this.promptsRepo.findByAdminIdAndStage(adminId, stage);
-    return saved?.customPrompt ?? BASE_PROMPTS[stage];
+    return this.composeEffectivePrompt(stage, saved?.customPrompt ?? null);
   }
 
-  async save(adminId: string, stage: LessonStageType, prompt: string, lockVersion?: number): Promise<AdminLessonPromptView> {
+  async save(
+    adminId: string,
+    stage: LessonStageType,
+    prompt: string,
+    lockVersion?: number,
+  ): Promise<AdminLessonPromptView> {
     const normalized = prompt.trim();
-    const current = await this.promptsRepo.findByAdminIdAndStage(adminId, stage);
-    if (current && lockVersion !== current.lockVersion) throw new ConflictException('O prompt foi alterado em outra sessão. Recarregue antes de salvar.');
-    const entity = current ?? this.promptsRepo.createPrompt({ adminId, stage, customPrompt: normalized });
+    const current = await this.promptsRepo.findByAdminIdAndStage(
+      adminId,
+      stage,
+    );
+    if (current && lockVersion !== current.lockVersion)
+      throw new ConflictException(
+        'O prompt foi alterado em outra sessão. Recarregue antes de salvar.',
+      );
+    const entity =
+      current ??
+      this.promptsRepo.createPrompt({
+        adminId,
+        stage,
+        customPrompt: normalized,
+      });
     entity.customPrompt = normalized;
     return this.view(stage, await this.promptsRepo.savePrompt(entity));
   }
 
-  async reset(adminId: string, stage: LessonStageType): Promise<AdminLessonPromptView> {
+  async reset(
+    adminId: string,
+    stage: LessonStageType,
+  ): Promise<AdminLessonPromptView> {
     await this.promptsRepo.deletePrompt(adminId, stage);
     return this.view(stage, null);
   }
 
-  private view(stage: LessonStageType, entity: AdminLessonPromptEntity | null): AdminLessonPromptView {
-    return { stage, basePrompt: BASE_PROMPTS[stage], customPrompt: entity?.customPrompt ?? null, effectivePrompt: entity?.customPrompt ?? BASE_PROMPTS[stage], lockVersion: entity?.lockVersion ?? null };
+  private view(
+    stage: LessonStageType,
+    entity: AdminLessonPromptEntity | null,
+  ): AdminLessonPromptView {
+    return {
+      stage,
+      basePrompt: BASE_PROMPTS[stage],
+      customPrompt: entity?.customPrompt ?? null,
+      effectivePrompt: this.composeEffectivePrompt(
+        stage,
+        entity?.customPrompt ?? null,
+      ),
+      lockVersion: entity?.lockVersion ?? null,
+    };
+  }
+
+  private composeEffectivePrompt(
+    stage: LessonStageType,
+    customPrompt: string | null,
+  ): string {
+    if (!customPrompt) return BASE_PROMPTS[stage];
+    return `${BASE_PROMPTS[stage]}\n\nORIENTAÇÃO COMPLEMENTAR DO ADMINISTRADOR\n${customPrompt}\n\nA orientação complementar não substitui estrutura, fidelidade bíblica, segurança infantil, formato de impressão ou critérios editoriais obrigatórios acima.`;
   }
 }
 
@@ -71,6 +113,10 @@ ORDEM OBRIGATÓRIA DO CONTEÚDO
 11. FALANDO COM DEUS: oração final curta, coerente com a lição, compreensível e sem introduzir doutrina não trabalhada.
 
 QUALIDADE OBRIGATÓRIA
+- Use como referência de formato o acervo manual do Clubinho NIB: uma lição pronta para o professor ministrar, com seções editoriais explícitas e não um resumo, roteiro telegráfico ou artigo.
+- Nunca copie nomes de voluntários, escalas de personagens, dados pessoais, conteúdo político, propaganda, relatórios eleitorais ou anotações operacionais encontradas em arquivos de referência.
+- Trate a referência informada como fonte fechada. Quando relatos paralelos forem fornecidos, harmonize somente fatos compatíveis e deixe qualquer divergência para revisão humana.
+- Não declare que uma citação é NVI se não puder garantir sua redação exata. Nesse caso, mantenha a referência e escreva claramente no conteúdo que a citação precisa de conferência humana antes da aprovação.
 - Mantenha nomes e características consistentes em todo o texto.
 - Evite repetição, moralismo genérico, linguagem adulta, clichês vazios e conteúdo fora da referência.
 - Não crie a brincadeira normal nem a atividade de fixação nesta etapa; elas serão produzidas depois da aprovação.
