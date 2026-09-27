@@ -1,10 +1,15 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
+  Logger,
   NotFoundException,
+  OnApplicationBootstrap,
 } from '@nestjs/common';
 import { createHash } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
+import { Interval } from '@nestjs/schedule';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { LessonEntity } from '../entities/lesson.entity';
 import { LessonStageEntity } from '../entities/lesson-stage.entity';
@@ -24,7 +29,6 @@ import {
   LESSON_TEMPLATES,
   templateChecksum,
 } from '../templates/lesson-templates';
-import { OpenAiLessonService } from './open-ai-lesson.service';
 import { DocxExporterService } from './docx-exporter.service';
 import { PdfLibreOfficeService } from './pdf-libreoffice.service';
 import { WeekMaterialsPageCreateService } from 'src/modules/pages/week-material-page/services/create-week-material.service';
@@ -36,21 +40,57 @@ import {
 import { AdminLessonPromptService } from './admin-lesson-prompt.service';
 import { AiLessonsRepository } from '../repositories/ai-lessons.repository';
 import { QueryLessonsDto } from '../dto/query-lessons.dto';
-import { lessonString } from '../utils';
+import {
+  buildStoryVisualImagePrompt,
+  extractTiptapSectionText,
+  lessonString,
+} from '../utils';
+import { LESSON_LLM_PROVIDER } from '../providers/lesson-llm.constants';
+import { LessonLlmProviderContract } from '../providers/lesson-llm.types';
 
 type JsonObject = Record<string, unknown>;
 
 @Injectable()
-export class LessonDraftService {
+export class LessonDraftService implements OnApplicationBootstrap {
+  private readonly logger = new Logger(LessonDraftService.name);
+  private readonly activeGenerations = new Set<string>();
+  private readonly generationWorkerId = randomUUID();
+
   constructor(
     private readonly repo: AiLessonsRepository,
-    private readonly openAi: OpenAiLessonService,
+    @Inject(LESSON_LLM_PROVIDER)
+    private readonly llm: LessonLlmProviderContract,
     private readonly s3: AwsS3Service,
     private readonly docx: DocxExporterService,
     private readonly pdf: PdfLibreOfficeService,
     private readonly weekMaterials: WeekMaterialsPageCreateService,
     private readonly adminPrompts: AdminLessonPromptService,
   ) {}
+
+  async onApplicationBootstrap(): Promise<void> {
+    await this.resumePendingGenerations();
+  }
+
+  @Interval(5000)
+  async resumePendingGenerations(): Promise<void> {
+    const interrupted = await this.repo.findGeneratingStages();
+    for (const stage of interrupted) {
+      if (!stage.generationRequestJson || !stage.generationRequestedById) {
+        stage.status = LessonStageStatus.FAILED;
+        stage.failureCode = 'GENERATION_REQUEST_MISSING';
+        stage.failureMessage =
+          'A geração interrompida não possuía dados para retomada. Tente novamente.';
+        await this.repo.saveStage(stage);
+        continue;
+      }
+      const claimed = await this.repo.claimGeneration(
+        stage.id,
+        this.generationWorkerId,
+        this.nextGenerationLease(),
+      );
+      if (claimed) this.startGeneration(stage);
+    }
+  }
 
   async create(
     dto: GenerateLessonRequestDto,
@@ -181,7 +221,7 @@ export class LessonDraftService {
     dto: GenerateStageRequestDto,
     userId: string,
   ): Promise<LessonEntity> {
-    const { stage: type, revisionInstructions } = dto;
+    const { stage: type } = dto;
     const lesson = await this.repo.runInTransaction(async (manager) => {
       const lock = await this.repo.findLessonByIdForUpdate(id, manager);
       if (!lock) throw new NotFoundException('Lição não encontrada.');
@@ -205,16 +245,90 @@ export class LessonDraftService {
         );
       this.assertDependency(locked, type);
       const activeTemplate = LESSON_TEMPLATES[type];
-      if (lockedStage.templateChecksum !== templateChecksum(activeTemplate))
-        throw new ConflictException(
-          'O checksum do template ativo diverge do contrato aprovado.',
-        );
+      lockedStage.templateKey = activeTemplate.key;
+      lockedStage.templateVersion = activeTemplate.version;
+      lockedStage.templateChecksum = templateChecksum(activeTemplate);
       lockedStage.status = LessonStageStatus.GENERATING;
       lockedStage.failureCode = null;
       lockedStage.failureMessage = null;
+      lockedStage.generationRequestJson = dto;
+      lockedStage.generationRequestedById = userId;
+      lockedStage.generationLeaseOwner = null;
+      lockedStage.generationLeaseUntil = null;
       await this.repo.saveStage(lockedStage, manager);
       return locked;
     });
+    void this.resumePendingGenerations();
+    return lesson;
+  }
+
+  private startGeneration(stage: LessonStageEntity): void {
+    const key = `${stage.lessonId}:${stage.type}`;
+    if (this.activeGenerations.has(key)) return;
+    this.activeGenerations.add(key);
+    const heartbeat = setInterval(() => {
+      void this.repo.renewGenerationLease(
+        stage.id,
+        this.generationWorkerId,
+        this.nextGenerationLease(),
+      );
+    }, 10000);
+    void this.executeStageGeneration(
+      stage.lessonId,
+      stage.generationRequestJson!,
+      stage.generationRequestedById!,
+    )
+      .catch((error: unknown) =>
+        this.failInterruptedGeneration(stage.lessonId, stage.type, error),
+      )
+      .finally(() => {
+        clearInterval(heartbeat);
+        this.activeGenerations.delete(key);
+      });
+  }
+
+  private nextGenerationLease(): Date {
+    return new Date(Date.now() + 30000);
+  }
+
+  private async failInterruptedGeneration(
+    lessonId: string,
+    type: LessonStageType,
+    error: unknown,
+  ): Promise<void> {
+    const lesson = await this.getById(lessonId);
+    const stage = lesson.stages.find((item) => item.type === type);
+    if (!stage || stage.status !== LessonStageStatus.GENERATING) return;
+    stage.status = LessonStageStatus.FAILED;
+    stage.failureCode = 'GENERATION_FAILED';
+    stage.failureMessage = (
+      error instanceof Error ? error.message : String(error)
+    ).slice(0, 500);
+    stage.generationRequestJson = null;
+    stage.generationRequestedById = null;
+    stage.generationLeaseOwner = null;
+    stage.generationLeaseUntil = null;
+    await this.repo.updateStage(stage.id, {
+      status: stage.status,
+      failureCode: stage.failureCode,
+      failureMessage: stage.failureMessage,
+      generationRequestJson: null,
+      generationRequestedById: null,
+      generationLeaseOwner: null,
+      generationLeaseUntil: null,
+    });
+    this.logger.error(
+      `Geração ${lessonId}:${type} falhou antes do processamento: ${stage.failureMessage}`,
+    );
+  }
+
+  private async executeStageGeneration(
+    id: string,
+    dto: GenerateStageRequestDto,
+    userId: string,
+  ): Promise<void> {
+    const { stage: type, revisionInstructions } = dto;
+    const lesson = await this.getById(id);
     const stage = lesson.stages.find((item) => item.type === type)!;
     const upstream = this.assertDependency(lesson, type);
     const template = LESSON_TEMPLATES[type];
@@ -225,7 +339,7 @@ export class LessonDraftService {
     const uploadedUrls: string[] = [];
     try {
       const adminPrompt = await this.adminPrompts.effective(userId, type);
-      const generated = await this.openAi.generateStage({
+      const generated = await this.llm.generateStage({
         theme: lesson.theme,
         biblicalReference: lesson.biblicalReference,
         weekNumber: lesson.weekNumber,
@@ -260,6 +374,7 @@ export class LessonDraftService {
       const content = await this.generateAndStoreAssets(
         id,
         type,
+        lesson,
         normalized,
         uploadedUrls,
       );
@@ -269,6 +384,7 @@ export class LessonDraftService {
           ...(stage.versions ?? []).map((version) => version.versionNumber),
         ) + 1;
       const entity = this.repo.createVersion({
+        stage: { id: stage.id } as LessonStageEntity,
         stageId: stage.id,
         versionNumber: nextVersion,
         structuredDataJson: content,
@@ -293,9 +409,19 @@ export class LessonDraftService {
       const version = await this.repo.saveVersion(entity);
       stage.currentVersionId = version.id;
       stage.status = LessonStageStatus.DRAFT;
-      await this.repo.saveStage(stage);
+      stage.generationRequestJson = null;
+      stage.generationRequestedById = null;
+      stage.generationLeaseOwner = null;
+      stage.generationLeaseUntil = null;
+      await this.repo.updateStage(stage.id, {
+        currentVersionId: version.id,
+        status: LessonStageStatus.DRAFT,
+        generationRequestJson: null,
+        generationRequestedById: null,
+        generationLeaseOwner: null,
+        generationLeaseUntil: null,
+      });
       await this.invalidateDownstream(lesson, type);
-      return this.getById(id);
     } catch (error: unknown) {
       await Promise.all(uploadedUrls.map((url) => this.s3.delete(url)));
       stage.status = LessonStageStatus.FAILED;
@@ -303,8 +429,22 @@ export class LessonDraftService {
       stage.failureMessage = (
         error instanceof Error ? error.message : String(error)
       ).slice(0, 500);
-      await this.repo.saveStage(stage);
-      throw error;
+      stage.generationRequestJson = null;
+      stage.generationRequestedById = null;
+      stage.generationLeaseOwner = null;
+      stage.generationLeaseUntil = null;
+      this.logger.error(
+        `Geração ${id}:${type} falhou: ${stage.failureMessage}`,
+      );
+      await this.repo.updateStage(stage.id, {
+        status: LessonStageStatus.FAILED,
+        failureCode: stage.failureCode,
+        failureMessage: stage.failureMessage,
+        generationRequestJson: null,
+        generationRequestedById: null,
+        generationLeaseOwner: null,
+        generationLeaseUntil: null,
+      });
     }
   }
 
@@ -327,6 +467,7 @@ export class LessonDraftService {
   private async generateAndStoreAssets(
     lessonId: string,
     type: LessonStageType,
+    lesson: LessonEntity,
     content: JsonObject,
     uploadedUrls: string[],
   ): Promise<JsonObject> {
@@ -344,24 +485,65 @@ export class LessonDraftService {
       ? (content[key] as JsonObject[])
       : [];
     const visualConfig = this.asObject(content.visualConfig);
+    const canonicalLesson =
+      type === LessonStageType.LESSON_VISUALS
+        ? this.currentContent(
+            lesson.stages.find((item) => item.type === LessonStageType.LESSON)!,
+          )
+        : null;
+    const completeStory = lessonString(canonicalLesson?.story).trim();
+    const canonicalScenes = Array.isArray(canonicalLesson?.visualScenes)
+      ? canonicalLesson.visualScenes.map((item) => this.asObject(item))
+      : [];
+    if (type === LessonStageType.LESSON_VISUALS && !completeStory)
+      throw new ConflictException(
+        'A versão atual da lição precisa conter o tópico LIÇÃO BÍBLICA antes de gerar os visuais.',
+      );
     const completed: JsonObject[] = [];
     for (const asset of assets) {
-      const buffer = await this.openAi.generateImage(
-        lessonString(asset.prompt),
+      const assetId = lessonString(asset.id).trim();
+      const canonicalScene = canonicalScenes.find(
+        (scene) => lessonString(scene.id).trim() === assetId,
+      );
+      const imagePrompt =
+        type === LessonStageType.LESSON_VISUALS
+          ? buildStoryVisualImagePrompt({
+              completeStory,
+              canonicalScene: canonicalScene ?? {},
+              proposedComposition: lessonString(asset.prompt),
+            })
+          : lessonString(asset.prompt);
+      const buffer = await this.llm.generateImage(
+        imagePrompt,
         lessonString(visualConfig.orientation),
         lessonString(visualConfig.type),
       );
-      const originalname = `${lessonId}-${type}-${String(asset.id)}.png`;
+      const image = this.imageUploadMetadata(buffer);
+      const originalname = `${lessonId}-${type}-${String(asset.id)}.${image.extension}`;
       const url = await this.s3.upload({
         buffer,
         originalname,
-        mimetype: 'image/png',
+        mimetype: image.mimeType,
         size: buffer.length,
       } as Express.Multer.File);
       uploadedUrls.push(url);
       completed.push({ ...asset, url });
     }
     return { ...content, [key]: completed };
+  }
+
+  private imageUploadMetadata(buffer: Buffer): {
+    extension: 'jpg' | 'png';
+    mimeType: 'image/jpeg' | 'image/png';
+  } {
+    const isJpeg =
+      buffer.length >= 3 &&
+      buffer[0] === 0xff &&
+      buffer[1] === 0xd8 &&
+      buffer[2] === 0xff;
+    return isJpeg
+      ? { extension: 'jpg', mimeType: 'image/jpeg' }
+      : { extension: 'png', mimeType: 'image/png' };
   }
 
   private lockDerivedVerse(
@@ -428,15 +610,15 @@ export class LessonDraftService {
     type: LessonStageType,
     generated: JsonObject,
   ): JsonObject {
-    const normalize = (value: string): string =>
-      value.trim().replace(/\s+/g, ' ').toLocaleLowerCase('pt-BR');
-
     if (type === LessonStageType.LESSON) {
-      const reference = lessonString(generated.biblicalReference);
-      if (normalize(reference) !== normalize(lesson.biblicalReference)) {
-        throw new ConflictException(
-          'A geração alterou as referências bíblicas informadas. Revise o tema e gere novamente.',
-        );
+      generated.biblicalReference = lesson.biblicalReference;
+      const themeUpper = (lesson.theme ?? '').trim().toUpperCase();
+      const titleStr = lessonString(generated.title).trim();
+      if (
+        themeUpper &&
+        (!titleStr || !titleStr.toUpperCase().includes(themeUpper))
+      ) {
+        generated.title = `LIÇÃO: ${themeUpper}`;
       }
       const verse = this.asObject(generated.memoryVerse);
       if (
@@ -508,9 +690,13 @@ export class LessonDraftService {
         'Esta etapa foi alterada em outra sessão. Recarregue antes de salvar.',
       );
     if (
-      ![LessonStageStatus.DRAFT, LessonStageStatus.CHANGES_REQUESTED].includes(
-        stage.status,
-      )
+      ![
+        LessonStageStatus.DRAFT,
+        LessonStageStatus.PRODUCER_APPROVED,
+        LessonStageStatus.CHANGES_REQUESTED,
+        LessonStageStatus.STALE,
+        LessonStageStatus.FAILED,
+      ].includes(stage.status)
     )
       throw new ConflictException(
         'A etapa não está editável durante a revisão final.',
@@ -518,9 +704,16 @@ export class LessonDraftService {
     const nextVersion =
       Math.max(0, ...stage.versions.map((version) => version.versionNumber)) +
       1;
-    const structured =
-      dto.structuredDataJson ?? this.currentContent(stage) ?? {};
+    let structured = dto.structuredDataJson ?? this.currentContent(stage) ?? {};
+    if (dto.stage === LessonStageType.LESSON) {
+      const editedStory = extractTiptapSectionText(
+        dto.tiptapAstJson,
+        'LIÇÃO BÍBLICA',
+      );
+      if (editedStory) structured = { ...structured, story: editedStory };
+    }
     const entity = this.repo.createVersion({
+      stage: { id: stage.id } as LessonStageEntity,
       stageId: stage.id,
       versionNumber: nextVersion,
       tiptapAstJson: dto.tiptapAstJson,
@@ -538,7 +731,12 @@ export class LessonDraftService {
     const version = await this.repo.saveVersion(entity);
     stage.currentVersionId = version.id;
     stage.status = LessonStageStatus.DRAFT;
-    await this.repo.saveStage(stage);
+    await this.repo.updateStage(stage.id, {
+      currentVersionId: version.id,
+      status: LessonStageStatus.DRAFT,
+      failureCode: null,
+      failureMessage: null,
+    });
     await this.invalidateDownstream(lesson, dto.stage);
     return this.getById(id);
   }
@@ -552,9 +750,13 @@ export class LessonDraftService {
     if (!stage?.currentVersionId)
       throw new BadRequestException('Etapa sem conteúdo para concluir.');
     if (
-      ![LessonStageStatus.DRAFT, LessonStageStatus.CHANGES_REQUESTED].includes(
-        stage.status,
-      )
+      ![
+        LessonStageStatus.DRAFT,
+        LessonStageStatus.PRODUCER_APPROVED,
+        LessonStageStatus.CHANGES_REQUESTED,
+        LessonStageStatus.STALE,
+        LessonStageStatus.FAILED,
+      ].includes(stage.status)
     )
       throw new ConflictException(
         'Somente uma etapa em produção pode ser concluída.',
@@ -562,7 +764,13 @@ export class LessonDraftService {
     stage.status = LessonStageStatus.PRODUCER_APPROVED;
     stage.approvedAt = null;
     stage.approvedById = null;
-    await this.repo.saveStage(stage);
+    await this.repo.updateStage(stage.id, {
+      status: LessonStageStatus.PRODUCER_APPROVED,
+      approvedAt: null,
+      approvedById: null,
+      failureCode: null,
+      failureMessage: null,
+    });
     const allReady = lesson.stages.every(
       (item) =>
         item.id === stage.id ||
@@ -574,7 +782,7 @@ export class LessonDraftService {
     lesson.status = allReady
       ? LessonStatus.PACKAGE_READY
       : LessonStatus.IN_PROGRESS;
-    await this.repo.saveLesson(lesson);
+    await this.repo.updateLesson(lesson.id, { status: lesson.status });
     return this.getById(id);
   }
 
@@ -673,10 +881,16 @@ export class LessonDraftService {
       stage.status = LessonStageStatus.STALE;
       stage.approvedAt = null;
       stage.approvedById = null;
-      await this.repo.saveStage(stage);
+      await this.repo.updateStage(stage.id, {
+        status: LessonStageStatus.STALE,
+        approvedAt: null,
+        approvedById: null,
+      });
     }
     lesson.status = LessonStatus.IN_PROGRESS;
-    await this.repo.saveLesson(lesson);
+    await this.repo.updateLesson(lesson.id, {
+      status: LessonStatus.IN_PROGRESS,
+    });
   }
 
   async exportPdf(
@@ -926,6 +1140,10 @@ export class LessonDraftService {
       type: 'paragraph',
       content: [{ type: 'text', text }],
     });
+    const blockquote = (text: string): JsonObject => ({
+      type: 'blockquote',
+      content: [paragraph(text)],
+    });
     const append = (key: string, raw: unknown, depth = 2): void => {
       if (
         ['assets', 'printableAssets', 'visualScenes', 'visualConfig'].includes(
@@ -933,20 +1151,83 @@ export class LessonDraftService {
         )
       )
         return;
+      if (key === 'title') {
+        const titleText = lessonString(raw).trim();
+        if (titleText) {
+          nodes.push({
+            type: 'heading',
+            attrs: { level: 1 },
+            content: [{ type: 'text', text: titleText }],
+          });
+        }
+        return;
+      }
       nodes.push({
         type: 'heading',
         attrs: { level: Math.min(depth, 3) },
         content: [{ type: 'text', text: label(key) }],
       });
+      if (key === 'memoryVerse' && raw && typeof raw === 'object') {
+        const verseObj = raw as JsonObject;
+        const text = lessonString(verseObj.text).trim();
+        const reference = lessonString(verseObj.reference).trim();
+        if (text) {
+          nodes.push(paragraph(`"${text}"`));
+        }
+        if (reference) {
+          nodes.push(paragraph(reference));
+        }
+        return;
+      }
       if (
         typeof raw === 'string' ||
         typeof raw === 'number' ||
         typeof raw === 'boolean'
       ) {
-        nodes.push(paragraph(String(raw)));
+        const textStr = String(raw).trim();
+        const normalizedText = textStr.replace(
+          /(?:\s+)?(scene-\d{1,2}:[^\n.?]+(?:\.|\?|(?=\s+scene-|\n|$)))/gi,
+          '\n\n$1\n\n',
+        );
+        const lines = normalizedText
+          .split(/\r?\n/)
+          .map((l) => l.trim())
+          .filter(Boolean);
+
+        if (lines.length === 0) {
+          nodes.push(paragraph(textStr));
+          return;
+        }
+
+        for (const line of lines) {
+          if (/^(scene-\d+|cena-\d+|\[scene|\[cena)/i.test(line)) {
+            const cleanLine = line
+              .replace(/^(?:\[?\s*(?:scene|cena)[-\s_]*\d+\s*\]?:?|-?)\s*/i, '')
+              .trim();
+            nodes.push(blockquote(cleanLine || line));
+          } else {
+            nodes.push(paragraph(line));
+          }
+        }
         return;
       }
       if (Array.isArray(raw)) {
+        const stringItems = raw
+          .filter((item): item is string => typeof item === 'string')
+          .map((s) => s.trim())
+          .filter(Boolean);
+
+        if (stringItems.length > 0 && stringItems.length === raw.length) {
+          nodes.push({
+            type: 'bulletList',
+            content: stringItems.map((str) => ({
+              type: 'listItem',
+              content: [paragraph(str)],
+            })),
+          });
+          return;
+        }
+
         raw.forEach((item, index) => {
           if (typeof item === 'string')
             nodes.push({

@@ -100,13 +100,13 @@ PÚBLICO E TOM
 - O texto deve orientar o professor, não falar como um artigo acadêmico e não mencionar inteligência artificial.
 
 ORDEM OBRIGATÓRIA DO CONTEÚDO
-1. LIÇÃO E TÍTULO: título curto, memorável, em caixa alta e diretamente relacionado ao tema.
+1. LIÇÃO E TÍTULO: o título da lição ("title") DEVE incorporar e preservar obrigatoriamente o tema exato fornecido pelo usuário no input ("theme"), em caixa alta. Nunca substitua, trunque nem altere o assunto definido no tema.
 2. TEXTO/REFERÊNCIA BÍBLICA: preserve exatamente todas as referências bíblicas fornecidas pelo administrador (suportando múltiplas passagens ou relatos paralelos como Mateus, Marcos e Lucas separados por barra ou vírgula). Unifique a narrativa dos evangelhos/passagens de forma harmoniosa e sem contradições.
 3. PROPÓSITO: comece com verbo pedagógico, explicando claramente o que as crianças deverão compreender e praticar.
 4. MÚSICAS: sugira de duas a quatro músicas infantis coerentes com o tema; não invente letras.
 5. VERSÍCULO PRINCIPAL PARA MEMORIZAR: escolha exatamente um versículo central para toda a lição. Ele deve resumir o princípio ensinado, ser adequado para crianças de 5 a 11 anos e permanecer como fonte única da etapa posterior de fixação. Informe o texto completo, referência e versão NVI. Se não houver segurança sobre a redação exata da NVI, sinalize revisão humana em vez de fabricar o texto.
 6. EXPLICAÇÃO DO PRINCÍPIO: explique o versículo palavra por palavra quando necessário e conecte-o à vida da criança.
-7. HISTÓRIA BÍBLICA: crie uma narrativa completa, em ordem, com começo, desenvolvimento e conclusão. Inclua perguntas curtas de participação e indicações semânticas de cenas por IDs estáveis, como scene-01, sem escrever “[Image #]”.
+7. HISTÓRIA BÍBLICA: crie uma narrativa completa, em ordem, com começo, desenvolvimento e conclusão, dividida em parágrafos claros. As indicações de cenas visuais devem ser colocadas SEMPRE em uma linha própria (um parágrafo isolado do texto narrativo) no formato scene-01: [Descrição da cena], sem escrever “[Image #]” e sem colocar marcadores no meio de frases.
 8. APLICAÇÃO E APELO: diferencie a aplicação para a criança salva do convite à criança que deseja seguir Jesus. Explique pecado como tudo o que pensamos, falamos ou fazemos que desagrada a Deus. Não use medo, pressão emocional ou promessa de resultado material. Quando houver oração de decisão, preserve o texto oficial: “Senhor Deus, perdoa os meus pecados e vem entrar no meu coração. Eu creio que Jesus, teu Filho, morreu na cruz no meu lugar e ressuscitou. Eu escolho te seguir! Quero que tu sejas o meu Senhor e Salvador, em nome de Jesus! Amém.”
 9. CANTINHO DO ACONSELHAMENTO: oriente o professor a conversar individualmente, usar a Bíblia, o Livro Sem Palavras, o Cartão de Decisão e o Cartão de Aniversário de Novo Nascimento, confirmar a compreensão da criança e registrar a decisão sem constrangimento.
 10. PERGUNTAS DA LIÇÃO: gere exatamente dez perguntas numeradas com respostas completas; cubra fatos da narrativa, significado espiritual, versículo e aplicação prática.

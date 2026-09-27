@@ -6,13 +6,26 @@ O acervo histórico em `../lições` é referência de formato, não uma fonte a
 
 O número da semana, o tema e todas as referências bíblicas são obrigatórios na criação. A geração da lição deve preservar literalmente o campo de referências, definir um único versículo principal NVI e produzir IDs de cena únicos no formato `scene-01`. Os visuais posteriores só podem usar esses IDs aprovados.
 
+Os visuais da história usam como fonte canônica o conteúdo completo do tópico `LIÇÃO BÍBLICA` da versão atual da primeira etapa. Esse texto integral e a cena aprovada correspondente são incluídos em cada prompt final de imagem; personagens, ações, objetos, ambientes ou emoções ausentes dessa fonte não podem ser acrescentados. Quando a lição é editada no editor, o tópico estruturado é sincronizado antes de uma geração posterior.
+
 Prompts personalizados são anexados ao prompt-base da etapa. Eles nunca substituem as regras editoriais, a segurança infantil, o formato de impressão ou o contrato bíblico.
+
+## Provedor de IA
+
+O Estúdio consome um contrato neutro de LLM para texto estruturado e imagens. A variável `LLM_PROVIDER` seleciona `openai` (padrão compatível com instalações existentes) ou `gemini` para toda a geração de um processo. Não existe fallback silencioso entre provedores: ausência de chave ou falha externa interrompe a etapa e a marca como falha.
+
+- OpenAI: `OPENAI_API_KEY`, `OPENAI_TEXT_MODEL` e `OPENAI_IMAGE_MODEL`.
+- Gemini: `GEMINI_API_KEY`, `GEMINI_TEXT_MODEL`, `GEMINI_TEXT_FALLBACK_MODEL`, `GEMINI_IMAGE_MODEL`, `GEMINI_IMAGE_SIZE`, `GEMINI_MAX_RETRIES` e `GEMINI_RETRY_BASE_DELAY_MS`. Erros transitórios `429/5xx` usam backoff exponencial; depois de esgotar o modelo principal, o texto tenta o fallback configurado.
+
+O Gemini usa saída JSON estruturada em `generateContent` e geração de imagem pela Interactions API. Chaves nunca são persistidas em versões, logs ou respostas públicas.
 
 ## Máquina de estados
 
 Uma lição percorre `DRAFT`, `IN_PROGRESS`, `PACKAGE_READY`, `IN_REVIEW`, `CHANGES_REQUESTED`, `READY_FOR_PUBLICATION`, `PUBLISHING` e `PUBLISHED`. Cada etapa mantém seu próprio estado e versões imutáveis. Alterar uma etapa invalida as posteriores.
 
 `GET /api/v1/lessons/:id` é leitura pura: nunca cria etapas, atualiza templates ou revoga aprovação. A criação do pacote grava a lição e suas oito etapas numa única transação.
+
+`GET /api/v1/lessons/:id/events` mantém um stream SSE autenticado com snapshots do pacote. `POST /api/v1/lessons/:id/stages/generate` persiste a solicitação e retorna sem aguardar o LLM; o processamento continua em background e é retomado na inicialização da API quando uma etapa permaneceu em `GENERATING`.
 
 ## Listagem
 

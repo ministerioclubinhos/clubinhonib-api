@@ -14,10 +14,21 @@ import { AdminLessonPromptService } from './services/admin-lesson-prompt.service
 import { WeekMaterialsPageModule } from '../pages/week-material-page/week-material-page.module';
 import { AiLessonsRepository } from './repositories/ai-lessons.repository';
 import { AdminLessonPromptRepository } from './repositories/admin-lesson-prompt.repository';
+import { ConfigService } from '@nestjs/config';
+import { GeminiLessonLlmProvider } from './providers/gemini-lesson-llm.provider';
+import { LESSON_LLM_PROVIDER } from './providers/lesson-llm.constants';
+import { LessonLlmProviderContract } from './providers/lesson-llm.types';
+import { selectLessonLlmProvider } from './providers/lesson-llm.factory';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([LessonEntity, LessonStageEntity, LessonVersionEntity, LessonCommentEntity, AdminLessonPromptEntity]),
+    TypeOrmModule.forFeature([
+      LessonEntity,
+      LessonStageEntity,
+      LessonVersionEntity,
+      LessonCommentEntity,
+      AdminLessonPromptEntity,
+    ]),
     WeekMaterialsPageModule,
   ],
   controllers: [AiLessonsController],
@@ -25,11 +36,27 @@ import { AdminLessonPromptRepository } from './repositories/admin-lesson-prompt.
     AiLessonsRepository,
     AdminLessonPromptRepository,
     OpenAiLessonService,
+    GeminiLessonLlmProvider,
+    {
+      provide: LESSON_LLM_PROVIDER,
+      inject: [ConfigService, OpenAiLessonService, GeminiLessonLlmProvider],
+      useFactory: (
+        config: ConfigService,
+        openAi: OpenAiLessonService,
+        gemini: GeminiLessonLlmProvider,
+      ): LessonLlmProviderContract =>
+        selectLessonLlmProvider(config, openAi, gemini),
+    },
     LessonDraftService,
     DocxExporterService,
     PdfLibreOfficeService,
     AdminLessonPromptService,
   ],
-  exports: [LessonDraftService, OpenAiLessonService, AiLessonsRepository, AdminLessonPromptRepository],
+  exports: [
+    LessonDraftService,
+    LESSON_LLM_PROVIDER,
+    AiLessonsRepository,
+    AdminLessonPromptRepository,
+  ],
 })
 export class AiLessonsModule {}

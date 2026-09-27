@@ -13,9 +13,11 @@ import {
   Post,
   Query,
   Req,
+  Sse,
   StreamableFile,
   UseGuards,
 } from '@nestjs/common';
+import { from, interval, map, startWith, switchMap } from 'rxjs';
 import { AuthRequest } from 'src/core/auth/auth.types';
 import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 import { AdminRoleGuard } from 'src/core/auth/guards/role-guard';
@@ -88,6 +90,13 @@ export class AiLessonsController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<LessonResponseDto> {
     return toLessonResponse(await this.service.getById(id));
+  }
+  @Sse(':id/events') events(@Param('id', ParseUUIDPipe) id: string) {
+    return interval(2000).pipe(
+      startWith(0),
+      switchMap(() => from(this.service.getById(id))),
+      map((lesson) => ({ data: toLessonResponse(lesson) })),
+    );
   }
   @Delete(':id') @HttpCode(HttpStatus.OK) delete(
     @Param('id', ParseUUIDPipe) id: string,

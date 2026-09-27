@@ -6,14 +6,14 @@ import { LessonVersionSource } from '../enums/lesson.enums';
 @Entity('lesson_versions')
 @Unique('uq_lesson_version_stage_number', ['stageId', 'versionNumber'])
 export class LessonVersionEntity extends BaseEntity {
+  @Column({ name: 'stage_id', type: 'varchar', length: 36 })
+  stageId: string;
+
   @ManyToOne(() => LessonStageEntity, (stage) => stage.versions, {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'stage_id' })
   stage: LessonStageEntity;
-
-  @Column({ name: 'stage_id', type: 'varchar', length: 36 })
-  stageId: string;
 
   @Column({ type: 'int' })
   versionNumber: number;

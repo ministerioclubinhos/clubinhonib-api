@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
+import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { LessonEntity } from '../entities/lesson.entity';
 import { LessonStageEntity } from '../entities/lesson-stage.entity';
 import { LessonVersionEntity } from '../entities/lesson-version.entity';
-import { LessonStatus } from '../enums/lesson.enums';
+import { LessonStageStatus, LessonStatus } from '../enums/lesson.enums';
 import { QueryLessonsDto, LessonSortField } from '../dto/query-lessons.dto';
 
 const LESSON_SORT_COLUMNS: Record<LessonSortField, string> = {
@@ -46,6 +47,19 @@ export class AiLessonsRepository {
       : this.versionsRepo;
   }
 
+  private bindStageToVersions(stage: LessonStageEntity): void {
+    if (stage && Array.isArray(stage.versions)) {
+      for (const version of stage.versions) {
+        if (!version.stage) {
+          version.stage = stage;
+        }
+        if (!version.stageId && stage.id) {
+          version.stageId = stage.id;
+        }
+      }
+    }
+  }
+
   createLesson(data: Partial<LessonEntity>): LessonEntity {
     return this.lessonsRepo.create(data);
   }
@@ -54,7 +68,18 @@ export class AiLessonsRepository {
     lesson: LessonEntity,
     manager?: EntityManager,
   ): Promise<LessonEntity> {
+    if (lesson && Array.isArray(lesson.stages)) {
+      lesson.stages.forEach((stage) => this.bindStageToVersions(stage));
+    }
     return this.lessons(manager).save(lesson);
+  }
+
+  async updateLesson(
+    lessonId: string,
+    data: QueryDeepPartialEntity<LessonEntity>,
+    manager?: EntityManager,
+  ): Promise<void> {
+    await this.lessons(manager).update(lessonId, data);
   }
 
   async findLessonByIdForUpdate(
@@ -139,14 +164,59 @@ export class AiLessonsRepository {
     stage: LessonStageEntity,
     manager?: EntityManager,
   ): Promise<LessonStageEntity> {
+    this.bindStageToVersions(stage);
     return this.stages(manager).save(stage);
+  }
+
+  async updateStage(
+    stageId: string,
+    data: QueryDeepPartialEntity<LessonStageEntity>,
+    manager?: EntityManager,
+  ): Promise<void> {
+    await this.stages(manager).update(stageId, data);
   }
 
   async saveStages(
     stages: LessonStageEntity[],
     manager?: EntityManager,
   ): Promise<LessonStageEntity[]> {
+    stages.forEach((stage) => this.bindStageToVersions(stage));
     return this.stages(manager).save(stages);
+  }
+
+  async findGeneratingStages(): Promise<LessonStageEntity[]> {
+    return this.stagesRepo.find({
+      where: { status: LessonStageStatus.GENERATING },
+    });
+  }
+
+  async claimGeneration(
+    stageId: string,
+    owner: string,
+    leaseUntil: Date,
+  ): Promise<boolean> {
+    const result = await this.stagesRepo
+      .createQueryBuilder()
+      .update(LessonStageEntity)
+      .set({ generationLeaseOwner: owner, generationLeaseUntil: leaseUntil })
+      .where('id = :stageId', { stageId })
+      .andWhere('status = :status', { status: LessonStageStatus.GENERATING })
+      .andWhere(
+        '(generation_lease_until IS NULL OR generation_lease_until < CURRENT_TIMESTAMP)',
+      )
+      .execute();
+    return result.affected === 1;
+  }
+
+  async renewGenerationLease(
+    stageId: string,
+    owner: string,
+    leaseUntil: Date,
+  ): Promise<void> {
+    await this.stagesRepo.update(
+      { id: stageId, generationLeaseOwner: owner },
+      { generationLeaseUntil: leaseUntil },
+    );
   }
 
   createVersion(data: Partial<LessonVersionEntity>): LessonVersionEntity {

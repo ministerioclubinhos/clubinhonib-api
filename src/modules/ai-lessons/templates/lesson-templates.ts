@@ -22,7 +22,7 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
   [LessonStageType.LESSON]: {
     key: 'clubinho.lesson.canonical', version: '1.0.0', stage: LessonStageType.LESSON,
     exactStructure: ['LIÇÃO E TÍTULO', 'TEXTO/REFERÊNCIA BÍBLICA', 'PROPÓSITO', 'MÚSICAS', 'VERSÍCULO PARA MEMORIZAR', 'EXPLICAÇÃO DO PRINCÍPIO', 'HISTÓRIA BÍBLICA', 'APLICAÇÃO E APELO', 'CANTINHO DO ACONSELHAMENTO', '10 PERGUNTAS DA LIÇÃO COM GABARITO', 'FALANDO COM DEUS'],
-    rules: [...sharedRules, 'A história deve indicar cenas visuais por IDs estáveis scene-01, scene-02 etc., sem marcadores textuais [Image #].', 'A oração de apelo deve ser revisável e nunca pode ser substituída por texto dentro de imagem.'],
+    rules: [...sharedRules, 'A história deve indicar cenas visuais em linhas próprias separadas por IDs estáveis (ex: scene-01: Descrição...), sem marcadores textuais [Image #] e sem embutir cenas no meio de frases.', 'A oração de apelo deve ser revisável e nunca pode ser substituída por texto dentro de imagem.'],
   },
   [LessonStageType.LESSON_VISUALS]: {
     key: 'clubinho.lesson-visuals.canonical', version: '1.0.0', stage: LessonStageType.LESSON_VISUALS,

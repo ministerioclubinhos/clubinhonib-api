@@ -2,8 +2,12 @@ import { ConflictException } from '@nestjs/common';
 import { LessonDraftService } from './lesson-draft.service';
 import { AiLessonsRepository } from '../repositories/ai-lessons.repository';
 import { LessonEntity } from '../entities/lesson.entity';
-import { LessonStatus } from '../enums/lesson.enums';
-import { OpenAiLessonService } from './open-ai-lesson.service';
+import {
+  LessonStageStatus,
+  LessonStageType,
+  LessonStatus,
+} from '../enums/lesson.enums';
+import { LessonLlmProviderContract } from '../providers/lesson-llm.types';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { DocxExporterService } from './docx-exporter.service';
 import { PdfLibreOfficeService } from './pdf-libreoffice.service';
@@ -16,11 +20,17 @@ describe('LessonDraftService workflow safety', () => {
     runInTransaction: jest.fn(),
     findLessonByIdForUpdate: jest.fn(),
     saveLesson: jest.fn(),
+    updateLesson: jest.fn(),
+    saveStage: jest.fn(),
+    updateStage: jest.fn(),
+    findGeneratingStages: jest.fn(),
+    claimGeneration: jest.fn(),
+    renewGenerationLease: jest.fn(),
   };
   const weekMaterials = { createWeekMaterialsPage: jest.fn() };
   const service = new LessonDraftService(
     repo as unknown as AiLessonsRepository,
-    {} as OpenAiLessonService,
+    {} as LessonLlmProviderContract,
     {} as AwsS3Service,
     {} as DocxExporterService,
     {} as PdfLibreOfficeService,
@@ -30,6 +40,23 @@ describe('LessonDraftService workflow safety', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
+  it('marca como falha uma geração legada sem dados persistidos para retomada', async () => {
+    const stage = {
+      status: LessonStageStatus.GENERATING,
+      generationRequestJson: null,
+      generationRequestedById: null,
+      failureCode: null,
+      failureMessage: null,
+    };
+    repo.findGeneratingStages.mockResolvedValue([stage]);
+
+    await service.onApplicationBootstrap();
+
+    expect(stage.status).toBe(LessonStageStatus.FAILED);
+    expect(stage.failureCode).toBe('GENERATION_REQUEST_MISSING');
+    expect(repo.saveStage).toHaveBeenCalledWith(stage);
+  });
+
   it('GET de detalhe é leitura pura', async () => {
     const lesson = {
       id: 'lesson-1',
@@ -38,6 +65,42 @@ describe('LessonDraftService workflow safety', () => {
     } as unknown as LessonEntity;
     repo.findLessonById.mockResolvedValue(lesson);
     await expect(service.getById('lesson-1')).resolves.toBe(lesson);
+    expect(repo.saveLesson).not.toHaveBeenCalled();
+  });
+
+  it('conclui uma etapa falha sem salvar novamente versões carregadas', async () => {
+    const stage = {
+      id: 'stage-1',
+      type: LessonStageType.LESSON,
+      status: LessonStageStatus.FAILED,
+      currentVersionId: 'version-1',
+      failureCode: 'GENERATION_FAILED',
+      failureMessage: "Column 'stage_id' cannot be null",
+      versions: [{ id: 'version-1' }],
+    };
+    const lesson = {
+      id: 'lesson-1',
+      status: LessonStatus.DRAFT,
+      stages: [stage],
+    } as unknown as LessonEntity;
+    repo.findLessonById.mockResolvedValue(lesson);
+
+    await service.completeProductionStage(
+      'lesson-1',
+      LessonStageType.LESSON,
+    );
+
+    expect(repo.updateStage).toHaveBeenCalledWith('stage-1', {
+      status: LessonStageStatus.PRODUCER_APPROVED,
+      approvedAt: null,
+      approvedById: null,
+      failureCode: null,
+      failureMessage: null,
+    });
+    expect(repo.updateLesson).toHaveBeenCalledWith('lesson-1', {
+      status: LessonStatus.PACKAGE_READY,
+    });
+    expect(repo.saveStage).not.toHaveBeenCalled();
     expect(repo.saveLesson).not.toHaveBeenCalled();
   });
 
@@ -68,5 +131,67 @@ describe('LessonDraftService workflow safety', () => {
     await expect(
       service.publishToWeekMaterial('lesson-1'),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('mantém a referência bíblica cadastrada como valor canônico', () => {
+    const target = service as unknown as {
+      validateCanonicalContent: (
+        lesson: LessonEntity,
+        type: LessonStageType,
+        generated: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const generated = {
+      biblicalReference: 'João 3.16',
+      memoryVerse: {
+        text: 'Porque Deus amou o mundo...',
+        reference: 'João 3:16',
+        version: 'NVI',
+      },
+      visualScenes: [{ id: 'scene-01' }],
+    };
+
+    const result = target.validateCanonicalContent(
+      {
+        biblicalReference: 'João 3:16',
+      } as LessonEntity,
+      LessonStageType.LESSON,
+      generated,
+    );
+
+    expect(result.biblicalReference).toBe('João 3:16');
+  });
+
+  it('remove o prefixo scene-01: de citação/blockquote em toTiptap', () => {
+    const target = service as unknown as {
+      toTiptap: (value: Record<string, unknown>) => { content: Array<{ type: string; content?: Array<{ type: string; text?: string; content?: Array<{ text: string }> }> }> };
+    };
+
+    const tiptap = target.toTiptap({
+      story: 'Parágrafo 1\n\nscene-01: Descrição visual da cena 1',
+    });
+
+    const blockquotes = tiptap.content.filter((node) => node.type === 'blockquote');
+    expect(blockquotes.length).toBe(1);
+    const innerText = blockquotes[0].content?.[0]?.content?.[0]?.text;
+    expect(innerText).toBe('Descrição visual da cena 1');
+  });
+
+  it('preserva o tipo real da imagem ao preparar o upload', () => {
+    const target = service as unknown as {
+      imageUploadMetadata: (buffer: Buffer) => {
+        extension: string;
+        mimeType: string;
+      };
+    };
+
+    expect(
+      target.imageUploadMetadata(Buffer.from([0xff, 0xd8, 0xff, 0xe0])),
+    ).toEqual({ extension: 'jpg', mimeType: 'image/jpeg' });
+    expect(
+      target.imageUploadMetadata(
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a]),
+      ),
+    ).toEqual({ extension: 'png', mimeType: 'image/png' });
   });
 });

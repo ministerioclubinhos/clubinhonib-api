@@ -35,22 +35,25 @@ cp env/local.env.example env/local.env
 
 ## Variáveis lidas pela aplicação
 
-| Variável | Para quê | Sem ela |
-|---|---|---|
-| `ENVIRONMENT` | prefixo das chaves no S3 e site padrão dos links | uploads sem prefixo e links para localhost |
-| `PORT` | porta HTTP | 3000 |
-| `SITE_BASE_URL` | base dos links enviados por e-mail | cai no mapa por `ENVIRONMENT` |
-| `DB_HOST` `DB_PORT` `DB_USERNAME` `DB_PASSWORD` `DB_NAME` | conexão MySQL | usa os padrões e não conecta |
-| `AWS_REGION` `AWS_S3_BUCKET_NAME` | bucket dos uploads | upload e remoção falham |
-| `JWT_SECRET` `JWT_EXPIRES_IN` `JWT_REFRESH_SECRET` `JWT_REFRESH_EXPIRES_IN` | tokens de acesso e refresh | a aplicação não sobe |
-| `SMTP_HOST` `SMTP_PORT` `SMTP_USER` `SMTP_PASSWORD` | envio de e-mail | sobe com aviso e recusa cada envio |
-| `MAIL_FROM_NAME` `MAIL_FROM_ADDRESS` | remetente exibido | usa o nome padrão e a conta autenticada |
-| `GOOGLE_CLIENT_ID` | login com Google | login com Google falha |
-| `TWILIO_ACCOUNT_SID` `TWILIO_AUTH_TOKEN` `TWILIO_WHATSAPP_FROM` `TWILIO_WHATSAPP_TO` | aviso de contato por WhatsApp | o aviso por WhatsApp é ignorado |
-| `FEED_CLUBINHO_PAGE_ID` | página de imagens usada como feed | a atualização de seção do feed falha |
-| `OBS_STORAGE` `OBS_LOCAL_DIR` `OBS_TTL_DAYS` | destino, pasta e retenção (dias) dos registros técnicos | `file`, `logs`, `1` |
-| `AUDIT_STORAGE` `AUDIT_LOCAL_DIR` `AUDIT_TTL_DAYS` `AUDIT_DEDUP_SECONDS` | destino, pasta, retenção e janela de desduplicação da auditoria | `file`, `audit`, `1`, `60` |
-| `LOG_DYNAMODB_TABLE_NAME` `LOG_DYNAMODB_ENDPOINT` | tabela DynamoDB compartilhada pelos dois fluxos e endpoint local opcional | obrigatória quando algum fluxo é `dynamodb`; sem endpoint usa a AWS |
+| Variável                                                                                                                                                     | Para quê                                                                  | Sem ela                                                             |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `ENVIRONMENT`                                                                                                                                                | prefixo das chaves no S3 e site padrão dos links                          | uploads sem prefixo e links para localhost                          |
+| `PORT`                                                                                                                                                       | porta HTTP                                                                | 3000                                                                |
+| `SITE_BASE_URL`                                                                                                                                              | base dos links enviados por e-mail                                        | cai no mapa por `ENVIRONMENT`                                       |
+| `DB_HOST` `DB_PORT` `DB_USERNAME` `DB_PASSWORD` `DB_NAME`                                                                                                    | conexão MySQL                                                             | usa os padrões e não conecta                                        |
+| `AWS_REGION` `AWS_S3_BUCKET_NAME`                                                                                                                            | bucket dos uploads                                                        | upload e remoção falham                                             |
+| `JWT_SECRET` `JWT_EXPIRES_IN` `JWT_REFRESH_SECRET` `JWT_REFRESH_EXPIRES_IN`                                                                                  | tokens de acesso e refresh                                                | a aplicação não sobe                                                |
+| `SMTP_HOST` `SMTP_PORT` `SMTP_USER` `SMTP_PASSWORD`                                                                                                          | envio de e-mail                                                           | sobe com aviso e recusa cada envio                                  |
+| `MAIL_FROM_NAME` `MAIL_FROM_ADDRESS`                                                                                                                         | remetente exibido                                                         | usa o nome padrão e a conta autenticada                             |
+| `GOOGLE_CLIENT_ID`                                                                                                                                           | login com Google                                                          | login com Google falha                                              |
+| `TWILIO_ACCOUNT_SID` `TWILIO_AUTH_TOKEN` `TWILIO_WHATSAPP_FROM` `TWILIO_WHATSAPP_TO`                                                                         | aviso de contato por WhatsApp                                             | o aviso por WhatsApp é ignorado                                     |
+| `FEED_CLUBINHO_PAGE_ID`                                                                                                                                      | página de imagens usada como feed                                         | a atualização de seção do feed falha                                |
+| `OBS_STORAGE` `OBS_LOCAL_DIR` `OBS_TTL_DAYS`                                                                                                                 | destino, pasta e retenção (dias) dos registros técnicos                   | `file`, `logs`, `1`                                                 |
+| `AUDIT_STORAGE` `AUDIT_LOCAL_DIR` `AUDIT_TTL_DAYS` `AUDIT_DEDUP_SECONDS`                                                                                     | destino, pasta, retenção e janela de desduplicação da auditoria           | `file`, `audit`, `1`, `60`                                          |
+| `LOG_DYNAMODB_TABLE_NAME` `LOG_DYNAMODB_ENDPOINT`                                                                                                            | tabela DynamoDB compartilhada pelos dois fluxos e endpoint local opcional | obrigatória quando algum fluxo é `dynamodb`; sem endpoint usa a AWS |
+| `LLM_PROVIDER`                                                                                                                                               | provedor do Estúdio Clubinho: `openai` ou `gemini`                        | `openai`                                                            |
+| `OPENAI_API_KEY` `OPENAI_TEXT_MODEL` `OPENAI_IMAGE_MODEL`                                                                                                    | texto estruturado e imagens quando `LLM_PROVIDER=openai`                  | geração do Estúdio falha sem a chave                                |
+| `GEMINI_API_KEY` `GEMINI_TEXT_MODEL` `GEMINI_TEXT_FALLBACK_MODEL` `GEMINI_IMAGE_MODEL` `GEMINI_IMAGE_SIZE` `GEMINI_MAX_RETRIES` `GEMINI_RETRY_BASE_DELAY_MS` | texto estruturado, fallback, retry e imagens quando `LLM_PROVIDER=gemini` | geração do Estúdio falha sem a chave                                |
 
 ### Não lidas pelo código, mas necessárias
 

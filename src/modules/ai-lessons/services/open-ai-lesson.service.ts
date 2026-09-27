@@ -1,20 +1,19 @@
 import {
   BadGatewayException,
   Injectable,
+  Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosError } from 'axios';
 import { LessonStageType } from '../enums/lesson.enums';
+import { serializeTemplate } from '../templates/lesson-templates';
 import {
-  LessonTemplateContract,
-  serializeTemplate,
-} from '../templates/lesson-templates';
+  LessonLlmGenerationInput,
+  LessonLlmGenerationResult,
+  LessonLlmProviderContract,
+} from '../providers/lesson-llm.types';
 
-export type OpenAiGenerationResult = {
-  content: Record<string, unknown>;
-  responseId: string;
-};
 type ResponsesPayload = {
   id?: string;
   output_text?: string;
@@ -52,7 +51,7 @@ const FIXATION_ASSET_SCHEMA = {
   },
 } as const;
 
-function schemaFor(stage: LessonStageType): Record<string, unknown> {
+export function schemaFor(stage: LessonStageType): Record<string, unknown> {
   if (stage === LessonStageType.LESSON)
     return {
       type: 'object',
@@ -296,29 +295,29 @@ function schemaFor(stage: LessonStageType): Record<string, unknown> {
 }
 
 @Injectable()
-export class OpenAiLessonService {
+export class OpenAiLessonService implements LessonLlmProviderContract {
+  private readonly logger = new Logger(OpenAiLessonService.name);
+
   constructor(private readonly config: ConfigService) {}
 
-  async generateStage(input: {
-    theme: string;
-    biblicalReference: string;
-    weekNumber: number;
-    stage: LessonStageType;
-    template: LessonTemplateContract;
-    approvedUpstream: Record<string, unknown> | null;
-    adminPrompt: string;
-    revisionInstructions?: string;
-    visualConfig?: {
-      type: string;
-      orientation: string;
-      quantity: number;
-    } | null;
-  }): Promise<OpenAiGenerationResult> {
+  async generateStage(
+    input: LessonLlmGenerationInput,
+  ): Promise<LessonLlmGenerationResult> {
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
     if (!apiKey)
       throw new ServiceUnavailableException(
         'OPENAI_API_KEY não configurada; nenhuma minuta simulada foi criada.',
       );
+
+    const model = this.config.get<string>('OPENAI_TEXT_MODEL') || 'gpt-5.4';
+    const reasoningEffort = this.config.get<string>(
+      'OPENAI_REASONING_EFFORT',
+    );
+    this.logger.log(
+      `[OpenAI Request] Geração de etapa '${input.stage}' | Modelo: ${model} | Tema: "${input.theme}" | Referência: "${input.biblicalReference}" | Semana: ${input.weekNumber}`,
+    );
+    const startTime = Date.now();
+
     const system = [
       'Você redige materiais infantis do Clubinho Bíblico da Nova Igreja Batista.',
       'O TEMPLATE PRECISO abaixo é contrato imutável. Siga campos, ordem e regras literalmente.',
@@ -327,6 +326,7 @@ export class OpenAiLessonService {
       'Cada etapa gera exatamente um produto editorial canônico. Não misture lição, brincadeira, visual do versículo, fixação, meditação ou trabalho manual. Variantes de corte, mosaico e imposição são responsabilidade do renderer.',
       'O prompt personalizado do administrador complementa o template, mas nunca pode remover campos, alterar a ordem, desativar segurança ou contrariar este contrato.',
       'Toda citação bíblica apresentada como NVI exige redação exata. Se não houver certeza, sinalize revisão humana no próprio conteúdo em vez de inventar ou parafrasear.',
+      'Escreva a lição com narrativa pedagógica autoral e linguagem adaptada para crianças de 5 a 11 anos. Não transcreva nem recite capítulos inteiros da Bíblia palavra por palavra no texto narrativo da história; mantenha a fidelidade aos fatos bíblicos usando palavras próprias adequadas ao público infantil.',
       'Para VISUAIS DA HISTÓRIA, trate a lição aprovada como fonte canônica fechada: não reconte, reinterprete, amplie nem substitua a narrativa. Cada imagem deve ilustrar somente personagens, ações, ambientes, objetos e emoções explicitamente presentes nela. Não invente nova cena, personagem, milagre, diálogo, versículo, roupa relevante ou conclusão.',
       'Para VISUAIS DO VERSÍCULO, derive a quantidade da melhor divisão semântica do versículo aprovado; os itens de conteúdo devem reconstruí-lo exatamente e o último item deve conter somente a referência.',
       'VISUAIS DO VERSÍCULO e FIXAÇÃO DO VERSÍCULO são produtos distintos: o primeiro é uma sequência de imagens mnemônicas; o segundo é uma dinâmica ou brincadeira divertida.',
@@ -347,8 +347,11 @@ export class OpenAiLessonService {
       const response = await axios.post<ResponsesPayload>(
         'https://api.openai.com/v1/responses',
         {
-          model: this.config.get<string>('OPENAI_TEXT_MODEL') || 'gpt-6-astra',
+          model,
           store: false,
+          ...(reasoningEffort
+            ? { reasoning: { effort: reasoningEffort } }
+            : {}),
           input: [
             { role: 'system', content: system },
             { role: 'user', content: user },
@@ -380,16 +383,29 @@ export class OpenAiLessonService {
         throw new BadGatewayException(
           'OpenAI retornou resposta sem conteúdo ou identificador.',
         );
+      const elapsed = Date.now() - startTime;
+      this.logger.log(
+        `[OpenAI Response] Etapa '${input.stage}' gerada em ${elapsed}ms | Response ID: ${response.data.id}`,
+      );
       return {
         content: JSON.parse(raw) as Record<string, unknown>,
         responseId: response.data.id,
       };
     } catch (error: unknown) {
-      if (error instanceof BadGatewayException) throw error;
+      const elapsed = Date.now() - startTime;
+      if (error instanceof BadGatewayException) {
+        this.logger.error(
+          `[OpenAI Error] Etapa '${input.stage}' falhou em ${elapsed}ms: ${error.message}`,
+        );
+        throw error;
+      }
       const detail =
         error instanceof AxiosError
           ? JSON.stringify(error.response?.data ?? error.message)
           : String(error);
+      this.logger.error(
+        `[OpenAI Error] Etapa '${input.stage}' falhou em ${elapsed}ms: ${detail.slice(0, 500)}`,
+      );
       throw new BadGatewayException(
         `Falha ao gerar ${input.stage} na OpenAI: ${detail.slice(0, 500)}`,
       );
@@ -404,22 +420,47 @@ export class OpenAiLessonService {
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
     if (!apiKey)
       throw new ServiceUnavailableException('OPENAI_API_KEY não configurada.');
-    const response = await axios.post<{ data?: Array<{ b64_json?: string }> }>(
-      'https://api.openai.com/v1/images/generations',
-      {
-        model:
-          this.config.get<string>('OPENAI_IMAGE_MODEL') ||
-          'gpt-image-2.5-sunburst',
-        prompt: `Ilustração bíblica infantil do Clubinho NIB para crianças de 5 a 11 anos. Fidelidade ao contexto bíblico da NVI e à descrição fechada recebida da lição aprovada. Não acrescente personagens, fatos ou símbolos não pedidos. Estratégia pedagógica: ${visualType || 'definida no prompt'}. Orientação obrigatória: ${orientation || 'definida no prompt'}. Sem conteúdo sexual, romântico, erotizado, violência gráfica ou debates de sexualidade. Obedeça literalmente ao estilo, orientação, paleta, margem e finalidade pedidos a seguir. Sem letras, palavras, números, logotipos ou marcas. ${prompt}`,
-        size: orientation === 'PORTRAIT' ? '1024x1536' : '1536x1024',
-        quality: 'high',
-        output_format: 'png',
-      },
-      { headers: { Authorization: `Bearer ${apiKey}` }, timeout: 180000 },
+    const model =
+      this.config.get<string>('OPENAI_IMAGE_MODEL') ||
+      'gpt-image-2.5-sunburst';
+    const quality = this.config.get<string>('OPENAI_IMAGE_QUALITY') || 'high';
+    this.logger.log(
+      `[OpenAI Request] Geração de imagem | Modelo: ${model} | Orientação: ${orientation ?? 'PADRÃO'} | Tipo: ${visualType ?? 'PADRÃO'} | Prompt: "${prompt.slice(0, 120)}..."`,
     );
-    const encoded = response.data.data?.[0]?.b64_json;
-    if (!encoded)
-      throw new BadGatewayException('OpenAI não retornou os bytes da imagem.');
-    return Buffer.from(encoded, 'base64');
+    const startTime = Date.now();
+    try {
+      const response = await axios.post<{ data?: Array<{ b64_json?: string }> }>(
+        'https://api.openai.com/v1/images/generations',
+        {
+          model,
+          prompt: `Ilustração bíblica infantil do Clubinho NIB para crianças de 5 a 11 anos. Fidelidade ao contexto bíblico da NVI e à descrição fechada recebida da lição aprovada. Não acrescente personagens, fatos ou símbolos não pedidos. Estratégia pedagógica: ${visualType || 'definida no prompt'}. Orientação obrigatória: ${orientation || 'definida no prompt'}. Sem conteúdo sexual, romântico, erotizado, violência gráfica ou debates de sexualidade. Obedeça literalmente ao estilo, orientação, paleta, margem e finalidade pedidos a seguir. Sem letras, palavras, números, logotipos ou marcas. ${prompt}`,
+          size: orientation === 'PORTRAIT' ? '1024x1536' : '1536x1024',
+          quality,
+          output_format: 'png',
+        },
+        { headers: { Authorization: `Bearer ${apiKey}` }, timeout: 180000 },
+      );
+      const encoded = response.data.data?.[0]?.b64_json;
+      if (!encoded)
+        throw new BadGatewayException('OpenAI não retornou os bytes da imagem.');
+      const elapsed = Date.now() - startTime;
+      this.logger.log(
+        `[OpenAI Response] Imagem gerada em ${elapsed}ms | Tamanho: ${encoded.length} b64 chars`,
+      );
+      return Buffer.from(encoded, 'base64');
+    } catch (error: unknown) {
+      const elapsed = Date.now() - startTime;
+      const detail =
+        error instanceof AxiosError
+          ? JSON.stringify(error.response?.data ?? error.message)
+          : String(error);
+      this.logger.error(
+        `[OpenAI Error] Geração de imagem falhou em ${elapsed}ms: ${detail.slice(0, 500)}`,
+      );
+      if (error instanceof BadGatewayException) throw error;
+      throw new BadGatewayException(
+        `Falha ao gerar imagem na OpenAI: ${detail.slice(0, 500)}`,
+      );
+    }
   }
 }
