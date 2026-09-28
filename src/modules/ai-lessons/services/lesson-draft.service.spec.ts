@@ -40,6 +40,33 @@ describe('LessonDraftService workflow safety', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
+  it('une o versículo e traduz todos os rótulos da fixação para português', () => {
+    const target = service as unknown as {
+      toTiptap: (value: Record<string, unknown>) => Record<string, unknown>;
+    };
+    const document = target.toTiptap({
+      name: 'Missão do Versículo',
+      funMechanics: ['Movimento', 'Descoberta'],
+      verseText: 'Eu sou a ressurreição e a vida.',
+      verseReference: 'João 11:25-26',
+      verseVersion: 'NVI',
+      ageAdaptations: {
+        ages5To7: 'Use gestos simples.',
+        ages8To11: 'Monte o texto sem ajuda.',
+      },
+    });
+    const serialized = JSON.stringify(document);
+
+    expect(serialized).toContain('VERSÍCULO PARA MEMORIZAR');
+    expect(serialized).toContain('“Eu sou a ressurreição e a vida.”');
+    expect(serialized).toContain('João 11:25-26 — NVI');
+    expect(serialized).toContain('MECÂNICAS DIVERTIDAS');
+    expect(serialized).toContain('CRIANÇAS DE 5 A 7 ANOS');
+    expect(serialized).toContain('CRIANÇAS DE 8 A 11 ANOS');
+    expect(serialized).not.toContain('FUN MECHANICS');
+    expect(serialized).not.toContain('AGES8TO11');
+  });
+
   it('marca como falha uma geração legada sem dados persistidos para retomada', async () => {
     const stage = {
       status: LessonStageStatus.GENERATING,
@@ -288,6 +315,39 @@ describe('LessonDraftService workflow safety', () => {
         },
       ),
     ).toThrow(ConflictException);
+  });
+
+  it('exige um visual instrucional para cada passo da fixação do versículo', () => {
+    const target = service as unknown as {
+      validateCanonicalContent: (
+        lesson: LessonEntity,
+        type: LessonStageType,
+        generated: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const generated = {
+      steps: ['Monte o versículo em grupo.', 'Recite o versículo completo.'],
+      assets: [
+        {
+          id: 'instrucao-01',
+          stepNumber: 1,
+          instruction: 'Monte o versículo em grupo.',
+        },
+        {
+          id: 'instrucao-02',
+          stepNumber: 2,
+          instruction: 'Recite o versículo completo.',
+        },
+      ],
+    };
+
+    expect(
+      target.validateCanonicalContent(
+        {} as LessonEntity,
+        LessonStageType.VERSE_FIXATION,
+        generated,
+      ),
+    ).toBe(generated);
   });
 
   it('considera nova somente uma brincadeira com nome, mecânicas e passos diferentes', () => {

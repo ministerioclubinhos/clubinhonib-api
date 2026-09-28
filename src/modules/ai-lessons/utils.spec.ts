@@ -103,5 +103,8 @@ describe('AI lesson utilities', () => {
     expect(prompt).toContain('95% da imagem');
     expect(prompt).toContain('VERSÍCULO COMPLETO NVI');
     expect(prompt).toContain('João 11:25');
+    expect(prompt).toContain('no máximo 3 cores em toda a imagem');
+    expect(prompt).toContain('mesma paleta de 3 cores em todos os cartões');
+    expect(prompt).toContain('sem alternar uma cor diferente para cada letra');
   });
 });

@@ -22,7 +22,7 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
   {
     [LessonStageType.LESSON]: {
       key: 'clubinho.lesson.canonical',
-      version: '2.0.0',
+      version: '3.0.0',
       stage: LessonStageType.LESSON,
       exactStructure: [
         'LIÇÃO E TÍTULO',
@@ -104,7 +104,7 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
         'Dividir todo o texto do versículo em trechos curtos, consecutivos e semanticamente completos, sem omitir, repetir, alterar ou reordenar palavras.',
         'Criar uma imagem mnemônica para cada trecho e acrescentar obrigatoriamente uma última imagem dedicada somente à referência bíblica.',
         'A quantidade é determinada pela melhor quebra pedagógica do versículo; o cartão final não contém o texto do versículo.',
-        'Cartões tipográficos finais em A4 paisagem no padrão da Semana 7: a própria imagem gerada contém o texto exato, extragrande, arredondado e multicolorido em aproximadamente 95% da área, sem sobreposição posterior.',
+        'Cartões tipográficos finais em A4 paisagem no padrão da Semana 7: a própria imagem gerada contém o texto exato, extragrande e arredondado em aproximadamente 95% da área, sem sobreposição posterior, usando uma paleta única de no máximo três cores em toda a sequência.',
       ],
     },
     [LessonStageType.VERSE_FIXATION]: {
@@ -112,21 +112,24 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
       version: '2.0.0',
       stage: LessonStageType.VERSE_FIXATION,
       exactStructure: [
-        'SUGESTÃO DE FIXAÇÃO DO VERSÍCULO',
+        'NOME DA BRINCADEIRA',
         'OBJETIVO',
+        'MECÂNICAS DIVERTIDAS',
         'MATERIAIS',
         'PREPARAÇÃO',
-        'PASSO A PASSO',
+        'COMO BRINCAR/PASSO A PASSO',
+        'REGRAS E SEGURANÇA',
+        'ADAPTAÇÕES PARA 5–7 E 8–11 ANOS',
         'COMO AVALIAR',
         'PRINCÍPIO BÍBLICO',
-        'PEÇAS IMPRIMÍVEIS',
+        'VISUAIS DE APOIO',
       ],
       rules: [
         ...sharedRules,
         'Usar exatamente o único versículo principal NVI aprovado na lição.',
-        'Criar uma dinâmica ou brincadeira divertida de memorização, distinta dos cartões semânticos da etapa Visuais do Versículo.',
-        'Descrever duração, preparação, passos, adaptações por idade, segurança e avaliação sem constrangimento.',
-        'Peças imprimíveis são opcionais e só existem quando necessárias para executar a dinâmica.',
+        'Usar o mesmo template completo da Brincadeira Normal, mas fazer da compreensão e memorização do versículo o objetivo central de todas as mecânicas.',
+        'Combinar 2 ou 3 mecânicas lúdicas, manter todas as crianças ativas e concluir com a recitação coletiva do versículo completo.',
+        'Criar exatamente um visual instrucional para cada passo, na mesma ordem, demonstrando como executar a instrução e sem texto dentro da imagem.',
       ],
     },
     [LessonStageType.MEDITATION_YOUNGER]: {

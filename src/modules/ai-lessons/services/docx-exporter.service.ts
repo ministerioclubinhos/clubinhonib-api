@@ -596,7 +596,13 @@ export class DocxExporterService {
       }
 
       if (type === 'text') {
-        const text = typeof node.text === 'string' ? node.text : '';
+        const rawText = typeof node.text === 'string' ? node.text : '';
+        const text =
+          {
+            'FUN MECHANICS': 'MECÂNICAS DIVERTIDAS',
+            AGES5TO7: 'CRIANÇAS DE 5 A 7 ANOS',
+            AGES8TO11: 'CRIANÇAS DE 8 A 11 ANOS',
+          }[rawText] ?? rawText;
         if (!text) continue;
 
         const marks = Array.isArray(node.marks) ? node.marks : [];

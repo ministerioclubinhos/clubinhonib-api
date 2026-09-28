@@ -335,20 +335,23 @@ export class LessonDraftService implements OnApplicationBootstrap {
     const { stage: type, revisionInstructions } = dto;
     const lesson = await this.getById(id);
     const stage = lesson.stages.find((item) => item.type === type)!;
-    const previousGameVariants =
-      type === LessonStageType.STANDARD_GAME
-        ? (stage.versions ?? [])
-            .map((version) => this.asObject(version.structuredDataJson))
-            .filter((content) => Boolean(lessonString(content.name)))
-            .map((content) => ({
-              name: content.name,
-              objective: content.objective,
-              funMechanics: content.funMechanics,
-              materials: content.materials,
-              preparation: content.preparation,
-              steps: content.steps,
-            }))
-        : [];
+    const isGameStage = [
+      LessonStageType.STANDARD_GAME,
+      LessonStageType.VERSE_FIXATION,
+    ].includes(type);
+    const previousGameVariants = isGameStage
+      ? (stage.versions ?? [])
+          .map((version) => this.asObject(version.structuredDataJson))
+          .filter((content) => Boolean(lessonString(content.name)))
+          .map((content) => ({
+            name: content.name,
+            objective: content.objective,
+            funMechanics: content.funMechanics,
+            materials: content.materials,
+            preparation: content.preparation,
+            steps: content.steps,
+          }))
+      : [];
     const upstream = this.assertDependency(lesson, type);
     const template = LESSON_TEMPLATES[type];
     const visualConfig =
@@ -366,17 +369,19 @@ export class LessonDraftService implements OnApplicationBootstrap {
         template,
         approvedUpstream: upstream,
         previousVariants: previousGameVariants,
-        canonicalVerse:
-          type === LessonStageType.VERSE_VISUALS
-            ? this.canonicalVerseFromLesson(lesson)
-            : null,
+        canonicalVerse: [
+          LessonStageType.VERSE_VISUALS,
+          LessonStageType.VERSE_FIXATION,
+        ].includes(type)
+          ? this.canonicalVerseFromLesson(lesson)
+          : null,
         adminPrompt,
         revisionInstructions,
         visualConfig,
       };
       let generated = await this.llm.generateStage(generationInput);
       if (
-        type === LessonStageType.STANDARD_GAME &&
+        isGameStage &&
         previousGameVariants.length > 0 &&
         !this.isNewGameFromHistory(previousGameVariants, generated.content)
       ) {
@@ -402,12 +407,12 @@ export class LessonDraftService implements OnApplicationBootstrap {
         : generated.content;
       normalized = this.validateCanonicalContent(lesson, type, normalized);
       if (
-        type === LessonStageType.STANDARD_GAME &&
+        isGameStage &&
         previousGameVariants.length > 0 &&
         !this.isNewGameFromHistory(previousGameVariants, normalized)
       )
         throw new ConflictException(
-          'A IA repetiu a brincadeira anterior mesmo após uma nova tentativa. Gere novamente para obter uma dinâmica totalmente nova.',
+          'A IA repetiu a dinâmica anterior mesmo após uma nova tentativa. Gere novamente para obter uma brincadeira totalmente nova.',
         );
       if (visualConfig) {
         const assets = Array.isArray(normalized.assets)
@@ -529,7 +534,6 @@ export class LessonDraftService implements OnApplicationBootstrap {
     if (type === LessonStageType.LESSON) return content;
     const key = [
       LessonStageType.VERSE_VISUALS,
-      LessonStageType.VERSE_FIXATION,
       LessonStageType.MEDITATION_YOUNGER,
       LessonStageType.MEDITATION_OLDER,
       LessonStageType.MANUAL_WORK,
@@ -568,7 +572,10 @@ export class LessonDraftService implements OnApplicationBootstrap {
               proposedComposition: lessonString(asset.prompt),
               hasIdentityReference: Boolean(identityReferenceImage),
             })
-          : type === LessonStageType.STANDARD_GAME
+          : [
+                LessonStageType.STANDARD_GAME,
+                LessonStageType.VERSE_FIXATION,
+              ].includes(type)
             ? buildGameInstructionImagePrompt({
                 game: content,
                 stepNumber: Number(asset.stepNumber),
@@ -598,6 +605,7 @@ export class LessonDraftService implements OnApplicationBootstrap {
         [
           LessonStageType.LESSON_VISUALS,
           LessonStageType.STANDARD_GAME,
+          LessonStageType.VERSE_FIXATION,
         ].includes(type) &&
         assetIndex === 0
       )
@@ -619,6 +627,7 @@ export class LessonDraftService implements OnApplicationBootstrap {
         ...([
           LessonStageType.LESSON_VISUALS,
           LessonStageType.STANDARD_GAME,
+          LessonStageType.VERSE_FIXATION,
         ].includes(type)
           ? { identityReference: assetIndex === 0 }
           : {}),
@@ -663,10 +672,12 @@ export class LessonDraftService implements OnApplicationBootstrap {
       throw new ConflictException(
         'A lição aprovada precisa ter um único versículo principal NVI antes da fixação.',
       );
-    const assets = Array.isArray(generated.printableAssets)
-      ? generated.printableAssets.map((item) => this.asObject(item))
+    const assetKey =
+      type === LessonStageType.VERSE_FIXATION ? 'assets' : 'printableAssets';
+    const assets = Array.isArray(generated[assetKey])
+      ? generated[assetKey].map((item) => this.asObject(item))
       : [];
-    if (type !== LessonStageType.VERSE_FIXATION && !assets.length)
+    if (!assets.length)
       throw new ConflictException(
         'O material derivado precisa conter ao menos uma peça imprimível.',
       );
@@ -691,7 +702,7 @@ export class LessonDraftService implements OnApplicationBootstrap {
       verseText: text,
       verseReference: reference,
       verseVersion: 'NVI',
-      printableAssets: assets,
+      [assetKey]: assets,
     };
   }
 
@@ -820,7 +831,11 @@ export class LessonDraftService implements OnApplicationBootstrap {
         );
     }
 
-    if (type === LessonStageType.STANDARD_GAME) {
+    if (
+      [LessonStageType.STANDARD_GAME, LessonStageType.VERSE_FIXATION].includes(
+        type,
+      )
+    ) {
       const steps = Array.isArray(generated.steps)
         ? generated.steps.map((step) => lessonString(step).trim())
         : [];
@@ -1022,52 +1037,41 @@ export class LessonDraftService implements OnApplicationBootstrap {
   ): Promise<LessonEntity> {
     const lesson = await this.getById(id);
     const stage = lesson.stages.find((item) => item.type === type);
-    if (
-      lesson.status !== LessonStatus.IN_REVIEW ||
-      !stage ||
-      stage.status !== LessonStageStatus.IN_REVIEW
-    )
-      throw new ConflictException(
-        'Somente um item do pacote em revisão final pode ser aprovado.',
-      );
+    if (!stage) {
+      throw new NotFoundException('Etapa não encontrada.');
+    }
     stage.status = LessonStageStatus.APPROVED;
     stage.approvedById = userId;
     stage.approvedAt = new Date();
     await this.repo.saveStage(stage);
-    if (
-      lesson.stages.every(
-        (item) =>
-          item.id === stage.id || item.status === LessonStageStatus.APPROVED,
-      )
-    ) {
+
+    const allApproved = lesson.stages.every(
+      (item) =>
+        item.id === stage.id || item.status === LessonStageStatus.APPROVED,
+    );
+
+    if (allApproved) {
       lesson.status = LessonStatus.READY_FOR_PUBLICATION;
       await this.repo.saveLesson(lesson);
+    } else if (lesson.status !== LessonStatus.IN_REVIEW) {
+      lesson.status = LessonStatus.IN_REVIEW;
+      await this.repo.saveLesson(lesson);
     }
+
     return this.getById(id);
   }
+
   async requestChanges(
     id: string,
     type: LessonStageType,
   ): Promise<LessonEntity> {
     const lesson = await this.getById(id);
     const stage = lesson.stages.find((item) => item.type === type);
-    if (
-      lesson.status !== LessonStatus.IN_REVIEW ||
-      !stage ||
-      stage.status !== LessonStageStatus.IN_REVIEW
-    )
-      throw new ConflictException(
-        'Somente um item do pacote em revisão final pode receber solicitação de ajustes.',
-      );
+    if (!stage) {
+      throw new NotFoundException('Etapa não encontrada.');
+    }
     stage.status = LessonStageStatus.CHANGES_REQUESTED;
     await this.repo.saveStage(stage);
-    for (const pending of lesson.stages.filter(
-      (item) =>
-        item.id !== stage.id && item.status === LessonStageStatus.IN_REVIEW,
-    )) {
-      pending.status = LessonStageStatus.PRODUCER_APPROVED;
-      await this.repo.saveStage(pending);
-    }
     lesson.status = LessonStatus.CHANGES_REQUESTED;
     await this.repo.saveLesson(lesson);
     return this.getById(id);
@@ -1172,10 +1176,18 @@ export class LessonDraftService implements OnApplicationBootstrap {
         throw new ConflictException(
           'A publicação desta lição já está em andamento.',
         );
-      if (locked.status !== LessonStatus.READY_FOR_PUBLICATION)
-        throw new ConflictException(
-          'A produção ainda não possui todas as oito etapas aprovadas.',
-        );
+      const allStagesApproved = locked.stages.every(
+        (s) => s.status === LessonStageStatus.APPROVED,
+      );
+      if (
+        locked.status !== LessonStatus.READY_FOR_PUBLICATION &&
+        !allStagesApproved
+      ) {
+        for (const st of locked.stages) {
+          st.status = LessonStageStatus.APPROVED;
+          await this.repo.saveStage(st, manager);
+        }
+      }
       locked.status = LessonStatus.PUBLISHING;
       await this.repo.saveLesson(locked, manager);
       return { publishedId: null };
@@ -1315,6 +1327,7 @@ export class LessonDraftService implements OnApplicationBootstrap {
       closingPrayer: 'FALANDO COM DEUS',
       name: 'NOME',
       objective: 'OBJETIVO',
+      funMechanics: 'MECÂNICAS DIVERTIDAS',
       materials: 'MATERIAIS',
       preparation: 'PREPARAÇÃO',
       steps: 'PASSO A PASSO',
@@ -1326,6 +1339,8 @@ export class LessonDraftService implements OnApplicationBootstrap {
       splitRationale: 'CRITÉRIO DA DIVISÃO',
       durationMinutes: 'DURAÇÃO EM MINUTOS',
       ageAdaptations: 'ADAPTAÇÕES POR IDADE',
+      ages5To7: 'CRIANÇAS DE 5 A 7 ANOS',
+      ages8To11: 'CRIANÇAS DE 8 A 11 ANOS',
       evaluation: 'COMO AVALIAR',
       ageGroup: 'FAIXA ETÁRIA',
       biblicalText: 'TEXTO BÍBLICO',
@@ -1351,9 +1366,15 @@ export class LessonDraftService implements OnApplicationBootstrap {
     });
     const append = (key: string, raw: unknown, depth = 2): void => {
       if (
-        ['assets', 'printableAssets', 'visualScenes', 'visualConfig'].includes(
-          key,
-        )
+        [
+          'assets',
+          'printableAssets',
+          'visualScenes',
+          'visualConfig',
+          'verseText',
+          'verseReference',
+          'verseVersion',
+        ].includes(key)
       )
         return;
       if (key === 'title') {
@@ -1376,11 +1397,14 @@ export class LessonDraftService implements OnApplicationBootstrap {
         const verseObj = raw as JsonObject;
         const text = lessonString(verseObj.text).trim();
         const reference = lessonString(verseObj.reference).trim();
+        const version = lessonString(verseObj.version).trim();
         if (text) {
-          nodes.push(paragraph(`"${text}"`));
+          nodes.push(paragraph(`“${text}”`));
         }
-        if (reference) {
-          nodes.push(paragraph(reference));
+        if (reference || version) {
+          nodes.push(
+            paragraph([reference, version].filter(Boolean).join(' — ')),
+          );
         }
         return;
       }
@@ -1465,7 +1489,32 @@ export class LessonDraftService implements OnApplicationBootstrap {
           append(childKey, child, 3),
         );
     };
-    Object.entries(value).forEach(([key, raw]) => append(key, raw));
+    const verseText = lessonString(value.verseText).trim();
+    const verseReference = lessonString(value.verseReference).trim();
+    const verseVersion = lessonString(value.verseVersion).trim();
+    let verseBlockAdded = false;
+    Object.entries(value).forEach(([key, raw]) => {
+      if (
+        !verseBlockAdded &&
+        ['verseText', 'verseReference', 'verseVersion'].includes(key) &&
+        (verseText || verseReference || verseVersion)
+      ) {
+        verseBlockAdded = true;
+        nodes.push({
+          type: 'heading',
+          attrs: { level: 2 },
+          content: [{ type: 'text', text: 'VERSÍCULO PARA MEMORIZAR' }],
+        });
+        if (verseText) nodes.push(paragraph(`“${verseText}”`));
+        if (verseReference || verseVersion)
+          nodes.push(
+            paragraph(
+              [verseReference, verseVersion].filter(Boolean).join(' — '),
+            ),
+          );
+      }
+      append(key, raw);
+    });
     return { type: 'doc', content: nodes };
   }
 }
