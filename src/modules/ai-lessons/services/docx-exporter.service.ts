@@ -795,8 +795,8 @@ export class DocxExporterService {
 
   private async landscapeAssetPages(
     entries: Array<{ stage: Json; imageOnly: boolean }>,
-  ): Promise<Paragraph[][]> {
-    const pages: Paragraph[][] = [];
+  ): Promise<Array<Array<Paragraph | Table>>> {
+    const pages: Array<Array<Paragraph | Table>> = [];
     for (const { stage, imageOnly } of entries) {
       const rawAssets = stage.assets ?? stage.printableAssets;
       if (!Array.isArray(rawAssets)) continue;
@@ -809,15 +809,16 @@ export class DocxExporterService {
         });
         const instruction =
           typeof asset.instruction === 'string' ? asset.instruction.trim() : '';
+        const instructionWithoutRepeatedNumber = instruction.replace(/^\d+\.\s*/, '');
         const stepNumber = Number(asset.stepNumber);
         const displayText = imageOnly
           ? ''
-          : instruction
-            ? `${Number.isInteger(stepNumber) ? `PASSO ${stepNumber} — ` : ''}${instruction}`
+          : instructionWithoutRepeatedNumber
+            ? `${Number.isInteger(stepNumber) ? `PASSO ${stepNumber} - ` : ''}${instructionWithoutRepeatedNumber}`
             : typeof asset.displayText === 'string'
               ? asset.displayText.trim()
               : '';
-        pages.push([
+        const visualContent = [
           ...(displayText
             ? [
                 new Paragraph({
@@ -826,11 +827,11 @@ export class DocxExporterService {
                     new TextRun({
                       text: displayText.toLocaleUpperCase('pt-BR'),
                       bold: true,
-                      size: 38,
+                      size: 34,
                       color: '111111',
                     }),
                   ],
-                  spacing: { before: 20, after: 40 },
+                  spacing: { before: 0, after: 30 },
                   keepNext: true,
                 }),
               ]
@@ -841,13 +842,43 @@ export class DocxExporterService {
               new ImageRun({
                 data: Buffer.from(image.data),
                 transformation: {
-                  width: 1070,
-                  height: displayText ? 675 : 758,
+                  width: displayText ? 984 : 1070,
+                  height: displayText ? 620 : 758,
                 },
                 type: 'png',
               }),
             ],
             spacing: { after: 0 },
+          }),
+        ];
+        pages.push([
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            borders: {
+              top: { style: BorderStyle.NONE },
+              bottom: { style: BorderStyle.NONE },
+              left: { style: BorderStyle.NONE },
+              right: { style: BorderStyle.NONE },
+              insideHorizontal: { style: BorderStyle.NONE },
+              insideVertical: { style: BorderStyle.NONE },
+            },
+            rows: [
+              new TableRow({
+                cantSplit: true,
+                children: [
+                  new TableCell({
+                    borders: {
+                      top: { style: BorderStyle.NONE },
+                      bottom: { style: BorderStyle.NONE },
+                      left: { style: BorderStyle.NONE },
+                      right: { style: BorderStyle.NONE },
+                    },
+                    margins: { top: 0, bottom: 0, left: 0, right: 0 },
+                    children: visualContent,
+                  }),
+                ],
+              }),
+            ],
           }),
         ]);
       }
