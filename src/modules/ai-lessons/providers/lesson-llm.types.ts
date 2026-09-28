@@ -18,6 +18,7 @@ export type LessonLlmGenerationInput = {
   stage: LessonStageType;
   template: LessonTemplateContract;
   approvedUpstream: Record<string, unknown> | null;
+  previousContent?: Record<string, unknown> | null;
   adminPrompt: string;
   revisionInstructions?: string;
   visualConfig?: {

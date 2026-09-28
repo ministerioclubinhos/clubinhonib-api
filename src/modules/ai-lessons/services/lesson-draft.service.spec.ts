@@ -290,6 +290,34 @@ describe('LessonDraftService workflow safety', () => {
     ).toThrow(ConflictException);
   });
 
+  it('considera nova somente uma brincadeira com nome, mecânicas e passos diferentes', () => {
+    const target = service as unknown as {
+      isNewGame: (
+        previous: Record<string, unknown>,
+        candidate: Record<string, unknown>,
+      ) => boolean;
+    };
+    const previous = {
+      name: 'Trilha da alegria',
+      funMechanics: ['movimento', 'busca'],
+      steps: ['Procure uma pista.', 'Leve a pista ao grupo.'],
+    };
+
+    expect(
+      target.isNewGame(previous, {
+        name: 'Construção cooperativa',
+        funMechanics: ['construção', 'ritmo'],
+        steps: ['Monte uma torre.', 'Crie um ritmo em grupo.'],
+      }),
+    ).toBe(true);
+    expect(
+      target.isNewGame(previous, {
+        ...previous,
+        name: 'Outro nome para a mesma brincadeira',
+      }),
+    ).toBe(false);
+  });
+
   it('remove o prefixo scene-01: de citação/blockquote em toTiptap', () => {
     const target = service as unknown as {
       toTiptap: (value: Record<string, unknown>) => {

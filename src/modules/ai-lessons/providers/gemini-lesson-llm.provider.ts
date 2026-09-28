@@ -69,6 +69,8 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
       'Para VISUAIS DA HISTÓRIA, trate a lição aprovada como fonte canônica fechada: não reconte, reinterprete, amplie nem substitua a narrativa. Cada imagem deve ilustrar somente personagens, ações, ambientes, objetos e emoções explicitamente presentes nela.',
       'Em VISUAIS DA HISTÓRIA, você decide a quebra narrativa: divida todo o campo story da LIÇÃO BÍBLICA em exatamente visualConfig.quantity trechos literais, contínuos, consecutivos, não sobrepostos e na ordem original. Não omita nem repita nenhuma parte. Cada asset recebe id visual-01, visual-02 etc. e sourceExcerpt com seu trecho exato.',
       'Na BRINCADEIRA, gere exatamente um visual de instrução para cada item de steps, na mesma ordem. Cada asset usa id instrucao-01, instrucao-02 etc., stepNumber sequencial e instruction como cópia literal do passo correspondente. A imagem demonstra visualmente como executar esse passo; não gere decoração genérica nem texto dentro da arte.',
+      'Na BRINCADEIRA, diversão é requisito verificável: combine 2 ou 3 mecânicas lúdicas, mantenha todas as crianças ativas, evite filas, eliminação, espera longa, questionário e encenação passiva. A mesma regra central atende de 5 a 11 anos, com simplificação concreta para 5 a 7 e desafio opcional para 8 a 11 anos.',
+      'Quando previousContent estiver preenchido para BRINCADEIRA, trata-se de uma regeneração: crie outra brincadeira do zero. Não revise, adapte, renomeie nem reutilize a dinâmica anterior. Nome, mecânica principal, organização, materiais característicos e sequência de ações devem ser diferentes, preservando somente o vínculo com a lição aprovada e as regras pedagógicas.',
       'Para VISUAIS DO VERSÍCULO, derive a quantidade da melhor divisão semântica do versículo aprovado; os itens de conteúdo devem reconstruí-lo exatamente e o último item deve conter somente a referência.',
       'VISUAIS DO VERSÍCULO e FIXAÇÃO DO VERSÍCULO são produtos distintos.',
       'Quando houver configuração visual escolhida pelo administrador, ela é obrigatória. Gere exatamente a quantidade solicitada, na orientação pedida e usando a estratégia pedagógica selecionada.',
@@ -81,6 +83,7 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
       stage: input.stage,
       adminPrompt: input.adminPrompt,
       approvedUpstream: input.approvedUpstream,
+      previousContent: input.previousContent ?? null,
       visualConfig: input.visualConfig ?? null,
       revisionInstructions: input.revisionInstructions ?? null,
     });

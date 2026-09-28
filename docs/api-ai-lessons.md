@@ -12,6 +12,10 @@ A primeira cena gerada estabelece a identidade visual da sequência. Todas as ce
 
 Na brincadeira, cada item do passo a passo possui exatamente um visual instrucional na mesma ordem. O prompt de imagem recebe a brincadeira completa e a instrução literal do passo, devendo demonstrar sua execução; imagens decorativas sem função de instrução são rejeitadas pelo contrato estruturado. O preview PDF da etapa imprime o número e a instrução do passo acima da imagem correspondente. Instrução e imagem formam um bloco indivisível para nunca serem separadas pela paginação.
 
+A geração da brincadeira exige uma experiência lúdica de 10 a 15 minutos para crianças de 5 a 11 anos: combina poucas mecânicas fáceis de entender, mantém o grupo ativo, evita eliminação, filas e atividades com aparência de prova, e inclui uma simplificação para 5 a 7 anos e um desafio opcional para 8 a 11 anos.
+
+Ao regenerar uma brincadeira existente, seu conteúdo atual é enviado à LLM somente como referência negativa. A nova versão deve trocar nome, mecânica principal, materiais característicos, organização e sequência de ações. Se a primeira resposta repetir a dinâmica anterior, o backend faz uma segunda tentativa automática; uma nova repetição é rejeitada e nunca substitui a versão atual.
+
 Prompts personalizados são anexados ao prompt-base da etapa. Eles nunca substituem as regras editoriais, a segurança infantil, o formato de impressão ou o contrato bíblico.
 
 ## Provedor de IA

@@ -97,5 +97,11 @@ describe('AdminLessonPromptService', () => {
     const reset = await service.reset('admin-a', LessonStageType.STANDARD_GAME);
     expect(reset.customPrompt).toBeNull();
     expect(reset.effectivePrompt).toBe(reset.basePrompt);
+    expect(reset.basePrompt).toContain('crianças realmente queiram brincar');
+    expect(reset.basePrompt).toContain('5 a 7 anos');
+    expect(reset.basePrompt).toContain('8 a 11 anos');
+    expect(reset.basePrompt).toContain(
+      'espera superior a aproximadamente 30 segundos',
+    );
   });
 });

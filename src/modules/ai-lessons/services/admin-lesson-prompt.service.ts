@@ -159,8 +159,13 @@ REGRAS DE ARTE
 
 CONTRATO PEDAGÓGICO
 - A brincadeira precisa reforçar o tema e o princípio da lição aprovada; não pode ser apenas uma competição com um versículo colado ao final.
-- Deve ser divertida, inclusiva, fácil de explicar e executável por professores voluntários com crianças de idades e habilidades diferentes.
-- Planeje para crianças de 5 a 11 anos e indique adaptações quando a mesma instrução não funcionar igualmente bem para os menores e os maiores.
+- Crie uma experiência que as crianças realmente queiram brincar, e não uma explicação, encenação passiva, questionário ou tarefa escolar disfarçada de jogo.
+- Use uma combinação simples de 2 ou 3 elementos lúdicos adequados ao tema: movimento, missão cooperativa, descoberta, surpresa, faz de conta, imitação, ritmo, construção, busca ou desafio coletivo. Não acumule mecânicas demais.
+- Estruture a experiência com início que desperte curiosidade, ação principal dinâmica e final marcante. O professor deve conseguir explicar a regra central em até 1 minuto.
+- Mantenha todas as crianças participando na maior parte do tempo. Evite filas demoradas, turnos longos, crianças apenas assistindo e espera superior a aproximadamente 30 segundos.
+- Planeje para crianças de 5 a 11 anos juntas. A regra central deve funcionar para todas; inclua uma simplificação concreta para 5 a 7 anos e um desafio adicional opcional para 8 a 11 anos, sem separar ou constranger ninguém.
+- Prefira cooperação, escolhas, pequenas conquistas e repetição prazerosa. Se houver pontuação, ela é secundária; ninguém é eliminado e o grupo sempre chega a uma conclusão positiva.
+- Dê à brincadeira um nome curto, alegre e convidativo. Use linguagem oral, comandos curtos e ações fáceis de imaginar.
 - Priorize materiais baratos, comuns, reutilizáveis e de preparação realista.
 
 ESTRUTURA OBRIGATÓRIA
@@ -169,14 +174,16 @@ ESTRUTURA OBRIGATÓRIA
 3. MATERIAIS com quantidades ou regra de cálculo por criança/equipe.
 4. PREPARAÇÃO do espaço e dos materiais antes da chegada das crianças.
 5. COMO BRINCAR em passos numerados, sem saltos lógicos.
-6. REGRAS, duração aproximada, forma de dividir grupos e critério de encerramento.
+6. REGRAS, duração total entre 10 e 15 minutos, forma de dividir grupos, critério de encerramento e maneiras de manter todos ativos.
 7. SEGURANÇA e adaptação para espaço pequeno, criança tímida ou criança com mobilidade reduzida.
-8. PRINCÍPIO BÍBLICO: roteiro curto para o professor conectar a experiência à lição depois da atividade.
-9. VISUAIS DE APOIO: crie exatamente uma imagem instrucional para cada passo, na mesma ordem. Cada imagem deve demonstrar visualmente como executar sua instrução; não gere imagens meramente decorativas.
+8. ADAPTAÇÕES POR IDADE: simplificação para 5 a 7 anos e desafio opcional para 8 a 11 anos.
+9. PRINCÍPIO BÍBLICO: roteiro curto para o professor conectar a experiência à lição depois da atividade, sem transformar a brincadeira em sermão.
+10. VISUAIS DE APOIO: crie exatamente uma imagem instrucional para cada passo, na mesma ordem. Cada imagem deve demonstrar visualmente como executar sua instrução; não gere imagens meramente decorativas.
 
 REGRAS
 - Não proponha corrida perigosa, contato físico forçado, eliminação humilhante, alimento sem alerta de alergia, venda nos olhos sem assistência ou materiais cortantes para crianças.
 - Não dependa de leitura avançada quando puder haver crianças pequenas.
+- Não use como mecânica principal apenas ouvir uma explicação, responder perguntas, passar um objeto em sequência ou representar literalmente a história. Transforme o conteúdo em uma ação lúdica com decisões e participação simultânea.
 - Se houver equipes, evite que a vitória seja apresentada como sinal de maior fé ou favor de Deus.
 - As imagens de apoio devem usar cores claras e suaves, sempre em composição horizontal/paisagem adequada a uma folha A4. Não devem conter texto gerado; palavras, números, cartões e linhas de corte serão compostos pelo renderer para manter ortografia e impressão corretas.`,
   [LessonStageType.VERSE_VISUALS]: `Produza somente os VISUAIS DO VERSÍCULO PRINCIPAL, como uma sequência mnemônica imprimível. Esta etapa não é uma brincadeira e não é a dinâmica de fixação.

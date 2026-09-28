@@ -334,6 +334,7 @@ export class LessonDraftService implements OnApplicationBootstrap {
     const { stage: type, revisionInstructions } = dto;
     const lesson = await this.getById(id);
     const stage = lesson.stages.find((item) => item.type === type)!;
+    const previousContent = this.currentContent(stage);
     const upstream = this.assertDependency(lesson, type);
     const template = LESSON_TEMPLATES[type];
     const visualConfig =
@@ -343,17 +344,35 @@ export class LessonDraftService implements OnApplicationBootstrap {
     const uploadedUrls: string[] = [];
     try {
       const adminPrompt = await this.adminPrompts.effective(userId, type);
-      const generated = await this.llm.generateStage({
+      const generationInput = {
         theme: lesson.theme,
         biblicalReference: lesson.biblicalReference,
         weekNumber: lesson.weekNumber,
         stage: type,
         template,
         approvedUpstream: upstream,
+        previousContent:
+          type === LessonStageType.STANDARD_GAME ? previousContent : null,
         adminPrompt,
         revisionInstructions,
         visualConfig,
-      });
+      };
+      let generated = await this.llm.generateStage(generationInput);
+      if (
+        type === LessonStageType.STANDARD_GAME &&
+        previousContent &&
+        !this.isNewGame(previousContent, generated.content)
+      ) {
+        generated = await this.llm.generateStage({
+          ...generationInput,
+          revisionInstructions: [
+            revisionInstructions,
+            'A tentativa anterior ficou parecida com a brincadeira existente. Gere uma alternativa radicalmente diferente agora, trocando nome, mecânica principal, materiais característicos, organização e sequência de ações.',
+          ]
+            .filter(Boolean)
+            .join('\n'),
+        });
+      }
       const derivedVerseStages = [
         LessonStageType.VERSE_VISUALS,
         LessonStageType.VERSE_FIXATION,
@@ -365,6 +384,14 @@ export class LessonDraftService implements OnApplicationBootstrap {
         ? this.lockDerivedVerse(lesson, type, generated.content)
         : generated.content;
       normalized = this.validateCanonicalContent(lesson, type, normalized);
+      if (
+        type === LessonStageType.STANDARD_GAME &&
+        previousContent &&
+        !this.isNewGame(previousContent, normalized)
+      )
+        throw new ConflictException(
+          'A IA repetiu a brincadeira anterior mesmo após uma nova tentativa. Gere novamente para obter uma dinâmica totalmente nova.',
+        );
       if (visualConfig) {
         const assets = Array.isArray(normalized.assets)
           ? normalized.assets
@@ -748,6 +775,25 @@ export class LessonDraftService implements OnApplicationBootstrap {
     return value && typeof value === 'object' && !Array.isArray(value)
       ? (value as JsonObject)
       : {};
+  }
+
+  private isNewGame(previous: JsonObject, candidate: JsonObject): boolean {
+    const normalize = (value: unknown): string =>
+      lessonString(value)
+        .trim()
+        .toLocaleLowerCase('pt-BR')
+        .replace(/\s+/g, ' ');
+    const listSignature = (value: unknown): string =>
+      Array.isArray(value)
+        ? value.map(normalize).filter(Boolean).join('|')
+        : '';
+
+    return (
+      normalize(previous.name) !== normalize(candidate.name) &&
+      listSignature(previous.funMechanics) !==
+        listSignature(candidate.funMechanics) &&
+      listSignature(previous.steps) !== listSignature(candidate.steps)
+    );
   }
 
   async saveContent(

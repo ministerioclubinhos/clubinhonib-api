@@ -89,10 +89,12 @@ export function buildGameInstructionImagePrompt(input: {
     JSON.stringify({
       name: input.game.name,
       objective: input.game.objective,
+      funMechanics: input.game.funMechanics,
       materials: input.game.materials,
       preparation: input.game.preparation,
       steps: input.game.steps,
       rulesAndSafety: input.game.rulesAndSafety,
+      ageAdaptations: input.game.ageAdaptations,
     }),
     `INSTRUÇÃO ${input.stepNumber} QUE ESTA IMAGEM DEVE ENSINAR:`,
     input.instruction.trim(),
