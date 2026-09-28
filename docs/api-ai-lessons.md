@@ -6,7 +6,9 @@ O acervo histórico em `../lições` é referência de formato, não uma fonte a
 
 O número da semana, o tema e todas as referências bíblicas são obrigatórios na criação. A geração da lição deve preservar literalmente o campo de referências, definir um único versículo principal NVI e produzir IDs de cena únicos no formato `scene-01`. Os visuais posteriores só podem usar esses IDs aprovados.
 
-Os visuais da história usam como fonte canônica o conteúdo completo do tópico `LIÇÃO BÍBLICA` da versão atual da primeira etapa. Esse texto integral e a cena aprovada correspondente são incluídos em cada prompt final de imagem; personagens, ações, objetos, ambientes ou emoções ausentes dessa fonte não podem ser acrescentados. Quando a lição é editada no editor, o tópico estruturado é sincronizado antes de uma geração posterior.
+Os visuais da história usam como fonte canônica o conteúdo completo do tópico `LIÇÃO BÍBLICA` da versão atual da primeira etapa. O administrador informa uma quantidade inteira de 4 a 10 imagens: a LLM divide integralmente a narrativa nessa quantidade exata de trechos literais, contínuos e consecutivos, sem omitir, repetir ou reescrever conteúdo. Cada trecho e a história completa são incluídos no prompt final de sua imagem; personagens, ações, objetos, ambientes ou emoções ausentes dessa fonte não podem ser acrescentados. Quando a lição é editada no editor, o tópico estruturado é sincronizado antes de uma geração posterior.
+
+A primeira cena gerada estabelece a identidade visual da sequência. Todas as cenas seguintes recebem essa mesma imagem-mãe como referência, além da história completa e de sua própria cena aprovada. A referência não é encadeada entre cenas: todas partem da primeira imagem para evitar deriva acumulativa de personagens, roupas, traço, paleta, iluminação e ambientes.
 
 Prompts personalizados são anexados ao prompt-base da etapa. Eles nunca substituem as regras editoriais, a segurança infantil, o formato de impressão ou o contrato bíblico.
 

@@ -46,7 +46,10 @@ import {
   lessonString,
 } from '../utils';
 import { LESSON_LLM_PROVIDER } from '../providers/lesson-llm.constants';
-import { LessonLlmProviderContract } from '../providers/lesson-llm.types';
+import {
+  LessonImageReference,
+  LessonLlmProviderContract,
+} from '../providers/lesson-llm.types';
 
 type JsonObject = Record<string, unknown>;
 
@@ -453,9 +456,16 @@ export class LessonDraftService implements OnApplicationBootstrap {
     orientation: LessonVisualOrientation;
     quantity: number;
   } {
-    if (!dto.visualType || !dto.visualOrientation || !dto.visualQuantity)
+    if (
+      !dto.visualType ||
+      !dto.visualOrientation ||
+      !dto.visualQuantity ||
+      !Number.isInteger(dto.visualQuantity) ||
+      dto.visualQuantity < 4 ||
+      dto.visualQuantity > 10
+    )
       throw new BadRequestException(
-        'Escolha o tipo pedagógico, a orientação e a quantidade de 1 a 10 imagens.',
+        'Escolha o tipo pedagógico, a orientação e a quantidade de 4 a 10 imagens.',
       );
     return {
       type: dto.visualType,
@@ -492,33 +502,38 @@ export class LessonDraftService implements OnApplicationBootstrap {
           )
         : null;
     const completeStory = lessonString(canonicalLesson?.story).trim();
-    const canonicalScenes = Array.isArray(canonicalLesson?.visualScenes)
-      ? canonicalLesson.visualScenes.map((item) => this.asObject(item))
-      : [];
     if (type === LessonStageType.LESSON_VISUALS && !completeStory)
       throw new ConflictException(
         'A versão atual da lição precisa conter o tópico LIÇÃO BÍBLICA antes de gerar os visuais.',
       );
     const completed: JsonObject[] = [];
-    for (const asset of assets) {
-      const assetId = lessonString(asset.id).trim();
-      const canonicalScene = canonicalScenes.find(
-        (scene) => lessonString(scene.id).trim() === assetId,
-      );
+    let identityReferenceImage: LessonImageReference | undefined;
+    for (const [assetIndex, asset] of assets.entries()) {
       const imagePrompt =
         type === LessonStageType.LESSON_VISUALS
           ? buildStoryVisualImagePrompt({
               completeStory,
-              canonicalScene: canonicalScene ?? {},
+              canonicalScene: {
+                id: asset.id,
+                sourceExcerpt: asset.sourceExcerpt,
+                purpose: asset.purpose,
+              },
               proposedComposition: lessonString(asset.prompt),
+              hasIdentityReference: Boolean(identityReferenceImage),
             })
           : lessonString(asset.prompt);
       const buffer = await this.llm.generateImage(
         imagePrompt,
         lessonString(visualConfig.orientation),
         lessonString(visualConfig.type),
+        identityReferenceImage,
       );
       const image = this.imageUploadMetadata(buffer);
+      if (type === LessonStageType.LESSON_VISUALS && assetIndex === 0)
+        identityReferenceImage = {
+          data: Buffer.from(buffer),
+          mimeType: image.mimeType,
+        };
       const originalname = `${lessonId}-${type}-${String(asset.id)}.${image.extension}`;
       const url = await this.s3.upload({
         buffer,
@@ -527,7 +542,13 @@ export class LessonDraftService implements OnApplicationBootstrap {
         size: buffer.length,
       } as Express.Multer.File);
       uploadedUrls.push(url);
-      completed.push({ ...asset, url });
+      completed.push({
+        ...asset,
+        url,
+        ...(type === LessonStageType.LESSON_VISUALS
+          ? { identityReference: assetIndex === 0 }
+          : {}),
+      });
     }
     return { ...content, [key]: completed };
   }
@@ -649,23 +670,35 @@ export class LessonDraftService implements OnApplicationBootstrap {
         (stage) => stage.type === LessonStageType.LESSON,
       );
       const source = sourceStage ? this.currentContent(sourceStage) : null;
-      const allowedIds = new Set(
-        (Array.isArray(source?.visualScenes) ? source.visualScenes : []).map(
-          (item) => lessonString(this.asObject(item).id).trim(),
-        ),
-      );
+      const completeStory = lessonString(source?.story).trim();
       const assets = Array.isArray(generated.assets)
         ? generated.assets.map((item) => this.asObject(item))
         : [];
       const assetIds = assets.map((asset) => lessonString(asset.id).trim());
       if (
-        assetIds.some((id) => !allowedIds.has(id)) ||
+        assetIds.some(
+          (id, index) => id !== `visual-${String(index + 1).padStart(2, '0')}`,
+        ) ||
         new Set(assetIds).size !== assetIds.length
       ) {
         throw new ConflictException(
-          'Cada visual da história precisa corresponder a um sceneId único da lição aprovada.',
+          'Os visuais da história precisam usar IDs sequenciais no formato visual-01, visual-02 e assim por diante.',
         );
       }
+      const normalize = (value: string): string =>
+        value.trim().replace(/\s+/g, ' ');
+      const reconstructedStory = assets
+        .map((asset) => lessonString(asset.sourceExcerpt).trim())
+        .filter(Boolean)
+        .join(' ');
+      if (
+        !completeStory ||
+        assets.some((asset) => !lessonString(asset.sourceExcerpt).trim()) ||
+        normalize(reconstructedStory) !== normalize(completeStory)
+      )
+        throw new ConflictException(
+          'A IA precisa dividir toda a LIÇÃO BÍBLICA entre os visuais, na ordem, sem omitir, repetir ou reescrever trechos.',
+        );
     }
 
     return generated;

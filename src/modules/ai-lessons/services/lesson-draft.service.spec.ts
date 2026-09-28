@@ -85,10 +85,7 @@ describe('LessonDraftService workflow safety', () => {
     } as unknown as LessonEntity;
     repo.findLessonById.mockResolvedValue(lesson);
 
-    await service.completeProductionStage(
-      'lesson-1',
-      LessonStageType.LESSON,
-    );
+    await service.completeProductionStage('lesson-1', LessonStageType.LESSON);
 
     expect(repo.updateStage).toHaveBeenCalledWith('stage-1', {
       status: LessonStageStatus.PRODUCER_APPROVED,
@@ -162,16 +159,98 @@ describe('LessonDraftService workflow safety', () => {
     expect(result.biblicalReference).toBe('João 3:16');
   });
 
+  it('aceita a quebra integral da lição decidida pela LLM', () => {
+    const target = service as unknown as {
+      validateCanonicalContent: (
+        lesson: LessonEntity,
+        type: LessonStageType,
+        generated: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const story =
+      'Começo da história. Desenvolvimento da história. Final da história.';
+    const lesson = {
+      stages: [
+        {
+          type: LessonStageType.LESSON,
+          currentVersionId: 'version-1',
+          versions: [{ id: 'version-1', structuredDataJson: { story } }],
+        },
+      ],
+    } as unknown as LessonEntity;
+    const generated = {
+      assets: [
+        { id: 'visual-01', sourceExcerpt: 'Começo da história.' },
+        {
+          id: 'visual-02',
+          sourceExcerpt: 'Desenvolvimento da história. Final da história.',
+        },
+      ],
+    };
+
+    expect(
+      target.validateCanonicalContent(
+        lesson,
+        LessonStageType.LESSON_VISUALS,
+        generated,
+      ),
+    ).toBe(generated);
+  });
+
+  it('rejeita uma quebra que omite parte da lição', () => {
+    const target = service as unknown as {
+      validateCanonicalContent: (
+        lesson: LessonEntity,
+        type: LessonStageType,
+        generated: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const lesson = {
+      stages: [
+        {
+          type: LessonStageType.LESSON,
+          currentVersionId: 'version-1',
+          versions: [
+            {
+              id: 'version-1',
+              structuredDataJson: { story: 'Começo. Parte omitida. Final.' },
+            },
+          ],
+        },
+      ],
+    } as unknown as LessonEntity;
+
+    expect(() =>
+      target.validateCanonicalContent(lesson, LessonStageType.LESSON_VISUALS, {
+        assets: [
+          { id: 'visual-01', sourceExcerpt: 'Começo.' },
+          { id: 'visual-02', sourceExcerpt: 'Final.' },
+        ],
+      }),
+    ).toThrow(ConflictException);
+  });
+
   it('remove o prefixo scene-01: de citação/blockquote em toTiptap', () => {
     const target = service as unknown as {
-      toTiptap: (value: Record<string, unknown>) => { content: Array<{ type: string; content?: Array<{ type: string; text?: string; content?: Array<{ text: string }> }> }> };
+      toTiptap: (value: Record<string, unknown>) => {
+        content: Array<{
+          type: string;
+          content?: Array<{
+            type: string;
+            text?: string;
+            content?: Array<{ text: string }>;
+          }>;
+        }>;
+      };
     };
 
     const tiptap = target.toTiptap({
       story: 'Parágrafo 1\n\nscene-01: Descrição visual da cena 1',
     });
 
-    const blockquotes = tiptap.content.filter((node) => node.type === 'blockquote');
+    const blockquotes = tiptap.content.filter(
+      (node) => node.type === 'blockquote',
+    );
     expect(blockquotes.length).toBe(1);
     const innerText = blockquotes[0].content?.[0]?.content?.[0]?.text;
     expect(innerText).toBe('Descrição visual da cena 1');
@@ -193,5 +272,36 @@ describe('LessonDraftService workflow safety', () => {
         Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a]),
       ),
     ).toEqual({ extension: 'png', mimeType: 'image/png' });
+  });
+
+  it('aceita somente de 4 a 10 visuais da história', () => {
+    const target = service as unknown as {
+      validateVisualConfig: (dto: {
+        visualType: string;
+        visualOrientation: string;
+        visualQuantity: number;
+      }) => unknown;
+    };
+    const base = {
+      visualType: 'STORY_SEQUENCE',
+      visualOrientation: 'LANDSCAPE',
+    };
+
+    expect(() =>
+      target.validateVisualConfig({ ...base, visualQuantity: 3 }),
+    ).toThrow();
+    expect(() =>
+      target.validateVisualConfig({ ...base, visualQuantity: 11 }),
+    ).toThrow();
+    expect(
+      target.validateVisualConfig({ ...base, visualQuantity: 4 }),
+    ).toMatchObject({
+      quantity: 4,
+    });
+    expect(
+      target.validateVisualConfig({ ...base, visualQuantity: 10 }),
+    ).toMatchObject({
+      quantity: 10,
+    });
   });
 });

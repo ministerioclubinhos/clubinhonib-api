@@ -20,6 +20,7 @@ import {
 import {
   LessonLlmGenerationInput,
   LessonLlmGenerationResult,
+  LessonImageReference,
   LessonLlmProviderContract,
 } from './lesson-llm.types';
 
@@ -66,6 +67,7 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
       'Toda citação bíblica apresentada como NVI exige redação exata. Se não houver certeza, sinalize revisão humana no próprio conteúdo em vez de inventar ou parafrasear.',
       'Escreva a lição com narrativa pedagógica autoral e linguagem adaptada para crianças de 5 a 11 anos. Não transcreva nem recite capítulos inteiros da Bíblia palavra por palavra no texto narrativo da história para evitar bloqueios de recitação (RECITATION); mantenha a fidelidade aos fatos bíblicos usando palavras próprias adequadas ao público infantil.',
       'Para VISUAIS DA HISTÓRIA, trate a lição aprovada como fonte canônica fechada: não reconte, reinterprete, amplie nem substitua a narrativa. Cada imagem deve ilustrar somente personagens, ações, ambientes, objetos e emoções explicitamente presentes nela.',
+      'Em VISUAIS DA HISTÓRIA, você decide a quebra narrativa: divida todo o campo story da LIÇÃO BÍBLICA em exatamente visualConfig.quantity trechos literais, contínuos, consecutivos, não sobrepostos e na ordem original. Não omita nem repita nenhuma parte. Cada asset recebe id visual-01, visual-02 etc. e sourceExcerpt com seu trecho exato.',
       'Para VISUAIS DO VERSÍCULO, derive a quantidade da melhor divisão semântica do versículo aprovado; os itens de conteúdo devem reconstruí-lo exatamente e o último item deve conter somente a referência.',
       'VISUAIS DO VERSÍCULO e FIXAÇÃO DO VERSÍCULO são produtos distintos.',
       'Quando houver configuração visual escolhida pelo administrador, ela é obrigatória. Gere exatamente a quantidade solicitada, na orientação pedida e usando a estratégia pedagógica selecionada.',
@@ -163,6 +165,7 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
     prompt: string,
     orientation?: string,
     visualType?: string,
+    identityReferenceImage?: LessonImageReference,
   ): Promise<Buffer> {
     const apiKey = this.requiredApiKey();
     const model =
@@ -185,7 +188,16 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
         `${GEMINI_API_BASE_URL}/interactions`,
         {
           model,
-          input: finalPrompt,
+          input: identityReferenceImage
+            ? [
+                { type: 'text', text: finalPrompt },
+                {
+                  type: 'image',
+                  data: identityReferenceImage.data.toString('base64'),
+                  mime_type: identityReferenceImage.mimeType,
+                },
+              ]
+            : finalPrompt,
           response_format: {
             type: 'image',
             aspect_ratio: aspectRatio,

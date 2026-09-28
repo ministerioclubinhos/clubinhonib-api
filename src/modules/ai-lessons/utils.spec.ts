@@ -49,6 +49,7 @@ describe('AI lesson utilities', () => {
         purpose: 'Jesus conversa com a criança.',
       },
       proposedComposition: 'Composição em plano aberto.',
+      hasIdentityReference: true,
     });
 
     expect(prompt).toContain('Texto integral da lição bíblica.');
@@ -56,5 +57,6 @@ describe('AI lesson utilities', () => {
     expect(prompt).toContain('Jesus conversa com a criança.');
     expect(prompt.toLocaleLowerCase('pt-BR')).toContain('fonte canônica');
     expect(prompt).toContain('Não invente');
+    expect(prompt).toContain('imagem de referência anexada');
   });
 });

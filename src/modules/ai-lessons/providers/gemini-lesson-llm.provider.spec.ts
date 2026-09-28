@@ -138,6 +138,37 @@ describe('GeminiLessonLlmProvider', () => {
     expect(options.headers).toEqual({ 'x-goog-api-key': 'test-key' });
   });
 
+  it('envia a imagem-mãe junto do prompt das cenas seguintes', async () => {
+    mockedAxios.post.mockResolvedValueOnce({
+      data: {
+        outputImage: {
+          data: Buffer.from('next-scene').toString('base64'),
+          mimeType: 'image/png',
+        },
+      },
+    });
+
+    await provider.generateImage(
+      'Cena seguinte',
+      'LANDSCAPE',
+      'STORY_SEQUENCE',
+      {
+        data: Buffer.from('identity-reference'),
+        mimeType: 'image/png',
+      },
+    );
+
+    const [, body] = lastPostCall();
+    expect(body.input).toEqual([
+      expect.objectContaining({ type: 'text' }),
+      {
+        type: 'image',
+        data: Buffer.from('identity-reference').toString('base64'),
+        mime_type: 'image/png',
+      },
+    ]);
+  });
+
   it('repete a chamada quando o Gemini responde com erro transitório', async () => {
     values.GEMINI_MAX_RETRIES = '1';
     mockedAxios.post
@@ -186,7 +217,7 @@ describe('GeminiLessonLlmProvider', () => {
     await expect(provider.generateImage('imagem')).rejects.toThrow(
       'Falha no Gemini durante a geração de imagem',
     );
-    expect(mockedAxios.post).toHaveBeenCalledTimes(1);
+    expect(mockedAxios.post.mock.calls).toHaveLength(1);
   });
 
   it('usa o modelo fallback após esgotar o modelo principal', async () => {

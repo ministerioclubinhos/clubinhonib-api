@@ -1,5 +1,17 @@
-import { IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
-import { LessonStageType, LessonVisualOrientation, LessonVisualType } from '../enums/lesson.enums';
+import {
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
+import {
+  LessonStageType,
+  LessonVisualOrientation,
+  LessonVisualType,
+} from '../enums/lesson.enums';
 
 export class GenerateStageRequestDto {
   @IsEnum(LessonStageType)
@@ -20,7 +32,7 @@ export class GenerateStageRequestDto {
 
   @IsOptional()
   @IsInt()
-  @Min(1)
+  @Min(4)
   @Max(10)
   visualQuantity?: number;
 }

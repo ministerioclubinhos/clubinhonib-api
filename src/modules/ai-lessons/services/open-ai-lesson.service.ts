@@ -11,6 +11,7 @@ import { serializeTemplate } from '../templates/lesson-templates';
 import {
   LessonLlmGenerationInput,
   LessonLlmGenerationResult,
+  LessonImageReference,
   LessonLlmProviderContract,
 } from '../providers/lesson-llm.types';
 
@@ -29,6 +30,26 @@ const ASSET_SCHEMA = {
   required: ['id', 'purpose', 'prompt', 'altText'],
   properties: {
     id: { type: 'string' },
+    purpose: { type: 'string' },
+    prompt: { type: 'string' },
+    altText: { type: 'string' },
+  },
+} as const;
+const STORY_VISUAL_ASSET_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['id', 'sourceExcerpt', 'purpose', 'prompt', 'altText'],
+  properties: {
+    id: {
+      type: 'string',
+      description:
+        'ID sequencial no formato visual-01, visual-02 e assim por diante.',
+    },
+    sourceExcerpt: {
+      type: 'string',
+      description:
+        'Trecho literal, contínuo e não sobreposto da LIÇÃO BÍBLICA atribuído a esta imagem.',
+    },
     purpose: { type: 'string' },
     prompt: { type: 'string' },
     altText: { type: 'string' },
@@ -115,9 +136,9 @@ export function schemaFor(stage: LessonStageType): Record<string, unknown> {
       properties: {
         assets: {
           type: 'array',
-          minItems: 1,
+          minItems: 4,
           maxItems: 10,
-          items: ASSET_SCHEMA,
+          items: STORY_VISUAL_ASSET_SCHEMA,
         },
       },
     };
@@ -310,9 +331,7 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
       );
 
     const model = this.config.get<string>('OPENAI_TEXT_MODEL') || 'gpt-5.4';
-    const reasoningEffort = this.config.get<string>(
-      'OPENAI_REASONING_EFFORT',
-    );
+    const reasoningEffort = this.config.get<string>('OPENAI_REASONING_EFFORT');
     this.logger.log(
       `[OpenAI Request] Geração de etapa '${input.stage}' | Modelo: ${model} | Tema: "${input.theme}" | Referência: "${input.biblicalReference}" | Semana: ${input.weekNumber}`,
     );
@@ -328,6 +347,7 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
       'Toda citação bíblica apresentada como NVI exige redação exata. Se não houver certeza, sinalize revisão humana no próprio conteúdo em vez de inventar ou parafrasear.',
       'Escreva a lição com narrativa pedagógica autoral e linguagem adaptada para crianças de 5 a 11 anos. Não transcreva nem recite capítulos inteiros da Bíblia palavra por palavra no texto narrativo da história; mantenha a fidelidade aos fatos bíblicos usando palavras próprias adequadas ao público infantil.',
       'Para VISUAIS DA HISTÓRIA, trate a lição aprovada como fonte canônica fechada: não reconte, reinterprete, amplie nem substitua a narrativa. Cada imagem deve ilustrar somente personagens, ações, ambientes, objetos e emoções explicitamente presentes nela. Não invente nova cena, personagem, milagre, diálogo, versículo, roupa relevante ou conclusão.',
+      'Em VISUAIS DA HISTÓRIA, você decide a quebra narrativa: divida todo o campo story da LIÇÃO BÍBLICA em exatamente visualConfig.quantity trechos literais, contínuos, consecutivos, não sobrepostos e na ordem original. Não omita nem repita nenhuma parte. Cada asset recebe id visual-01, visual-02 etc. e sourceExcerpt com seu trecho exato.',
       'Para VISUAIS DO VERSÍCULO, derive a quantidade da melhor divisão semântica do versículo aprovado; os itens de conteúdo devem reconstruí-lo exatamente e o último item deve conter somente a referência.',
       'VISUAIS DO VERSÍCULO e FIXAÇÃO DO VERSÍCULO são produtos distintos: o primeiro é uma sequência de imagens mnemônicas; o segundo é uma dinâmica ou brincadeira divertida.',
       'Quando houver configuração visual escolhida pelo administrador, ela é obrigatória. Gere exatamente a quantidade solicitada, na orientação pedida e usando a estratégia pedagógica selecionada.',
@@ -416,33 +436,67 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
     prompt: string,
     orientation?: string,
     visualType?: string,
+    identityReferenceImage?: LessonImageReference,
   ): Promise<Buffer> {
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
     if (!apiKey)
       throw new ServiceUnavailableException('OPENAI_API_KEY não configurada.');
     const model =
-      this.config.get<string>('OPENAI_IMAGE_MODEL') ||
-      'gpt-image-2.5-sunburst';
+      this.config.get<string>('OPENAI_IMAGE_MODEL') || 'gpt-image-2.5-sunburst';
     const quality = this.config.get<string>('OPENAI_IMAGE_QUALITY') || 'high';
     this.logger.log(
       `[OpenAI Request] Geração de imagem | Modelo: ${model} | Orientação: ${orientation ?? 'PADRÃO'} | Tipo: ${visualType ?? 'PADRÃO'} | Prompt: "${prompt.slice(0, 120)}..."`,
     );
     const startTime = Date.now();
     try {
-      const response = await axios.post<{ data?: Array<{ b64_json?: string }> }>(
-        'https://api.openai.com/v1/images/generations',
-        {
-          model,
-          prompt: `Ilustração bíblica infantil do Clubinho NIB para crianças de 5 a 11 anos. Fidelidade ao contexto bíblico da NVI e à descrição fechada recebida da lição aprovada. Não acrescente personagens, fatos ou símbolos não pedidos. Estratégia pedagógica: ${visualType || 'definida no prompt'}. Orientação obrigatória: ${orientation || 'definida no prompt'}. Sem conteúdo sexual, romântico, erotizado, violência gráfica ou debates de sexualidade. Obedeça literalmente ao estilo, orientação, paleta, margem e finalidade pedidos a seguir. Sem letras, palavras, números, logotipos ou marcas. ${prompt}`,
-          size: orientation === 'PORTRAIT' ? '1024x1536' : '1536x1024',
-          quality,
-          output_format: 'png',
-        },
-        { headers: { Authorization: `Bearer ${apiKey}` }, timeout: 180000 },
-      );
+      const finalPrompt = `Ilustração bíblica infantil do Clubinho NIB para crianças de 5 a 11 anos. Fidelidade ao contexto bíblico da NVI e à descrição fechada recebida da lição aprovada. Não acrescente personagens, fatos ou símbolos não pedidos. Estratégia pedagógica: ${visualType || 'definida no prompt'}. Orientação obrigatória: ${orientation || 'definida no prompt'}. Sem conteúdo sexual, romântico, erotizado, violência gráfica ou debates de sexualidade. Obedeça literalmente ao estilo, orientação, paleta, margem e finalidade pedidos a seguir. Sem letras, palavras, números, logotipos ou marcas. ${prompt}`;
+      const size = orientation === 'PORTRAIT' ? '1024x1536' : '1536x1024';
+      const request = identityReferenceImage
+        ? (() => {
+            const form = new FormData();
+            form.append('model', model);
+            form.append('prompt', finalPrompt);
+            form.append('size', size);
+            form.append('quality', quality);
+            form.append('output_format', 'png');
+            form.append(
+              'image[]',
+              new Blob([new Uint8Array(identityReferenceImage.data)], {
+                type: identityReferenceImage.mimeType,
+              }),
+              identityReferenceImage.mimeType === 'image/jpeg'
+                ? 'clubinho-identidade-visual.jpg'
+                : 'clubinho-identidade-visual.png',
+            );
+            return axios.post<{ data?: Array<{ b64_json?: string }> }>(
+              'https://api.openai.com/v1/images/edits',
+              form,
+              {
+                headers: { Authorization: `Bearer ${apiKey}` },
+                timeout: 180000,
+              },
+            );
+          })()
+        : axios.post<{ data?: Array<{ b64_json?: string }> }>(
+            'https://api.openai.com/v1/images/generations',
+            {
+              model,
+              prompt: finalPrompt,
+              size,
+              quality,
+              output_format: 'png',
+            },
+            {
+              headers: { Authorization: `Bearer ${apiKey}` },
+              timeout: 180000,
+            },
+          );
+      const response = await request;
       const encoded = response.data.data?.[0]?.b64_json;
       if (!encoded)
-        throw new BadGatewayException('OpenAI não retornou os bytes da imagem.');
+        throw new BadGatewayException(
+          'OpenAI não retornou os bytes da imagem.',
+        );
       const elapsed = Date.now() - startTime;
       this.logger.log(
         `[OpenAI Response] Imagem gerada em ${elapsed}ms | Tamanho: ${encoded.length} b64 chars`,

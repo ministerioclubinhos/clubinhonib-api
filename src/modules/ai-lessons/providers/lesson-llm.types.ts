@@ -27,6 +27,11 @@ export type LessonLlmGenerationInput = {
   } | null;
 };
 
+export type LessonImageReference = {
+  data: Buffer;
+  mimeType: 'image/jpeg' | 'image/png';
+};
+
 export interface LessonLlmProviderContract {
   generateStage(
     input: LessonLlmGenerationInput,
@@ -36,5 +41,6 @@ export interface LessonLlmProviderContract {
     prompt: string,
     orientation?: string,
     visualType?: string,
+    identityReferenceImage?: LessonImageReference,
   ): Promise<Buffer>;
 }

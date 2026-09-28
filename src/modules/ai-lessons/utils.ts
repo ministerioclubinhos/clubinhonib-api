@@ -61,14 +61,19 @@ export function buildStoryVisualImagePrompt(input: {
   completeStory: string;
   canonicalScene: JsonObject;
   proposedComposition: string;
+  hasIdentityReference: boolean;
 }): string {
   return [
     'FONTE CANÔNICA E EXCLUSIVA — LIÇÃO BÍBLICA COMPLETA:',
     input.completeStory.trim(),
-    'CENA APROVADA DA LIÇÃO:',
+    'TRECHO DA LIÇÃO DEFINIDO PELA QUEBRA NARRATIVA DA LLM:',
     JSON.stringify(input.canonicalScene),
     'COMPOSIÇÃO VISUAL PROPOSTA:',
     input.proposedComposition.trim(),
+    'IDENTIDADE VISUAL FIXA:',
+    input.hasIdentityReference
+      ? 'Use a imagem de referência anexada como identidade-mãe. Preserve rigorosamente os mesmos personagens, rostos, idades aparentes, cabelos, roupas, proporções, traço artístico, paleta de cores, iluminação e representação dos ambientes. A referência define somente a identidade visual; a ação deve seguir a cena atual.'
+      : 'Esta é a imagem-mãe da sequência. Estabeleça personagens, rostos, idades aparentes, cabelos, roupas, proporções, traço artístico, paleta de cores, iluminação e ambientes de forma clara e reutilizável nas próximas cenas.',
     'REGRA OBRIGATÓRIA: produza somente a cena aprovada acima, usando exclusivamente personagens, ações, objetos, ambientes e emoções explicitamente presentes na LIÇÃO BÍBLICA completa. Não invente, acrescente, substitua ou antecipe qualquer elemento narrativo.',
   ].join('\n\n');
 }

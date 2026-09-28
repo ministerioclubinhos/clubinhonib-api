@@ -129,7 +129,7 @@ OBJETIVO
 - As imagens destinam-se a crianças de 5 a 11 anos e devem permanecer apropriadas para essa idade, sem sexualização, romance, violência gráfica ou elementos assustadores desnecessários.
 
 CONFIGURAÇÃO ESCOLHIDA PELO ADMINISTRADOR
-- Respeite exatamente a quantidade de 1 a 10 imagens e a orientação retrato ou paisagem recebidas. Não escolha valores diferentes.
+- Respeite exatamente a quantidade de 4 a 10 imagens e a orientação retrato ou paisagem recebidas. Não escolha valores diferentes.
 - STORY_SEQUENCE: organize cenas cronológicas que permitam à criança reconstruir começo, desenvolvimento, clímax e conclusão da história.
 - CHARACTER_AND_EMOTION: destaque personagens, ações e emoções observáveis para ajudar a criança a reconhecer motivações e consequências sem inventar pensamentos.
 - VISUAL_ANCHORS: crie imagens-âncora simples, cada uma focada em um objeto, lugar ou momento central que facilite associação e recordação.
