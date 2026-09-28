@@ -172,7 +172,7 @@ ESTRUTURA OBRIGATÓRIA
 6. REGRAS, duração aproximada, forma de dividir grupos e critério de encerramento.
 7. SEGURANÇA e adaptação para espaço pequeno, criança tímida ou criança com mobilidade reduzida.
 8. PRINCÍPIO BÍBLICO: roteiro curto para o professor conectar a experiência à lição depois da atividade.
-9. VISUAIS DE APOIO: liste apenas peças realmente necessárias, com finalidade, tamanho e instrução de uso.
+9. VISUAIS DE APOIO: crie exatamente uma imagem instrucional para cada passo, na mesma ordem. Cada imagem deve demonstrar visualmente como executar sua instrução; não gere imagens meramente decorativas.
 
 REGRAS
 - Não proponha corrida perigosa, contato físico forçado, eliminação humilhante, alimento sem alerta de alergia, venda nos olhos sem assistência ou materiais cortantes para crianças.

@@ -77,3 +77,27 @@ export function buildStoryVisualImagePrompt(input: {
     'REGRA OBRIGATÓRIA: produza somente a cena aprovada acima, usando exclusivamente personagens, ações, objetos, ambientes e emoções explicitamente presentes na LIÇÃO BÍBLICA completa. Não invente, acrescente, substitua ou antecipe qualquer elemento narrativo.',
   ].join('\n\n');
 }
+
+export function buildGameInstructionImagePrompt(input: {
+  game: JsonObject;
+  stepNumber: number;
+  instruction: string;
+  proposedComposition: string;
+}): string {
+  return [
+    'BRINCADEIRA COMPLETA E APROVADA:',
+    JSON.stringify({
+      name: input.game.name,
+      objective: input.game.objective,
+      materials: input.game.materials,
+      preparation: input.game.preparation,
+      steps: input.game.steps,
+      rulesAndSafety: input.game.rulesAndSafety,
+    }),
+    `INSTRUÇÃO ${input.stepNumber} QUE ESTA IMAGEM DEVE ENSINAR:`,
+    input.instruction.trim(),
+    'COMPOSIÇÃO VISUAL PROPOSTA:',
+    input.proposedComposition.trim(),
+    'REGRA OBRIGATÓRIA: crie uma imagem instrucional que demonstre claramente como executar somente este passo da brincadeira. Mostre posições, materiais, organização e ação necessários. Não produza uma ilustração decorativa genérica e não insira palavras, letras ou números dentro da imagem.',
+  ].join('\n\n');
+}

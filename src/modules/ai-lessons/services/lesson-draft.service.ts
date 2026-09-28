@@ -41,6 +41,7 @@ import { AdminLessonPromptService } from './admin-lesson-prompt.service';
 import { AiLessonsRepository } from '../repositories/ai-lessons.repository';
 import { QueryLessonsDto } from '../dto/query-lessons.dto';
 import {
+  buildGameInstructionImagePrompt,
   buildStoryVisualImagePrompt,
   extractTiptapSectionText,
   lessonString,
@@ -521,7 +522,14 @@ export class LessonDraftService implements OnApplicationBootstrap {
               proposedComposition: lessonString(asset.prompt),
               hasIdentityReference: Boolean(identityReferenceImage),
             })
-          : lessonString(asset.prompt);
+          : type === LessonStageType.STANDARD_GAME
+            ? buildGameInstructionImagePrompt({
+                game: content,
+                stepNumber: Number(asset.stepNumber),
+                instruction: lessonString(asset.instruction),
+                proposedComposition: lessonString(asset.prompt),
+              })
+            : lessonString(asset.prompt);
       const buffer = await this.llm.generateImage(
         imagePrompt,
         lessonString(visualConfig.orientation),
@@ -529,7 +537,13 @@ export class LessonDraftService implements OnApplicationBootstrap {
         identityReferenceImage,
       );
       const image = this.imageUploadMetadata(buffer);
-      if (type === LessonStageType.LESSON_VISUALS && assetIndex === 0)
+      if (
+        [
+          LessonStageType.LESSON_VISUALS,
+          LessonStageType.STANDARD_GAME,
+        ].includes(type) &&
+        assetIndex === 0
+      )
         identityReferenceImage = {
           data: Buffer.from(buffer),
           mimeType: image.mimeType,
@@ -545,7 +559,10 @@ export class LessonDraftService implements OnApplicationBootstrap {
       completed.push({
         ...asset,
         url,
-        ...(type === LessonStageType.LESSON_VISUALS
+        ...([
+          LessonStageType.LESSON_VISUALS,
+          LessonStageType.STANDARD_GAME,
+        ].includes(type)
           ? { identityReference: assetIndex === 0 }
           : {}),
       });
@@ -698,6 +715,29 @@ export class LessonDraftService implements OnApplicationBootstrap {
       )
         throw new ConflictException(
           'A IA precisa dividir toda a LIÇÃO BÍBLICA entre os visuais, na ordem, sem omitir, repetir ou reescrever trechos.',
+        );
+    }
+
+    if (type === LessonStageType.STANDARD_GAME) {
+      const steps = Array.isArray(generated.steps)
+        ? generated.steps.map((step) => lessonString(step).trim())
+        : [];
+      const assets = Array.isArray(generated.assets)
+        ? generated.assets.map((item) => this.asObject(item))
+        : [];
+      const invalid =
+        !steps.length ||
+        assets.length !== steps.length ||
+        assets.some(
+          (asset, index) =>
+            lessonString(asset.id).trim() !==
+              `instrucao-${String(index + 1).padStart(2, '0')}` ||
+            Number(asset.stepNumber) !== index + 1 ||
+            lessonString(asset.instruction).trim() !== steps[index],
+        );
+      if (invalid)
+        throw new ConflictException(
+          'A brincadeira precisa ter exatamente um visual instrucional para cada passo, na mesma ordem e com a instrução literal.',
         );
     }
 

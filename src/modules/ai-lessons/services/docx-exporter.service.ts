@@ -29,8 +29,14 @@ export class DocxExporterService {
 
   async buildDocxFromTiptapOrStructuredJson(input: Json): Promise<Buffer> {
     const [left, right] = await Promise.all([
-      this.header('LESSON_HEADER_LEFT_PATH', '../clubinhonib-app/public/header_esquerdo.png'),
-      this.header('LESSON_HEADER_RIGHT_PATH', '../clubinhonib-app/public/header_direito.png'),
+      this.header(
+        'LESSON_HEADER_LEFT_PATH',
+        '../clubinhonib-app/public/header_esquerdo.png',
+      ),
+      this.header(
+        'LESSON_HEADER_RIGHT_PATH',
+        '../clubinhonib-app/public/header_direito.png',
+      ),
     ]);
     const children: (Paragraph | Table)[] = [];
     const lesson = this.stageData(input[LessonStageType.LESSON]);
@@ -40,7 +46,11 @@ export class DocxExporterService {
         this.addTiptap(children, lessonDoc);
       } else {
         this.addHeading(children, String(lesson.title ?? 'LIÇÃO'), 1);
-        this.addField(children, 'TEXTO / REFERÊNCIA BÍBLICA', lesson.biblicalReference);
+        this.addField(
+          children,
+          'TEXTO / REFERÊNCIA BÍBLICA',
+          lesson.biblicalReference,
+        );
         this.addField(children, 'PROPÓSITO', lesson.purpose);
         this.addList(children, 'MÚSICAS', lesson.songs);
         const verse = this.object(lesson.memoryVerse);
@@ -49,23 +59,46 @@ export class DocxExporterService {
           children,
           `${String(verse.text ?? '')} — ${String(verse.reference ?? '')} (${String(verse.version ?? '')})`,
         );
-        this.addField(children, 'EXPLICAÇÃO DO PRINCÍPIO', lesson.principleExplanation);
+        this.addField(
+          children,
+          'EXPLICAÇÃO DO PRINCÍPIO',
+          lesson.principleExplanation,
+        );
         this.addField(children, 'HISTÓRIA BÍBLICA', lesson.story);
-        this.addField(children, 'APLICAÇÃO E APELO', lesson.applicationAndAppeal);
-        this.addField(children, 'CANTINHO DO ACONSELHAMENTO', lesson.counseling);
+        this.addField(
+          children,
+          'APLICAÇÃO E APELO',
+          lesson.applicationAndAppeal,
+        );
+        this.addField(
+          children,
+          'CANTINHO DO ACONSELHAMENTO',
+          lesson.counseling,
+        );
         this.addQuestions(children, lesson.reviewQuestions);
         this.addField(children, 'FALANDO COM DEUS', lesson.closingPrayer);
       }
     }
     const visualStage = this.stageData(input[LessonStageType.LESSON_VISUALS]);
     const gameStage = this.stageData(input[LessonStageType.STANDARD_GAME]);
-    const verseVisualStage = this.stageData(input[LessonStageType.VERSE_VISUALS]);
+    const verseVisualStage = this.stageData(
+      input[LessonStageType.VERSE_VISUALS],
+    );
     const fixationStage = this.stageData(input[LessonStageType.VERSE_FIXATION]);
-    const youngerMeditation = this.stageData(input[LessonStageType.MEDITATION_YOUNGER]);
-    const olderMeditation = this.stageData(input[LessonStageType.MEDITATION_OLDER]);
+    const youngerMeditation = this.stageData(
+      input[LessonStageType.MEDITATION_YOUNGER],
+    );
+    const olderMeditation = this.stageData(
+      input[LessonStageType.MEDITATION_OLDER],
+    );
     const manualWork = this.stageData(input[LessonStageType.MANUAL_WORK]);
 
-    this.addEditableStage(children, 'BRINCADEIRA', input[LessonStageType.STANDARD_GAME], gameStage);
+    this.addEditableStage(
+      children,
+      'BRINCADEIRA',
+      input[LessonStageType.STANDARD_GAME],
+      gameStage,
+    );
     this.addEditableStage(
       children,
       'SUGESTÃO DE FIXAÇÃO DO VERSÍCULO',
@@ -139,7 +172,9 @@ export class DocxExporterService {
 
     const visualConfig = this.object(visualStage.visualConfig);
     const landscapePages = await this.landscapeAssetPages([
-      ...(visualConfig.orientation === 'PORTRAIT' ? [] : [{ stage: visualStage, imageOnly: true }]),
+      ...(visualConfig.orientation === 'PORTRAIT'
+        ? []
+        : [{ stage: visualStage, imageOnly: true }]),
       { stage: gameStage, imageOnly: false },
       { stage: verseVisualStage, imageOnly: true },
       { stage: fixationStage, imageOnly: false },
@@ -194,7 +229,9 @@ export class DocxExporterService {
       );
     return Packer.toBuffer(
       new Document({
-        styles: { default: { document: { run: { font: 'Calibri', size: 24 } } } },
+        styles: {
+          default: { document: { run: { font: 'Calibri', size: 24 } } },
+        },
         sections,
       }),
     );
@@ -454,7 +491,9 @@ export class DocxExporterService {
   }
 
   private renderTable(out: (Paragraph | Table)[], tableNode: Json): void {
-    const tableContent = Array.isArray(tableNode.content) ? tableNode.content : [];
+    const tableContent = Array.isArray(tableNode.content)
+      ? tableNode.content
+      : [];
     const rows: TableRow[] = [];
 
     for (const rawRow of tableContent) {
@@ -469,7 +508,9 @@ export class DocxExporterService {
         const cellType = String(cellNode.type ?? '');
         if (cellType !== 'tableCell' && cellType !== 'tableHeader') continue;
 
-        const cellContent = Array.isArray(cellNode.content) ? cellNode.content : [];
+        const cellContent = Array.isArray(cellNode.content)
+          ? cellNode.content
+          : [];
         const cellParagraphs: Paragraph[] = [];
 
         for (const rawPara of cellContent) {
@@ -479,26 +520,35 @@ export class DocxExporterService {
             const alignment = this.getAlignment(attrs, AlignmentType.LEFT);
             const runs = this.convertInlineNodesToTextRuns(
               Array.isArray(paraNode.content) ? paraNode.content : [],
-              { size: 22, defaultColor: '000000', defaultBold: cellType === 'tableHeader' },
+              {
+                size: 22,
+                defaultColor: '000000',
+                defaultBold: cellType === 'tableHeader',
+              },
             );
             cellParagraphs.push(
               new Paragraph({
                 alignment,
                 spacing: { after: 60, line: 240 },
-                children: runs.length ? runs : [new TextRun({ text: '', size: 22 })],
+                children: runs.length
+                  ? runs
+                  : [new TextRun({ text: '', size: 22 })],
               }),
             );
           }
         }
 
         if (!cellParagraphs.length) {
-          cellParagraphs.push(new Paragraph({ children: [new TextRun({ text: '', size: 22 })] }));
+          cellParagraphs.push(
+            new Paragraph({ children: [new TextRun({ text: '', size: 22 })] }),
+          );
         }
 
         cells.push(
           new TableCell({
             children: cellParagraphs,
-            shading: cellType === 'tableHeader' ? { fill: 'F1F5F9' } : undefined,
+            shading:
+              cellType === 'tableHeader' ? { fill: 'F1F5F9' } : undefined,
             margins: { top: 100, bottom: 100, left: 140, right: 140 },
           }),
         );
@@ -618,7 +668,11 @@ export class DocxExporterService {
     return defaultAlignment;
   }
 
-  private addHeading(out: (Paragraph | Table)[], text: string, level: 1 | 2): void {
+  private addHeading(
+    out: (Paragraph | Table)[],
+    text: string,
+    level: 1 | 2,
+  ): void {
     out.push(
       new Paragraph({
         heading: level === 1 ? HeadingLevel.HEADING_1 : HeadingLevel.HEADING_2,
@@ -676,21 +730,34 @@ export class DocxExporterService {
     }
   }
 
-  private addField(out: (Paragraph | Table)[], label: string, value: unknown): void {
+  private addField(
+    out: (Paragraph | Table)[],
+    label: string,
+    value: unknown,
+  ): void {
     if (typeof value !== 'string' || !value.trim()) return;
     out.push(
       new Paragraph({
         alignment: AlignmentType.JUSTIFIED,
         spacing: { after: 140, line: 276 },
         children: [
-          new TextRun({ text: `${label}: `, bold: true, color: '000000', size: 24 }),
+          new TextRun({
+            text: `${label}: `,
+            bold: true,
+            color: '000000',
+            size: 24,
+          }),
           new TextRun({ text: value, color: '000000', size: 24 }),
         ],
       }),
     );
   }
 
-  private addList(out: (Paragraph | Table)[], label: string, value: unknown): void {
+  private addList(
+    out: (Paragraph | Table)[],
+    label: string,
+    value: unknown,
+  ): void {
     if (!Array.isArray(value)) return;
     this.addHeading(out, label, 2);
     value.forEach((item) => this.addText(out, `• ${String(item)}`));
@@ -708,13 +775,20 @@ export class DocxExporterService {
     });
   }
 
-  private addStage(out: (Paragraph | Table)[], title: string, data: Json): void {
+  private addStage(
+    out: (Paragraph | Table)[],
+    title: string,
+    data: Json,
+  ): void {
     if (!Object.keys(data).length) return;
     this.addHeading(out, title, 1);
     for (const [key, value] of Object.entries(data)) {
       if (key === 'assets' || key === 'printableAssets') continue;
       if (typeof value === 'string') this.addField(out, key, value);
-      else if (Array.isArray(value) && value.every((v) => typeof v === 'string'))
+      else if (
+        Array.isArray(value) &&
+        value.every((v) => typeof v === 'string')
+      )
         this.addList(out, key, value);
     }
   }
@@ -733,11 +807,16 @@ export class DocxExporterService {
           responseType: 'arraybuffer',
           timeout: 30000,
         });
+        const instruction =
+          typeof asset.instruction === 'string' ? asset.instruction.trim() : '';
+        const stepNumber = Number(asset.stepNumber);
         const displayText = imageOnly
           ? ''
-          : typeof asset.displayText === 'string'
-            ? asset.displayText.trim()
-            : '';
+          : instruction
+            ? `${Number.isInteger(stepNumber) ? `PASSO ${stepNumber} — ` : ''}${instruction}`
+            : typeof asset.displayText === 'string'
+              ? asset.displayText.trim()
+              : '';
         pages.push([
           ...(displayText
             ? [
@@ -782,9 +861,12 @@ export class DocxExporterService {
     manual: Json,
   ): Promise<Array<Array<Paragraph | Table>>> {
     const pages: Array<Array<Paragraph | Table>> = [];
-    if (Object.keys(younger).length) pages.push(await this.meditationPage(younger, true));
-    if (Object.keys(older).length) pages.push(await this.meditationPage(older, false));
-    if (Object.keys(manual).length) pages.push(await this.manualWorkPage(manual));
+    if (Object.keys(younger).length)
+      pages.push(await this.meditationPage(younger, true));
+    if (Object.keys(older).length)
+      pages.push(await this.meditationPage(older, false));
+    if (Object.keys(manual).length)
+      pages.push(await this.manualWorkPage(manual));
     return pages;
   }
 
@@ -1015,7 +1097,11 @@ export class DocxExporterService {
                     style: BorderStyle.SINGLE,
                     size: 20,
                   },
-                  left: { color: '252223', style: BorderStyle.SINGLE, size: 20 },
+                  left: {
+                    color: '252223',
+                    style: BorderStyle.SINGLE,
+                    size: 20,
+                  },
                   right: {
                     color: '252223',
                     style: BorderStyle.SINGLE,
@@ -1096,7 +1182,9 @@ export class DocxExporterService {
       ...oneCopy(),
       new Paragraph({
         children: [new TextRun('')],
-        border: { bottom: { color: '777777', style: BorderStyle.DASHED, size: 8 } },
+        border: {
+          bottom: { color: '777777', style: BorderStyle.DASHED, size: 8 },
+        },
         spacing: { after: 45 },
       }),
       ...oneCopy(),

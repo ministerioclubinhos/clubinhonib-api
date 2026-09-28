@@ -22,7 +22,7 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
   {
     [LessonStageType.LESSON]: {
       key: 'clubinho.lesson.canonical',
-      version: '1.0.0',
+      version: '2.0.0',
       stage: LessonStageType.LESSON,
       exactStructure: [
         'LIÇÃO E TÍTULO',
@@ -64,7 +64,7 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
     },
     [LessonStageType.STANDARD_GAME]: {
       key: 'clubinho.standard-game.canonical',
-      version: '1.0.0',
+      version: '2.0.0',
       stage: LessonStageType.STANDARD_GAME,
       exactStructure: [
         'NOME DA BRINCADEIRA',
@@ -79,7 +79,8 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
       rules: [
         ...sharedRules,
         'A brincadeira deve ser segura, exequível e adequada ao espaço infantil.',
-        'Visuais de apoio não podem conter texto; rótulos são compostos no documento.',
+        'Criar exatamente um visual instrucional para cada passo da brincadeira, na mesma ordem, demonstrando como executar a instrução em vez de gerar decoração genérica.',
+        'Visuais de apoio não podem conter texto; as instruções são exibidas como legenda e compostas pelo renderer.',
       ],
     },
     [LessonStageType.VERSE_VISUALS]: {

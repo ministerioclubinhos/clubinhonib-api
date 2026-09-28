@@ -1,4 +1,8 @@
-import { buildStoryVisualImagePrompt, extractTiptapSectionText } from './utils';
+import {
+  buildGameInstructionImagePrompt,
+  buildStoryVisualImagePrompt,
+  extractTiptapSectionText,
+} from './utils';
 
 describe('AI lesson utilities', () => {
   it('extracts the complete edited biblical lesson section from Tiptap', () => {
@@ -58,5 +62,28 @@ describe('AI lesson utilities', () => {
     expect(prompt.toLocaleLowerCase('pt-BR')).toContain('fonte canônica');
     expect(prompt).toContain('Não invente');
     expect(prompt).toContain('imagem de referência anexada');
+  });
+
+  it('includes the complete game and exact step in an instructional image prompt', () => {
+    const prompt = buildGameInstructionImagePrompt({
+      game: {
+        name: 'Caminho da bondade',
+        objective: 'Praticar atitudes de bondade.',
+        materials: ['cones', 'cartões'],
+        preparation: ['Organize os cones em linha.'],
+        steps: ['Forme duas filas.', 'Cada criança contorna um cone.'],
+        rulesAndSafety: ['Não correr.'],
+      },
+      stepNumber: 2,
+      instruction: 'Cada criança contorna um cone.',
+      proposedComposition: 'Criança caminhando ao redor do cone.',
+    });
+
+    expect(prompt).toContain('Caminho da bondade');
+    expect(prompt).toContain('Forme duas filas.');
+    expect(prompt).toContain('INSTRUÇÃO 2');
+    expect(prompt).toContain('Cada criança contorna um cone.');
+    expect(prompt).toContain('demonstre claramente como executar');
+    expect(prompt).toContain('Não produza uma ilustração decorativa genérica');
   });
 });

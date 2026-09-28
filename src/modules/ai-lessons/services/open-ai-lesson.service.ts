@@ -55,6 +55,23 @@ const STORY_VISUAL_ASSET_SCHEMA = {
     altText: { type: 'string' },
   },
 } as const;
+const GAME_INSTRUCTION_ASSET_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['id', 'stepNumber', 'instruction', 'purpose', 'prompt', 'altText'],
+  properties: {
+    id: { type: 'string' },
+    stepNumber: { type: 'integer' },
+    instruction: {
+      type: 'string',
+      description:
+        'Cópia literal do passo da brincadeira ilustrado por esta imagem.',
+    },
+    purpose: { type: 'string' },
+    prompt: { type: 'string' },
+    altText: { type: 'string' },
+  },
+} as const;
 const FIXATION_ASSET_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -164,7 +181,11 @@ export function schemaFor(stage: LessonStageType): Record<string, unknown> {
         steps: STRING_ARRAY,
         rulesAndSafety: STRING_ARRAY,
         biblicalPrinciple: { type: 'string' },
-        assets: { type: 'array', items: ASSET_SCHEMA },
+        assets: {
+          type: 'array',
+          minItems: 1,
+          items: GAME_INSTRUCTION_ASSET_SCHEMA,
+        },
       },
     };
   if (stage === LessonStageType.VERSE_VISUALS)
@@ -348,6 +369,7 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
       'Escreva a lição com narrativa pedagógica autoral e linguagem adaptada para crianças de 5 a 11 anos. Não transcreva nem recite capítulos inteiros da Bíblia palavra por palavra no texto narrativo da história; mantenha a fidelidade aos fatos bíblicos usando palavras próprias adequadas ao público infantil.',
       'Para VISUAIS DA HISTÓRIA, trate a lição aprovada como fonte canônica fechada: não reconte, reinterprete, amplie nem substitua a narrativa. Cada imagem deve ilustrar somente personagens, ações, ambientes, objetos e emoções explicitamente presentes nela. Não invente nova cena, personagem, milagre, diálogo, versículo, roupa relevante ou conclusão.',
       'Em VISUAIS DA HISTÓRIA, você decide a quebra narrativa: divida todo o campo story da LIÇÃO BÍBLICA em exatamente visualConfig.quantity trechos literais, contínuos, consecutivos, não sobrepostos e na ordem original. Não omita nem repita nenhuma parte. Cada asset recebe id visual-01, visual-02 etc. e sourceExcerpt com seu trecho exato.',
+      'Na BRINCADEIRA, gere exatamente um visual de instrução para cada item de steps, na mesma ordem. Cada asset usa id instrucao-01, instrucao-02 etc., stepNumber sequencial e instruction como cópia literal do passo correspondente. A imagem demonstra visualmente como executar esse passo; não gere decoração genérica nem texto dentro da arte.',
       'Para VISUAIS DO VERSÍCULO, derive a quantidade da melhor divisão semântica do versículo aprovado; os itens de conteúdo devem reconstruí-lo exatamente e o último item deve conter somente a referência.',
       'VISUAIS DO VERSÍCULO e FIXAÇÃO DO VERSÍCULO são produtos distintos: o primeiro é uma sequência de imagens mnemônicas; o segundo é uma dinâmica ou brincadeira divertida.',
       'Quando houver configuração visual escolhida pelo administrador, ela é obrigatória. Gere exatamente a quantidade solicitada, na orientação pedida e usando a estratégia pedagógica selecionada.',

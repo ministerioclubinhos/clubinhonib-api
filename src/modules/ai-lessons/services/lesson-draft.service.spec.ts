@@ -230,6 +230,66 @@ describe('LessonDraftService workflow safety', () => {
     ).toThrow(ConflictException);
   });
 
+  it('aceita um visual instrucional para cada passo da brincadeira', () => {
+    const target = service as unknown as {
+      validateCanonicalContent: (
+        lesson: LessonEntity,
+        type: LessonStageType,
+        generated: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const generated = {
+      steps: ['Forme uma roda.', 'Passe a bola para a criança ao lado.'],
+      assets: [
+        {
+          id: 'instrucao-01',
+          stepNumber: 1,
+          instruction: 'Forme uma roda.',
+        },
+        {
+          id: 'instrucao-02',
+          stepNumber: 2,
+          instruction: 'Passe a bola para a criança ao lado.',
+        },
+      ],
+    };
+
+    expect(
+      target.validateCanonicalContent(
+        {} as LessonEntity,
+        LessonStageType.STANDARD_GAME,
+        generated,
+      ),
+    ).toBe(generated);
+  });
+
+  it('rejeita visual da brincadeira desconectado do passo correspondente', () => {
+    const target = service as unknown as {
+      validateCanonicalContent: (
+        lesson: LessonEntity,
+        type: LessonStageType,
+        generated: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+
+    expect(() =>
+      target.validateCanonicalContent(
+        {} as LessonEntity,
+        LessonStageType.STANDARD_GAME,
+        {
+          steps: ['Forme uma roda.'],
+          assets: [
+            {
+              id: 'instrucao-01',
+              stepNumber: 1,
+              instruction: 'Crianças brincando no pátio.',
+            },
+          ],
+        },
+      ),
+    ).toThrow(ConflictException);
+  });
+
   it('remove o prefixo scene-01: de citação/blockquote em toTiptap', () => {
     const target = service as unknown as {
       toTiptap: (value: Record<string, unknown>) => {
