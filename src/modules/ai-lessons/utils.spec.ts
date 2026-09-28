@@ -1,6 +1,7 @@
 import {
   buildGameInstructionImagePrompt,
   buildStoryVisualImagePrompt,
+  buildVerseVisualImagePrompt,
   extractTiptapSectionText,
 } from './utils';
 
@@ -85,5 +86,22 @@ describe('AI lesson utilities', () => {
     expect(prompt).toContain('Cada criança contorna um cone.');
     expect(prompt).toContain('demonstre claramente como executar');
     expect(prompt).toContain('Não produza uma ilustração decorativa genérica');
+  });
+
+  it('requests the final verse text inside the generated image', () => {
+    const prompt = buildVerseVisualImagePrompt({
+      fullVerse: 'Eu sou a ressurreição e a vida.',
+      verseReference: 'João 11:25',
+      displayText: 'Eu sou a ressurreição e a vida.',
+      proposedComposition: 'Cores suaves e alegres.',
+    });
+
+    expect(prompt).toContain('95% da área central livre');
+    expect(prompt).toContain('pessoas, personagens');
+    expect(prompt).toContain('objetos reconhecíveis');
+    expect(prompt).toContain('DEVE APARECER DENTRO DA IMAGEM');
+    expect(prompt).toContain('95% da imagem');
+    expect(prompt).toContain('VERSÍCULO COMPLETO NVI');
+    expect(prompt).toContain('João 11:25');
   });
 });

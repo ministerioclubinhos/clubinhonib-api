@@ -10,11 +10,17 @@ Os visuais da história usam como fonte canônica o conteúdo completo do tópic
 
 A primeira cena gerada estabelece a identidade visual da sequência. Todas as cenas seguintes recebem essa mesma imagem-mãe como referência, além da história completa e de sua própria cena aprovada. A referência não é encadeada entre cenas: todas partem da primeira imagem para evitar deriva acumulativa de personagens, roupas, traço, paleta, iluminação e ambientes.
 
+Nos visuais do versículo, a LLM decide a quantidade e os limites semânticos da sequência, mas o backend recompõe cada `displayText` diretamente a partir das palavras do versículo NVI aprovado. Isso preserva a divisão proposta sem permitir paráfrase e evita falhas causadas por espaços ou pontuação nas fronteiras entre dois visuais. A última peça permanece exclusiva para a referência bíblica.
+
+O request da etapa envia à LLM um objeto `canonicalVerse` separado, contendo texto completo, referência completa e versão. A LLM escolhe de uma a nove partes para o texto e acrescenta obrigatoriamente uma última parte isolada somente para a referência. Cada prompt de imagem volta a receber o versículo inteiro, a referência inteira e o trecho específico daquela peça.
+
+Cada visual do versículo é uma imagem final inspirada na referência `lições/Semana 7/versciculo`: o modelo gera o próprio trecho canônico dentro da arte, ocupando aproximadamente 95% da área em tipografia infantil extragrande, arredondada, multicolorida, com contorno branco e sombra. Não existe texto sobreposto pelo frontend ou pelo PDF. O fundo usa raios, nuvens e brilhos periféricos, sem pessoas, personagens, animais, cenas ou objetos reconhecíveis.
+
 Na brincadeira, cada item do passo a passo possui exatamente um visual instrucional na mesma ordem. O prompt de imagem recebe a brincadeira completa e a instrução literal do passo, devendo demonstrar sua execução; imagens decorativas sem função de instrução são rejeitadas pelo contrato estruturado. O preview PDF da etapa imprime o número e a instrução do passo acima da imagem correspondente. Instrução e imagem formam um bloco indivisível para nunca serem separadas pela paginação.
 
 A geração da brincadeira exige uma experiência lúdica de 10 a 15 minutos para crianças de 5 a 11 anos: combina poucas mecânicas fáceis de entender, mantém o grupo ativo, evita eliminação, filas e atividades com aparência de prova, e inclui uma simplificação para 5 a 7 anos e um desafio opcional para 8 a 11 anos.
 
-Ao regenerar uma brincadeira existente, seu conteúdo atual é enviado à LLM somente como referência negativa. A nova versão deve trocar nome, mecânica principal, materiais característicos, organização e sequência de ações. Se a primeira resposta repetir a dinâmica anterior, o backend faz uma segunda tentativa automática; uma nova repetição é rejeitada e nunca substitui a versão atual.
+Ao regenerar uma brincadeira existente, todas as versões anteriores são enviadas à LLM somente como referências negativas. A nova versão deve trocar nome, mecânica principal, materiais característicos, organização e sequência de ações; nenhum nome histórico pode ser reutilizado, mesmo com variações superficiais de acentuação, pontuação ou ordem. Se a primeira resposta repetir qualquer dinâmica anterior, o backend faz uma segunda tentativa automática; uma nova repetição é rejeitada e nunca substitui a versão atual.
 
 Prompts personalizados são anexados ao prompt-base da etapa. Eles nunca substituem as regras editoriais, a segurança infantil, o formato de impressão ou o contrato bíblico.
 

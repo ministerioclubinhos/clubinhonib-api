@@ -43,6 +43,7 @@ import { QueryLessonsDto } from '../dto/query-lessons.dto';
 import {
   buildGameInstructionImagePrompt,
   buildStoryVisualImagePrompt,
+  buildVerseVisualImagePrompt,
   extractTiptapSectionText,
   lessonString,
 } from '../utils';
@@ -334,7 +335,20 @@ export class LessonDraftService implements OnApplicationBootstrap {
     const { stage: type, revisionInstructions } = dto;
     const lesson = await this.getById(id);
     const stage = lesson.stages.find((item) => item.type === type)!;
-    const previousContent = this.currentContent(stage);
+    const previousGameVariants =
+      type === LessonStageType.STANDARD_GAME
+        ? (stage.versions ?? [])
+            .map((version) => this.asObject(version.structuredDataJson))
+            .filter((content) => Boolean(lessonString(content.name)))
+            .map((content) => ({
+              name: content.name,
+              objective: content.objective,
+              funMechanics: content.funMechanics,
+              materials: content.materials,
+              preparation: content.preparation,
+              steps: content.steps,
+            }))
+        : [];
     const upstream = this.assertDependency(lesson, type);
     const template = LESSON_TEMPLATES[type];
     const visualConfig =
@@ -351,8 +365,11 @@ export class LessonDraftService implements OnApplicationBootstrap {
         stage: type,
         template,
         approvedUpstream: upstream,
-        previousContent:
-          type === LessonStageType.STANDARD_GAME ? previousContent : null,
+        previousVariants: previousGameVariants,
+        canonicalVerse:
+          type === LessonStageType.VERSE_VISUALS
+            ? this.canonicalVerseFromLesson(lesson)
+            : null,
         adminPrompt,
         revisionInstructions,
         visualConfig,
@@ -360,8 +377,8 @@ export class LessonDraftService implements OnApplicationBootstrap {
       let generated = await this.llm.generateStage(generationInput);
       if (
         type === LessonStageType.STANDARD_GAME &&
-        previousContent &&
-        !this.isNewGame(previousContent, generated.content)
+        previousGameVariants.length > 0 &&
+        !this.isNewGameFromHistory(previousGameVariants, generated.content)
       ) {
         generated = await this.llm.generateStage({
           ...generationInput,
@@ -386,8 +403,8 @@ export class LessonDraftService implements OnApplicationBootstrap {
       normalized = this.validateCanonicalContent(lesson, type, normalized);
       if (
         type === LessonStageType.STANDARD_GAME &&
-        previousContent &&
-        !this.isNewGame(previousContent, normalized)
+        previousGameVariants.length > 0 &&
+        !this.isNewGameFromHistory(previousGameVariants, normalized)
       )
         throw new ConflictException(
           'A IA repetiu a brincadeira anterior mesmo após uma nova tentativa. Gere novamente para obter uma dinâmica totalmente nova.',
@@ -523,12 +540,14 @@ export class LessonDraftService implements OnApplicationBootstrap {
       ? (content[key] as JsonObject[])
       : [];
     const visualConfig = this.asObject(content.visualConfig);
-    const canonicalLesson =
-      type === LessonStageType.LESSON_VISUALS
-        ? this.currentContent(
-            lesson.stages.find((item) => item.type === LessonStageType.LESSON)!,
-          )
-        : null;
+    const canonicalLesson = [
+      LessonStageType.LESSON_VISUALS,
+      LessonStageType.VERSE_VISUALS,
+    ].includes(type)
+      ? this.currentContent(
+          lesson.stages.find((item) => item.type === LessonStageType.LESSON)!,
+        )
+      : null;
     const completeStory = lessonString(canonicalLesson?.story).trim();
     if (type === LessonStageType.LESSON_VISUALS && !completeStory)
       throw new ConflictException(
@@ -556,7 +575,18 @@ export class LessonDraftService implements OnApplicationBootstrap {
                 instruction: lessonString(asset.instruction),
                 proposedComposition: lessonString(asset.prompt),
               })
-            : lessonString(asset.prompt);
+            : type === LessonStageType.VERSE_VISUALS
+              ? buildVerseVisualImagePrompt({
+                  fullVerse: lessonString(
+                    this.asObject(canonicalLesson?.memoryVerse).text,
+                  ),
+                  verseReference: lessonString(
+                    this.asObject(canonicalLesson?.memoryVerse).reference,
+                  ),
+                  displayText: lessonString(asset.displayText),
+                  proposedComposition: lessonString(asset.prompt),
+                })
+              : lessonString(asset.prompt);
       const buffer = await this.llm.generateImage(
         imagePrompt,
         lessonString(visualConfig.orientation),
@@ -645,16 +675,11 @@ export class LessonDraftService implements OnApplicationBootstrap {
         throw new ConflictException(
           'Os visuais do versículo devem conter de uma a nove imagens de trechos e uma imagem final da referência.',
         );
-      const normalize = (value: string): string =>
-        value.trim().replace(/\s+/g, ' ').toLocaleLowerCase('pt-BR');
-      const reconstructed = assets
-        .slice(0, -1)
-        .map((asset) => lessonString(asset.displayText).trim())
-        .join(' ');
-      if (normalize(reconstructed) !== normalize(text))
-        throw new ConflictException(
-          'A sequência visual não reconstrói exatamente o versículo NVI aprovado, na ordem correta.',
-        );
+      const canonicalContentAssets = this.canonicalizeVerseVisualAssets(
+        text,
+        assets.slice(0, -1),
+      );
+      assets.splice(0, assets.length - 1, ...canonicalContentAssets);
       assets[assets.length - 1] = {
         ...assets[assets.length - 1],
         displayText: reference,
@@ -668,6 +693,56 @@ export class LessonDraftService implements OnApplicationBootstrap {
       verseVersion: 'NVI',
       printableAssets: assets,
     };
+  }
+
+  private canonicalizeVerseVisualAssets(
+    verseText: string,
+    proposedAssets: JsonObject[],
+  ): JsonObject[] {
+    const canonicalWords = verseText.trim().split(/\s+/).filter(Boolean);
+    if (!proposedAssets.length || proposedAssets.length > canonicalWords.length)
+      throw new ConflictException(
+        'A quantidade de visuais precisa permitir ao menos uma palavra do versículo em cada imagem.',
+      );
+
+    let cursor = 0;
+    return proposedAssets.map((asset, index) => {
+      const remainingAssets = proposedAssets.length - index - 1;
+      const remainingWords = canonicalWords.length - cursor;
+      const proposedWordCount = lessonString(asset.displayText)
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean).length;
+      const take =
+        remainingAssets === 0
+          ? remainingWords
+          : Math.min(
+              Math.max(proposedWordCount, 1),
+              remainingWords - remainingAssets,
+            );
+      const displayText = canonicalWords.slice(cursor, cursor + take).join(' ');
+      cursor += take;
+      return { ...asset, displayText };
+    });
+  }
+
+  private canonicalVerseFromLesson(lesson: LessonEntity): {
+    text: string;
+    reference: string;
+    version: string;
+  } | null {
+    const lessonStage = lesson.stages.find(
+      (stage) => stage.type === LessonStageType.LESSON,
+    );
+    const approvedLesson = lessonStage
+      ? this.currentContent(lessonStage)
+      : null;
+    const verse = this.asObject(approvedLesson?.memoryVerse);
+    const text = lessonString(verse.text).trim();
+    const reference = lessonString(verse.reference).trim();
+    return text && reference
+      ? { text, reference, version: lessonString(verse.version) || 'NVI' }
+      : null;
   }
 
   private validateCanonicalContent(
@@ -780,12 +855,14 @@ export class LessonDraftService implements OnApplicationBootstrap {
   private isNewGame(previous: JsonObject, candidate: JsonObject): boolean {
     const normalize = (value: unknown): string =>
       lessonString(value)
-        .trim()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
         .toLocaleLowerCase('pt-BR')
-        .replace(/\s+/g, ' ');
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim();
     const listSignature = (value: unknown): string =>
       Array.isArray(value)
-        ? value.map(normalize).filter(Boolean).join('|')
+        ? value.map(normalize).filter(Boolean).sort().join('|')
         : '';
 
     return (
@@ -793,6 +870,15 @@ export class LessonDraftService implements OnApplicationBootstrap {
       listSignature(previous.funMechanics) !==
         listSignature(candidate.funMechanics) &&
       listSignature(previous.steps) !== listSignature(candidate.steps)
+    );
+  }
+
+  private isNewGameFromHistory(
+    previousVariants: JsonObject[],
+    candidate: JsonObject,
+  ): boolean {
+    return previousVariants.every((previous) =>
+      this.isNewGame(previous, candidate),
     );
   }
 

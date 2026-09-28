@@ -103,3 +103,23 @@ export function buildGameInstructionImagePrompt(input: {
     'REGRA OBRIGATÓRIA: crie uma imagem instrucional que demonstre claramente como executar somente este passo da brincadeira. Mostre posições, materiais, organização e ação necessários. Não produza uma ilustração decorativa genérica e não insira palavras, letras ou números dentro da imagem.',
   ].join('\n\n');
 }
+
+export function buildVerseVisualImagePrompt(input: {
+  fullVerse: string;
+  verseReference: string;
+  displayText: string;
+  proposedComposition: string;
+}): string {
+  return [
+    'CRIE O CARTÃO TIPOGRÁFICO FINAL E COMPLETO DO VERSÍCULO INFANTIL.',
+    `VERSÍCULO COMPLETO NVI, PARA CONTEXTO: "${input.fullVerse.trim()}"`,
+    `REFERÊNCIA COMPLETA: "${input.verseReference.trim()}"`,
+    `TEXTO OBRIGATÓRIO QUE DEVE APARECER DENTRO DA IMAGEM, EXATAMENTE ASSIM, SEM ALTERAR, OMITIR OU ACRESCENTAR NENHUM CARACTERE: "${input.displayText.trim()}".`,
+    'IDENTIDADE VISUAL DE REFERÊNCIA: material infantil vibrante, alegre e luminoso, com fundo azul/ciano, degradês, raios de luz, nuvens estilizadas, brilhos e pequenas formas coloridas somente nas bordas.',
+    'Mantenha 95% da área central livre de elementos, com contraste suficiente para receber tipografia extragrande, arredondada, multicolorida, com contorno branco grosso e sombra suave.',
+    'Use somente detalhes abstratos pequenos nas extremidades ou cantos. Eles emolduram o texto sem competir com ele.',
+    'O texto deve ocupar aproximadamente 95% da imagem e ser o protagonista absoluto: tipografia infantil extragrande, arredondada, multicolorida, com contorno branco grosso e sombra suave.',
+    'PROIBIDO: pessoas, personagens, rostos, animais, cenários, paisagens, salas, construções, objetos reconhecíveis, cenas bíblicas, outras letras, outras palavras, outros números, símbolos religiosos, molduras pesadas ou elementos competindo com o texto.',
+    `Referência estética secundária, sem contrariar as regras: ${input.proposedComposition.trim()}`,
+  ].join('\n\n');
+}

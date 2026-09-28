@@ -313,9 +313,75 @@ describe('LessonDraftService workflow safety', () => {
     expect(
       target.isNewGame(previous, {
         ...previous,
-        name: 'Outro nome para a mesma brincadeira',
+        name: 'Trilha da Alegria!',
+        funMechanics: ['busca', 'movimento'],
       }),
     ).toBe(false);
+  });
+
+  it('rejeita nome ou dinâmica reutilizados de qualquer versão anterior', () => {
+    const target = service as unknown as {
+      isNewGameFromHistory: (
+        previous: Array<Record<string, unknown>>,
+        candidate: Record<string, unknown>,
+      ) => boolean;
+    };
+    const history = [
+      {
+        name: 'Caça às pistas',
+        funMechanics: ['busca', 'cooperação'],
+        steps: ['Encontre uma pista.', 'Monte a resposta.'],
+      },
+      {
+        name: 'Torre da amizade',
+        funMechanics: ['construção', 'ritmo'],
+        steps: ['Escolha uma peça.', 'Construa a torre.'],
+      },
+    ];
+
+    expect(
+      target.isNewGameFromHistory(history, {
+        name: 'Caça as Pistas!',
+        funMechanics: ['movimento', 'imitação'],
+        steps: ['Imite um gesto.', 'Troque de lugar.'],
+      }),
+    ).toBe(false);
+  });
+
+  it('aplica a quebra da IA usando somente o texto canônico do versículo', () => {
+    const target = service as unknown as {
+      canonicalizeVerseVisualAssets: (
+        verseText: string,
+        assets: Array<Record<string, unknown>>,
+      ) => Array<Record<string, unknown>>;
+    };
+    const canonical = 'Disse-lhe Jesus: Eu sou a ressurreição e a vida.';
+    const assets = target.canonicalizeVerseVisualAssets(canonical, [
+      { id: 'parte-01', displayText: 'Disse Jesus eu sou' },
+      { id: 'parte-02', displayText: 'a ressurreição' },
+      { id: 'parte-03', displayText: 'e a vida .' },
+    ]);
+
+    expect(assets.map((asset) => asset.displayText).join(' ')).toBe(canonical);
+    expect(assets[0].displayText).toBe('Disse-lhe Jesus: Eu sou');
+    expect(assets[2].displayText).toBe('e a vida.');
+  });
+
+  it('rejeita mais visuais de conteúdo do que palavras no versículo', () => {
+    const target = service as unknown as {
+      canonicalizeVerseVisualAssets: (
+        verseText: string,
+        assets: Array<Record<string, unknown>>,
+      ) => Array<Record<string, unknown>>;
+    };
+
+    expect(() =>
+      target.canonicalizeVerseVisualAssets('Jesus vive.', [
+        { displayText: 'Jesus' },
+        { displayText: 'vive' },
+        { displayText: '.' },
+      ]),
+    ).toThrow(ConflictException);
   });
 
   it('remove o prefixo scene-01: de citação/blockquote em toTiptap', () => {

@@ -104,7 +104,7 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
         'Dividir todo o texto do versículo em trechos curtos, consecutivos e semanticamente completos, sem omitir, repetir, alterar ou reordenar palavras.',
         'Criar uma imagem mnemônica para cada trecho e acrescentar obrigatoriamente uma última imagem dedicada somente à referência bíblica.',
         'A quantidade é determinada pela melhor quebra pedagógica do versículo; o cartão final não contém o texto do versículo.',
-        'Imagens em cores claras, A4 paisagem, sem texto embutido; o renderer compõe trechos e referência com exatidão.',
+        'Cartões tipográficos finais em A4 paisagem no padrão da Semana 7: a própria imagem gerada contém o texto exato, extragrande, arredondado e multicolorido em aproximadamente 95% da área, sem sobreposição posterior.',
       ],
     },
     [LessonStageType.VERSE_FIXATION]: {

@@ -190,18 +190,20 @@ REGRAS
 
 FONTE FECHADA
 - Use exclusivamente o versículo principal aprovado na lição: texto integral, referência e versão NVI. Não escolha outro texto, não parafraseie e não acrescente palavras.
+- Receba e considere juntos o texto completo do versículo e sua referência completa antes de decidir a sequência.
 - Analise a estrutura do versículo e divida-o na melhor sequência de unidades de sentido para crianças de 5 a 11 anos. Cada trecho precisa ser curto o bastante para memorizar, mas completo o bastante para fazer sentido.
 - Os trechos, lidos em ordem, devem reconstruir exatamente o texto integral, sem lacunas, repetições ou troca de ordem.
 
 SEQUÊNCIA VISUAL OBRIGATÓRIA
-- Crie uma imagem mnemônica para cada trecho. A quantidade não é informada pelo administrador: derive-a da quebra semântica mais pedagógica, entre uma e nove imagens de conteúdo.
-- Acrescente sempre uma última imagem exclusiva para a referência bíblica. Nessa última peça, displayText deve conter somente a referência; nunca repita nela o texto integral do versículo.
+- Crie um cartão tipográfico para cada trecho. A quantidade não é informada pelo administrador: derive-a da quebra semântica mais pedagógica, entre uma e nove imagens de conteúdo.
+- Depois de decidir a quantidade de trechos, acrescente sempre uma última imagem exclusiva para a referência bíblica. Nessa última peça, displayText e a imagem devem conter somente a referência completa; nunca misture referência e texto do versículo.
 - Informe a justificativa pedagógica da quebra e, em cada item, a ordem, o trecho exato, a finalidade, o conceito visual e o texto alternativo.
-- A imagem deve representar concretamente a ideia do trecho sem criar nova doutrina, narrativa ou promessa.
+- O texto exato do trecho é o protagonista absoluto e deve ser gerado dentro da própria imagem, ocupando aproximadamente 95% da composição final.
 
 ARTE E IMPRESSÃO
-- Ilustrações infantis acolhedoras, luminosas, em cores claras e suaves, sempre horizontais/paisagem para A4, com margem segura e unidade visual entre todas as peças.
-- Não gere letras, palavras, números, versículos, referência, molduras ou logotipos dentro da arte. O renderer aplicará deterministicamente o trecho ou a referência sobre a composição.
+- Fundo infantil vibrante no padrão visual da Semana 7: azul/ciano luminoso, degradês, raios, nuvens estilizadas, brilhos e pequenas formas apenas nas bordas; centro livre para o texto dominante.
+- Não inclua pessoas, personagens, animais, cenários, paisagens, construções, objetos reconhecíveis ou cenas bíblicas. Admita somente pequenos detalhes abstratos nos cantos ou extremidades.
+- Gere dentro da imagem somente o trecho exato ou a referência exata solicitada, em tipografia infantil extragrande, arredondada, multicolorida, com contorno branco grosso e sombra. Não acrescente nenhuma outra letra, palavra, número, moldura pesada ou logotipo.
 - Preserve adequação para crianças de 5 a 11 anos e fidelidade bíblica NVI. Não inclua sexualização, romance, violência gráfica ou elementos assustadores.`,
   [LessonStageType.VERSE_FIXATION]: `Produza somente a DINÂMICA/BRINCADEIRA DE FIXAÇÃO DO VERSÍCULO, seguindo os exemplos manuais do Clubinho Bíblico NIB, como circuitos, quebra-cabeças, ordem de cartões, desafios de repetição, pistas e jogos cooperativos. Esta etapa é diferente dos Visuais do Versículo, já produzidos anteriormente.
 

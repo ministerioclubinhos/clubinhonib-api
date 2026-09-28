@@ -809,7 +809,10 @@ export class DocxExporterService {
         });
         const instruction =
           typeof asset.instruction === 'string' ? asset.instruction.trim() : '';
-        const instructionWithoutRepeatedNumber = instruction.replace(/^\d+\.\s*/, '');
+        const instructionWithoutRepeatedNumber = instruction.replace(
+          /^\d+\.\s*/,
+          '',
+        );
         const stepNumber = Number(asset.stepNumber);
         const displayText = imageOnly
           ? ''
