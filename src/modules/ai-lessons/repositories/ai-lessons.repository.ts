@@ -5,6 +5,7 @@ import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity
 import { LessonEntity } from '../entities/lesson.entity';
 import { LessonStageEntity } from '../entities/lesson-stage.entity';
 import { LessonVersionEntity } from '../entities/lesson-version.entity';
+import { LessonCommentEntity } from '../entities/lesson-comment.entity';
 import { LessonStageStatus, LessonStatus } from '../enums/lesson.enums';
 import { QueryLessonsDto, LessonSortField } from '../dto/query-lessons.dto';
 
@@ -25,6 +26,8 @@ export class AiLessonsRepository {
     private readonly stagesRepo: Repository<LessonStageEntity>,
     @InjectRepository(LessonVersionEntity)
     private readonly versionsRepo: Repository<LessonVersionEntity>,
+    @InjectRepository(LessonCommentEntity)
+    private readonly commentsRepo: Repository<LessonCommentEntity>,
   ) {}
 
   async runInTransaction<T>(
@@ -45,6 +48,12 @@ export class AiLessonsRepository {
     return manager
       ? manager.getRepository(LessonVersionEntity)
       : this.versionsRepo;
+  }
+
+  private comments(manager?: EntityManager): Repository<LessonCommentEntity> {
+    return manager
+      ? manager.getRepository(LessonCommentEntity)
+      : this.commentsRepo;
   }
 
   private bindStageToVersions(stage: LessonStageEntity): void {
@@ -88,6 +97,7 @@ export class AiLessonsRepository {
   ): Promise<LessonEntity | null> {
     return this.lessons(manager)
       .createQueryBuilder('lesson')
+      .leftJoinAndSelect('lesson.stages', 'stages')
       .setLock('pessimistic_write')
       .where('lesson.id = :id', { id })
       .getOne();
@@ -228,5 +238,16 @@ export class AiLessonsRepository {
     manager?: EntityManager,
   ): Promise<LessonVersionEntity> {
     return this.versions(manager).save(version);
+  }
+
+  createComment(data: Partial<LessonCommentEntity>): LessonCommentEntity {
+    return this.commentsRepo.create(data);
+  }
+
+  async saveComment(
+    comment: LessonCommentEntity,
+    manager?: EntityManager,
+  ): Promise<LessonCommentEntity> {
+    return this.comments(manager).save(comment);
   }
 }

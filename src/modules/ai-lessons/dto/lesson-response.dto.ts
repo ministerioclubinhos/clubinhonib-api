@@ -36,6 +36,16 @@ export class LessonResponseDto {
   createdAt: Date;
   updatedAt: Date;
   stages: LessonStageResponseDto[];
+  comments: LessonCommentResponseDto[];
+}
+
+export class LessonCommentResponseDto {
+  id: string;
+  sectionKey: string;
+  commentText: string;
+  isResolved: boolean;
+  authorId: string;
+  createdAt: Date;
 }
 
 export class LessonListResponseDto {
@@ -88,4 +98,12 @@ export const toLessonResponse = (lesson: LessonEntity): LessonResponseDto => ({
   createdAt: lesson.createdAt,
   updatedAt: lesson.updatedAt,
   stages: (lesson.stages ?? []).map(mapStage),
+  comments: (lesson.comments ?? []).map((comment) => ({
+    id: comment.id,
+    sectionKey: comment.sectionKey,
+    commentText: comment.commentText,
+    isResolved: comment.isResolved,
+    authorId: comment.authorId,
+    createdAt: comment.createdAt,
+  })),
 });

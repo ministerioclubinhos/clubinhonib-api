@@ -10,15 +10,25 @@ describe('AiLessonsRepository relation binding', () => {
   let mockVersionsRepo: { save: jest.Mock; create: jest.Mock };
 
   beforeEach(() => {
-    mockLessonsRepo = { save: jest.fn((val) => Promise.resolve(val)), create: jest.fn() };
-    mockStagesRepo = { save: jest.fn((val) => Promise.resolve(val)), create: jest.fn() };
-    mockVersionsRepo = { save: jest.fn((val) => Promise.resolve(val)), create: jest.fn() };
+    mockLessonsRepo = {
+      save: jest.fn((val) => Promise.resolve(val)),
+      create: jest.fn(),
+    };
+    mockStagesRepo = {
+      save: jest.fn((val) => Promise.resolve(val)),
+      create: jest.fn(),
+    };
+    mockVersionsRepo = {
+      save: jest.fn((val) => Promise.resolve(val)),
+      create: jest.fn(),
+    };
 
     repository = new AiLessonsRepository(
       {} as any,
       mockLessonsRepo as any,
       mockStagesRepo as any,
       mockVersionsRepo as any,
+      {} as any,
     );
   });
 

@@ -146,8 +146,16 @@ export class AiLessonsController {
   @Post(':id/stages/request-changes') async requestChanges(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ReviewStageRequestDto,
+    @Req() req: AuthRequest,
   ): Promise<LessonResponseDto> {
-    return toLessonResponse(await this.service.requestChanges(id, dto.stage));
+    return toLessonResponse(
+      await this.service.requestChanges(
+        id,
+        dto.stage,
+        dto.note,
+        req.user.userId,
+      ),
+    );
   }
   @Post(':id/export/pdf')
   @Header('Content-Type', 'application/pdf')

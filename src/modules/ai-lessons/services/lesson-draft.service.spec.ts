@@ -26,6 +26,8 @@ describe('LessonDraftService workflow safety', () => {
     findGeneratingStages: jest.fn(),
     claimGeneration: jest.fn(),
     renewGenerationLease: jest.fn(),
+    createComment: jest.fn((value) => value),
+    saveComment: jest.fn(),
   };
   const weekMaterials = { createWeekMaterialsPage: jest.fn() };
   const service = new LessonDraftService(
@@ -39,6 +41,47 @@ describe('LessonDraftService workflow safety', () => {
   );
 
   beforeEach(() => jest.clearAllMocks());
+
+  it('traduz saldo esgotado da OpenAI e identifica o item afetado', () => {
+    const target = service as unknown as {
+      describeAiFailure: (
+        type: LessonStageType,
+        error: unknown,
+      ) => { code: string; message: string };
+    };
+    const failure = target.describeAiFailure(
+      LessonStageType.MEDITATION_YOUNGER,
+      new Error(
+        'Falha ao gerar MEDITATION_YOUNGER na OpenAI: {"error":{"type":"insufficient_quota","code":"credit_balance_exhausted"}}',
+      ),
+    );
+
+    expect(failure.code).toBe('AI_CREDITS_EXHAUSTED');
+    expect(failure.message).toContain('6. Meditação dos menores');
+    expect(failure.message).toContain('OpenAI');
+    expect(failure.message).toContain('créditos da conta acabaram');
+    expect(failure.message).not.toContain('insufficient_quota');
+  });
+
+  it('traduz cota esgotada do Gemini e identifica o item afetado', () => {
+    const target = service as unknown as {
+      describeAiFailure: (
+        type: LessonStageType,
+        error: unknown,
+      ) => { code: string; message: string };
+    };
+    const failure = target.describeAiFailure(
+      LessonStageType.VERSE_FIXATION,
+      new Error(
+        'Falha no Gemini: {"error":{"code":429,"status":"RESOURCE_EXHAUSTED"}}',
+      ),
+    );
+
+    expect(failure.code).toBe('AI_RATE_LIMITED');
+    expect(failure.message).toContain('5. Fixação divertida do versículo');
+    expect(failure.message).toContain('Gemini');
+    expect(failure.message).toContain('limite de uso');
+  });
 
   it('une o versículo e traduz todos os rótulos da fixação para português', () => {
     const target = service as unknown as {
@@ -155,6 +198,43 @@ describe('LessonDraftService workflow safety', () => {
     await expect(
       service.publishToWeekMaterial('lesson-1'),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('nunca aprova etapas implicitamente ao tentar publicar', async () => {
+    const stages = Object.values(LessonStageType).map((type, index) => ({
+      id: `stage-${index}`,
+      type,
+      status:
+        index === 0 ? LessonStageStatus.APPROVED : LessonStageStatus.IN_REVIEW,
+      currentVersionId: `version-${index}`,
+    }));
+    repo.runInTransaction.mockImplementation(
+      async (work: (manager: object) => Promise<unknown>) => work({}),
+    );
+    repo.findLessonByIdForUpdate.mockResolvedValue({
+      id: 'lesson-1',
+      status: LessonStatus.IN_REVIEW,
+      stages,
+    } as unknown as LessonEntity);
+
+    await expect(
+      service.publishToWeekMaterial('lesson-1'),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(repo.saveStage).not.toHaveBeenCalled();
+    expect(repo.updateStage).not.toHaveBeenCalled();
+    expect(weekMaterials.createWeekMaterialsPage).not.toHaveBeenCalled();
+  });
+
+  it('exige observação ao solicitar ajustes', async () => {
+    await expect(
+      service.requestChanges(
+        'lesson-1',
+        LessonStageType.LESSON,
+        '   ',
+        'reviewer-1',
+      ),
+    ).rejects.toThrow('Descreva os ajustes necessários');
+    expect(repo.runInTransaction).not.toHaveBeenCalled();
   });
 
   it('mantém a referência bíblica cadastrada como valor canônico', () => {
