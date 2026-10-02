@@ -4,9 +4,14 @@ actor Administrador
 participant Frontend
 participant "AI Lessons API" as API
 database MySQL
-participant OpenAI
+participant "Provedor salvo (OpenAI/Gemini)" as OpenAI
 collections S3
 participant "Materiais da semana" as Week
+
+Administrador -> Frontend: configura provedor e parâmetros
+Frontend -> API: PUT /lessons/providers/settings
+API -> MySQL: transação: OpenAI + Gemini + escolha ativa
+API --> Frontend: configurações salvas (ou erro)
 
 Administrador -> Frontend: cria pacote
 Frontend -> API: POST /lessons
@@ -15,7 +20,15 @@ API -> MySQL: transação: lição + 8 etapas
 loop cada etapa
   Administrador -> Frontend: gerar/revisar/concluir
   Frontend -> API: gerar ou salvar versão
-  API -> OpenAI: conteúdo e imagens
+  note right of API
+    Lição: prompt editorial + notas curadas
+    Narrativa participativa; cenas separadas
+    Múltiplos relatos: subtítulos ### em story -> H3 no editor/PDF
+    8 a 10 perguntas; oração final opcional
+    Referências incompletas para revisão humana
+  end note
+  API -> MySQL: resolve provedor e parâmetros salvos
+  API -> OpenAI: conteúdo e imagens (sem env)
   OpenAI --> API: JSON / PNG
   API -> S3: uploads rastreados
   API -> MySQL: versão + etapa
@@ -26,6 +39,13 @@ loop cada etapa
 end
 
 Administrador -> Frontend: publicar
+note right of API
+  Editor e prévia/exportação PDF: normalizam cabeçalho salvo
+  LIÇÃO (semana), TÍTULO e tema em blocos separados
+  Preserva fonte, tamanho, cor, espaçamento, links e células mescladas
+  Tiptap salvo -> DOCX -> LibreOffice -> PDF
+  Meditações MANUAL_EDIT usam o documento revisado
+end note
 Frontend -> API: POST /publish-week-material
 API -> MySQL: lock; READY -> PUBLISHING
 API -> Week: criar página e PDF

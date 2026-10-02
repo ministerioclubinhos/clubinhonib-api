@@ -16,9 +16,26 @@ import {
   TableCell,
   TableRow,
   TextRun,
+  ExternalHyperlink,
+  ParagraphChild,
   WidthType,
 } from 'docx';
-import { LessonStageType } from '../enums/lesson.enums';
+import { LessonStageType, LessonVersionSource } from '../enums/lesson.enums';
+import {
+  documentFontFamily,
+  documentFontSize,
+  documentLineSpacing,
+  documentLink,
+  documentTableSpan,
+  documentCellWidth,
+} from '../lessonDocument.utils';
+import type { LessonInlineExportOptions } from '../types/lesson-document.types';
+import {
+  lessonHeaderLines,
+  lessonString,
+  lessonStoryHeading,
+  normalizeLessonDocumentHeader,
+} from '../utils';
 
 type Json = Record<string, unknown>;
 type Alignment = (typeof AlignmentType)[keyof typeof AlignmentType];
@@ -27,7 +44,10 @@ type Alignment = (typeof AlignmentType)[keyof typeof AlignmentType];
 export class DocxExporterService {
   constructor(private readonly config: ConfigService) {}
 
-  async buildDocxFromTiptapOrStructuredJson(input: Json): Promise<Buffer> {
+  async buildDocxFromTiptapOrStructuredJson(
+    input: Json,
+    weekNumber?: number,
+  ): Promise<Buffer> {
     const [left, right] = await Promise.all([
       this.header(
         'LESSON_HEADER_LEFT_PATH',
@@ -41,30 +61,46 @@ export class DocxExporterService {
     const children: (Paragraph | Table)[] = [];
     const lesson = this.stageData(input[LessonStageType.LESSON]);
     const lessonDoc = this.stageDocument(input[LessonStageType.LESSON]);
-    if (Object.keys(lesson).length) {
+    if (Object.keys(lesson).length || lessonDoc) {
       if (lessonDoc) {
-        this.addTiptap(children, lessonDoc);
-      } else {
-        this.addHeading(children, String(lesson.title ?? 'LIÇÃO'), 1);
-        this.addField(
+        this.addTiptap(
           children,
-          'TEXTO / REFERÊNCIA BÍBLICA',
-          lesson.biblicalReference,
+          normalizeLessonDocumentHeader(lessonDoc, weekNumber),
         );
+      } else {
+        lessonHeaderLines(lessonString(lesson.title), weekNumber).forEach(
+          (line) => this.addHeading(children, line, 1),
+        );
+        this.addField(children, 'TEXTO BÍBLICO', lesson.biblicalReference);
         this.addField(children, 'PROPÓSITO', lesson.purpose);
         this.addList(children, 'MÚSICAS', lesson.songs);
         const verse = this.object(lesson.memoryVerse);
         this.addHeading(children, 'VERSÍCULO PARA MEMORIZAR', 2);
         this.addText(
           children,
-          `${String(verse.text ?? '')} — ${String(verse.reference ?? '')} (${String(verse.version ?? '')})`,
+          `${lessonString(verse.text)} — ${lessonString(verse.reference)} (${lessonString(verse.version)})`,
         );
         this.addField(
           children,
           'EXPLICAÇÃO DO PRINCÍPIO',
           lesson.principleExplanation,
         );
-        this.addField(children, 'HISTÓRIA BÍBLICA', lesson.story);
+        this.addHeading(children, 'LIÇÃO BÍBLICA', 2);
+        for (const line of lessonString(lesson.story)
+          .split(/\r?\n/)
+          .map((text) => text.trim())
+          .filter(Boolean)) {
+          const title = lessonStoryHeading(line);
+          if (title)
+            this.renderTiptapNodes(children, [
+              {
+                type: 'heading',
+                attrs: { level: 3, textAlign: 'left' },
+                content: [{ type: 'text', text: title }],
+              },
+            ]);
+          else this.addText(children, line);
+        }
         this.addField(
           children,
           'APLICAÇÃO E APELO',
@@ -105,6 +141,27 @@ export class DocxExporterService {
       input[LessonStageType.VERSE_FIXATION],
       fixationStage,
     );
+
+    const editedYounger =
+      this.object(input[LessonStageType.MEDITATION_YOUNGER]).createdSource ===
+      LessonVersionSource.MANUAL_EDIT;
+    const editedOlder =
+      this.object(input[LessonStageType.MEDITATION_OLDER]).createdSource ===
+      LessonVersionSource.MANUAL_EDIT;
+    if (editedYounger)
+      this.addEditableStage(
+        children,
+        'MEDITAÇÃO PARA CRIANÇAS MENORES',
+        input[LessonStageType.MEDITATION_YOUNGER],
+        youngerMeditation,
+      );
+    if (editedOlder)
+      this.addEditableStage(
+        children,
+        'MEDITAÇÃO PARA CRIANÇAS MAIORES',
+        input[LessonStageType.MEDITATION_OLDER],
+        olderMeditation,
+      );
 
     const headerTable = new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
@@ -184,8 +241,8 @@ export class DocxExporterService {
         ? await this.portraitAssetPages(visualStage)
         : [];
     const supplementaryPages = await this.supplementaryPortraitPages(
-      youngerMeditation,
-      olderMeditation,
+      editedYounger ? {} : youngerMeditation,
+      editedOlder ? {} : olderMeditation,
       manualWork,
     );
     const sections = [
@@ -274,8 +331,8 @@ export class DocxExporterService {
     raw: unknown,
     structured: Json,
   ): void {
-    if (!Object.keys(structured).length) return;
     const document = this.stageDocument(raw);
+    if (!Object.keys(structured).length && !document) return;
     if (document) {
       this.addHeading(out, title, 1);
       this.addTiptap(out, document);
@@ -299,7 +356,7 @@ export class DocxExporterService {
 
     for (const raw of nodes) {
       const node = this.object(raw);
-      const type = String(node.type ?? '');
+      const type = lessonString(node.type);
 
       if (type === 'bulletList') {
         const listContent = Array.isArray(node.content) ? node.content : [];
@@ -350,7 +407,7 @@ export class DocxExporterService {
                     : HeadingLevel.HEADING_3,
               alignment,
               children: runs,
-              spacing: { before: 240, after: 120 },
+              spacing: documentLineSpacing(attrs, { before: 240, after: 120 }),
             }),
           );
         }
@@ -367,19 +424,33 @@ export class DocxExporterService {
         continue;
       }
 
-      if (type === 'paragraph') {
+      if (type === 'horizontalRule') {
+        out.push(
+          new Paragraph({
+            border: {
+              bottom: { color: 'DDDDDD', style: BorderStyle.SINGLE, size: 6 },
+            },
+          }),
+        );
+        continue;
+      }
+      if (type === 'paragraph' || type === 'codeBlock') {
         const attrs = this.object(node.attrs);
         const alignment = this.getAlignment(attrs, AlignmentType.JUSTIFIED);
         const runs = this.convertInlineNodesToTextRuns(
           Array.isArray(node.content) ? node.content : [],
-          { size: 24, defaultColor: '000000' },
+          {
+            size: 24,
+            defaultColor: '000000',
+            defaultFont: type === 'codeBlock' ? 'Courier New' : undefined,
+          },
         );
-        if (runs.length) {
+        if (runs.length || type === 'paragraph') {
           out.push(
             new Paragraph({
               alignment,
-              spacing: { after: 140, line: 276 },
-              children: runs,
+              spacing: documentLineSpacing(attrs, { after: 140, line: 276 }),
+              children: runs.length ? runs : [new TextRun('')],
             }),
           );
         }
@@ -403,7 +474,7 @@ export class DocxExporterService {
 
     for (const rawChild of itemContent) {
       const child = this.object(rawChild);
-      const childType = String(child.type ?? '');
+      const childType = lessonString(child.type);
 
       if (childType === 'paragraph') {
         const attrs = this.object(child.attrs);
@@ -428,7 +499,7 @@ export class DocxExporterService {
           new Paragraph({
             alignment,
             indent: { left: Math.max(360, depth * 360) },
-            spacing: { after: 100, line: 260 },
+            spacing: documentLineSpacing(attrs, { after: 100, line: 260 }),
             children,
           }),
         );
@@ -446,7 +517,7 @@ export class DocxExporterService {
     const content = Array.isArray(quoteNode.content) ? quoteNode.content : [];
     for (const rawChild of content) {
       const child = this.object(rawChild);
-      const childType = String(child.type ?? '');
+      const childType = lessonString(child.type);
       if (childType === 'paragraph') {
         const attrs = this.object(child.attrs);
         const alignment = this.getAlignment(attrs, AlignmentType.JUSTIFIED);
@@ -462,7 +533,11 @@ export class DocxExporterService {
             border: {
               left: { color: '000000', style: BorderStyle.SINGLE, size: 24 },
             },
-            spacing: { before: 140, after: 140, line: 260 },
+            spacing: documentLineSpacing(attrs, {
+              before: 140,
+              after: 140,
+              line: 260,
+            }),
             children: runs,
           }),
         );
@@ -498,24 +573,24 @@ export class DocxExporterService {
 
     for (const rawRow of tableContent) {
       const rowNode = this.object(rawRow);
-      if (String(rowNode.type ?? '') !== 'tableRow') continue;
+      if (lessonString(rowNode.type) !== 'tableRow') continue;
 
       const rowContent = Array.isArray(rowNode.content) ? rowNode.content : [];
       const cells: TableCell[] = [];
 
       for (const rawCell of rowContent) {
         const cellNode = this.object(rawCell);
-        const cellType = String(cellNode.type ?? '');
+        const cellType = lessonString(cellNode.type);
         if (cellType !== 'tableCell' && cellType !== 'tableHeader') continue;
 
         const cellContent = Array.isArray(cellNode.content)
           ? cellNode.content
           : [];
-        const cellParagraphs: Paragraph[] = [];
+        const cellParagraphs: (Paragraph | Table)[] = [];
 
         for (const rawPara of cellContent) {
           const paraNode = this.object(rawPara);
-          if (String(paraNode.type ?? '') === 'paragraph') {
+          if (lessonString(paraNode.type) === 'paragraph') {
             const attrs = this.object(paraNode.attrs);
             const alignment = this.getAlignment(attrs, AlignmentType.LEFT);
             const runs = this.convertInlineNodesToTextRuns(
@@ -529,12 +604,14 @@ export class DocxExporterService {
             cellParagraphs.push(
               new Paragraph({
                 alignment,
-                spacing: { after: 60, line: 240 },
+                spacing: documentLineSpacing(attrs, { after: 60, line: 240 }),
                 children: runs.length
                   ? runs
                   : [new TextRun({ text: '', size: 22 })],
               }),
             );
+          } else {
+            this.renderTiptapNodes(cellParagraphs, [paraNode]);
           }
         }
 
@@ -544,9 +621,17 @@ export class DocxExporterService {
           );
         }
 
+        const cellWidth = documentCellWidth(
+          this.object(cellNode.attrs).colwidth,
+        );
         cells.push(
           new TableCell({
             children: cellParagraphs,
+            columnSpan: documentTableSpan(this.object(cellNode.attrs).colspan),
+            rowSpan: documentTableSpan(this.object(cellNode.attrs).rowspan),
+            width: cellWidth
+              ? { size: cellWidth, type: WidthType.DXA }
+              : undefined,
             shading:
               cellType === 'tableHeader' ? { fill: 'F1F5F9' } : undefined,
             margins: { top: 100, bottom: 100, left: 140, right: 140 },
@@ -554,9 +639,7 @@ export class DocxExporterService {
         );
       }
 
-      if (cells.length) {
-        rows.push(new TableRow({ children: cells }));
-      }
+      rows.push(new TableRow({ children: cells }));
     }
 
     if (rows.length) {
@@ -571,24 +654,19 @@ export class DocxExporterService {
 
   private convertInlineNodesToTextRuns(
     nodes: unknown[],
-    options: {
-      size?: number;
-      defaultColor?: string;
-      defaultBold?: boolean;
-      defaultItalic?: boolean;
-    } = {},
-  ): TextRun[] {
+    options: LessonInlineExportOptions = {},
+  ): ParagraphChild[] {
     if (!Array.isArray(nodes)) return [];
     const defaultSize = options.size ?? 24;
     const defaultColor = options.defaultColor ?? '000000';
     const defaultBold = options.defaultBold ?? false;
     const defaultItalic = options.defaultItalic ?? false;
 
-    const runs: TextRun[] = [];
+    const runs: ParagraphChild[] = [];
 
     for (const raw of nodes) {
       const node = this.object(raw);
-      const type = String(node.type ?? '');
+      const type = lessonString(node.type);
 
       if (type === 'hardBreak') {
         runs.push(new TextRun({ break: 1 }));
@@ -613,11 +691,17 @@ export class DocxExporterService {
         let isSubScript = false;
         let isSuperScript = false;
         let textColor = defaultColor;
+        let font = options.defaultFont;
+        let size = defaultSize;
+        let href: string | undefined;
         let highlightFill: string | undefined = undefined;
 
         for (const rawMark of marks) {
           const mark = this.object(rawMark);
-          const mType = String(mark.type ?? '');
+          const mType = lessonString(mark.type);
+          if (mType === 'link')
+            href = documentLink(this.object(mark.attrs).href);
+          if (mType === 'code') font = 'Courier New';
           if (mType === 'bold') isBold = true;
           if (mType === 'italic') isItalic = true;
           if (mType === 'underline') isUnderline = true;
@@ -626,6 +710,8 @@ export class DocxExporterService {
           if (mType === 'superscript') isSuperScript = true;
           if (mType === 'textStyle' || mType === 'color') {
             const attrs = this.object(mark.attrs);
+            font = documentFontFamily(attrs.fontFamily) ?? font;
+            size = documentFontSize(attrs.fontSize) ?? size;
             if (typeof attrs.color === 'string' && attrs.color) {
               textColor = attrs.color.replace(/^#/, '');
             }
@@ -640,19 +726,21 @@ export class DocxExporterService {
           }
         }
 
+        const run = new TextRun({
+          text,
+          bold: isBold,
+          italics: isItalic,
+          underline: isUnderline || href ? {} : undefined,
+          strike: isStrike,
+          subScript: isSubScript,
+          superScript: isSuperScript,
+          color: href && textColor === defaultColor ? '0563C1' : textColor,
+          shading: highlightFill ? { fill: highlightFill } : undefined,
+          size,
+          font,
+        });
         runs.push(
-          new TextRun({
-            text,
-            bold: isBold,
-            italics: isItalic,
-            underline: isUnderline ? {} : undefined,
-            strike: isStrike,
-            subScript: isSubScript,
-            superScript: isSuperScript,
-            color: textColor,
-            shading: highlightFill ? { fill: highlightFill } : undefined,
-            size: defaultSize,
-          }),
+          href ? new ExternalHyperlink({ link: href, children: [run] }) : run,
         );
       } else if (Array.isArray(node.content)) {
         runs.push(...this.convertInlineNodesToTextRuns(node.content, options));
@@ -666,7 +754,7 @@ export class DocxExporterService {
     nodeAttrs: Json,
     defaultAlignment: Alignment = AlignmentType.JUSTIFIED,
   ): Alignment {
-    const align = String(nodeAttrs.textAlign ?? '').toLowerCase();
+    const align = lessonString(nodeAttrs.textAlign).toLowerCase();
     if (align === 'center') return AlignmentType.CENTER;
     if (align === 'right') return AlignmentType.RIGHT;
     if (align === 'left') return AlignmentType.LEFT;
@@ -776,7 +864,7 @@ export class DocxExporterService {
       const q = this.object(item);
       this.addText(
         out,
-        `${index + 1}. ${String(q.question ?? '')}\nResposta: ${String(q.answer ?? '')}`,
+        `${index + 1}. ${lessonString(q.question)}\nResposta: ${lessonString(q.answer)}`,
       );
     });
   }
@@ -995,7 +1083,7 @@ export class DocxExporterService {
           alignment: AlignmentType.CENTER,
           children: [
             new TextRun({
-              text: String(data.title ?? '').toLocaleUpperCase('pt-BR'),
+              text: lessonString(data.title).toLocaleUpperCase('pt-BR'),
               bold: true,
               size: duplicate ? 17 : 20,
             }),
@@ -1039,7 +1127,7 @@ export class DocxExporterService {
           },
           children: [
             new TextRun({
-              text: `“${String(data.verseText ?? '')}” (${String(data.verseReference ?? '')} - NVI)`,
+              text: `“${lessonString(data.verseText)}” (${lessonString(data.verseReference)} - NVI)`,
               size: duplicate ? 14 : 17,
             }),
           ],
@@ -1072,7 +1160,7 @@ export class DocxExporterService {
           new Paragraph({
             children: [
               new TextRun({
-                text: `${index + 1}. ${String(activity.instruction ?? '')}`,
+                text: `${index + 1}. ${lessonString(activity.instruction)}`,
                 bold: true,
                 size: duplicate ? 14 : 17,
               }),
@@ -1113,7 +1201,7 @@ export class DocxExporterService {
               size: duplicate ? 15 : 18,
             }),
             new TextRun({
-              text: String(data.prayer ?? ''),
+              text: lessonString(data.prayer),
               size: duplicate ? 15 : 18,
             }),
           ],
@@ -1200,7 +1288,7 @@ export class DocxExporterService {
         alignment: AlignmentType.CENTER,
         children: [
           new TextRun({
-            text: `“${String(data.verseText ?? '')}” (${String(data.verseReference ?? '')} - NVI)`,
+            text: `“${lessonString(data.verseText)}” (${lessonString(data.verseReference)} - NVI)`,
             size: 14,
           }),
         ],

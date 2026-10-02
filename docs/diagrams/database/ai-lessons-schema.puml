@@ -1,5 +1,16 @@
 @startuml
 title Estúdio Clubinho — schema essencial
+entity ai_provider_settings {
+  * provider : varchar(50)
+  --
+  settings : simple-json
+  created_at : datetime
+  updated_at : datetime
+}
+note right of ai_provider_settings
+  openai / gemini: parâmetros
+  active: llmProvider
+end note
 entity lessons {
   * id : uuid
   --

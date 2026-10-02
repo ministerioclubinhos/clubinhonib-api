@@ -80,6 +80,33 @@ describe('AdminLessonPromptService', () => {
     ).toBeNull();
   });
 
+  it('fornece referências reais e mantém a aula participativa mesmo com personalização', async () => {
+    await service.save(
+      'admin-a',
+      LessonStageType.LESSON,
+      'Use objetos simples da sala.',
+    );
+    const prompt = await service.effective('admin-a', LessonStageType.LESSON);
+    expect(prompt).toContain('aula completa pronta para ministrar');
+    expect(prompt).toContain('(aguarde as respostas)');
+    expect(prompt).toContain('Nunca copie essas descrições para story');
+    expect(prompt).toContain('João 11:25, sem acrescentar 11:26');
+    expect(prompt).toContain('Hebreus 9:22b');
+    expect(prompt).toContain('1 Coríntios 15:3b-4');
+    expect(prompt).toContain('Não omita Tomé');
+    expect(prompt).toContain('LIÇÕES COM DUAS OU MAIS SUB-HISTÓRIAS');
+    expect(prompt).toContain('prefixo exato "### "');
+    expect(prompt).toContain('Semana 15');
+    expect(prompt).toContain('Nunca misture essas quantidades');
+    expect(prompt).toContain('devolva string vazia');
+    expect(prompt).toContain('o número da semana sozinho não autoriza');
+    expect(prompt).toContain(
+      'referências complementares precisam de conferência humana',
+    );
+    expect(prompt).toContain('Use objetos simples da sala.');
+    expect(prompt).not.toContain('gere exatamente dez perguntas');
+  });
+
   it('rejeita atualização concorrente e restaura o padrão', async () => {
     const saved = await service.save(
       'admin-a',

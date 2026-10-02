@@ -1,10 +1,14 @@
 import {
+  LESSON_REVIEW_QUESTION_MIN,
+  LESSON_REVIEW_QUESTION_MAX,
+} from '../constants/lesson-editorial.constants';
+import {
   BadGatewayException,
   Injectable,
   Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { LessonProviderConfig } from '../providers/lesson-llm.types';
 import axios, { AxiosError } from 'axios';
 import { LessonStageType } from '../enums/lesson.enums';
 import { serializeTemplate } from '../templates/lesson-templates';
@@ -124,14 +128,22 @@ export function schemaFor(stage: LessonStageType): Record<string, unknown> {
           },
         },
         principleExplanation: { type: 'string' },
-        story: { type: 'string' },
+        story: {
+          type: 'string',
+          description:
+            'Aula completa e participativa para o professor ministrar, sem descrições de arte nem marcadores de cena.',
+        },
         applicationAndAppeal: { type: 'string' },
         counseling: { type: 'string' },
-        closingPrayer: { type: 'string' },
+        closingPrayer: {
+          type: 'string',
+          description:
+            'Vazio salvo solicitação explícita de oração final separada.',
+        },
         reviewQuestions: {
           type: 'array',
-          minItems: 10,
-          maxItems: 10,
+          minItems: LESSON_REVIEW_QUESTION_MIN,
+          maxItems: LESSON_REVIEW_QUESTION_MAX,
           items: {
             type: 'object',
             additionalProperties: false,
@@ -374,7 +386,7 @@ export function schemaFor(stage: LessonStageType): Record<string, unknown> {
 export class OpenAiLessonService implements LessonLlmProviderContract {
   private readonly logger = new Logger(OpenAiLessonService.name);
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(private readonly config: LessonProviderConfig) {}
 
   async generateStage(
     input: LessonLlmGenerationInput,

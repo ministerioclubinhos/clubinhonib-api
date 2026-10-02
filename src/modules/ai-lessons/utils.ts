@@ -6,7 +6,60 @@ export function lessonString(value: unknown): string {
     : '';
 }
 
+export function lessonHeaderLines(
+  title: string,
+  weekNumber?: number,
+): string[] {
+  const prefix = /^LIÇÃO\s*(\d+)?\s*(?:[–—:-]\s*|\r?\n\s*|$)/i;
+  const match = title.trim().match(prefix);
+  const number = weekNumber ?? (match?.[1] ? Number(match[1]) : undefined);
+  const cleanTitle = title
+    .trim()
+    .replace(prefix, '')
+    .replace(/^TÍTULO\s*\r?\n\s*/i, '')
+    .trim();
+  return [
+    number === undefined ? 'LIÇÃO' : `LIÇÃO ${number}`,
+    'TÍTULO',
+    cleanTitle,
+  ].filter(Boolean);
+}
+
 type JsonObject = Record<string, unknown>;
+
+export function normalizeLessonDocumentHeader(
+  document: JsonObject,
+  weekNumber?: number,
+): JsonObject {
+  const nodes: JsonObject[] = Array.isArray(document.content)
+    ? document.content.filter(
+        (item: unknown): item is JsonObject =>
+          Boolean(item) && typeof item === 'object' && !Array.isArray(item),
+      )
+    : [];
+  const first = nodes[0] as JsonObject | undefined;
+  if (!first || first.type !== 'heading') return document;
+  const title = tiptapNodeText(first).trim();
+  const second = nodes[1] as JsonObject | undefined;
+  if (second && tiptapNodeText(second).trim() === 'TÍTULO') {
+    if (weekNumber === undefined || title === `LIÇÃO ${weekNumber}`)
+      return document;
+    nodes[0] = {
+      ...first,
+      content: [{ type: 'text', text: `LIÇÃO ${weekNumber}` }],
+    };
+  } else {
+    nodes.splice(
+      0,
+      1,
+      ...lessonHeaderLines(title, weekNumber).map((text) => ({
+        ...first,
+        content: [{ type: 'text', text }],
+      })),
+    );
+  }
+  return { ...document, content: nodes };
+}
 
 const tiptapNodeText = (node: JsonObject): string => {
   const ownText = lessonString(node.text);
@@ -50,7 +103,10 @@ export function extractTiptapSectionText(
         headingLevel,
   );
   const content = (end < 0 ? sectionNodes : sectionNodes.slice(0, end))
-    .map((node) => tiptapNodeText(node).trim())
+    .map((node) => {
+      const text = tiptapNodeText(node).trim();
+      return node.type === 'heading' && text ? `### ${text}` : text;
+    })
     .filter(Boolean)
     .join('\n\n')
     .trim();
@@ -123,4 +179,8 @@ export function buildVerseVisualImagePrompt(input: {
     'PROIBIDO: pessoas, personagens, rostos, animais, cenários, paisagens, salas, construções, objetos reconhecíveis, cenas bíblicas, outras letras, outras palavras, outros números, símbolos religiosos, molduras pesadas ou elementos competindo com o texto.',
     `Referência estética secundária, sem contrariar as regras: ${input.proposedComposition.trim()}`,
   ].join('\n\n');
+}
+
+export function lessonStoryHeading(line: string): string | undefined {
+  return line.trim().match(/^###\s+(.+?)\s*$/)?.[1];
 }

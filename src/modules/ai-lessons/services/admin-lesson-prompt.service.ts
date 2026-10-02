@@ -1,4 +1,5 @@
 import { ConflictException, Injectable } from '@nestjs/common';
+import { LESSON_BASE_PROMPT } from '../constants/lesson-editorial.constants';
 import { AdminLessonPromptEntity } from '../entities/admin-lesson-prompt.entity';
 import { LESSON_STAGE_ORDER, LessonStageType } from '../enums/lesson.enums';
 import { AdminLessonPromptRepository } from '../repositories/admin-lesson-prompt.repository';
@@ -89,38 +90,7 @@ export class AdminLessonPromptService {
 }
 
 const BASE_PROMPTS: Record<LessonStageType, string> = {
-  [LessonStageType.LESSON]: `Produza somente a LIÇÃO BÍBLICA, seguindo o padrão editorial das lições manuais do Clubinho Bíblico NIB.
-
-PÚBLICO E TOM
-- Escreva em português brasileiro especificamente para crianças de 5 a 11 anos, com frases claras, calorosas, concretas e fáceis de o professor falar em voz alta. Quando uma palavra difícil for indispensável, explique-a imediatamente.
-- Mantenha o conteúdo apropriado para essa faixa etária: sem conteúdo sexual, romântico, erotizado, violência gráfica ou debates de sexualidade de qualquer orientação. O foco deve permanecer exclusivamente na passagem bíblica e no objetivo pedagógico.
-- Seja fiel ao texto bíblico informado. Não misture personagens, lugares, cronologia ou acontecimentos de outras passagens.
-- Use a Bíblia NVI como versão textual de referência. Não invente versículo, redação da NVI, promessa, doutrina, costume histórico ou detalhe narrativo como se estivesse na Bíblia. Quando não houver segurança sobre a citação literal da NVI, sinalize revisão humana.
-- Transforme explicações abstratas em exemplos do cotidiano infantil: família, escola, amigos, igreja, obediência, oração e cuidado com o próximo.
-- O texto deve orientar o professor, não falar como um artigo acadêmico e não mencionar inteligência artificial.
-
-ORDEM OBRIGATÓRIA DO CONTEÚDO
-1. LIÇÃO E TÍTULO: o título da lição ("title") DEVE incorporar e preservar obrigatoriamente o tema exato fornecido pelo usuário no input ("theme"), em caixa alta. Nunca substitua, trunque nem altere o assunto definido no tema.
-2. TEXTO/REFERÊNCIA BÍBLICA: preserve exatamente todas as referências bíblicas fornecidas pelo administrador (suportando múltiplas passagens ou relatos paralelos como Mateus, Marcos e Lucas separados por barra ou vírgula). Unifique a narrativa dos evangelhos/passagens de forma harmoniosa e sem contradições.
-3. PROPÓSITO: comece com verbo pedagógico, explicando claramente o que as crianças deverão compreender e praticar.
-4. MÚSICAS: sugira de duas a quatro músicas infantis coerentes com o tema; não invente letras.
-5. VERSÍCULO PRINCIPAL PARA MEMORIZAR: escolha exatamente um versículo central para toda a lição. Ele deve resumir o princípio ensinado, ser adequado para crianças de 5 a 11 anos e permanecer como fonte única da etapa posterior de fixação. Informe o texto completo, referência e versão NVI. Se não houver segurança sobre a redação exata da NVI, sinalize revisão humana em vez de fabricar o texto.
-6. EXPLICAÇÃO DO PRINCÍPIO: explique o versículo palavra por palavra quando necessário e conecte-o à vida da criança.
-7. HISTÓRIA BÍBLICA: crie uma narrativa completa, em ordem, com começo, desenvolvimento e conclusão, dividida em parágrafos claros. As indicações de cenas visuais devem ser colocadas SEMPRE em uma linha própria (um parágrafo isolado do texto narrativo) no formato scene-01: [Descrição da cena], sem escrever “[Image #]” e sem colocar marcadores no meio de frases.
-8. APLICAÇÃO E APELO: diferencie a aplicação para a criança salva do convite à criança que deseja seguir Jesus. Explique pecado como tudo o que pensamos, falamos ou fazemos que desagrada a Deus. Não use medo, pressão emocional ou promessa de resultado material. Quando houver oração de decisão, preserve o texto oficial: “Senhor Deus, perdoa os meus pecados e vem entrar no meu coração. Eu creio que Jesus, teu Filho, morreu na cruz no meu lugar e ressuscitou. Eu escolho te seguir! Quero que tu sejas o meu Senhor e Salvador, em nome de Jesus! Amém.”
-9. CANTINHO DO ACONSELHAMENTO: oriente o professor a conversar individualmente, usar a Bíblia, o Livro Sem Palavras, o Cartão de Decisão e o Cartão de Aniversário de Novo Nascimento, confirmar a compreensão da criança e registrar a decisão sem constrangimento.
-10. PERGUNTAS DA LIÇÃO: gere exatamente dez perguntas numeradas com respostas completas; cubra fatos da narrativa, significado espiritual, versículo e aplicação prática.
-11. FALANDO COM DEUS: oração final curta, coerente com a lição, compreensível e sem introduzir doutrina não trabalhada.
-
-QUALIDADE OBRIGATÓRIA
-- Use como referência de formato o acervo manual do Clubinho NIB: uma lição pronta para o professor ministrar, com seções editoriais explícitas e não um resumo, roteiro telegráfico ou artigo.
-- Nunca copie nomes de voluntários, escalas de personagens, dados pessoais, conteúdo político, propaganda, relatórios eleitorais ou anotações operacionais encontradas em arquivos de referência.
-- Trate a referência informada como fonte fechada. Quando relatos paralelos forem fornecidos, harmonize somente fatos compatíveis e deixe qualquer divergência para revisão humana.
-- Não declare que uma citação é NVI se não puder garantir sua redação exata. Nesse caso, mantenha a referência e escreva claramente no conteúdo que a citação precisa de conferência humana antes da aprovação.
-- Mantenha nomes e características consistentes em todo o texto.
-- Evite repetição, moralismo genérico, linguagem adulta, clichês vazios e conteúdo fora da referência.
-- Não crie a brincadeira normal nem a atividade de fixação nesta etapa; elas serão produzidas depois da aprovação.
-- Entregue conteúdo suficientemente detalhado para o professor ministrar a aula sem precisar completar lacunas essenciais.`,
+  [LessonStageType.LESSON]: LESSON_BASE_PROMPT,
   [LessonStageType.LESSON_VISUALS]: `Produza somente os VISUAIS DA HISTÓRIA da lição aprovada, seguindo o padrão dos conjuntos de imagens manuais do Clubinho Bíblico NIB. Estes visuais auxiliam o professor a contar a narrativa e são diferentes dos visuais de fixação do versículo, que pertencem a outra etapa.
 
 OBJETIVO

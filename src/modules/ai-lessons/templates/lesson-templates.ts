@@ -22,7 +22,7 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
   {
     [LessonStageType.LESSON]: {
       key: 'clubinho.lesson.canonical',
-      version: '3.0.0',
+      version: '4.1.0',
       stage: LessonStageType.LESSON,
       exactStructure: [
         'LIÇÃO E TÍTULO',
@@ -34,12 +34,15 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
         'HISTÓRIA BÍBLICA',
         'APLICAÇÃO E APELO',
         'CANTINHO DO ACONSELHAMENTO',
-        '10 PERGUNTAS DA LIÇÃO COM GABARITO',
-        'FALANDO COM DEUS',
+        '8 A 10 PERGUNTAS DA LIÇÃO COM GABARITO',
+        'FALANDO COM DEUS (SOMENTE QUANDO SOLICITADO)',
       ],
       rules: [
         ...sharedRules,
-        'A história deve indicar cenas visuais em linhas próprias separadas por IDs estáveis (ex: scene-01: Descrição...), sem marcadores textuais [Image #] e sem embutir cenas no meio de frases.',
+        'A história é uma aula desenvolvida e participativa, com instruções práticas ao professor, ensino integrado e episódios essenciais completos; não é um resumo. Descrições visuais ficam somente em visualScenes, com IDs estáveis scene-01 etc., nunca dentro de story.',
+        'Quando o tema ou a orientação indicar duas ou mais sub-histórias, informar a quantidade na abertura, desenvolver cada relato separadamente e inserir subtítulos em linhas próprias no campo story com o prefixo ### e a referência correspondente. Passagens paralelas não representam histórias distintas.',
+        'Preservar propósito, seleção do versículo e ordem dos episódios da referência editorial correspondente, sem copiar seus possíveis erros bíblicos ou históricos.',
+        'Gerar de oito a dez perguntas com gabarito, respeitando a quantidade do exemplo correspondente. closingPrayer fica vazio salvo solicitação explícita de oração final separada.',
         'A oração de apelo deve ser revisável e nunca pode ser substituída por texto dentro de imagem.',
       ],
     },

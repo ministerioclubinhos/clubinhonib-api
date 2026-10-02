@@ -4,7 +4,7 @@ import {
   Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { LessonProviderConfig } from './lesson-llm.types';
 import axios, { AxiosError } from 'axios';
 import { schemaFor } from '../services/open-ai-lesson.service';
 import { serializeTemplate } from '../templates/lesson-templates';
@@ -42,7 +42,7 @@ type GeminiImageResponse = {
 export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
   private readonly logger = new Logger(GeminiLessonLlmProvider.name);
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(private readonly config: LessonProviderConfig) {}
 
   async generateStage(
     input: LessonLlmGenerationInput,

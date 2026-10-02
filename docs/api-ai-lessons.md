@@ -1,10 +1,30 @@
 # Estúdio Clubinho — produção de lições
 
+O cabeçalho da lição gerada apresenta blocos separados: `LIÇÃO <semana>`,
+`TÍTULO` e o tema, seguidos de `TEXTO BÍBLICO` e `PROPÓSITO` com seus
+conteúdos. O número vem da semana cadastrada; o campo `title` contém o tema.
+Títulos antigos com número e tema unidos também são separados na prévia PDF
+e na exportação, inclusive para versões já salvas, sem regenerar o conteúdo.
+O documento editado continua sendo a fonte da exportação; somente os blocos
+do cabeçalho são normalizados.
+O detalhe da lição também entrega o cabeçalho normalizado no documento do
+editor, inclusive em versões antigas, sem exigir uma nova geração.
+
 O Estúdio Clubinho é um fluxo administrativo autenticado para produzir um pacote de oito itens: lição, visuais da história, brincadeira, visuais e fixação do versículo, meditações para duas faixas etárias e trabalho manual.
 
 O acervo histórico em `../lições` é referência de formato, não uma fonte automaticamente confiável. Arquivos políticos, nomes de voluntários, variantes de corte, rascunhos, erros ortográficos e citações não conferidas nunca são copiados. Cada etapa gera um único produto canônico; imposições de impressão são responsabilidade do renderer.
 
-O número da semana, o tema e todas as referências bíblicas são obrigatórios na criação. A geração da lição deve preservar literalmente o campo de referências, definir um único versículo principal NVI e produzir IDs de cena únicos no formato `scene-01`. Os visuais posteriores só podem usar esses IDs aprovados.
+O número da semana, o tema e todas as referências bíblicas são obrigatórios na criação. A geração da lição preserva literalmente o campo de referências e define um único texto principal NVI para memorização (inclusive um trecho explicitamente delimitado ou versículos consecutivos).
+
+### Padrão editorial da lição (template 4.1.0)
+
+O prompt-base contém notas editoriais curadas dos exemplos das Semanas 14, 15, 25 e 26, em `src/modules/ai-lessons/constants/lesson-editorial.constants.ts`, usadas por OpenAI e Gemini. Essas notas preservam escolhas de versículo, músicas, propósito, ordem dos episódios e ênfases pedagógicas quando tema e passagens corresponderem; a semana sozinha nunca seleciona o conteúdo. Não se trata de ingestão automática da pasta nem de confirmação textual da NVI. Outros exemplos podem ser descritos nas orientações complementares do administrador.
+
+A narrativa deve ser uma aula desenvolvida para crianças de 5 a 11 anos, com abertura participativa, instruções práticas ao professor, exemplos concretos, episódios completos e ensino integrado. Descrições de arte permanecem exclusivamente em `visualScenes`, com IDs únicos `scene-01` etc.; não entram em `story` nem aparecem no editor como fala do professor. Versões antigas com marcadores de cena continuam legíveis.
+
+O contrato aceita de oito a dez perguntas com gabarito, preservando a quantidade do exemplo correspondente. `closingPrayer` mantém seu campo string por compatibilidade com os schemas estruturados, mas fica vazio por padrão. O editor não exibe uma seção de oração vazia; uma oração final separada só é gerada quando solicitada explicitamente. A oração do apelo continua obrigatoriamente dentro de `applicationAndAppeal`. A ordem editorial do editor é determinística, independentemente da ordem das propriedades retornadas pelo provedor: aconselhamento, perguntas e, quando solicitada, oração final.
+
+O prompt exige sinalizar referências complementares ausentes, citações NVI não conferidas e divergências relevantes, sem copiar erros do acervo ou inventar fatos. Na Semana 26, as notas destacam a falta das referências de grande comissão e ascensão no cabeçalho histórico. As instruções são critérios de geração; fidelidade bíblica e qualidade pedagógica continuam exigindo revisão humana. A mudança vale para novas gerações/regenerações; conteúdos já salvos não são reescritos automaticamente.
 
 Os visuais da história usam como fonte canônica o conteúdo completo do tópico `LIÇÃO BÍBLICA` da versão atual da primeira etapa. O administrador informa uma quantidade inteira de 4 a 10 imagens: a LLM divide integralmente a narrativa nessa quantidade exata de trechos literais, contínuos e consecutivos, sem omitir, repetir ou reescrever conteúdo. Cada trecho e a história completa são incluídos no prompt final de sua imagem; personagens, ações, objetos, ambientes ou emoções ausentes dessa fonte não podem ser acrescentados. Quando a lição é editada no editor, o tópico estruturado é sincronizado antes de uma geração posterior.
 
@@ -26,10 +46,13 @@ Prompts personalizados são anexados ao prompt-base da etapa. Eles nunca substit
 
 ## Provedor de IA
 
-O Estúdio consome um contrato neutro de LLM para texto estruturado e imagens. A variável `LLM_PROVIDER` seleciona `openai` (padrão compatível com instalações existentes) ou `gemini` para toda a geração de um processo. Não existe fallback silencioso entre provedores: ausência de chave ou falha externa interrompe a etapa e a marca como falha.
+O Estúdio usa exclusivamente as configurações persistidas por `/adm/config-provedores-ia` na tabela `ai_provider_settings`. Nenhum provedor, modelo, chave ou parâmetro de LLM é lido de variáveis de ambiente. Sem configurações salvas, a API devolve valores iniciais editáveis e chaves vazias; não importa credenciais do ambiente nem usa chaves embutidas.
 
-- OpenAI: `OPENAI_API_KEY`, `OPENAI_TEXT_MODEL` e `OPENAI_IMAGE_MODEL`.
-- Gemini: `GEMINI_API_KEY`, `GEMINI_TEXT_MODEL`, `GEMINI_TEXT_FALLBACK_MODEL`, `GEMINI_IMAGE_MODEL`, `GEMINI_IMAGE_SIZE`, `GEMINI_MAX_RETRIES` e `GEMINI_RETRY_BASE_DELAY_MS`. Erros transitórios `429/5xx` usam backoff exponencial; depois de esgotar o modelo principal, o texto tenta o fallback configurado.
+`GET /api/v1/lessons/providers/settings` retorna `{ llmProvider, openai, gemini }`. `PUT` no mesmo endpoint valida o DTO aninhado e salva os dois provedores e a escolha ativa em uma única transação. A escolha ativa ocupa o registro `provider = active`; os registros `openai` e `gemini` mantêm seus respectivos parâmetros. Os endpoints individuais de configurações continuam disponíveis. Todas essas rotas exigem JWT e papel administrativo.
+
+Cada chamada de geração de texto ou imagem resolve o provedor e cria um snapshot de seus parâmetros salvos, sem alterar estado global ou exigir reinício. Não existe fallback entre provedores: selecionar Gemini nunca tenta OpenAI. O fallback de texto do Gemini usa somente o modelo Gemini configurado na página. A seleção da página só entra em vigor após salvar; erros de validação ou persistência não podem aparecer como sucesso, e a tela não usa localStorage como fonte das configurações nem armazena chaves nele.
+
+OpenAI permite configurar chave, modelo de texto, modelo de imagem, qualidade e esforço de raciocínio. Gemini permite chave, modelo de texto e fallback, modelo e tamanho de imagem, quantidade de tentativas extras (inteiro de 0 a 10) e atraso base em milissegundos (inteiro de 0 a 10000). Valores numéricos são retornados como números, inclusive zero; strings numéricas legadas são transformadas no DTO. Erros transitórios `429/5xx` do Gemini usam os parâmetros salvos de backoff exponencial.
 
 O Gemini usa saída JSON estruturada em `generateContent` e geração de imagem pela Interactions API. Chaves nunca são persistidas em versões, logs ou respostas públicas.
 
@@ -56,3 +79,28 @@ Se o provedor falhar antes de criar a página, o estado volta para `READY_FOR_PU
 Uploads de uma geração são rastreados e removidos se qualquer imagem ou persistência posterior falhar. Na exclusão, os registros são removidos antes dos objetos; uma falha de S3 gera órfão auditável em vez de manter registros apontando para arquivos inexistentes.
 
 As respostas usam DTOs públicos. Snapshots de prompt, IDs da OpenAI, checksums, chaves internas e identificadores de autoria não são expostos.
+
+### Documento editado e PDF
+
+A edição manual conserva o AST Tiptap como fonte da prévia e da exportação.
+O renderer preserva fontes, tamanhos em pt/px, cores, negrito, itálico,
+sublinhado, destaque, alinhamento, espaçamento entre linhas, parágrafos vazios,
+links externos e tabelas com células mescladas e larguras definidas.
+Links aceitam http, https, mailto e tel; endereços incompatíveis viram texto simples.
+Fontes dependem das famílias disponíveis no servidor LibreOffice.
+Meditações com versão `MANUAL_EDIT` imprimem o documento revisado, evitando
+o conteúdo estruturado antigo; meditações geradas mantêm a imposição original.
+Salvar antes de exportar continua obrigatório na interface.
+
+### Duas ou mais sub-histórias
+
+Quando o tema ou as orientações indicarem mais de uma história, o prompt exige
+a quantidade na abertura, títulos próprios com as referências e desenvolvimento
+separado na ordem solicitada. Passagens paralelas de um mesmo episódio não
+contam como histórias diferentes. O campo `story` continua string: linhas
+`### Nome do relato (referência)` viram títulos H3 alinhados à esquerda no
+editor e no PDF; os marcadores não aparecem para o professor. A edição salva
+conserva os subtítulos ao atualizar a narrativa estruturada.
+As notas da Semana 15 distinguem as duas multiplicações e suas quantidades;
+as perguntas devem cobrir ambos os relatos. Versões já geradas sem subtítulos
+não são reescritas automaticamente: é necessário editar ou regenerar.

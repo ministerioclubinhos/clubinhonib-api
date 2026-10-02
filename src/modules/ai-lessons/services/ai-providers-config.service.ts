@@ -1,61 +1,48 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
-import { AiProviderSettingRepository } from '../repositories/ai-provider-setting.repository';
-import { SaveGeminiSettingsDto, SaveOpenAiSettingsDto } from '../dto/ai-provider-settings.dto';
-
-const DEFAULT_OPENAI_GENERAL_MODELS = [
-  'gpt-6-luna',
-  'gpt-5.6-luna',
-  'gpt-5.6',
-  'gpt-4o',
-  'gpt-4o-mini',
-  'o3-mini',
-  'o1',
-];
-
-const DEFAULT_OPENAI_IMAGE_MODELS = [
-  'gpt-image-2',
-  'gpt-image-2.5-flare',
-  'gpt-image-2.5-sunburst',
-  'gpt-image-1-mini',
-  'dall-e-3',
-];
-
-const DEFAULT_GEMINI_GENERAL_MODELS = [
-  'gemini-2.5-flash',
-  'gemini-2.0-flash',
-  'gemini-1.5-flash',
-  'gemini-1.5-pro',
-];
-
-const DEFAULT_GEMINI_IMAGE_MODELS = [
-  'gemini-3.1-flash-image',
-  'imagen-3.0-generate-002',
-];
+import { GetAiProviderSettingsService } from './get-ai-provider-settings.service';
+import { UpdateAiProviderSettingsService } from './update-ai-provider-settings.service';
+import {
+  AiProviderModelsResponseDto,
+  OpenAiModelListResponse,
+  OpenAiSettingsResponseDto,
+  GeminiSettingsResponseDto,
+} from '../dto/ai-provider-settings-response.dto';
+import {
+  DEFAULT_OPENAI_GENERAL_MODELS,
+  DEFAULT_OPENAI_IMAGE_MODELS,
+  DEFAULT_GEMINI_GENERAL_MODELS,
+  DEFAULT_GEMINI_IMAGE_MODELS,
+} from '../constants/ai-provider-settings.constants';
+import {
+  SaveGeminiSettingsDto,
+  SaveOpenAiSettingsDto,
+} from '../dto/ai-provider-settings.dto';
 
 @Injectable()
 export class AiProvidersConfigService {
   private readonly logger = new Logger(AiProvidersConfigService.name);
 
   constructor(
-    private readonly config: ConfigService,
-    private readonly repo: AiProviderSettingRepository,
+    private readonly get: GetAiProviderSettingsService,
+    private readonly update: UpdateAiProviderSettingsService,
   ) {}
 
   /** 1. Lista os modelos da OpenAI consultando a API da OpenAI em tempo real */
-  async getOpenAiModels(apiKeyParam?: string) {
-    const keyToUse =
-      apiKeyParam ||
-      (await this.getOpenAiSettings()).apiKey ||
-      this.config.get<string>('OPENAI_API_KEY');
+  async getOpenAiModels(
+    apiKeyParam?: string,
+  ): Promise<AiProviderModelsResponseDto> {
+    const keyToUse = apiKeyParam || (await this.getOpenAiSettings()).apiKey;
 
     if (keyToUse) {
       try {
-        const response = await axios.get('https://api.openai.com/v1/models', {
-          headers: { Authorization: `Bearer ${keyToUse}` },
-          timeout: 5000,
-        });
+        const response = await axios.get<OpenAiModelListResponse>(
+          'https://api.openai.com/v1/models',
+          {
+            headers: { Authorization: `Bearer ${keyToUse}` },
+            timeout: 5000,
+          },
+        );
 
         const list: Array<{ id: string; created?: number }> =
           response.data?.data || [];
@@ -63,7 +50,9 @@ export class AiProvidersConfigService {
         const isImageModel = (id: string) =>
           id.startsWith('gpt-image-') || id.includes('dall-e');
         const isGeneralModel = (id: string) =>
-          (id.startsWith('gpt-') || id.startsWith('o1') || id.startsWith('o3')) &&
+          (id.startsWith('gpt-') ||
+            id.startsWith('o1') ||
+            id.startsWith('o3')) &&
           !isImageModel(id) &&
           !id.includes('realtime') &&
           !id.includes('transcribe') &&
@@ -92,8 +81,8 @@ export class AiProvidersConfigService {
             ),
           },
         };
-      } catch (err) {
-        this.logger.warn(`Falha ao buscar modelos na OpenAI API: ${err.message}`);
+      } catch {
+        this.logger.warn('Não foi possível consultar os modelos da OpenAI.');
       }
     }
 
@@ -106,90 +95,34 @@ export class AiProvidersConfigService {
   }
 
   /** 2. Busca as configurações salvas da OpenAI */
-  async getOpenAiSettings() {
-    const saved = await this.repo.findByProvider('openai');
-    const defaultKey =
-      this.config.get<string>('OPENAI_API_KEY') ||
-      'REMOVED_OPENAI_API_KEY';
-
-    return {
-      generalModel:
-        saved?.generalModel ||
-        this.config.get<string>('OPENAI_TEXT_MODEL') ||
-        'gpt-6-luna',
-      imageModel:
-        saved?.imageModel ||
-        this.config.get<string>('OPENAI_IMAGE_MODEL') ||
-        'gpt-image-2',
-      imageQuality:
-        saved?.imageQuality ||
-        this.config.get<string>('OPENAI_IMAGE_QUALITY') ||
-        'high',
-      reasoningEffort:
-        saved?.reasoningEffort ||
-        this.config.get<string>('OPENAI_REASONING_EFFORT') ||
-        'none',
-      apiKey: saved?.apiKey || defaultKey,
-    };
+  async getOpenAiSettings(): Promise<OpenAiSettingsResponseDto> {
+    return this.get.getOpenAiSettings();
   }
 
-  /** 3. Salva as configurações da OpenAI */
-  async saveOpenAiSettings(dto: SaveOpenAiSettingsDto) {
-    const current = await this.getOpenAiSettings();
-    const updated = { ...current, ...dto };
-    await this.repo.saveProviderSettings('openai', updated);
-    return updated;
+  async saveOpenAiSettings(
+    dto: SaveOpenAiSettingsDto,
+  ): Promise<OpenAiSettingsResponseDto> {
+    return this.update.saveOpenAiSettings(dto);
   }
 
   /** 4. Lista os modelos do Gemini */
-  async getGeminiModels() {
-    return {
+  getGeminiModels(): Promise<AiProviderModelsResponseDto> {
+    return Promise.resolve({
       models: {
         general: DEFAULT_GEMINI_GENERAL_MODELS,
         image: DEFAULT_GEMINI_IMAGE_MODELS,
       },
-    };
+    });
   }
 
   /** 5. Busca as configurações salvas do Gemini */
-  async getGeminiSettings() {
-    const saved = await this.repo.findByProvider('gemini');
-    const defaultKey =
-      this.config.get<string>('GEMINI_API_KEY') ||
-      'REMOVED_GEMINI_API_KEY';
-
-    return {
-      generalModel:
-        saved?.generalModel ||
-        this.config.get<string>('GEMINI_TEXT_MODEL') ||
-        'gemini-2.5-flash',
-      fallbackModel:
-        saved?.fallbackModel ||
-        this.config.get<string>('GEMINI_TEXT_FALLBACK_MODEL') ||
-        'gemini-2.0-flash',
-      imageModel:
-        saved?.imageModel ||
-        this.config.get<string>('GEMINI_IMAGE_MODEL') ||
-        'gemini-3.1-flash-image',
-      imageSize:
-        saved?.imageSize ||
-        this.config.get<string>('GEMINI_IMAGE_SIZE') ||
-        '2K',
-      maxRetries:
-        saved?.maxRetries ??
-        (this.config.get<number>('GEMINI_MAX_RETRIES') || 3),
-      retryBaseDelayMs:
-        saved?.retryBaseDelayMs ??
-        (this.config.get<number>('GEMINI_RETRY_BASE_DELAY_MS') || 1000),
-      apiKey: saved?.apiKey || defaultKey,
-    };
+  async getGeminiSettings(): Promise<GeminiSettingsResponseDto> {
+    return this.get.getGeminiSettings();
   }
 
-  /** 6. Salva as configurações do Gemini */
-  async saveGeminiSettings(dto: SaveGeminiSettingsDto) {
-    const current = await this.getGeminiSettings();
-    const updated = { ...current, ...dto };
-    await this.repo.saveProviderSettings('gemini', updated);
-    return updated;
+  async saveGeminiSettings(
+    dto: SaveGeminiSettingsDto,
+  ): Promise<GeminiSettingsResponseDto> {
+    return this.update.saveGeminiSettings(dto);
   }
 }

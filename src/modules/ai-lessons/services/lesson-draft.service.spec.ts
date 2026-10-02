@@ -2,6 +2,7 @@ import { ConflictException } from '@nestjs/common';
 import { LessonDraftService } from './lesson-draft.service';
 import { AiLessonsRepository } from '../repositories/ai-lessons.repository';
 import { LessonEntity } from '../entities/lesson.entity';
+import { LessonCommentEntity } from '../entities/lesson-comment.entity';
 import {
   LessonStageStatus,
   LessonStageType,
@@ -26,7 +27,7 @@ describe('LessonDraftService workflow safety', () => {
     findGeneratingStages: jest.fn(),
     claimGeneration: jest.fn(),
     renewGenerationLease: jest.fn(),
-    createComment: jest.fn((value) => value),
+    createComment: jest.fn((value: Partial<LessonCommentEntity>) => value),
     saveComment: jest.fn(),
   };
   const weekMaterials = { createWeekMaterialsPage: jest.fn() };
@@ -41,6 +42,86 @@ describe('LessonDraftService workflow safety', () => {
   );
 
   beforeEach(() => jest.clearAllMocks());
+
+  it('entrega ao editor o cabeçalho separado de uma versão já salva', async () => {
+    const body = {
+      type: 'paragraph',
+      content: [{ type: 'text', text: 'Texto editado.' }],
+    };
+    repo.findLessonById.mockResolvedValueOnce({
+      id: 'lesson',
+      weekNumber: 20,
+      stages: [
+        {
+          type: LessonStageType.LESSON,
+          versions: [
+            {
+              id: 'version',
+              versionNumber: 1,
+              tiptapAstJson: {
+                type: 'doc',
+                content: [
+                  {
+                    type: 'heading',
+                    attrs: { level: 1 },
+                    content: [{ type: 'text', text: 'LIÇÃO 20 – O SEMEADOR' }],
+                  },
+                  body,
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const lesson = await service.getById('lesson');
+    expect(lesson.stages[0].versions[0].tiptapAstJson.content).toEqual([
+      ...['LIÇÃO 20', 'TÍTULO', 'O SEMEADOR'].map((text) => ({
+        type: 'heading',
+        attrs: { level: 1 },
+        content: [{ type: 'text', text }],
+      })),
+      body,
+    ]);
+    expect(repo.saveLesson).not.toHaveBeenCalled();
+    expect(repo.updateStage).not.toHaveBeenCalled();
+  });
+
+  it.each(['GEMINI', 'OPENAI'])(
+    'identifica a chave ausente de %s antes de uma chamada ao provedor',
+    (provider) => {
+      const target = service as unknown as {
+        describeAiFailure: (
+          type: LessonStageType,
+          error: unknown,
+        ) => { code: string; message: string };
+      };
+      const failure = target.describeAiFailure(
+        LessonStageType.LESSON,
+        new Error(`${provider}_API_KEY não configurada.`),
+      );
+      expect(failure.code).toBe('AI_CONFIGURATION_MISSING');
+      expect(failure.message).toContain(
+        `usando ${provider === 'GEMINI' ? 'Gemini' : 'OpenAI'}`,
+      );
+      expect(failure.message).toContain('Salve a chave');
+      if (provider === 'GEMINI')
+        expect(failure.message).not.toContain('OpenAI');
+    },
+  );
+
+  it('não atribui ao OpenAI uma falha sem identificação de provedor', () => {
+    const target = service as unknown as {
+      describeAiFailure: (
+        type: LessonStageType,
+        error: unknown,
+      ) => { code: string; message: string };
+    };
+    expect(
+      target.describeAiFailure(LessonStageType.LESSON, new Error('Falha local'))
+        .message,
+    ).not.toContain('OpenAI');
+  });
 
   it('traduz saldo esgotado da OpenAI e identifica o item afetado', () => {
     const target = service as unknown as {
@@ -61,6 +142,21 @@ describe('LessonDraftService workflow safety', () => {
     expect(failure.message).toContain('OpenAI');
     expect(failure.message).toContain('créditos da conta acabaram');
     expect(failure.message).not.toContain('insufficient_quota');
+  });
+
+  it('explica faturamento OpenAI inativo em vez de erro desconhecido', () => {
+    const target = service as unknown as {
+      describeAiFailure: (
+        type: LessonStageType,
+        error: unknown,
+      ) => { code: string; message: string };
+    };
+    const failure = target.describeAiFailure(
+      LessonStageType.LESSON,
+      new Error('OpenAI: {"error":{"code":"billing_not_active"}}'),
+    );
+    expect(failure.code).toBe('AI_BILLING_INACTIVE');
+    expect(failure.message).toContain('faturamento da conta não está ativo');
   });
 
   it('traduz cota esgotada do Gemini e identifica o item afetado', () => {
@@ -524,7 +620,83 @@ describe('LessonDraftService workflow safety', () => {
     ).toThrow(ConflictException);
   });
 
-  it('remove o prefixo scene-01: de citação/blockquote em toTiptap', () => {
+  it('mantém a ordem editorial, oculta oração vazia e deixa as cenas fora da narrativa', () => {
+    const target = service as unknown as {
+      toTiptap: (value: Record<string, unknown>) => {
+        content: Array<{ type: string; content?: Array<{ text?: string }> }>;
+      };
+    };
+    const tiptap = target.toTiptap({
+      closingPrayer: '',
+      reviewQuestions: Array.from({ length: 8 }, (_, index) => ({
+        question: `Pergunta ${index + 1}?`,
+        answer: 'Resposta completa.',
+      })),
+      counseling: 'Acolha a criança e consulte o manual.',
+      story: 'Crianças, vocês já tiveram dúvidas? (aguarde as respostas)',
+      title: 'LIÇÃO 26: RESSURREIÇÃO',
+      visualScenes: [{ id: 'scene-01', prompt: 'Descrição de arte separada.' }],
+    });
+    const headings = tiptap.content
+      .filter((node) => node.type === 'heading')
+      .map((node) => node.content?.[0]?.text);
+    expect(headings).toEqual([
+      'LIÇÃO 26',
+      'TÍTULO',
+      'RESSURREIÇÃO',
+      'LIÇÃO BÍBLICA',
+      'ACONSELHAMENTO / CANTINHO DO ACONSELHAMENTO',
+      'PERGUNTAS DA LIÇÃO',
+    ]);
+    const serialized = JSON.stringify(tiptap);
+    expect(serialized).toContain('(aguarde as respostas)');
+    expect(serialized).toContain('8. Pergunta 8?');
+    expect(serialized).not.toContain('Descrição de arte separada');
+    expect(serialized).not.toContain('FALANDO COM DEUS');
+    const withPrayer = target.toTiptap({
+      story: 'História.',
+      closingPrayer: 'Obrigado, Deus.',
+    });
+    expect(JSON.stringify(withPrayer)).toContain('FALANDO COM DEUS');
+    expect(JSON.stringify(withPrayer)).toContain('Obrigado, Deus.');
+  });
+
+  it('destaca as duas sub-histórias como títulos H3 mantendo a abertura e a ordem', () => {
+    const target = service as unknown as {
+      toTiptap: (value: Record<string, unknown>) => {
+        content: Array<{
+          type: string;
+          attrs?: { level?: number; textAlign?: string };
+          content?: Array<{ text?: string }>;
+        }>;
+      };
+    };
+    const document = target.toTiptap({
+      story:
+        'Hoje veremos duas histórias.\n\n### A Primeira Multiplicação dos Pães (Mateus 14:13-21)\n\nCinco pães e dois peixes.\n\n### A Segunda Multiplicação dos Pães (Mateus 15:29-39)\n\nSete pães e alguns peixes.',
+      applicationAndAppeal: 'Aplicação conjunta.',
+    });
+    const subheadings = document.content.filter(
+      (node) => node.type === 'heading' && node.attrs?.level === 3,
+    );
+    expect(subheadings.map((node) => node.content?.[0]?.text)).toEqual([
+      'A Primeira Multiplicação dos Pães (Mateus 14:13-21)',
+      'A Segunda Multiplicação dos Pães (Mateus 15:29-39)',
+    ]);
+    expect(subheadings.every((node) => node.attrs?.textAlign === 'left')).toBe(
+      true,
+    );
+    expect(JSON.stringify(document)).not.toContain('###');
+    expect(JSON.stringify(document)).toContain('Hoje veremos duas histórias.');
+    expect(JSON.stringify(document)).toContain('Sete pães e alguns peixes.');
+    expect(
+      document.content
+        .filter((node) => node.type === 'heading' && node.attrs?.level === 2)
+        .map((node) => node.content?.[0]?.text),
+    ).toEqual(['LIÇÃO BÍBLICA', 'APLICAÇÃO E APELO']);
+  });
+
+  it('preserva compatibilidade com marcadores de cena de versões antigas em toTiptap', () => {
     const target = service as unknown as {
       toTiptap: (value: Record<string, unknown>) => {
         content: Array<{

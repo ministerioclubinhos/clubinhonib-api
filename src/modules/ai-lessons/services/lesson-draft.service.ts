@@ -1,3 +1,4 @@
+import { LESSON_EDITORIAL_FIELD_ORDER } from '../constants/lesson-editorial.constants';
 import {
   BadRequestException,
   ConflictException,
@@ -47,6 +48,9 @@ import {
   buildVerseVisualImagePrompt,
   extractTiptapSectionText,
   lessonString,
+  lessonStoryHeading,
+  lessonHeaderLines,
+  normalizeLessonDocumentHeader,
 } from '../utils';
 import { LESSON_LLM_PROVIDER } from '../providers/lesson-llm.constants';
 import {
@@ -182,8 +186,16 @@ export class LessonDraftService implements OnApplicationBootstrap {
       (a, b) =>
         LESSON_STAGE_ORDER.indexOf(a.type) - LESSON_STAGE_ORDER.indexOf(b.type),
     );
-    for (const stage of lesson.stages)
+    for (const stage of lesson.stages) {
       stage.versions?.sort((a, b) => a.versionNumber - b.versionNumber);
+      if (stage.type === LessonStageType.LESSON)
+        for (const version of stage.versions ?? [])
+          if (version.tiptapAstJson)
+            version.tiptapAstJson = normalizeLessonDocumentHeader(
+              version.tiptapAstJson,
+              lesson.weekNumber,
+            );
+    }
     return lesson;
   }
 
@@ -441,7 +453,10 @@ export class LessonDraftService implements OnApplicationBootstrap {
         stageId: stage.id,
         versionNumber: nextVersion,
         structuredDataJson: content,
-        tiptapAstJson: this.toTiptap(content),
+        tiptapAstJson: this.toTiptap(
+          content,
+          type === LessonStageType.LESSON ? lesson.weekNumber : undefined,
+        ),
         docxS3Key: null,
         pdfS3Key: null,
         changeSummary: revisionInstructions
@@ -528,7 +543,11 @@ export class LessonDraftService implements OnApplicationBootstrap {
     error: unknown,
   ): { code: string; message: string } {
     const raw = error instanceof Error ? error.message : String(error);
-    const provider = raw.includes('Gemini') ? 'Gemini' : 'OpenAI';
+    const provider = /gemini/i.test(raw)
+      ? 'Gemini'
+      : /openai/i.test(raw)
+        ? 'OpenAI'
+        : undefined;
     const itemLabels: Record<LessonStageType, string> = {
       [LessonStageType.LESSON]: '1. Lição completa',
       [LessonStageType.LESSON_VISUALS]: '2. Visuais da história',
@@ -539,11 +558,17 @@ export class LessonDraftService implements OnApplicationBootstrap {
       [LessonStageType.MEDITATION_OLDER]: '7. Meditação dos maiores',
       [LessonStageType.MANUAL_WORK]: '8. Trabalho manual',
     };
-    const prefix = `Falha no item ${itemLabels[type]} usando ${provider}: `;
+    const prefix = `Falha no item ${itemLabels[type]}${provider ? ` usando ${provider}` : ''}: `;
     const result = (code: string, detail: string) => ({
       code,
       message: `${prefix}${detail}`.slice(0, 500),
     });
+
+    if (/API_KEY não configurada/i.test(raw))
+      return result(
+        'AI_CONFIGURATION_MISSING',
+        'a chave de API não está configurada. Salve a chave do provedor selecionado na página Configuração de provedores de IA e gere este item novamente.',
+      );
 
     const jsonStart = raw.indexOf('{');
     const jsonEnd = raw.lastIndexOf('}');
@@ -565,6 +590,11 @@ export class LessonDraftService implements OnApplicationBootstrap {
       ? upstreamStatus
       : upstreamCode || upstreamStatus;
 
+    if (provider === 'OpenAI' && code === 'billing_not_active')
+      return result(
+        'AI_BILLING_INACTIVE',
+        'o faturamento da conta não está ativo. Revise o faturamento da OpenAI ou selecione outro provedor nas configurações de IA.',
+      );
     if (provider === 'OpenAI' && code === 'credit_balance_exhausted')
       return result(
         'AI_CREDITS_EXHAUSTED',
@@ -1362,12 +1392,15 @@ export class LessonDraftService implements OnApplicationBootstrap {
           {
             structuredDataJson: version?.structuredDataJson ?? {},
             tiptapAstJson: version?.tiptapAstJson ?? null,
+            createdSource: version?.createdSource,
           },
         ];
       }),
     );
-    const docxBuffer =
-      await this.docx.buildDocxFromTiptapOrStructuredJson(content);
+    const docxBuffer = await this.docx.buildDocxFromTiptapOrStructuredJson(
+      content,
+      lesson.weekNumber,
+    );
     const pdfBuffer = await this.pdf.convertDocxToPdf(docxBuffer);
     return { pdfBuffer, fileName: `licao-semana-${lesson.weekNumber}.pdf` };
   }
@@ -1391,10 +1424,13 @@ export class LessonDraftService implements OnApplicationBootstrap {
       [type]: {
         structuredDataJson: version.structuredDataJson,
         tiptapAstJson: version.tiptapAstJson,
+        createdSource: version.createdSource,
       },
     };
-    const docxBuffer =
-      await this.docx.buildDocxFromTiptapOrStructuredJson(input);
+    const docxBuffer = await this.docx.buildDocxFromTiptapOrStructuredJson(
+      input,
+      lesson.weekNumber,
+    );
     const pdfBuffer = await this.pdf.convertDocxToPdf(docxBuffer);
     return {
       pdfBuffer,
@@ -1558,7 +1594,7 @@ export class LessonDraftService implements OnApplicationBootstrap {
   private checksum(value: JsonObject): string {
     return createHash('sha256').update(JSON.stringify(value)).digest('hex');
   }
-  private toTiptap(value: JsonObject): JsonObject {
+  private toTiptap(value: JsonObject, weekNumber?: number): JsonObject {
     const nodes: JsonObject[] = [];
     const labels: Record<string, string> = {
       title: 'TÍTULO',
@@ -1617,6 +1653,7 @@ export class LessonDraftService implements OnApplicationBootstrap {
       content: [paragraph(text)],
     });
     const append = (key: string, raw: unknown, depth = 2): void => {
+      if (key === 'closingPrayer' && !lessonString(raw).trim()) return;
       if (
         [
           'assets',
@@ -1632,11 +1669,17 @@ export class LessonDraftService implements OnApplicationBootstrap {
       if (key === 'title') {
         const titleText = lessonString(raw).trim();
         if (titleText) {
-          nodes.push({
-            type: 'heading',
-            attrs: { level: 1 },
-            content: [{ type: 'text', text: titleText }],
-          });
+          const lines =
+            'story' in value || weekNumber !== undefined
+              ? lessonHeaderLines(titleText, weekNumber)
+              : [titleText];
+          lines.forEach((text) =>
+            nodes.push({
+              type: 'heading',
+              attrs: { level: 1 },
+              content: [{ type: 'text', text }],
+            }),
+          );
         }
         return;
       }
@@ -1681,7 +1724,15 @@ export class LessonDraftService implements OnApplicationBootstrap {
         }
 
         for (const line of lines) {
-          if (/^(scene-\d+|cena-\d+|\[scene|\[cena)/i.test(line)) {
+          const storyHeading =
+            key === 'story' ? lessonStoryHeading(line) : undefined;
+          if (storyHeading) {
+            nodes.push({
+              type: 'heading',
+              attrs: { level: 3, textAlign: 'left' },
+              content: [{ type: 'text', text: storyHeading }],
+            });
+          } else if (/^(scene-\d+|cena-\d+|\[scene|\[cena)/i.test(line)) {
             const cleanLine = line
               .replace(/^(?:\[?\s*(?:scene|cena)[-\s_]*\d+\s*\]?:?|-?)\s*/i, '')
               .trim();
@@ -1745,7 +1796,19 @@ export class LessonDraftService implements OnApplicationBootstrap {
     const verseReference = lessonString(value.verseReference).trim();
     const verseVersion = lessonString(value.verseVersion).trim();
     let verseBlockAdded = false;
-    Object.entries(value).forEach(([key, raw]) => {
+    const entries =
+      'story' in value
+        ? [
+            ...LESSON_EDITORIAL_FIELD_ORDER.filter((key) => key in value).map(
+              (key): [string, unknown] => [key, value[key]],
+            ),
+            ...Object.entries(value).filter(
+              ([key]) =>
+                !LESSON_EDITORIAL_FIELD_ORDER.some((field) => field === key),
+            ),
+          ]
+        : Object.entries(value);
+    entries.forEach(([key, raw]) => {
       if (
         !verseBlockAdded &&
         ['verseText', 'verseReference', 'verseVersion'].includes(key) &&

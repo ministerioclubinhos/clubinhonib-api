@@ -3,9 +3,52 @@ import {
   buildStoryVisualImagePrompt,
   buildVerseVisualImagePrompt,
   extractTiptapSectionText,
+  lessonHeaderLines,
+  lessonStoryHeading,
+  normalizeLessonDocumentHeader,
 } from './utils';
 
 describe('AI lesson utilities', () => {
+  it('separa cabeçalho salvo sem alterar o conteúdo editado e sem duplicar linhas', () => {
+    const body = {
+      type: 'paragraph',
+      content: [{ type: 'text', text: 'Texto revisado.' }],
+    };
+    const original = {
+      type: 'doc',
+      content: [
+        {
+          type: 'heading',
+          attrs: { level: 1 },
+          content: [{ type: 'text', text: 'LIÇÃO 20 – O SEMEADOR' }],
+        },
+        body,
+      ],
+    };
+    const normalized = normalizeLessonDocumentHeader(original, 20);
+    expect(normalized.content).toEqual([
+      ...['LIÇÃO 20', 'TÍTULO', 'O SEMEADOR'].map((text) => ({
+        type: 'heading',
+        attrs: { level: 1 },
+        content: [{ type: 'text', text }],
+      })),
+      body,
+    ]);
+    expect(normalizeLessonDocumentHeader(normalized, 20)).toEqual(normalized);
+    expect(original.content).toHaveLength(2);
+  });
+  it.each([
+    'LIÇÃO 20 – O SEMEADOR',
+    'LIÇÃO 20: O SEMEADOR',
+    'O SEMEADOR',
+    'LIÇÃO: O SEMEADOR',
+  ])('separa o cabeçalho %s conforme o modelo manual', (title) => {
+    expect(lessonHeaderLines(title, 20)).toEqual([
+      'LIÇÃO 20',
+      'TÍTULO',
+      'O SEMEADOR',
+    ]);
+  });
   it('extracts the complete edited biblical lesson section from Tiptap', () => {
     const story = extractTiptapSectionText(
       {
@@ -106,5 +149,40 @@ describe('AI lesson utilities', () => {
     expect(prompt).toContain('no máximo 3 cores em toda a imagem');
     expect(prompt).toContain('mesma paleta de 3 cores em todos os cartões');
     expect(prompt).toContain('sem alternar uma cor diferente para cada letra');
+  });
+});
+
+describe('sub-histórias da lição', () => {
+  it('reconhece somente subtítulos explícitos e preserva o marcador ao extrair a história editada', () => {
+    expect(lessonStoryHeading('### A Primeira Multiplicação')).toBe(
+      'A Primeira Multiplicação',
+    );
+    expect(
+      lessonStoryHeading('Jesus realizou a primeira multiplicação.'),
+    ).toBeUndefined();
+    const node = (text: string, level?: number) => ({
+      type: level ? 'heading' : 'paragraph',
+      attrs: level ? { level } : undefined,
+      content: [{ type: 'text', text }],
+    });
+    expect(
+      extractTiptapSectionText(
+        {
+          content: [
+            node('LIÇÃO BÍBLICA', 2),
+            node('Duas histórias.'),
+            node('Primeira', 3),
+            node('Cinco pães.'),
+            node('Segunda', 3),
+            node('Sete pães.'),
+            node('APLICAÇÃO E APELO', 2),
+            node('Outra seção.'),
+          ],
+        },
+        'LIÇÃO BÍBLICA',
+      ),
+    ).toBe(
+      'Duas histórias.\n\n### Primeira\n\nCinco pães.\n\n### Segunda\n\nSete pães.',
+    );
   });
 });

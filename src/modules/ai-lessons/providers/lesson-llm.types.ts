@@ -50,3 +50,7 @@ export interface LessonLlmProviderContract {
     identityReferenceImage?: LessonImageReference,
   ): Promise<Buffer>;
 }
+
+export interface LessonProviderConfig {
+  get<T = unknown>(key: string): T | undefined;
+}

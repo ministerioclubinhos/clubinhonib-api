@@ -1,4 +1,10 @@
-import { Column, CreateDateColumn, Entity, PrimaryColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  PrimaryColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 
 @Entity('ai_provider_settings')
 export class AiProviderSettingEntity {
@@ -6,7 +12,7 @@ export class AiProviderSettingEntity {
   provider: string;
 
   @Column({ type: 'simple-json' })
-  settings: Record<string, any>;
+  settings: Record<string, unknown>;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

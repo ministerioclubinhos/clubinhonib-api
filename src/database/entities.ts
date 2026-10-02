@@ -34,6 +34,7 @@ import { LessonEntity } from 'src/modules/ai-lessons/entities/lesson.entity';
 import { LessonStageEntity } from 'src/modules/ai-lessons/entities/lesson-stage.entity';
 import { LessonVersionEntity } from 'src/modules/ai-lessons/entities/lesson-version.entity';
 import { LessonCommentEntity } from 'src/modules/ai-lessons/entities/lesson-comment.entity';
+import { AiProviderSettingEntity } from 'src/modules/ai-lessons/entities/ai-provider-setting.entity';
 import { AdminLessonPromptEntity } from 'src/modules/ai-lessons/entities/admin-lesson-prompt.entity';
 
 /**
@@ -81,4 +82,5 @@ export const DATABASE_ENTITIES = [
   LessonVersionEntity,
   LessonCommentEntity,
   AdminLessonPromptEntity,
+  AiProviderSettingEntity,
 ];

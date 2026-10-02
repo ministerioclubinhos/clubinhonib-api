@@ -693,3 +693,16 @@ export enum ErrorCode {
 
 ---
 Back to [Documentation Hub](README.md)
+
+## Falhas de geração de lição
+
+O erro externo OpenAI billing_not_active é traduzido em AI_BILLING_INACTIVE
+na etapa, com orientação para revisar o faturamento ou selecionar outro
+provedor na página de configurações. Erros de validação e persistência das
+configurações continuam usando o envelope global, sem simular salvamento.
+
+A ausência de chave salva é traduzida em `AI_CONFIGURATION_MISSING`, com
+orientação para salvar a chave na página de configurações e gerar o item
+novamente. A identificação do provedor ignora maiúsculas e minúsculas,
+incluindo mensagens como `GEMINI_API_KEY não configurada`. Falhas sem
+identificação de provedor não são atribuídas automaticamente ao OpenAI.

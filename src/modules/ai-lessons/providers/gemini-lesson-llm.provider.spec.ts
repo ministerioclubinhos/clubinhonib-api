@@ -1,4 +1,5 @@
 import { ServiceUnavailableException } from '@nestjs/common';
+import { LESSON_BASE_PROMPT } from '../constants/lesson-editorial.constants';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosError } from 'axios';
 import { LessonStageType } from '../enums/lesson.enums';
@@ -86,7 +87,7 @@ describe('GeminiLessonLlmProvider', () => {
       stage: LessonStageType.LESSON,
       template: LESSON_TEMPLATES[LessonStageType.LESSON],
       approvedUpstream: null,
-      adminPrompt: '',
+      adminPrompt: LESSON_BASE_PROMPT,
     });
 
     expect(result).toEqual({
@@ -101,9 +102,20 @@ describe('GeminiLessonLlmProvider', () => {
     expect(body).toMatchObject({
       generationConfig: {
         responseMimeType: 'application/json',
-        responseJsonSchema: { type: 'object' },
+        responseJsonSchema: {
+          type: 'object',
+          properties: { reviewQuestions: { minItems: 8, maxItems: 10 } },
+        },
       },
     });
+    const contents = body.contents as Array<{ parts: Array<{ text: string }> }>;
+    const sent = JSON.parse(contents[0].parts[0].text) as {
+      adminPrompt: string;
+    };
+    expect(sent.adminPrompt).toBe(LESSON_BASE_PROMPT);
+    expect(sent.adminPrompt).toContain(
+      'Nunca copie essas descrições para story',
+    );
     expect(options.headers).toEqual({ 'x-goog-api-key': 'test-key' });
   });
 

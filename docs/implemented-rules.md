@@ -581,3 +581,45 @@ If today were Sunday, 11/23/2025:
 
 ---
 ⬅️ [Back to Documentation Hub](README.md)
+
+## Estúdio: padrão editorial da lição bíblica
+
+A etapa LESSON usa template 4.1.0 e prompt com notas curadas das Semanas 14,
+15, 25 e 26: narrativa participativa, orientações ao professor, preservação das
+escolhas do exemplo correspondente e sinalização de referências incompletas.
+Cenas ficam em visualScenes, fora da história; o schema admite 8 a 10 perguntas.
+A oração final separada é opcional (string vazia por padrão), e sua seção vazia
+não é renderizada. A oração do apelo permanece. Editor ordena as seções
+independentemente da ordem das propriedades do JSON. Ver api-ai-lessons.md.
+
+## Estúdio: configuração de provedores
+
+O documento da etapa de lição separa o cabeçalho em `LIÇÃO <semana>`,
+`TÍTULO` e o tema. A semana cadastrada prevalece sobre números produzidos
+pelo modelo; referências e propósito permanecem em suas seções próprias.
+O detalhe retorna as versões antigas com esse mesmo cabeçalho no editor,
+preservando o restante do documento e sem escrever no banco durante a leitura.
+
+A geração resolve o provedor ativo e todos os parâmetros de LLM exclusivamente
+na tabela ai_provider_settings, gerenciada pela página de configurações.
+GET/PUT /api/v1/lessons/providers/settings requerem administrador; o PUT salva
+ambos os provedores e a escolha ativa atomicamente. Não há leitura de env,
+credenciais embutidas, fallback entre provedores ou sucesso simulado em falhas
+de persistência. maxRetries e retryBaseDelayMs são inteiros não negativos.
+
+## Estúdio: formatação manual na exportação
+
+A versão Tiptap salva prevalece na lição, brincadeira, fixação e meditações
+editadas manualmente. Marcas de fonte, tamanho, cores e links, atributos de
+espaçamento e células mescladas são convertidos para DOCX antes do PDF.
+A normalização do cabeçalho já separado preserva suas marcas. A prévia e a
+exportação recebem a origem da versão para identificar meditações editadas,
+que substituem a imposição baseada no JSON estruturado antigo.
+
+## Estúdio: sub-histórias da lição
+
+Temas e orientações com múltiplos relatos exigem subtítulos separados no
+prompt compartilhado pelos provedores. O marcador de linha `###` em story
+vira título H3 no editor e na exportação, inclusive no fallback estruturado.
+A extração da narrativa editada mantém esses marcadores para preservar a
+separação nos produtos posteriores. Não há mudanças no schema ou endpoints.
