@@ -1,6 +1,11 @@
 import { ConflictException } from '@nestjs/common';
 import { AdminLessonPromptEntity } from '../entities/admin-lesson-prompt.entity';
-import { LessonStageType } from '../enums/lesson.enums';
+import {
+  LESSON_SHARED_QUALITY_RULES,
+  LESSON_STAGE_QUALITY_RULES,
+} from '../constants/lesson-quality.constants';
+import { LESSON_TEMPLATES } from '../templates/lesson-templates';
+import { LESSON_STAGE_ORDER, LessonStageType } from '../enums/lesson.enums';
 import { AdminLessonPromptService } from './admin-lesson-prompt.service';
 import { AdminLessonPromptRepository } from '../repositories/admin-lesson-prompt.repository';
 
@@ -58,6 +63,27 @@ describe('AdminLessonPromptService', () => {
     ).toBe(true);
   });
 
+  it.each(LESSON_STAGE_ORDER)(
+    'preserva critérios gerais e específicos no prompt personalizado de %s',
+    async (stage) => {
+      const saved = await service.save(
+        'admin-a',
+        stage,
+        'Use recursos disponíveis na sala.',
+      );
+      const effective = await service.effective('admin-a', stage);
+      expect(effective).toBe(saved.effectivePrompt);
+      expect(effective).toContain('Use recursos disponíveis na sala.');
+      expect(effective).toContain('A orientação complementar não substitui');
+      expect(saved.basePrompt).toContain(LESSON_STAGE_QUALITY_RULES[stage]);
+      for (const rule of LESSON_SHARED_QUALITY_RULES) {
+        expect(saved.basePrompt).toContain(rule);
+        expect(effective).toContain(rule);
+        expect(LESSON_TEMPLATES[stage].rules).toContain(rule);
+      }
+    },
+  );
+
   it('isola a personalização por administrador e etapa', async () => {
     await service.save(
       'admin-a',
@@ -105,6 +131,55 @@ describe('AdminLessonPromptService', () => {
     );
     expect(prompt).toContain('Use objetos simples da sala.');
     expect(prompt).not.toContain('gere exatamente dez perguntas');
+  });
+
+  it('prioriza memorização infantil e exige propósito, narrativa e aplicação concretos', async () => {
+    const prompt = await service.effective('admin-a', LessonStageType.LESSON);
+    expect(prompt).toContain('Prefira até 20 palavras');
+    expect(prompt).toContain('frase de 3 a 12 palavras');
+    expect(prompt).toContain('reescreva os trechos');
+    expect(prompt).toContain(
+      'a sigla NVI pertence exclusivamente ao campo version',
+    );
+    expect(prompt).toContain(
+      'Não atribua ao versículo palavras, títulos ou imagens que ele não contém',
+    );
+    expect(prompt).toContain('ao menos dois exemplos concretos de pecado');
+    expect(prompt).toContain(
+      'Pode escolher um versículo diferente do exemplo histórico',
+    );
+    expect(prompt).toContain(
+      'Respeite um versículo explicitamente solicitado pelo administrador',
+    );
+    expect(prompt).toContain('não corte de modo a alterar o sentido');
+    expect(prompt).toContain('uma única frase curta');
+    expect(prompt).toContain('nem restringir o público');
+    expect(prompt).toContain(
+      'sentimentos, intenções e diálogos sustentados pelas referências',
+    );
+    expect(prompt).toContain('Ilustrações fictícias do cotidiano');
+    expect(prompt).toContain('Para quem já crê em Jesus');
+    expect(prompt).toContain('Para quem deseja seguir Jesus');
+    expect(prompt).toContain('mentir, desobedecer ou machucar alguém');
+    expect(prompt).toContain('morte e ressurreição de Jesus');
+    expect(prompt).toContain(
+      'A explicação do princípio e as perguntas devem usar exatamente o texto escolhido',
+    );
+    expect(prompt).not.toContain(
+      'não amplie o texto nem troque por outro versículo',
+    );
+  });
+
+  it('aplica regras de integridade e fidelidade a qualquer tema', async () => {
+    const prompt = await service.effective('admin-a', LessonStageType.LESSON);
+    expect(prompt).toContain('REGRAS GERAIS PARA QUALQUER TEMA');
+    expect(prompt).toContain('nunca omita o desfecho');
+    expect(prompt).toContain(
+      'Não transfira automaticamente para todos os personagens',
+    );
+    expect(prompt).toContain('sem detalhes de ferimentos');
+    expect(prompt).toContain('Se você deseja, pode orar comigo');
+    expect(prompt).toContain('Não cobre uma fala ou um desfecho ausente');
   });
 
   it('rejeita atualização concorrente e restaura o padrão', async () => {

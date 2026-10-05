@@ -333,6 +333,51 @@ describe('LessonDraftService workflow safety', () => {
     expect(repo.runInTransaction).not.toHaveBeenCalled();
   });
 
+  it.each([
+    new Error('Gemini: {"error":{"code":"MAX_TOKENS"}}'),
+    new Error('Resposta incompleta da OpenAI: max_output_tokens'),
+  ])(
+    'mostra mensagem específica para resposta interrompida de qualquer provedor',
+    (error) => {
+      const target = service as unknown as {
+        describeAiFailure: (
+          stage: LessonStageType,
+          error: unknown,
+        ) => { code: string; message: string };
+      };
+      const failure = target.describeAiFailure(LessonStageType.LESSON, error);
+      expect(failure.code).toBe('AI_INCOMPLETE_RESPONSE');
+      expect(failure.message).toContain('versão anterior foi preservada');
+    },
+  );
+
+  it('rejeita narrativa interrompida mesmo com um JSON de lição válido', () => {
+    const target = service as unknown as {
+      validateCanonicalContent: (
+        lesson: LessonEntity,
+        stage: LessonStageType,
+        generated: Record<string, unknown>,
+      ) => Record<string, unknown>;
+      describeAiFailure: (
+        stage: LessonStageType,
+        error: unknown,
+      ) => { code: string; message: string };
+    };
+    expect(() =>
+      target.validateCanonicalContent(
+        {} as LessonEntity,
+        LessonStageType.LESSON,
+        { story: 'Jesus respondeu: "Se podes?' },
+      ),
+    ).toThrow('Conteúdo incompleto da lição');
+    const failure = target.describeAiFailure(
+      LessonStageType.LESSON,
+      new ConflictException('Conteúdo incompleto da lição: fala interrompida.'),
+    );
+    expect(failure.code).toBe('AI_INCOMPLETE_RESPONSE');
+    expect(failure.message).toContain('versão anterior foi preservada');
+  });
+
   it('mantém a referência bíblica cadastrada como valor canônico', () => {
     const target = service as unknown as {
       validateCanonicalContent: (
@@ -343,6 +388,8 @@ describe('LessonDraftService workflow safety', () => {
     };
     const generated = {
       biblicalReference: 'João 3.16',
+      story:
+        'Jesus mostrou o amor de Deus. A história terminou com seu ensino.',
       memoryVerse: {
         text: 'Porque Deus amou o mundo...',
         reference: 'João 3:16',
@@ -618,6 +665,21 @@ describe('LessonDraftService workflow safety', () => {
         { displayText: '.' },
       ]),
     ).toThrow(ConflictException);
+  });
+
+  it('exibe a versão do versículo uma única vez no documento gerado', () => {
+    const target = service as unknown as {
+      toTiptap: (value: Record<string, unknown>) => Record<string, unknown>;
+    };
+    const document = target.toTiptap({
+      memoryVerse: {
+        text: 'Eu sou o pão da vida.',
+        reference: 'João 6:35 NVI',
+        version: 'NVI',
+      },
+    });
+    expect(JSON.stringify(document)).toContain('João 6:35 — NVI');
+    expect(JSON.stringify(document)).not.toContain('João 6:35 NVI — NVI');
   });
 
   it('mantém a ordem editorial, oculta oração vazia e deixa as cenas fora da narrativa', () => {

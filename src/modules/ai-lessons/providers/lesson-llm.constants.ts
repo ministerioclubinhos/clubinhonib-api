@@ -9,3 +9,10 @@ export const DEFAULT_GEMINI_IMAGE_MODEL = 'gemini-3.1-flash-image';
 export const DEFAULT_GEMINI_IMAGE_SIZE = '2K';
 export const DEFAULT_GEMINI_MAX_RETRIES = 3;
 export const DEFAULT_GEMINI_RETRY_BASE_DELAY_MS = 1000;
+
+export enum GeminiTextFinishReason {
+  STOP = 'STOP',
+  MAX_TOKENS = 'MAX_TOKENS',
+  RECITATION = 'RECITATION',
+  SAFETY = 'SAFETY',
+}

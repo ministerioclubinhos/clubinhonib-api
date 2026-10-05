@@ -706,3 +706,12 @@ orientação para salvar a chave na página de configurações e gerar o item
 novamente. A identificação do provedor ignora maiúsculas e minúsculas,
 incluindo mensagens como `GEMINI_API_KEY não configurada`. Falhas sem
 identificação de provedor não são atribuídas automaticamente ao OpenAI.
+
+## Estúdio: resposta incompleta
+
+`AI_INCOMPLETE_RESPONSE` é o diagnóstico da etapa para OpenAI com
+`incomplete_details`, Gemini com `MAX_TOKENS` ou narrativa com sinais formais
+de corte. A interface recebe failureMessage orientando uma nova geração;
+a versão anterior não é substituída. Outros términos de bloqueio, como
+RECITATION e SAFETY, continuam classificados como AI_CONTENT_BLOCKED.
+Não se tenta salvar conteúdo parcial nem completar frases automaticamente.

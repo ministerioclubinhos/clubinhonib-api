@@ -5,6 +5,7 @@ import {
   extractTiptapSectionText,
   lessonHeaderLines,
   lessonStoryHeading,
+  normalizeLessonVerseReference,
   normalizeLessonDocumentHeader,
 } from './utils';
 
@@ -183,6 +184,25 @@ describe('sub-histórias da lição', () => {
       ),
     ).toBe(
       'Duas histórias.\n\n### Primeira\n\nCinco pães.\n\n### Segunda\n\nSete pães.',
+    );
+  });
+});
+
+describe('referência do versículo', () => {
+  it.each([
+    'João 6:35 NVI',
+    'João 6:35 — NVI',
+    'João 6:35 (NVI)',
+    'João 6:35 NVI — NVI',
+  ])('remove a versão redundante de %s', (reference) => {
+    expect(normalizeLessonVerseReference(reference)).toBe('João 6:35');
+  });
+  it('preserva a delimitação de trecho e não altera referências sem versão', () => {
+    expect(normalizeLessonVerseReference('João 6:35 (trecho) — NVI')).toBe(
+      'João 6:35 (trecho)',
+    );
+    expect(normalizeLessonVerseReference('Hebreus 9:22b')).toBe(
+      'Hebreus 9:22b',
     );
   });
 });

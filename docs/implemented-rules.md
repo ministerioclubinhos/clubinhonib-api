@@ -584,7 +584,7 @@ If today were Sunday, 11/23/2025:
 
 ## Estúdio: padrão editorial da lição bíblica
 
-A etapa LESSON usa template 4.1.0 e prompt com notas curadas das Semanas 14,
+A etapa LESSON usa template 4.4.0 e prompt com notas curadas das Semanas 14,
 15, 25 e 26: narrativa participativa, orientações ao professor, preservação das
 escolhas do exemplo correspondente e sinalização de referências incompletas.
 Cenas ficam em visualScenes, fora da história; o schema admite 8 a 10 perguntas.
@@ -623,3 +623,31 @@ prompt compartilhado pelos provedores. O marcador de linha `###` em story
 vira título H3 no editor e na exportação, inclusive no fallback estruturado.
 A extração da narrativa editada mantém esses marcadores para preservar a
 separação nos produtos posteriores. Não há mudanças no schema ou endpoints.
+
+## Estúdio: clareza do ensino e versículo curto
+
+O template 4.4.0 orienta um propósito específico em uma frase, versículo NVI
+curto e ligado à lição (até 20 palavras como preferência, sem limite rígido),
+narrativa sem emoções ou intenções inventadas e aplicação para quem já crê
+e quem deseja seguir Jesus. Versículos históricos são sugestões; os pedidos
+explícitos do administrador prevalecem. Músicas não tiveram alteração.
+
+O prompt 4.4.0 exige revisão interna com exemplos explícitos de especulações
+a retirar e pelo menos dois exemplos infantis de pecado. Quando suficiente
+ao contexto, uma frase bíblica de 3 a 12 palavras é preferida. A sigla NVI
+redundante é removida da referência canônica, da montagem do editor e do
+fallback estruturado do PDF, sem truncar ou reescrever o texto bíblico.
+
+## Estúdio: integridade genérica da narrativa
+
+A geração de qualquer lição segue regras gerais de desfecho, harmonização
+cuidadosa, linguagem infantil e coerência das perguntas. Antes de salvar,
+verificações formais rejeitam narrativa vazia, aspas sem fechamento, sinal de
+continuação no fim e subtítulo sem conteúdo. Gemini não aceita finishReason
+interrompido como sucesso; o fallback continua restrito aos modelos salvos
+do mesmo provedor. A falha preserva a versão anterior e tem mensagem específica
+para incompletude. As regras formais não substituem a revisão humana do sentido.
+
+### Shared quality across production stages
+
+All eight stage base prompts and provider template contracts include the same generic quality policy, including administrator-customized prompts. Each stage also receives specific completeness checks: narrative endings and scene fidelity, executable games and verse dynamics, complete verse card sequences, age-appropriate meditations with solvable activities and checked answers, and usable printable craft instructions. Derived stages preserve the approved verse verbatim; only the lesson selects a short contextual verse. These instructions require provider self-review and do not replace human semantic review. Lesson template version is 4.5.0; other stage contracts increment their minor versions. Existing saved materials are unchanged until regeneration.

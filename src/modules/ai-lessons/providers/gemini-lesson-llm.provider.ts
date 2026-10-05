@@ -16,6 +16,7 @@ import {
   DEFAULT_GEMINI_TEXT_FALLBACK_MODEL,
   DEFAULT_GEMINI_TEXT_MODEL,
   GEMINI_API_BASE_URL,
+  GeminiTextFinishReason,
 } from './lesson-llm.constants';
 import {
   LessonLlmGenerationInput,
@@ -27,7 +28,7 @@ import {
 type GeminiTextResponse = {
   responseId?: string;
   candidates?: Array<{
-    finishReason?: string;
+    finishReason?: GeminiTextFinishReason;
     content?: { parts?: Array<{ text?: string }> };
   }>;
   promptFeedback?: { blockReason?: string };
@@ -118,6 +119,17 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
           );
 
           const candidate = res.data.candidates?.[0];
+          const stopReason =
+            res.data.promptFeedback?.blockReason ?? candidate?.finishReason;
+          if (
+            res.data.promptFeedback?.blockReason ||
+            (candidate?.finishReason &&
+              candidate.finishReason !== GeminiTextFinishReason.STOP)
+          ) {
+            throw new BadGatewayException(
+              `Gemini: ${JSON.stringify({ error: { code: stopReason } })}`,
+            );
+          }
           const text = candidate?.content?.parts
             ?.map((part) => part.text ?? '')
             .join('')

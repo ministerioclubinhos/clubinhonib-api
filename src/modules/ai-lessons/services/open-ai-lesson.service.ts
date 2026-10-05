@@ -131,7 +131,7 @@ export function schemaFor(stage: LessonStageType): Record<string, unknown> {
         story: {
           type: 'string',
           description:
-            'Aula completa e participativa para o professor ministrar, sem descrições de arte nem marcadores de cena.',
+            'Aula completa e participativa, com acontecimento central e desfecho de todos os relatos antes da aplicação, sem falas interrompidas, descrições de arte ou marcadores de cena.',
         },
         applicationAndAppeal: { type: 'string' },
         counseling: { type: 'string' },

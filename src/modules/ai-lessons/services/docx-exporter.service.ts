@@ -34,6 +34,7 @@ import {
   lessonHeaderLines,
   lessonString,
   lessonStoryHeading,
+  normalizeLessonVerseReference,
   normalizeLessonDocumentHeader,
 } from '../utils';
 
@@ -78,7 +79,7 @@ export class DocxExporterService {
         this.addHeading(children, 'VERSÍCULO PARA MEMORIZAR', 2);
         this.addText(
           children,
-          `${lessonString(verse.text)} — ${lessonString(verse.reference)} (${lessonString(verse.version)})`,
+          `${lessonString(verse.text)} — ${normalizeLessonVerseReference(verse.reference)} — ${lessonString(verse.version)}`,
         );
         this.addField(
           children,

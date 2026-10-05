@@ -184,3 +184,10 @@ export function buildVerseVisualImagePrompt(input: {
 export function lessonStoryHeading(line: string): string | undefined {
   return line.trim().match(/^###\s+(.+?)\s*$/)?.[1];
 }
+
+export function normalizeLessonVerseReference(value: unknown): string {
+  return lessonString(value)
+    .trim()
+    .replace(/(?:\s*(?:[—–-]\s*)?\(?NVI\)?)+$/i, '')
+    .trim();
+}

@@ -119,6 +119,69 @@ describe('GeminiLessonLlmProvider', () => {
     expect(options.headers).toEqual({ 'x-goog-api-key': 'test-key' });
   });
 
+  it.each(['MAX_TOKENS', 'RECITATION', 'SAFETY'])(
+    'rejeita texto com término %s mesmo quando o JSON é válido',
+    async (finishReason) => {
+      mockedAxios.post.mockResolvedValue({
+        data: {
+          candidates: [
+            {
+              finishReason,
+              content: { parts: [{ text: '{"title":"Conteúdo parcial"}' }] },
+            },
+          ],
+        },
+      });
+      await expect(
+        provider.generateStage({
+          theme: 'Tema qualquer',
+          biblicalReference: 'João 3:16',
+          weekNumber: 1,
+          stage: LessonStageType.LESSON,
+          template: LESSON_TEMPLATES[LessonStageType.LESSON],
+          approvedUpstream: null,
+          adminPrompt: LESSON_BASE_PROMPT,
+        }),
+      ).rejects.toThrow(finishReason);
+      expect(mockedAxios.post.mock.calls).toHaveLength(2);
+    },
+  );
+
+  it('usa o fallback configurado quando a resposta principal foi interrompida', async () => {
+    mockedAxios.post.mockResolvedValueOnce({
+      data: {
+        candidates: [
+          {
+            finishReason: 'MAX_TOKENS',
+            content: { parts: [{ text: '{"title":"Parcial"}' }] },
+          },
+        ],
+      },
+    });
+    mockedAxios.post.mockResolvedValueOnce({
+      data: {
+        responseId: 'complete',
+        candidates: [
+          {
+            finishReason: 'STOP',
+            content: { parts: [{ text: '{"title":"Completo"}' }] },
+          },
+        ],
+      },
+    });
+    const result = await provider.generateStage({
+      theme: 'Tema qualquer',
+      biblicalReference: 'João 3:16',
+      weekNumber: 1,
+      stage: LessonStageType.LESSON,
+      template: LESSON_TEMPLATES[LessonStageType.LESSON],
+      approvedUpstream: null,
+      adminPrompt: LESSON_BASE_PROMPT,
+    });
+    expect(result.content).toEqual({ title: 'Completo' });
+    expect(lastPostCall()[0]).toContain('gemini-text-fallback-test');
+  });
+
   it('gera imagem com formato controlado pela orientação', async () => {
     mockedAxios.post.mockResolvedValueOnce({
       data: {

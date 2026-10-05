@@ -46,6 +46,28 @@ describe('DocxExporterService lesson header', () => {
     expect(relationships).toContain('https://example.com/apoio');
   });
 
+  it('não duplica NVI na referência exportada do conteúdo estruturado', async () => {
+    const exporter = new DocxExporterService({
+      get: jest.fn(),
+    } as unknown as ConfigService);
+    const buffer = await exporter.buildDocxFromTiptapOrStructuredJson({
+      LESSON: {
+        structuredDataJson: {
+          title: 'O PÃO DA VIDA',
+          memoryVerse: {
+            text: 'Eu sou o pão da vida.',
+            reference: 'João 6:35 NVI',
+            version: 'NVI',
+          },
+        },
+      },
+    });
+    const zip = await JSZip.loadAsync(buffer);
+    const xml = await zip.file('word/document.xml')!.async('string');
+    expect(xml).toContain('João 6:35 — NVI');
+    expect(xml).not.toContain('João 6:35 NVI');
+  });
+
   it.each([true, false])(
     'preserva os subtítulos no PDF via DOCX, com AST presente=%s',
     async (withAst) => {

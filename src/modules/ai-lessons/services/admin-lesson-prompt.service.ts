@@ -1,4 +1,8 @@
 import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  LESSON_SHARED_QUALITY_RULES,
+  LESSON_STAGE_QUALITY_RULES,
+} from '../constants/lesson-quality.constants';
 import { LESSON_BASE_PROMPT } from '../constants/lesson-editorial.constants';
 import { AdminLessonPromptEntity } from '../entities/admin-lesson-prompt.entity';
 import { LESSON_STAGE_ORDER, LessonStageType } from '../enums/lesson.enums';
@@ -70,7 +74,7 @@ export class AdminLessonPromptService {
   ): AdminLessonPromptView {
     return {
       stage,
-      basePrompt: BASE_PROMPTS[stage],
+      basePrompt: this.basePrompt(stage),
       customPrompt: entity?.customPrompt ?? null,
       effectivePrompt: this.composeEffectivePrompt(
         stage,
@@ -80,12 +84,17 @@ export class AdminLessonPromptService {
     };
   }
 
+  private basePrompt(stage: LessonStageType): string {
+    return `${BASE_PROMPTS[stage]}\n\nCRITÉRIOS GERAIS DE QUALIDADE PARA TODAS AS ETAPAS\n${LESSON_SHARED_QUALITY_RULES.join('\n')}\n\nREVISÃO ESPECÍFICA DA ETAPA\n${LESSON_STAGE_QUALITY_RULES[stage]}`;
+  }
+
   private composeEffectivePrompt(
     stage: LessonStageType,
     customPrompt: string | null,
   ): string {
-    if (!customPrompt) return BASE_PROMPTS[stage];
-    return `${BASE_PROMPTS[stage]}\n\nORIENTAÇÃO COMPLEMENTAR DO ADMINISTRADOR\n${customPrompt}\n\nA orientação complementar não substitui estrutura, fidelidade bíblica, segurança infantil, formato de impressão ou critérios editoriais obrigatórios acima.`;
+    const basePrompt = this.basePrompt(stage);
+    if (!customPrompt) return basePrompt;
+    return `${basePrompt}\n\nORIENTAÇÃO COMPLEMENTAR DO ADMINISTRADOR\n${customPrompt}\n\nA orientação complementar não substitui estrutura, fidelidade bíblica, segurança infantil, formato de impressão ou critérios editoriais obrigatórios acima.`;
   }
 }
 

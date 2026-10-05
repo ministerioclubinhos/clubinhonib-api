@@ -1,4 +1,8 @@
-import { LESSON_EDITORIAL_FIELD_ORDER } from '../constants/lesson-editorial.constants';
+import { lessonNarrativeIssue } from '../lessonNarrative.utils';
+import {
+  LESSON_EDITORIAL_FIELD_ORDER,
+  LESSON_NARRATIVE_INCOMPLETE_PREFIX,
+} from '../constants/lesson-editorial.constants';
 import {
   BadRequestException,
   ConflictException,
@@ -49,6 +53,7 @@ import {
   extractTiptapSectionText,
   lessonString,
   lessonStoryHeading,
+  normalizeLessonVerseReference,
   lessonHeaderLines,
   normalizeLessonDocumentHeader,
 } from '../utils';
@@ -564,6 +569,15 @@ export class LessonDraftService implements OnApplicationBootstrap {
       message: `${prefix}${detail}`.slice(0, 500),
     });
 
+    if (
+      raw.startsWith(LESSON_NARRATIVE_INCOMPLETE_PREFIX) ||
+      /resposta incompleta da OpenAI/i.test(raw)
+    )
+      return result(
+        'AI_INCOMPLETE_RESPONSE',
+        'a resposta foi interrompida ou a narrativa contém sinais de incompletude. A versão anterior foi preservada; gere novamente para obter o conteúdo completo.',
+      );
+
     if (/API_KEY não configurada/i.test(raw))
       return result(
         'AI_CONFIGURATION_MISSING',
@@ -589,6 +603,12 @@ export class LessonDraftService implements OnApplicationBootstrap {
     const code = /^\d+$/.test(upstreamCode)
       ? upstreamStatus
       : upstreamCode || upstreamStatus;
+
+    if (code === 'max_tokens')
+      return result(
+        'AI_INCOMPLETE_RESPONSE',
+        'o provedor interrompeu a resposta ao atingir o limite de saída. A versão anterior foi preservada; gere novamente ou revise o modelo configurado.',
+      );
 
     if (provider === 'OpenAI' && code === 'billing_not_active')
       return result(
@@ -945,6 +965,11 @@ export class LessonDraftService implements OnApplicationBootstrap {
     generated: JsonObject,
   ): JsonObject {
     if (type === LessonStageType.LESSON) {
+      const issue = lessonNarrativeIssue(generated.story);
+      if (issue)
+        throw new ConflictException(
+          `${LESSON_NARRATIVE_INCOMPLETE_PREFIX}: ${issue}. Gere novamente para obter uma aula completa.`,
+        );
       generated.biblicalReference = lesson.biblicalReference;
       const themeUpper = (lesson.theme ?? '').trim().toUpperCase();
       const titleStr = lessonString(generated.title).trim();
@@ -955,6 +980,8 @@ export class LessonDraftService implements OnApplicationBootstrap {
         generated.title = `LIÇÃO: ${themeUpper}`;
       }
       const verse = this.asObject(generated.memoryVerse);
+      verse.reference = normalizeLessonVerseReference(verse.reference);
+      generated.memoryVerse = verse;
       if (
         !lessonString(verse.text).trim() ||
         !lessonString(verse.reference).trim() ||
@@ -1691,7 +1718,7 @@ export class LessonDraftService implements OnApplicationBootstrap {
       if (key === 'memoryVerse' && raw && typeof raw === 'object') {
         const verseObj = raw as JsonObject;
         const text = lessonString(verseObj.text).trim();
-        const reference = lessonString(verseObj.reference).trim();
+        const reference = normalizeLessonVerseReference(verseObj.reference);
         const version = lessonString(verseObj.version).trim();
         if (text) {
           nodes.push(paragraph(`“${text}”`));

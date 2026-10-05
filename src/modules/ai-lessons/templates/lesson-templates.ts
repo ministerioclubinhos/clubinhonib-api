@@ -1,3 +1,4 @@
+import { LESSON_SHARED_QUALITY_RULES } from '../constants/lesson-quality.constants';
 import { createHash } from 'node:crypto';
 import { LessonStageType } from '../enums/lesson.enums';
 
@@ -10,19 +11,20 @@ export type LessonTemplateContract = {
 };
 
 const sharedRules = [
+  ...LESSON_SHARED_QUALITY_RULES,
   'Escrever em português brasileiro, para crianças, com fidelidade bíblica e linguagem acolhedora.',
   'Usar a Bíblia NVI como referência e adequar todo o conteúdo a crianças de 5 a 11 anos.',
   'Não incluir conteúdo sexual, romântico, erotizado ou debates de sexualidade; manter foco exclusivo na passagem bíblica.',
   'Não inventar citações bíblicas. A referência e o texto devem ser coerentes entre si.',
   'Não alterar, omitir, renomear ou reordenar os campos do template.',
-  'Não inserir logos, títulos ou palavras dentro da arte gerada; textos são compostos pelo renderer.',
+  'Não inserir logos na arte. Textos são compostos pelo renderer, exceto nos cartões tipográficos de VERSE_VISUALS, cuja própria imagem deve conter o texto exato exigido pelo contrato.',
 ] as const;
 
 export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
   {
     [LessonStageType.LESSON]: {
       key: 'clubinho.lesson.canonical',
-      version: '4.1.0',
+      version: '4.5.0',
       stage: LessonStageType.LESSON,
       exactStructure: [
         'LIÇÃO E TÍTULO',
@@ -41,14 +43,18 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
         ...sharedRules,
         'A história é uma aula desenvolvida e participativa, com instruções práticas ao professor, ensino integrado e episódios essenciais completos; não é um resumo. Descrições visuais ficam somente em visualScenes, com IDs estáveis scene-01 etc., nunca dentro de story.',
         'Quando o tema ou a orientação indicar duas ou mais sub-histórias, informar a quantidade na abertura, desenvolver cada relato separadamente e inserir subtítulos em linhas próprias no campo story com o prefixo ### e a referência correspondente. Passagens paralelas não representam histórias distintas.',
-        'Preservar propósito, seleção do versículo e ordem dos episódios da referência editorial correspondente, sem copiar seus possíveis erros bíblicos ou históricos.',
+        'Escrever um propósito curto, claro e específico para a criança, ligado ao tema. Escolher um versículo ou trecho NVI curto, preferencialmente até 20 palavras, fácil de memorizar e diretamente contextualizado; a seleção histórica é sugestiva, salvo solicitação explícita do administrador. Preservar a ordem dos episódios sem copiar erros do exemplo.',
+        'A narrativa não pode apresentar sentimentos, intenções ou diálogos não sustentados pelas passagens como fatos bíblicos. Separar ilustrações fictícias e reconto de citações literais.',
+        'Aplicação em parágrafos distintos para quem já crê e para quem deseja seguir Jesus: atitudes concretas ligadas ao propósito, explicação simples de pecado com exemplos infantis, morte e ressurreição de Jesus, convite e oração voluntários.',
+        'Revisar e corrigir a saída antes de entregar: preferir frase bíblica curta sem introdução narrativa, não duplicar NVI na referência, não atribuir títulos ausentes ao versículo, retirar especulações e incluir pelo menos dois exemplos infantis concretos de pecado na aplicação.',
+        'Regras gerais para qualquer tema: concluir cada relato antes da aplicação, preservar atribuições individuais ao harmonizar evangelhos, reduzir descrições assustadoras, manter convite voluntário e verificar que perguntas e respostas têm apoio no conteúdo ensinado.',
         'Gerar de oito a dez perguntas com gabarito, respeitando a quantidade do exemplo correspondente. closingPrayer fica vazio salvo solicitação explícita de oração final separada.',
         'A oração de apelo deve ser revisável e nunca pode ser substituída por texto dentro de imagem.',
       ],
     },
     [LessonStageType.LESSON_VISUALS]: {
       key: 'clubinho.lesson-visuals.canonical',
-      version: '2.0.0',
+      version: '2.1.0',
       stage: LessonStageType.LESSON_VISUALS,
       exactStructure: [
         'QUEBRA INTEGRAL DA LIÇÃO BÍBLICA',
@@ -67,7 +73,7 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
     },
     [LessonStageType.STANDARD_GAME]: {
       key: 'clubinho.standard-game.canonical',
-      version: '3.0.0',
+      version: '3.1.0',
       stage: LessonStageType.STANDARD_GAME,
       exactStructure: [
         'NOME DA BRINCADEIRA',
@@ -92,7 +98,7 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
     },
     [LessonStageType.VERSE_VISUALS]: {
       key: 'clubinho.verse-visuals.canonical',
-      version: '1.0.0',
+      version: '1.1.0',
       stage: LessonStageType.VERSE_VISUALS,
       exactStructure: [
         'VISUAIS DO VERSÍCULO',
@@ -112,7 +118,7 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
     },
     [LessonStageType.VERSE_FIXATION]: {
       key: 'clubinho.verse-fixation.canonical',
-      version: '2.0.0',
+      version: '2.1.0',
       stage: LessonStageType.VERSE_FIXATION,
       exactStructure: [
         'NOME DA BRINCADEIRA',
@@ -137,7 +143,7 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
     },
     [LessonStageType.MEDITATION_YOUNGER]: {
       key: 'clubinho.meditation-younger.canonical',
-      version: '1.0.0',
+      version: '1.1.0',
       stage: LessonStageType.MEDITATION_YOUNGER,
       exactStructure: [
         'MEDITAÇÃO PARA CRIANÇAS MENORES',
@@ -158,7 +164,7 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
     },
     [LessonStageType.MEDITATION_OLDER]: {
       key: 'clubinho.meditation-older.canonical',
-      version: '1.0.0',
+      version: '1.1.0',
       stage: LessonStageType.MEDITATION_OLDER,
       exactStructure: [
         'MEDITAÇÃO PARA CRIANÇAS MAIORES',
@@ -182,7 +188,7 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
     },
     [LessonStageType.MANUAL_WORK]: {
       key: 'clubinho.manual-work.canonical',
-      version: '1.0.0',
+      version: '1.1.0',
       stage: LessonStageType.MANUAL_WORK,
       exactStructure: [
         'TRABALHO MANUAL',

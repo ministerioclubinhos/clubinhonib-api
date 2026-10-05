@@ -21,7 +21,13 @@ loop cada etapa
   Administrador -> Frontend: gerar/revisar/concluir
   Frontend -> API: gerar ou salvar versão
   note right of API
-    Lição: prompt editorial + notas curadas
+    Todas as etapas: política compartilhada + revisão específica
+    Brincadeiras/dinâmicas completas; atividades e gabaritos coerentes
+    Etapas derivadas preservam o versículo aprovado
+    Lição: prompt editorial 4.5.0 + notas curadas
+    Versículo curto/contextualizado; propósito concreto
+    Revisão interna; referência NVI sem duplicação
+    Narrativa fiel; aplicação para quem crê e convite voluntário
     Narrativa participativa; cenas separadas
     Múltiplos relatos: subtítulos ### em story -> H3 no editor/PDF
     8 a 10 perguntas; oração final opcional
@@ -30,6 +36,11 @@ loop cada etapa
   API -> MySQL: resolve provedor e parâmetros salvos
   API -> OpenAI: conteúdo e imagens (sem env)
   OpenAI --> API: JSON / PNG
+  note right of API
+    Texto: verifica término do provedor e integridade formal
+    Interrompido: falha e preserva versão anterior
+    Regras genéricas: desfecho, público infantil e gabarito coerente
+  end note
   API -> S3: uploads rastreados
   API -> MySQL: versão + etapa
   note right of API

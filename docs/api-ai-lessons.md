@@ -16,9 +16,9 @@ O acervo histórico em `../lições` é referência de formato, não uma fonte a
 
 O número da semana, o tema e todas as referências bíblicas são obrigatórios na criação. A geração da lição preserva literalmente o campo de referências e define um único texto principal NVI para memorização (inclusive um trecho explicitamente delimitado ou versículos consecutivos).
 
-### Padrão editorial da lição (template 4.1.0)
+### Padrão editorial da lição (template 4.4.0)
 
-O prompt-base contém notas editoriais curadas dos exemplos das Semanas 14, 15, 25 e 26, em `src/modules/ai-lessons/constants/lesson-editorial.constants.ts`, usadas por OpenAI e Gemini. Essas notas preservam escolhas de versículo, músicas, propósito, ordem dos episódios e ênfases pedagógicas quando tema e passagens corresponderem; a semana sozinha nunca seleciona o conteúdo. Não se trata de ingestão automática da pasta nem de confirmação textual da NVI. Outros exemplos podem ser descritos nas orientações complementares do administrador.
+O prompt-base contém notas editoriais curadas dos exemplos das Semanas 14, 15, 25 e 26, em `src/modules/ai-lessons/constants/lesson-editorial.constants.ts`, usadas por OpenAI e Gemini. Essas notas orientam músicas, propósito, ordem dos episódios e ênfases pedagógicas; os versículos históricos são sugestões sujeitas aos critérios de brevidade e contexto quando tema e passagens corresponderem; a semana sozinha nunca seleciona o conteúdo. Não se trata de ingestão automática da pasta nem de confirmação textual da NVI. Outros exemplos podem ser descritos nas orientações complementares do administrador.
 
 A narrativa deve ser uma aula desenvolvida para crianças de 5 a 11 anos, com abertura participativa, instruções práticas ao professor, exemplos concretos, episódios completos e ensino integrado. Descrições de arte permanecem exclusivamente em `visualScenes`, com IDs únicos `scene-01` etc.; não entram em `story` nem aparecem no editor como fala do professor. Versões antigas com marcadores de cena continuam legíveis.
 
@@ -104,3 +104,52 @@ conserva os subtítulos ao atualizar a narrativa estruturada.
 As notas da Semana 15 distinguem as duas multiplicações e suas quantidades;
 as perguntas devem cobrir ambos os relatos. Versões já geradas sem subtítulos
 não são reescritas automaticamente: é necessário editar ou regenerar.
+
+### Propósito, memorização e aplicação (template 4.4.0)
+
+O propósito é uma única frase curta com verbo, objetivo concreto para a criança
+e vínculo com o tema, sem restringir o público sem apoio na passagem.
+O versículo escolhido deve ser curto, fiel e plenamente contextualizado,
+preferencialmente até 20 palavras. Esse número é uma orientação do prompt,
+não uma validação rígida: permite trechos delimitados sem distorcer o sentido
+e respeita solicitações explícitas do administrador. Não precisa repetir o
+versículo do acervo. Explicação e perguntas acompanham a seleção atual.
+Sentimentos, intenções e diálogos devem ter apoio nas referências; ilustrações
+fictícias e reconto são diferenciados da narrativa e das citações literais.
+A aplicação inclui parágrafos distintos para quem já crê e quem deseja seguir
+Jesus, atitudes infantis concretas, explicação de pecado, morte e ressurreição
+de Jesus e convite voluntário. As orientações de músicas permanecem iguais.
+
+### Revisão obrigatória da saída (template 4.4.0)
+
+O prompt manda revisar e reescrever os trechos antes de devolver o JSON:
+prefere uma frase de 3 a 12 palavras quando suficiente ao princípio, remove
+introduções narrativas da memorização, diferencia trechos e citações completas,
+proíbe atribuir ao versículo títulos que ele não contém e exige dois exemplos
+concretos de pecado. Emoções e intenções sem apoio devem ser retiradas.
+Não existe corte automático de citações bíblicas. A referência estruturada
+é normalizada para retirar uma sigla NVI redundante; editor e fallback PDF
+apresentam a versão uma única vez. Documentos antigos editados não são
+reescritos automaticamente.
+
+### Regras genéricas e integridade (template 4.4.0)
+
+As regras valem para qualquer tema: concluir cada relato, preservar detalhes
+atribuídos a personagens específicos nos evangelhos, adequar o sofrimento
+ao público infantil, manter o convite voluntário e conferir perguntas/gabarito
+contra o conteúdo efetivamente ensinado. Não são correções exclusivas da
+Semana 10 nem substituições automáticas de narrativa.
+O backend rejeita story vazio, fala com aspas sem fechamento, término com
+sinal de continuação ou subtítulo sem texto. Essas verificações detectam
+sinais formais de incompletude; não certificam a exatidão bíblica nem
+garantem que todo desfecho foi semanticamente desenvolvido.
+O Gemini rejeita candidatos cujo finishReason informado seja diferente de
+STOP, mesmo com JSON válido, e mantém o fallback de modelo já configurado.
+OpenAI já rejeita incomplete_details. Quando as tentativas não retornam
+conteúdo válido, a etapa falha e a versão anterior permanece preservada.
+O código AI_INCOMPLETE_RESPONSE identifica corte por limite de saída ou
+sinais formais de narrativa incompleta; bloqueios continuam AI_CONTENT_BLOCKED.
+
+### Shared quality across production stages
+
+All eight stage base prompts and provider template contracts include the same generic quality policy, including administrator-customized prompts. Each stage also receives specific completeness checks: narrative endings and scene fidelity, executable games and verse dynamics, complete verse card sequences, age-appropriate meditations with solvable activities and checked answers, and usable printable craft instructions. Derived stages preserve the approved verse verbatim; only the lesson selects a short contextual verse. These instructions require provider self-review and do not replace human semantic review. Lesson template version is 4.5.0; other stage contracts increment their minor versions. Existing saved materials are unchanged until regeneration.
