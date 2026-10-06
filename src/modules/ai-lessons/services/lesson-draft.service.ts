@@ -1,3 +1,4 @@
+import { buildMeditationActivityImagePrompt } from '../utils/meditation-image.utils';
 import { lessonNarrativeIssue } from '../lessonNarrative.utils';
 import {
   LESSON_EDITORIAL_FIELD_ORDER,
@@ -60,6 +61,7 @@ import {
 import { LESSON_LLM_PROVIDER } from '../providers/lesson-llm.constants';
 import {
   LessonImageReference,
+  LessonImagePurpose,
   LessonLlmProviderContract,
 } from '../providers/lesson-llm.types';
 
@@ -461,6 +463,7 @@ export class LessonDraftService implements OnApplicationBootstrap {
         tiptapAstJson: this.toTiptap(
           content,
           type === LessonStageType.LESSON ? lesson.weekNumber : undefined,
+          type,
         ),
         docxS3Key: null,
         pdfS3Key: null,
@@ -796,13 +799,52 @@ export class LessonDraftService implements OnApplicationBootstrap {
                   displayText: lessonString(asset.displayText),
                   proposedComposition: lessonString(asset.prompt),
                 })
-              : lessonString(asset.prompt);
-      const buffer = await this.llm.generateImage(
-        imagePrompt,
-        lessonString(visualConfig.orientation),
-        lessonString(visualConfig.type),
-        identityReferenceImage,
-      );
+              : [
+                    LessonStageType.MEDITATION_YOUNGER,
+                    LessonStageType.MEDITATION_OLDER,
+                  ].includes(type)
+                ? buildMeditationActivityImagePrompt(
+                    type === LessonStageType.MEDITATION_YOUNGER
+                      ? '5 a 7 anos'
+                      : '8 a 11 anos',
+                    lessonString(
+                      this.asObject(
+                        Array.isArray(content.activities)
+                          ? content.activities[
+                              (Number(asset.id) || assetIndex + 1) - 1
+                            ]
+                          : {},
+                      ).instruction,
+                    ),
+                    lessonString(asset.prompt),
+                    lessonString(
+                      this.asObject(
+                        Array.isArray(content.activities)
+                          ? content.activities[
+                              (Number(asset.id) || assetIndex + 1) - 1
+                            ]
+                          : {},
+                      ).answer,
+                    ),
+                  )
+                : lessonString(asset.prompt);
+      const buffer = [
+        LessonStageType.MEDITATION_YOUNGER,
+        LessonStageType.MEDITATION_OLDER,
+      ].includes(type)
+        ? await this.llm.generateImage(
+            imagePrompt,
+            lessonString(visualConfig.orientation),
+            lessonString(visualConfig.type),
+            identityReferenceImage,
+            LessonImagePurpose.MEDITATION_ACTIVITY,
+          )
+        : await this.llm.generateImage(
+            imagePrompt,
+            lessonString(visualConfig.orientation),
+            lessonString(visualConfig.type),
+            identityReferenceImage,
+          );
       const image = this.imageUploadMetadata(buffer);
       if (
         [
@@ -1621,7 +1663,11 @@ export class LessonDraftService implements OnApplicationBootstrap {
   private checksum(value: JsonObject): string {
     return createHash('sha256').update(JSON.stringify(value)).digest('hex');
   }
-  private toTiptap(value: JsonObject, weekNumber?: number): JsonObject {
+  private toTiptap(
+    value: JsonObject,
+    weekNumber?: number,
+    stageType?: LessonStageType,
+  ): JsonObject {
     const nodes: JsonObject[] = [];
     const labels: Record<string, string> = {
       title: 'TÍTULO',
@@ -1797,7 +1843,14 @@ export class LessonDraftService implements OnApplicationBootstrap {
             const entry = item as JsonObject;
             const question = lessonString(entry.question).trim();
             const answer = lessonString(entry.answer).trim();
-            if (question || answer) {
+            if (
+              question ||
+              (answer &&
+                ![
+                  LessonStageType.MEDITATION_YOUNGER,
+                  LessonStageType.MEDITATION_OLDER,
+                ].includes(stageType as LessonStageType))
+            ) {
               nodes.push(paragraph(`${index + 1}. ${question}`));
               if (answer) nodes.push(paragraph(`Resposta: ${answer}`));
             } else {

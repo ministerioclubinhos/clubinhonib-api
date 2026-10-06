@@ -1,0 +1,270 @@
+import { youngerMeditationFit } from './younger-meditation-fit.utils';
+import {
+  BorderStyle,
+  HeightRule,
+  Paragraph,
+  TableLayoutType,
+  Table,
+  TableCell,
+  TableRow,
+  VerticalAlign,
+  WidthType,
+} from 'docx';
+import { YOUNGER_MEDITATION_LAYOUT as L } from '../constants/younger-meditation-layout.constants';
+import type { YoungerMeditationSheet } from '../types/younger-meditation.types';
+
+import {
+  noBorders,
+  text,
+  textLines,
+  paragraph,
+  cell,
+  table,
+  imageParagraph,
+} from './meditation-layout.utils';
+
+export function buildYoungerMeditationCopy(
+  sheet: YoungerMeditationSheet,
+): Table {
+  const fit = youngerMeditationFit(sheet);
+  const innerWidth = L.width - 180;
+  const logoWidth = 2700;
+  const headingWidth = innerWidth - logoWidth;
+  const bannerWidth = 5400;
+  const title = sheet.title.toLocaleUpperCase('pt-BR');
+  const spaces = [...title.matchAll(/ /g)].map((match) => match.index);
+  const split = spaces.reduce(
+    (best, index) =>
+      Math.abs(index - title.length / 2) < Math.abs(best - title.length / 2)
+        ? index
+        : best,
+    spaces[0] ?? 0,
+  );
+  const titleLines =
+    title.length > 40 && split
+      ? [title.slice(0, split), title.slice(split + 1)]
+      : [title];
+  const header = table(
+    [
+      new TableRow({
+        cantSplit: true,
+        children: [
+          cell([imageParagraph(sheet.logo, 170, 70)], logoWidth),
+          cell(
+            [
+              table(
+                [
+                  new TableRow({
+                    cantSplit: true,
+                    children: [
+                      cell(
+                        [
+                          paragraph(
+                            [
+                              text(
+                                'MEDITAÇÃO PARA CRIANÇAS MENORES',
+                                23,
+                                true,
+                                'FFFFFF',
+                              ),
+                            ],
+                            true,
+                          ),
+                        ],
+                        bannerWidth,
+                        L.black,
+                      ),
+                    ],
+                  }),
+                  new TableRow({
+                    cantSplit: true,
+                    children: [
+                      cell(
+                        titleLines.map((line) =>
+                          paragraph([text(line, fit.titleSize, true)], true),
+                        ),
+                        bannerWidth,
+                      ),
+                    ],
+                  }),
+                ],
+                [bannerWidth],
+              ),
+            ],
+            headingWidth,
+          ),
+        ],
+      }),
+    ],
+    [logoWidth, headingWidth],
+  );
+  const verse = table(
+    [
+      new TableRow({
+        cantSplit: true,
+        children: [
+          cell(
+            [
+              table(
+                [
+                  new TableRow({
+                    children: [
+                      cell(
+                        [paragraph([text('Versículo para decorar', 24, true)])],
+                        3070,
+                        L.yellow,
+                      ),
+                    ],
+                  }),
+                ],
+                [3070],
+              ),
+            ],
+            3250,
+          ),
+          cell([paragraph([text('❯', 46, true, 'ED1C24')], true)], 430),
+          new TableCell({
+            children: [paragraph(textLines(sheet.verse, fit.verseSize), true)],
+            width: { size: innerWidth - 3680, type: WidthType.DXA },
+            margins: { top: 70, bottom: 70, left: 90, right: 90 },
+            verticalAlign: VerticalAlign.CENTER,
+            borders: Object.fromEntries(
+              ['top', 'bottom', 'left', 'right'].map((side) => [
+                side,
+                { style: BorderStyle.DASHED, size: 20, color: L.black },
+              ]),
+            ),
+          }),
+        ],
+      }),
+    ],
+    [3250, 430, innerWidth - 3680],
+  );
+  const activityWidth = Math.floor(innerWidth / 2);
+  const activities = table(
+    [
+      new TableRow({
+        cantSplit: true,
+        height: { value: 4000, rule: HeightRule.ATLEAST },
+        children: sheet.activities.slice(0, 2).map(
+          (activity, index) =>
+            new TableCell({
+              width: { size: activityWidth, type: WidthType.DXA },
+              margins: { top: 70, bottom: 0, left: 130, right: 130 },
+              verticalAlign: VerticalAlign.TOP,
+              borders: {
+                ...noBorders,
+                ...(index === 0
+                  ? {
+                      right: {
+                        style: BorderStyle.SINGLE,
+                        size: 6,
+                        color: L.black,
+                      },
+                    }
+                  : {}),
+              },
+              children: [
+                paragraph(
+                  textLines(
+                    `${index + 1}. ${activity.instruction}`,
+                    fit.textSize,
+                  ),
+                ),
+                ...(activity.image
+                  ? [imageParagraph(activity.image, 290, fit.imageHeight)]
+                  : []),
+              ],
+            }),
+        ),
+      }),
+    ],
+    [activityWidth, activityWidth],
+  );
+  const prayer = table(
+    [
+      new TableRow({
+        cantSplit: true,
+        children: [
+          cell(
+            [paragraph([text('FALANDO COM DEUS:', 19, true, 'FFFFFF')])],
+            2650,
+            L.prayerLabel,
+          ),
+          cell(
+            [paragraph(textLines(sheet.prayer, fit.textSize))],
+            innerWidth - 2650,
+            L.gray,
+          ),
+        ],
+      }),
+    ],
+    [2650, innerWidth - 2650],
+  );
+  return new Table({
+    width: { size: L.width, type: WidthType.DXA },
+    columnWidths: [L.width],
+    layout: TableLayoutType.FIXED,
+    borders: noBorders,
+    rows: [
+      new TableRow({
+        cantSplit: true,
+        height: { value: L.halfHeight, rule: HeightRule.EXACT },
+        children: [
+          new TableCell({
+            margins: { top: 30, bottom: 30, left: 60, right: 60 },
+            borders: Object.fromEntries(
+              ['top', 'bottom', 'left', 'right'].map((side) => [
+                side,
+                { style: BorderStyle.SINGLE, size: 30, color: L.black },
+              ]),
+            ),
+            children: [
+              header,
+              table(
+                [
+                  new TableRow({
+                    children: [
+                      cell(
+                        [
+                          paragraph([
+                            text(
+                              'Nome: _________________________________________________________',
+                              20,
+                            ),
+                          ]),
+                        ],
+                        8200,
+                      ),
+                      cell(
+                        [paragraph([text('Data: ____/____/____', 20)])],
+                        innerWidth - 8200,
+                      ),
+                    ],
+                  }),
+                ],
+                [8200, innerWidth - 8200],
+              ),
+              verse,
+              activities,
+              prayer,
+            ],
+          }),
+        ],
+      }),
+    ],
+  });
+}
+
+export function buildYoungerMeditationSheet(
+  sheet: YoungerMeditationSheet,
+): Array<Paragraph | Table> {
+  return [
+    buildYoungerMeditationCopy(sheet),
+    new Paragraph({
+      spacing: { before: 0, after: 0, line: L.gap },
+      children: [text(' ', 2)],
+    }),
+    buildYoungerMeditationCopy(sheet),
+  ];
+}

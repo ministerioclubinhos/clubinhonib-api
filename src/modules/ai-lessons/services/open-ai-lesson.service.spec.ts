@@ -24,6 +24,56 @@ describe('OpenAiLessonService image identity', () => {
 
   beforeEach(() => mockedAxios.post.mockReset());
 
+  it.each([
+    ['gpt-4o', 'none', false],
+    ['gpt-4o', 'high', false],
+    ['gpt-4o-2024-08-06', 'low', false],
+    ['gpt-4o-mini', 'none', false],
+    ['gpt-4.1', 'high', false],
+    ['gpt-5.4', 'high', true],
+    ['gpt-6-luna', 'none', true],
+    ['o3-mini', 'low', true],
+    ['o1', 'medium', true],
+    ['gpt-5.4', undefined, false],
+    ['gpt-5-chat-latest', 'low', false],
+  ])(
+    'respeita o suporte a raciocínio de %s com esforço %s',
+    async (model, effort, supported) => {
+      const stageService = new OpenAiLessonService({
+        get: <T>(key: string): T | undefined => {
+          const values: Record<string, string | undefined> = {
+            OPENAI_API_KEY: 'test-key',
+            OPENAI_TEXT_MODEL: model,
+            OPENAI_REASONING_EFFORT: effort,
+          };
+          return values[key] as T | undefined;
+        },
+      });
+      mockedAxios.post.mockResolvedValueOnce({
+        data: { id: 'meditation-response', output_text: '{}' },
+      });
+
+      await stageService.generateStage({
+        theme: 'O poder de Jesus sobre a morte',
+        biblicalReference: 'João 11:1-44; Lucas 7:11-17',
+        weekNumber: 14,
+        stage: LessonStageType.MEDITATION_YOUNGER,
+        template: LESSON_TEMPLATES[LessonStageType.MEDITATION_YOUNGER],
+        approvedUpstream: null,
+        adminPrompt: 'Meditação para crianças menores',
+      });
+
+      const body: unknown = mockedAxios.post.mock.lastCall?.[1];
+      expect(body).toMatchObject({ model, store: false });
+      if (supported) {
+        expect(body).toHaveProperty('reasoning', { effort });
+      } else {
+        expect(body).not.toHaveProperty('reasoning');
+      }
+      expect(mockedAxios.post.mock.calls).toHaveLength(1);
+    },
+  );
+
   it('envia o padrão editorial e um contrato compatível com oito perguntas e oração vazia', async () => {
     const generated = {
       story: 'Crianças, vocês já tiveram uma dúvida? (aguarde as respostas)',

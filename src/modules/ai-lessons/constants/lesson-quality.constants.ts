@@ -23,7 +23,7 @@ export const LESSON_STAGE_QUALITY_RULES: Record<LessonStageType, string> = {
   [LessonStageType.VERSE_FIXATION]:
     'Entregue uma dinâmica completa, com preparação, materiais, regras, passos, duração e encerramento. Faça a criança compreender e memorizar o versículo aprovado por meio de participação lúdica; conclua com recitação completa, adapte às duas faixas etárias e não transforme a dinâmica em mera exibição de cartões.',
   [LessonStageType.MEDITATION_YOUNGER]:
-    'Crie atividades curtas e concretas para 5–7 anos, com instruções compreensíveis e apoio do professor quando necessário. Confira a correspondência entre cada atividade e sua imagem e se é possível executá-la com os elementos impressos.',
+    'Crie duas atividades complementares para 4–7 anos, priorizando labirinto/percurso/associação e reconhecimento com alternativas ou pintura seletiva. Desenho livre para colorir é excepcional. Confira todas as pistas, a solução verificável e os ids das artes; questão textual não recebe ilustração decorativa.',
   [LessonStageType.MEDITATION_OLDER]:
     'Crie desafios variados para 8–11 anos com instruções completas, elementos imprimíveis suficientes e gabarito conferido. A resposta deve ser verificável e corresponder exatamente ao desafio; relacione a aplicação ao cotidiano infantil.',
   [LessonStageType.MANUAL_WORK]:

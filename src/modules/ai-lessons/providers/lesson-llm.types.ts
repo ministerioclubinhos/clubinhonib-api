@@ -1,6 +1,10 @@
 import { LessonStageType } from '../enums/lesson.enums';
 import { LessonTemplateContract } from '../templates/lesson-templates';
 
+export enum LessonImagePurpose {
+  MEDITATION_ACTIVITY = 'MEDITATION_ACTIVITY',
+}
+
 export enum LessonLlmProvider {
   OPENAI = 'openai',
   GEMINI = 'gemini',
@@ -48,6 +52,7 @@ export interface LessonLlmProviderContract {
     orientation?: string,
     visualType?: string,
     identityReferenceImage?: LessonImageReference,
+    purpose?: LessonImagePurpose,
   ): Promise<Buffer>;
 }
 

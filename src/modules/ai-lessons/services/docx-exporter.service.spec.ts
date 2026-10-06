@@ -138,6 +138,106 @@ describe('DocxExporterService lesson header', () => {
       expect(xml).toContain('<w:sz w:val="48"');
     },
   );
+  it('mantém duas cópias da folha dos menores após edição, com atividades e sem gabarito', async () => {
+    const exporter = new DocxExporterService({
+      get: jest.fn(),
+    } as unknown as ConfigService);
+    const buffer = await exporter.buildDocxFromTiptapOrStructuredJson({
+      [LessonStageType.MEDITATION_YOUNGER]: {
+        createdSource: LessonVersionSource.MANUAL_EDIT,
+        structuredDataJson: {
+          title: 'Tema original',
+          verseText: 'Jesus vive.',
+          verseReference: 'João 11:25',
+          prayer: 'Obrigado, Jesus.',
+          activities: [
+            { instruction: 'Pinte a cena.', answer: 'Gabarito privado' },
+            { instruction: 'Circule a resposta.' },
+          ],
+        },
+        tiptapAstJson: {
+          type: 'doc',
+          content: [
+            {
+              type: 'heading',
+              attrs: { level: 1 },
+              content: [{ type: 'text', text: 'Tema revisado' }],
+            },
+            {
+              type: 'heading',
+              attrs: { level: 2 },
+              content: [{ type: 'text', text: 'INSTRUÇÃO' }],
+            },
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: 'Pinte Jesus e seus amigos.' }],
+            },
+          ],
+        },
+      },
+    });
+    const zip = await JSZip.loadAsync(buffer);
+    const xml = await zip.file('word/document.xml')!.async('string');
+    for (const value of [
+      'TEMA REVISADO',
+      'Pinte Jesus e seus amigos.',
+      'Circule a resposta.',
+      'FALANDO COM DEUS:',
+    ]) {
+      expect(xml.split(value)).toHaveLength(3);
+    }
+    expect(xml).not.toContain('Gabarito privado');
+    expect(xml).not.toContain('Tema original');
+    expect(xml).toContain('w:fill="FFF200"');
+    expect(xml).toContain('w:val="dashed"');
+    expect(xml).toContain('w:w="11906"');
+    expect(xml.match(/w:hRule="exact"/g)).toHaveLength(2);
+    const media = Object.keys(zip.files).filter(
+      (name) => name.startsWith('word/media/') && !zip.files[name].dir,
+    );
+    expect(media).toHaveLength(1);
+  });
+
+  it('exports older meditation once with all challenges and internal answers hidden', async () => {
+    const exporter = new DocxExporterService({
+      get: jest.fn(),
+    } as unknown as ConfigService);
+    const buffer = await exporter.buildDocxFromTiptapOrStructuredJson({
+      [LessonStageType.MEDITATION_OLDER]: {
+        structuredDataJson: {
+          title: 'Jesus cuida de nós',
+          verseText: 'Jesus vive.',
+          verseReference: 'João 11:25',
+          biblicalText: 'João 11:1-44',
+          introduction: 'Leia e recorde a lição.',
+          prayer: 'Senhor, ajuda-nos.',
+          activities: [
+            {
+              instruction: 'Circule a resposta correta.',
+              answer: 'Gabarito privado',
+            },
+            { instruction: 'Complete usando a legenda.' },
+            { instruction: 'Numere os acontecimentos.' },
+          ],
+          printableAssets: [],
+        },
+      },
+    });
+    const zip = await JSZip.loadAsync(buffer);
+    const xml = await zip.file('word/document.xml')!.async('string');
+    for (const value of [
+      'MEDITAÇÃO PARA CRIANÇAS MAIORES',
+      'Circule a resposta correta.',
+      'Complete usando a legenda.',
+      'Numere os acontecimentos.',
+      'FALANDO COM DEUS:',
+    ]) {
+      expect(xml.split(value)).toHaveLength(2);
+    }
+    expect(xml).not.toContain('Gabarito privado');
+    expect(xml.match(/w:hRule="exact"/g)).toHaveLength(1);
+  });
+
   it('exports an existing combined title as separate paragraphs and preserves edited content', async () => {
     const exporter = new DocxExporterService({
       get: jest.fn(),

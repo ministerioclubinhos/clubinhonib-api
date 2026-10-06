@@ -55,7 +55,12 @@ note right of API
   LIÇÃO (semana), TÍTULO e tema em blocos separados
   Preserva fonte, tamanho, cor, espaçamento, links e células mescladas
   Tiptap salvo -> DOCX -> LibreOffice -> PDF
-  Meditações MANUAL_EDIT usam o documento revisado
+  Menores: editor com duas cópias sincronizadas -> AST único
+  AST + assets -> duas metades A4 de altura fixa, texto e artes ajustados
+  Maiores: core isolado -> AST -> uma página A4 inteira
+  Prompts: menores 4-7, maiores 8-11; questões ligadas ao tema
+  Artes funcionais opcionais; letras permitidas em enigmas
+  Itens 6/7 sem galeria externa; demais editores preservados
 end note
 Frontend -> API: POST /publish-week-material
 API -> MySQL: lock; READY -> PUBLISHING

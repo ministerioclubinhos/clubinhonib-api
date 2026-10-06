@@ -4,6 +4,7 @@ import { OpenAiLessonService } from '../services/open-ai-lesson.service';
 import { GeminiLessonLlmProvider } from './gemini-lesson-llm.provider';
 import {
   LessonImageReference,
+  LessonImagePurpose,
   LessonLlmGenerationInput,
   LessonLlmGenerationResult,
   LessonLlmProviderContract,
@@ -49,12 +50,22 @@ export class ConfiguredLessonLlmProvider implements LessonLlmProviderContract {
     orientation?: string,
     visualType?: string,
     identityReferenceImage?: LessonImageReference,
+    purpose?: LessonImagePurpose,
   ): Promise<Buffer> {
-    return (await this.selected()).generateImage(
-      prompt,
-      orientation,
-      visualType,
-      identityReferenceImage,
-    );
+    const provider = await this.selected();
+    return purpose
+      ? provider.generateImage(
+          prompt,
+          orientation,
+          visualType,
+          identityReferenceImage,
+          purpose,
+        )
+      : provider.generateImage(
+          prompt,
+          orientation,
+          visualType,
+          identityReferenceImage,
+        );
   }
 }

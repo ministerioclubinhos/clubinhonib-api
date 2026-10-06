@@ -143,7 +143,7 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
     },
     [LessonStageType.MEDITATION_YOUNGER]: {
       key: 'clubinho.meditation-younger.canonical',
-      version: '1.1.0',
+      version: '1.3.0',
       stage: LessonStageType.MEDITATION_YOUNGER,
       exactStructure: [
         'MEDITAÇÃO PARA CRIANÇAS MENORES',
@@ -156,15 +156,15 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
       ],
       rules: [
         ...sharedRules,
-        'Criar exatamente duas atividades simples e exatamente duas imagens correspondentes, na mesma ordem, para crianças de 5 a 7 anos.',
+        'Criar exatamente duas atividades complementares para 4 a 7 anos: priorizar labirinto/percurso/associação e reconhecimento com alternativas, pistas ou pintura seletiva. Desenho livre para colorir é excepcional, nunca o padrão nem as duas atividades.',
         'Usar o único versículo principal NVI aprovado, sem paráfrase.',
-        'Gerar ilustrações em line art preto e branco, com contornos grossos, áreas amplas e sem texto, adequadas para colorir em A4 retrato.',
+        'Gerar de uma a duas artes funcionais, ids 1 e 2 associados às atividades. Incluir caminhos, alternativas, letras e rótulos indispensáveis à solução; não gerar arte decorativa para questões textuais. Conferir a solução e todas as pistas.',
         'A composição final deve permitir duas cópias idênticas da meditação por folha A4, como no padrão manual.',
       ],
     },
     [LessonStageType.MEDITATION_OLDER]: {
       key: 'clubinho.meditation-older.canonical',
-      version: '1.1.0',
+      version: '1.2.0',
       stage: LessonStageType.MEDITATION_OLDER,
       exactStructure: [
         'MEDITAÇÃO PARA CRIANÇAS MAIORES',
@@ -180,10 +180,10 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
       ],
       rules: [
         ...sharedRules,
-        'Criar exatamente três desafios variados e exatamente três imagens correspondentes, na mesma ordem, para crianças de 8 a 11 anos.',
+        'Criar exatamente três desafios variados para 8 a 11 anos, em uma página A4 inteira e sem desenho livre para colorir; pintura seletiva pode indicar a alternativa correta. As zero a três artes são opcionais e indispensáveis ao enigma, com ids 1, 2 ou 3 correspondentes aos desafios.',
         'Cada desafio precisa ter instrução completa e gabarito determinístico para o professor.',
         'Usar o único versículo principal NVI aprovado, sem paráfrase.',
-        'Gerar somente as ilustrações necessárias em line art preto e branco, sem texto dentro da imagem, para composição em uma folha A4 retrato.',
+        'Gerar somente as artes necessárias aos enigmas completos e solucionáveis. Permitir letras/números e legendas curtas quando indispensáveis; omitir cabeçalho, instruções e gabarito na imagem.',
       ],
     },
     [LessonStageType.MANUAL_WORK]: {

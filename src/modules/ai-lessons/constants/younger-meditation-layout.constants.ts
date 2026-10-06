@@ -1,0 +1,16 @@
+export const YOUNGER_MEDITATION_LAYOUT = {
+  pageWidth: 11906,
+  pageHeight: 16838,
+  margin: 360,
+  width: 11186,
+  halfHeight: 7300,
+  gap: 300,
+  font: 'Arial',
+  textSize: 20,
+  titleSize: 23,
+  black: '252223',
+  yellow: 'FFF200',
+  gray: 'E5E5E5',
+  prayerLabel: '686868',
+  logoPath: '../clubinhonib-app/public/header_esquerdo_meditação.png',
+} as const;

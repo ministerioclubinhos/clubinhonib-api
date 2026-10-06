@@ -1,3 +1,4 @@
+import { lessonImageTextPolicy } from '../utils/meditation-image.utils';
 import {
   BadGatewayException,
   Injectable,
@@ -22,6 +23,7 @@ import {
   LessonLlmGenerationInput,
   LessonLlmGenerationResult,
   LessonImageReference,
+  LessonImagePurpose,
   LessonLlmProviderContract,
 } from './lesson-llm.types';
 
@@ -184,6 +186,7 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
     orientation?: string,
     visualType?: string,
     identityReferenceImage?: LessonImageReference,
+    purpose?: LessonImagePurpose,
   ): Promise<Buffer> {
     const apiKey = this.requiredApiKey();
     const model =
@@ -191,11 +194,11 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
       DEFAULT_GEMINI_IMAGE_MODEL;
     const aspectRatio = orientation === 'PORTRAIT' ? '3:4' : '4:3';
     const finalPrompt =
-      `Ilustração bíblica infantil do Clubinho NIB para crianças de 5 a 11 anos. ` +
+      `Ilustração bíblica infantil do Clubinho NIB para crianças de ${purpose === LessonImagePurpose.MEDITATION_ACTIVITY ? '4 a 11' : '5 a 11'} anos. ` +
       `Fidelidade ao contexto bíblico da NVI e à descrição fechada recebida da lição aprovada. ` +
       `Não acrescente personagens, fatos ou símbolos não pedidos. Estratégia pedagógica: ${visualType || 'definida no prompt'}. ` +
       `Orientação obrigatória: ${orientation || 'definida no prompt'}. Sem conteúdo sexual, romântico, erotizado, ` +
-      `violência gráfica ou debates de sexualidade. Sem letras, palavras, números, logotipos ou marcas. ${prompt}`;
+      `violência gráfica ou debates de sexualidade. ${lessonImageTextPolicy(purpose)} ${prompt}`;
 
     this.logger.log(
       `[Gemini Request] Geração de imagem | Modelo: ${model} | Orientação: ${orientation ?? 'PADRÃO'} (${aspectRatio}) | Tipo: ${visualType ?? 'PADRÃO'} | Prompt: "${prompt.slice(0, 120)}..."`,

@@ -651,3 +651,32 @@ para incompletude. As regras formais não substituem a revisão humana do sentid
 ### Shared quality across production stages
 
 All eight stage base prompts and provider template contracts include the same generic quality policy, including administrator-customized prompts. Each stage also receives specific completeness checks: narrative endings and scene fidelity, executable games and verse dynamics, complete verse card sequences, age-appropriate meditations with solvable activities and checked answers, and usable printable craft instructions. Derived stages preserve the approved verse verbatim; only the lesson selects a short contextual verse. These instructions require provider self-review and do not replace human semantic review. Lesson template version is 4.5.0; other stage contracts increment their minor versions. Existing saved materials are unchanged until regeneration.
+
+## Estúdio: raciocínio OpenAI por modelo
+
+A requisição omite `reasoning.effort` em modelos sem suporte, como GPT-4o,
+GPT-4o mini e GPT-4.1, inclusive com valor salvo `none`. As famílias GPT-5,
+GPT-6 e o1/o3/o4 recebem o esforço configurado, exceto variantes `-chat`.
+A configuração persistida não é alterada. Ver api-ai-lessons.md.
+
+### Meditação dos menores — folha de referência
+
+Prévia e exportação usam o formato das Semanas 25 e 26: duas cópias na mesma
+página A4, logo específico à esquerda, duas atividades em colunas, versículo
+em destaque e faixa de oração. Edições de conteúdo preservam esse formato e
+os assets existentes. Instruções omitidas em ASTs antigos são recuperadas dos
+dados estruturados; respostas não aparecem na folha infantil. A geração das
+artes produz artes funcionais completas associadas aos desafios,
+com rótulos indispensáveis ao enigma, sem gabarito e com tamanho limitado na folha.
+
+O editor específico da meditação dos menores exibe duas cópias sincronizadas
+e salva um único AST. O PDF fixa a altura de cada metade e adapta fonte e
+artes ao espaço disponível. A revisão usa a mesma folha sem edição.
+Os maiores usam outro core isolado, com página A4 inteira e três desafios.
+A galeria externa de ilustrações é omitida nos itens 6 e 7; demais itens mantêm seu editor.
+
+Meditation age groups are 4–7 and 8–11. The mandatory base prompt remains
+active with custom instructions and connects every challenge to the approved
+lesson theme. Younger sheets use two complementary activities; older sheets
+use three varied challenges. Puzzle artwork is functional and optional for
+text-only questions; free coloring is exceptional.

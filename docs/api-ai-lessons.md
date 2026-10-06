@@ -52,7 +52,7 @@ O Estúdio usa exclusivamente as configurações persistidas por `/adm/config-pr
 
 Cada chamada de geração de texto ou imagem resolve o provedor e cria um snapshot de seus parâmetros salvos, sem alterar estado global ou exigir reinício. Não existe fallback entre provedores: selecionar Gemini nunca tenta OpenAI. O fallback de texto do Gemini usa somente o modelo Gemini configurado na página. A seleção da página só entra em vigor após salvar; erros de validação ou persistência não podem aparecer como sucesso, e a tela não usa localStorage como fonte das configurações nem armazena chaves nele.
 
-OpenAI permite configurar chave, modelo de texto, modelo de imagem, qualidade e esforço de raciocínio. Gemini permite chave, modelo de texto e fallback, modelo e tamanho de imagem, quantidade de tentativas extras (inteiro de 0 a 10) e atraso base em milissegundos (inteiro de 0 a 10000). Valores numéricos são retornados como números, inclusive zero; strings numéricas legadas são transformadas no DTO. Erros transitórios `429/5xx` do Gemini usam os parâmetros salvos de backoff exponencial.
+OpenAI permite configurar chave, modelo de texto, modelo de imagem, qualidade e esforço de raciocínio. O campo `reasoning.effort` é enviado apenas para as famílias GPT-5, GPT-6 e o1/o3/o4, excluindo variantes `-chat`. GPT-4o, GPT-4o mini e GPT-4.1 omitem esse campo, inclusive com esforço salvo `none`. A configuração salva é preservada; os valores aceitos dependem do modelo. Gemini permite chave, modelo de texto e fallback, modelo e tamanho de imagem, quantidade de tentativas extras (inteiro de 0 a 10) e atraso base em milissegundos (inteiro de 0 a 10000). Valores numéricos são retornados como números, inclusive zero; strings numéricas legadas são transformadas no DTO. Erros transitórios `429/5xx` do Gemini usam os parâmetros salvos de backoff exponencial.
 
 O Gemini usa saída JSON estruturada em `generateContent` e geração de imagem pela Interactions API. Chaves nunca são persistidas em versões, logs ou respostas públicas.
 
@@ -88,8 +88,25 @@ sublinhado, destaque, alinhamento, espaçamento entre linhas, parágrafos vazios
 links externos e tabelas com células mescladas e larguras definidas.
 Links aceitam http, https, mailto e tel; endereços incompatíveis viram texto simples.
 Fontes dependem das famílias disponíveis no servidor LibreOffice.
-Meditações com versão `MANUAL_EDIT` imprimem o documento revisado, evitando
-o conteúdo estruturado antigo; meditações geradas mantêm a imposição original.
+A meditação dos menores usa uma folha A4 retrato com duas cópias idênticas,
+atividades lado a lado, moldura preta, faixa de título preta, destaque amarelo
+no versículo e oração em faixa cinza. O único logo é
+`MEDITATION_HEADER_LEFT_PATH` (padrão: `header_esquerdo_meditação.png`).
+As edições de título, versículo, instruções e oração alimentam essa mesma folha;
+as imagens salvas são preservadas. ASTs antigos sem instruções recuperam os
+textos das atividades estruturadas. O gabarito fica fora da folha infantil.
+Documentos livres antigos sem atividades mantêm a exportação do AST.
+A meditação dos maiores usa um core isolado e uma página A4 inteira; os campos revisados alimentam a mesma composição no PDF.
+As artes recebem a instrução e a solução interna: desafios visuais funcionais,
+com letras e rótulos somente quando necessários. Questões textuais não exigem arte.
+Cada desenho ocupa no máximo 290 × 160 px no DOCX, mantendo sua proporção.
+As duas metades têm altura fixa; tamanho do texto e das artes se adapta ao
+conteúdo para evitar que a segunda cópia passe à próxima página.
+O editor exclusivo de `MEDITATION_YOUNGER` mostra essa folha com duas cópias
+sincronizadas e campos editáveis. Salvar conserva um único AST; a prévia usa
+os mesmos textos. O item 7 também tem core exclusivo, com três desafios na página inteira.
+Os demais itens continuam com o editor e o formato existentes.
+Imagens já salvas precisam de regeneração para receber essa orientação.
 Salvar antes de exportar continua obrigatório na interface.
 
 ### Duas ou mais sub-histórias
@@ -153,3 +170,11 @@ sinais formais de narrativa incompleta; bloqueios continuam AI_CONTENT_BLOCKED.
 ### Shared quality across production stages
 
 All eight stage base prompts and provider template contracts include the same generic quality policy, including administrator-customized prompts. Each stage also receives specific completeness checks: narrative endings and scene fidelity, executable games and verse dynamics, complete verse card sequences, age-appropriate meditations with solvable activities and checked answers, and usable printable craft instructions. Derived stages preserve the approved verse verbatim; only the lesson selects a short contextual verse. These instructions require provider self-review and do not replace human semantic review. Lesson template version is 4.5.0; other stage contracts increment their minor versions. Existing saved materials are unchanged until regeneration.
+
+Meditation prompts use the reference worksheet styles for ages 4–7 (younger)
+and 8–11 (older). Each question must connect to the approved theme, narrative
+and application. Recognition, sequencing, counting, tracing, crossword clues,
+codes and word searches include all necessary alternatives and clues. Free
+coloring is exceptional; selective painting may indicate the correct answer.
+Functional images may include puzzle labels; other stages retain their image
+text policy. Teacher answers remain internal.

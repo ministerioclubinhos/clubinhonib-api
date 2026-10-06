@@ -84,6 +84,26 @@ describe('AdminLessonPromptService', () => {
     },
   );
 
+  it.each([
+    [LessonStageType.MEDITATION_YOUNGER, '4 a 7 anos', 'contar objetos'],
+    [LessonStageType.MEDITATION_OLDER, '8 a 11 anos', 'cruzadinhas'],
+  ])(
+    'preserva idade e desafios temáticos completos para %s',
+    async (stage, age, activity) => {
+      const result = await service.save(
+        'admin-a',
+        stage as LessonStageType,
+        'Use o tema aprovado.',
+      );
+      expect(result.effectivePrompt).toContain(age);
+      expect(result.effectivePrompt).toContain(activity);
+      expect(result.effectivePrompt).toContain('tema');
+      expect(result.effectivePrompt).toContain('gabarito');
+      expect(result.effectivePrompt).toContain('solução');
+      expect(result.effectivePrompt).toContain('Use o tema aprovado.');
+    },
+  );
+
   it('isola a personalização por administrador e etapa', async () => {
     await service.save(
       'admin-a',

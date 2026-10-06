@@ -1,3 +1,4 @@
+import { lessonImageTextPolicy } from '../utils/meditation-image.utils';
 import {
   LESSON_REVIEW_QUESTION_MIN,
   LESSON_REVIEW_QUESTION_MAX,
@@ -12,10 +13,12 @@ import { LessonProviderConfig } from '../providers/lesson-llm.types';
 import axios, { AxiosError } from 'axios';
 import { LessonStageType } from '../enums/lesson.enums';
 import { serializeTemplate } from '../templates/lesson-templates';
+import { supportsOpenAiReasoning } from '../utils/openai-model-capabilities.utils';
 import {
   LessonLlmGenerationInput,
   LessonLlmGenerationResult,
   LessonImageReference,
+  LessonImagePurpose,
   LessonLlmProviderContract,
 } from '../providers/lesson-llm.types';
 
@@ -344,11 +347,22 @@ export function schemaFor(stage: LessonStageType): Record<string, unknown> {
         prayer: { type: 'string' },
         printableAssets: {
           type: 'array',
-          minItems: count,
+          minItems: stage === LessonStageType.MEDITATION_YOUNGER ? 1 : 0,
           maxItems: count,
           description:
-            'Uma imagem por atividade, na mesma ordem e com id correspondente ao número da atividade.',
-          items: ASSET_SCHEMA,
+            'Apenas artes necessárias ao desafio, ids correspondentes aos números das atividades. Não gerar ilustração decorativa para questão textual.',
+          items: {
+            ...ASSET_SCHEMA,
+            properties: {
+              ...ASSET_SCHEMA.properties,
+              id: {
+                type: 'string',
+                enum: Array.from({ length: count }, (_, index) =>
+                  String(index + 1),
+                ),
+              },
+            },
+          },
         },
       },
     };
@@ -442,7 +456,7 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
         {
           model,
           store: false,
-          ...(reasoningEffort
+          ...(reasoningEffort && supportsOpenAiReasoning(model)
             ? { reasoning: { effort: reasoningEffort } }
             : {}),
           input: [
@@ -510,6 +524,7 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
     orientation?: string,
     visualType?: string,
     identityReferenceImage?: LessonImageReference,
+    purpose?: LessonImagePurpose,
   ): Promise<Buffer> {
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
     if (!apiKey)
@@ -522,7 +537,7 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
     );
     const startTime = Date.now();
     try {
-      const finalPrompt = `Ilustração bíblica infantil do Clubinho NIB para crianças de 5 a 11 anos. Fidelidade ao contexto bíblico da NVI e à descrição fechada recebida da lição aprovada. Não acrescente personagens, fatos ou símbolos não pedidos. Estratégia pedagógica: ${visualType || 'definida no prompt'}. Orientação obrigatória: ${orientation || 'definida no prompt'}. Sem conteúdo sexual, romântico, erotizado, violência gráfica ou debates de sexualidade. Obedeça literalmente ao estilo, orientação, paleta, margem e finalidade pedidos a seguir. Sem letras, palavras, números, logotipos ou marcas. ${prompt}`;
+      const finalPrompt = `Ilustração bíblica infantil do Clubinho NIB para crianças de ${purpose === LessonImagePurpose.MEDITATION_ACTIVITY ? '4 a 11' : '5 a 11'} anos. Fidelidade ao contexto bíblico da NVI e à descrição fechada recebida da lição aprovada. Não acrescente personagens, fatos ou símbolos não pedidos. Estratégia pedagógica: ${visualType || 'definida no prompt'}. Orientação obrigatória: ${orientation || 'definida no prompt'}. Sem conteúdo sexual, romântico, erotizado, violência gráfica ou debates de sexualidade. Obedeça literalmente ao estilo, orientação, paleta, margem e finalidade pedidos a seguir. ${lessonImageTextPolicy(purpose)} ${prompt}`;
       const size = orientation === 'PORTRAIT' ? '1024x1536' : '1536x1024';
       const request = identityReferenceImage
         ? (() => {

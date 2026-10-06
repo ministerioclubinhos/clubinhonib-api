@@ -1,3 +1,6 @@
+import { editedOlderMeditation } from '../utils/older-meditation-content.utils';
+import { buildOlderMeditationSheet } from '../utils/older-meditation-layout.utils';
+import { meditationActivityAsset } from '../utils/meditation-assets.utils';
 import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { readFile } from 'node:fs/promises';
@@ -20,7 +23,7 @@ import {
   ParagraphChild,
   WidthType,
 } from 'docx';
-import { LessonStageType, LessonVersionSource } from '../enums/lesson.enums';
+import { LessonStageType } from '../enums/lesson.enums';
 import {
   documentFontFamily,
   documentFontSize,
@@ -30,6 +33,9 @@ import {
   documentCellWidth,
 } from '../lessonDocument.utils';
 import type { LessonInlineExportOptions } from '../types/lesson-document.types';
+import { YOUNGER_MEDITATION_LAYOUT } from '../constants/younger-meditation-layout.constants';
+import { buildYoungerMeditationSheet } from '../utils/younger-meditation-layout.utils';
+import { editedYoungerMeditation } from '../utils/younger-meditation-content.utils';
 import {
   lessonHeaderLines,
   lessonString,
@@ -49,16 +55,6 @@ export class DocxExporterService {
     input: Json,
     weekNumber?: number,
   ): Promise<Buffer> {
-    const [left, right] = await Promise.all([
-      this.header(
-        'LESSON_HEADER_LEFT_PATH',
-        '../clubinhonib-app/public/header_esquerdo.png',
-      ),
-      this.header(
-        'LESSON_HEADER_RIGHT_PATH',
-        '../clubinhonib-app/public/header_direito.png',
-      ),
-    ]);
     const children: (Paragraph | Table)[] = [];
     const lesson = this.stageData(input[LessonStageType.LESSON]);
     const lessonDoc = this.stageDocument(input[LessonStageType.LESSON]);
@@ -122,12 +118,38 @@ export class DocxExporterService {
       input[LessonStageType.VERSE_VISUALS],
     );
     const fixationStage = this.stageData(input[LessonStageType.VERSE_FIXATION]);
-    const youngerMeditation = this.stageData(
+    const youngerMeditation = editedYoungerMeditation(
+      this.stageData(input[LessonStageType.MEDITATION_YOUNGER]),
+      this.stageDocument(input[LessonStageType.MEDITATION_YOUNGER]),
+    );
+    const youngerDocument = this.stageDocument(
       input[LessonStageType.MEDITATION_YOUNGER],
     );
-    const olderMeditation = this.stageData(
+    if (
+      youngerDocument &&
+      (!Array.isArray(youngerMeditation.activities) ||
+        !youngerMeditation.activities.length)
+    ) {
+      this.addTiptap(children, youngerDocument);
+      for (const key of Object.keys(youngerMeditation))
+        delete youngerMeditation[key];
+    }
+    const olderMeditation = editedOlderMeditation(
+      this.stageData(input[LessonStageType.MEDITATION_OLDER]),
+      this.stageDocument(input[LessonStageType.MEDITATION_OLDER]),
+    );
+    const olderDocument = this.stageDocument(
       input[LessonStageType.MEDITATION_OLDER],
     );
+    if (
+      olderDocument &&
+      (!Array.isArray(olderMeditation.activities) ||
+        !olderMeditation.activities.length)
+    ) {
+      this.addTiptap(children, olderDocument);
+      for (const key of Object.keys(olderMeditation))
+        delete olderMeditation[key];
+    }
     const manualWork = this.stageData(input[LessonStageType.MANUAL_WORK]);
 
     this.addEditableStage(
@@ -143,27 +165,18 @@ export class DocxExporterService {
       fixationStage,
     );
 
-    const editedYounger =
-      this.object(input[LessonStageType.MEDITATION_YOUNGER]).createdSource ===
-      LessonVersionSource.MANUAL_EDIT;
-    const editedOlder =
-      this.object(input[LessonStageType.MEDITATION_OLDER]).createdSource ===
-      LessonVersionSource.MANUAL_EDIT;
-    if (editedYounger)
-      this.addEditableStage(
-        children,
-        'MEDITAÇÃO PARA CRIANÇAS MENORES',
-        input[LessonStageType.MEDITATION_YOUNGER],
-        youngerMeditation,
-      );
-    if (editedOlder)
-      this.addEditableStage(
-        children,
-        'MEDITAÇÃO PARA CRIANÇAS MAIORES',
-        input[LessonStageType.MEDITATION_OLDER],
-        olderMeditation,
-      );
-
+    const [left, right] = children.length
+      ? await Promise.all([
+          this.header(
+            'LESSON_HEADER_LEFT_PATH',
+            '../clubinhonib-app/public/header_esquerdo.png',
+          ),
+          this.header(
+            'LESSON_HEADER_RIGHT_PATH',
+            '../clubinhonib-app/public/header_direito.png',
+          ),
+        ])
+      : [Buffer.alloc(0), Buffer.alloc(0)];
     const headerTable = new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
       borders: {
@@ -242,8 +255,8 @@ export class DocxExporterService {
         ? await this.portraitAssetPages(visualStage)
         : [];
     const supplementaryPages = await this.supplementaryPortraitPages(
-      editedYounger ? {} : youngerMeditation,
-      editedOlder ? {} : olderMeditation,
+      youngerMeditation,
+      olderMeditation,
       manualWork,
     );
     const sections = [
@@ -274,9 +287,25 @@ export class DocxExporterService {
         },
         children: page,
       })),
-      ...supplementaryPages.map((page) => ({
+      ...supplementaryPages.map((page, index) => ({
         properties: {
-          page: { margin: { top: 220, bottom: 220, left: 220, right: 220 } },
+          page:
+            index <
+            Number(Boolean(Object.keys(youngerMeditation).length)) +
+              Number(Boolean(Object.keys(olderMeditation).length))
+              ? {
+                  size: {
+                    width: YOUNGER_MEDITATION_LAYOUT.pageWidth,
+                    height: YOUNGER_MEDITATION_LAYOUT.pageHeight,
+                  },
+                  margin: {
+                    top: YOUNGER_MEDITATION_LAYOUT.margin,
+                    bottom: YOUNGER_MEDITATION_LAYOUT.margin,
+                    left: YOUNGER_MEDITATION_LAYOUT.margin,
+                    right: YOUNGER_MEDITATION_LAYOUT.margin,
+                  },
+                }
+              : { margin: { top: 220, bottom: 220, left: 220, right: 220 } },
         },
         children: page,
       })),
@@ -1025,234 +1054,67 @@ export class DocxExporterService {
     data: Json,
     duplicate: boolean,
   ): Promise<Array<Paragraph | Table>> {
-    const logo = await this.header(
-      'LESSON_HEADER_RIGHT_PATH',
-      '../clubinhonib-app/public/header_direito.png',
-    );
-    const copy = async (): Promise<Array<Paragraph | Table>> => {
-      const out: Array<Paragraph | Table> = [];
-      out.push(
-        new Table({
-          width: { size: 100, type: WidthType.PERCENTAGE },
-          rows: [
-            new TableRow({
-              children: [
-                new TableCell({
-                  width: { size: 27, type: WidthType.PERCENTAGE },
-                  children: [
-                    new Paragraph({
-                      alignment: AlignmentType.CENTER,
-                      children: [
-                        new ImageRun({
-                          data: logo,
-                          transformation: {
-                            width: duplicate ? 92 : 112,
-                            height: duplicate ? 46 : 56,
-                          },
-                          type: 'png',
-                        }),
-                      ],
-                    }),
-                  ],
-                }),
-                new TableCell({
-                  width: { size: 73, type: WidthType.PERCENTAGE },
-                  shading: { fill: '252223' },
-                  children: [
-                    new Paragraph({
-                      alignment: AlignmentType.CENTER,
-                      children: [
-                        new TextRun({
-                          text: duplicate
-                            ? 'MEDITAÇÃO PARA CRIANÇAS MENORES'
-                            : 'MEDITAÇÃO PARA CRIANÇAS MAIORES',
-                          bold: true,
-                          color: 'FFFFFF',
-                          size: duplicate ? 18 : 22,
-                        }),
-                      ],
-                    }),
-                  ],
-                }),
-              ],
-            }),
-          ],
-        }),
-      );
-      out.push(
-        new Paragraph({
-          alignment: AlignmentType.CENTER,
-          children: [
-            new TextRun({
-              text: lessonString(data.title).toLocaleUpperCase('pt-BR'),
-              bold: true,
-              size: duplicate ? 17 : 20,
-            }),
-          ],
-          spacing: { after: 25 },
-        }),
-      );
-      out.push(
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: 'Nome: __________________________________________   Data: ____/____/____',
-              size: duplicate ? 15 : 18,
-            }),
-          ],
-          spacing: { after: 30 },
-        }),
-      );
-      out.push(
-        new Paragraph({
-          alignment: AlignmentType.CENTER,
-          shading: { fill: 'FFF200' },
-          children: [
-            new TextRun({
-              text: 'VERSÍCULO PARA DECORAR',
-              bold: true,
-              size: duplicate ? 16 : 19,
-            }),
-          ],
-          spacing: { before: 20, after: 20 },
-        }),
-      );
-      out.push(
-        new Paragraph({
-          alignment: AlignmentType.CENTER,
-          border: {
-            top: { color: '222222', style: BorderStyle.DASHED, size: 14 },
-            bottom: { color: '222222', style: BorderStyle.DASHED, size: 14 },
-            left: { color: '222222', style: BorderStyle.DASHED, size: 14 },
-            right: { color: '222222', style: BorderStyle.DASHED, size: 14 },
-          },
-          children: [
-            new TextRun({
-              text: `“${lessonString(data.verseText)}” (${lessonString(data.verseReference)} - NVI)`,
-              size: duplicate ? 14 : 17,
-            }),
-          ],
-          spacing: { before: 25, after: 25 },
-        }),
-      );
-      if (!duplicate && typeof data.biblicalText === 'string')
-        out.push(
-          new Paragraph({
-            children: [
-              new TextRun({ text: 'TEXTO BÍBLICO: ', bold: true }),
-              new TextRun(data.biblicalText),
-            ],
-          }),
-        );
-      if (typeof data.introduction === 'string')
-        out.push(
-          new Paragraph({
-            children: [new TextRun(data.introduction)],
-            spacing: { after: 40 },
-          }),
-        );
-      const activities = Array.isArray(data.activities) ? data.activities : [];
+    if (duplicate) {
       const assets = Array.isArray(data.printableAssets)
         ? data.printableAssets
         : [];
-      for (let index = 0; index < activities.length; index += 1) {
-        const activity = this.object(activities[index]);
-        out.push(
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: `${index + 1}. ${lessonString(activity.instruction)}`,
-                bold: true,
-                size: duplicate ? 14 : 17,
-              }),
-            ],
-            spacing: { before: 30, after: 20 },
-          }),
-        );
-        const asset = this.object(assets[index]);
-        if (typeof asset.url === 'string') {
-          const image = await this.downloadImage(asset.url);
-          out.push(
-            new Paragraph({
-              alignment: AlignmentType.CENTER,
-              children: [
-                new ImageRun({
-                  data: image,
-                  transformation: {
-                    width: duplicate ? 150 : 225,
-                    height: duplicate ? 88 : 135,
-                  },
-                  type: 'png',
-                }),
-              ],
-              spacing: { after: 20 },
-            }),
+      const activities = Array.isArray(data.activities) ? data.activities : [];
+      const logo = await this.header(
+        'MEDITATION_HEADER_LEFT_PATH',
+        YOUNGER_MEDITATION_LAYOUT.logoPath,
+      );
+      const sheetActivities = await Promise.all(
+        activities.slice(0, 2).map(async (raw, index) => {
+          const activity = this.object(raw);
+          const asset = meditationActivityAsset(
+            assets,
+            index,
+            activities.length,
           );
-        }
-      }
-      out.push(
-        new Paragraph({
-          shading: { fill: 'E5E5E5' },
-          children: [
-            new TextRun({
-              text: 'FALANDO COM DEUS: ',
-              bold: true,
-              color: 'FFFFFF',
-              shading: { fill: '686868' },
-              size: duplicate ? 15 : 18,
-            }),
-            new TextRun({
-              text: lessonString(data.prayer),
-              size: duplicate ? 15 : 18,
-            }),
-          ],
-          spacing: { before: 35, after: 35 },
+          return {
+            instruction: lessonString(activity.instruction),
+            ...(typeof asset.url === 'string'
+              ? { image: await this.downloadImage(asset.url) }
+              : {}),
+          };
         }),
       );
-      return out;
-    };
-    const framed = (content: Array<Paragraph | Table>): Table =>
-      new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        rows: [
-          new TableRow({
-            children: [
-              new TableCell({
-                margins: { top: 90, bottom: 90, left: 90, right: 90 },
-                borders: {
-                  top: { color: '252223', style: BorderStyle.SINGLE, size: 20 },
-                  bottom: {
-                    color: '252223',
-                    style: BorderStyle.SINGLE,
-                    size: 20,
-                  },
-                  left: {
-                    color: '252223',
-                    style: BorderStyle.SINGLE,
-                    size: 20,
-                  },
-                  right: {
-                    color: '252223',
-                    style: BorderStyle.SINGLE,
-                    size: 20,
-                  },
-                },
-                children: content,
-              }),
-            ],
-          }),
-        ],
+      return buildYoungerMeditationSheet({
+        title: lessonString(data.title),
+        verse: `“${lessonString(data.verseText)}” (${normalizeLessonVerseReference(data.verseReference)})`,
+        prayer: lessonString(data.prayer),
+        logo,
+        activities: sheetActivities,
       });
-    const first = framed(await copy());
-    if (!duplicate) return [first];
-    return [
-      first,
-      new Paragraph({
-        children: [new TextRun('')],
-        spacing: { before: 20, after: 20 },
+    }
+    const assets = Array.isArray(data.printableAssets)
+      ? data.printableAssets
+      : [];
+    const activities = Array.isArray(data.activities) ? data.activities : [];
+    const logo = await this.header(
+      'MEDITATION_HEADER_LEFT_PATH',
+      YOUNGER_MEDITATION_LAYOUT.logoPath,
+    );
+    const sheetActivities = await Promise.all(
+      activities.slice(0, 3).map(async (raw, index) => {
+        const asset = meditationActivityAsset(assets, index, activities.length);
+        return {
+          instruction: lessonString(this.object(raw).instruction),
+          ...(typeof asset.url === 'string'
+            ? { image: await this.downloadImage(asset.url) }
+            : {}),
+        };
       }),
-      framed(await copy()),
-    ];
+    );
+    return buildOlderMeditationSheet({
+      title: lessonString(data.title),
+      verse: `“${lessonString(data.verseText)}” (${normalizeLessonVerseReference(data.verseReference)})`,
+      biblicalText: lessonString(data.biblicalText),
+      introduction: lessonString(data.introduction),
+      prayer: lessonString(data.prayer),
+      logo,
+      activities: sheetActivities,
+    });
   }
 
   private async manualWorkPage(data: Json): Promise<Paragraph[]> {

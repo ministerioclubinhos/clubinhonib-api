@@ -1,3 +1,7 @@
+import {
+  YOUNGER_MEDITATION_BASE_PROMPT,
+  OLDER_MEDITATION_BASE_PROMPT,
+} from '../constants/meditation-prompts.constants';
 import { ConflictException, Injectable } from '@nestjs/common';
 import {
   LESSON_SHARED_QUALITY_RULES,
@@ -213,43 +217,8 @@ REGRAS DOS VISUAIS
 - Não coloque texto, letras ou números dentro das imagens; a instrução literal será exibida como legenda pelo sistema.
 - Mostre posições, materiais, organização e ação necessárias para executar cada passo. Não refaça os cartões tipográficos dos Visuais do Versículo.
 - Não proponha corrida perigosa, contato forçado, eliminação, humilhação, venda nos olhos sem assistência ou materiais cortantes.`,
-  [LessonStageType.MEDITATION_YOUNGER]: `Produza somente a MEDITAÇÃO PARA CRIANÇAS MENORES, conforme a folha manual da Semana 26 do Clubinho Bíblico NIB.
-
-PÚBLICO E FORMATO
-- Destine o material a crianças de 5 a 7 anos, inclusive crianças em alfabetização inicial. Use frases curtas, comandos concretos, letras legíveis e forte apoio visual.
-- A saída final será uma folha A4 retrato com duas cópias idênticas, uma em cada metade da página, contendo cabeçalho oficial, título, campos Nome e Data, versículo, duas atividades e a faixa “FALANDO COM DEUS”.
-- Use exatamente o título, a referência bíblica e o único versículo principal NVI aprovados na lição.
-
-CONTEÚDO OBRIGATÓRIO
-- Crie exatamente duas atividades diferentes e diretamente ligadas aos fatos centrais da lição.
-- Crie exatamente duas imagens, uma para cada atividade e na mesma ordem. Cada imagem deve ser necessária para executar a instrução, não meramente decorativa.
-- Cada atividade deve conter uma pequena explicação fiel à Bíblia, uma instrução executável e uma resposta/gabarito objetivo.
-- Priorize colorir, traçar, circular, ligar, completar palavra curta ou reconhecer personagem/objeto. Não dependa de leitura avançada.
-- Inclua uma oração final de uma frase, começando com “Jesus,” ou “Senhor,” e conectada à aplicação da lição.
-
-ARTES
-- Gere apenas as ilustrações indispensáveis para as duas atividades, em line art preto e branco puro, fundo branco, contornos grossos, formas simples e áreas amplas para colorir.
-- Não coloque letras, nomes, versículos, instruções, números ou logotipos dentro da imagem; o renderer adicionará todo texto.
-- Preserve margem segura e composição adequada aos pequenos quadros de uma folha A4 retrato duplicada.
-- Não invente fatos bíblicos nem represente conteúdo assustador, violência gráfica ou anatomia inadequada para crianças.`,
-  [LessonStageType.MEDITATION_OLDER]: `Produza somente a MEDITAÇÃO PARA CRIANÇAS MAIORES, conforme a folha manual da Semana 26 do Clubinho Bíblico NIB.
-
-PÚBLICO E FORMATO
-- Destine o material a crianças de 8 a 11 anos, com linguagem clara, desafiadora e apropriada à leitura autônoma.
-- Componha uma única folha A4 retrato com cabeçalho oficial, título, campos Nome e Data, caixa destacada do versículo principal, texto bíblico, seção “Entendendo a lição”, três desafios e a faixa “FALANDO COM DEUS”.
-- Preserve exatamente o título, a referência da passagem e o único versículo principal NVI aprovados na lição.
-
-TRÊS DESAFIOS OBRIGATÓRIOS
-- Crie exatamente três atividades variadas e não repetitivas que cubram compreensão da narrativa, significado do ensino e aplicação/missão.
-- Crie exatamente três imagens, uma vinculada a cada desafio e na mesma ordem. Labirintos, diferenças, associações e códigos visuais devem vir completos e solucionáveis.
-- Combine recursos como código de símbolos/letras, sequência de letras, palavras embaralhadas, associação, labirinto, encontre diferenças ou preenchimento de frase bíblica.
-- Toda atividade deve ter instrução completa, dados suficientes para ser resolvida e resposta determinística. Gere um gabarito completo para revisão e uso do professor.
-- Não crie enigma ambíguo, informação ausente, símbolo sem legenda nem solução dependente de conhecimento fora da lição.
-
-ARTES E SEGURANÇA
-- Gere ilustrações em line art preto e branco, fundo branco, contornos nítidos e sem texto, apenas quando necessárias aos desafios.
-- O renderer adicionará letras, símbolos, frases, campos, caixas, numeração e identidade visual para evitar erros de imagem.
-- Mantenha tudo legível em A4 retrato, sem conteúdo sexual, romântico, assustador ou violência gráfica.`,
+  [LessonStageType.MEDITATION_YOUNGER]: YOUNGER_MEDITATION_BASE_PROMPT,
+  [LessonStageType.MEDITATION_OLDER]: OLDER_MEDITATION_BASE_PROMPT,
   [LessonStageType.MANUAL_WORK]: `Produza somente o TRABALHO MANUAL PARA COLORIR, conforme a folha manual da Semana 26 do Clubinho Bíblico NIB.
 
 CONTRATO

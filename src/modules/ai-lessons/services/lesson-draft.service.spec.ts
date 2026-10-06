@@ -179,6 +179,38 @@ describe('LessonDraftService workflow safety', () => {
     expect(failure.message).toContain('limite de uso');
   });
 
+  it('preserva a instrução da meditação quando a atividade também contém gabarito', () => {
+    const target = service as unknown as {
+      toTiptap: (
+        value: Record<string, unknown>,
+        weekNumber?: number,
+        stageType?: LessonStageType,
+      ) => Record<string, unknown>;
+    };
+    const document = target.toTiptap(
+      {
+        activities: [
+          {
+            number: 1,
+            instruction: 'Pinte Jesus e seus amigos.',
+            answer: 'Jesus está vivo.',
+          },
+          {
+            number: 2,
+            instruction: 'Pinte a segunda cena.',
+            answer: 'Jesus cuida de nós.',
+          },
+        ],
+      },
+      undefined,
+      LessonStageType.MEDITATION_YOUNGER,
+    );
+    const serialized = JSON.stringify(document);
+    expect(serialized).toContain('Pinte Jesus e seus amigos.');
+    expect(serialized).toContain('Pinte a segunda cena.');
+    expect(serialized).toContain('Jesus está vivo.');
+  });
+
   it('une o versículo e traduz todos os rótulos da fixação para português', () => {
     const target = service as unknown as {
       toTiptap: (value: Record<string, unknown>) => Record<string, unknown>;
