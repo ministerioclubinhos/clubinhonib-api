@@ -1,4 +1,7 @@
 import { lessonImageTextPolicy } from '../utils/meditation-image.utils';
+import { retryOlderMeditationRequest } from '../utils/older-meditation-request.utils';
+import { OLDER_MEDITATION_REQUEST } from '../constants/older-meditation-request.constants';
+import { OLDER_MEDITATION_INSTRUCTION_DESCRIPTION } from '../constants/older-meditation-quality.constants';
 import {
   LESSON_REVIEW_QUESTION_MIN,
   LESSON_REVIEW_QUESTION_MAX,
@@ -342,7 +345,19 @@ export function schemaFor(stage: LessonStageType): Record<string, unknown> {
           type: 'array',
           minItems: count,
           maxItems: count,
-          items: activity,
+          items:
+            stage === LessonStageType.MEDITATION_OLDER
+              ? {
+                  ...activity,
+                  properties: {
+                    ...activity.properties,
+                    instruction: {
+                      type: 'string',
+                      description: OLDER_MEDITATION_INSTRUCTION_DESCRIPTION,
+                    },
+                  },
+                }
+              : activity,
         },
         prayer: { type: 'string' },
         printableAssets: {
@@ -451,29 +466,42 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
       revisionInstructions: input.revisionInstructions ?? null,
     });
     try {
-      const response = await axios.post<ResponsesPayload>(
-        'https://api.openai.com/v1/responses',
-        {
-          model,
-          store: false,
-          ...(reasoningEffort && supportsOpenAiReasoning(model)
-            ? { reasoning: { effort: reasoningEffort } }
-            : {}),
-          input: [
-            { role: 'system', content: system },
-            { role: 'user', content: user },
-          ],
-          text: {
-            format: {
-              type: 'json_schema',
-              name: `clubinho_${input.stage.toLowerCase()}`,
-              strict: true,
-              schema: schemaFor(input.stage),
+      const request = () =>
+        axios.post<ResponsesPayload>(
+          'https://api.openai.com/v1/responses',
+          {
+            model,
+            store: false,
+            ...(input.stage === LessonStageType.MEDITATION_OLDER &&
+            !supportsOpenAiReasoning(model)
+              ? { max_output_tokens: OLDER_MEDITATION_REQUEST.maxOutputTokens }
+              : {}),
+            ...(reasoningEffort && supportsOpenAiReasoning(model)
+              ? { reasoning: { effort: reasoningEffort } }
+              : {}),
+            input: [
+              { role: 'system', content: system },
+              { role: 'user', content: user },
+            ],
+            text: {
+              format: {
+                type: 'json_schema',
+                name: `clubinho_${input.stage.toLowerCase()}`,
+                strict: true,
+                schema: schemaFor(input.stage),
+              },
             },
           },
-        },
-        { headers: { Authorization: `Bearer ${apiKey}` }, timeout: 120000 },
-      );
+          { headers: { Authorization: `Bearer ${apiKey}` }, timeout: 120000 },
+        );
+      const response =
+        input.stage === LessonStageType.MEDITATION_OLDER
+          ? await retryOlderMeditationRequest(request, (delay) =>
+              this.logger.warn(
+                `Limite temporário no item 7; nova tentativa em ${delay}ms.`,
+              ),
+            )
+          : await request();
       if (response.data.incomplete_details)
         throw new BadGatewayException(
           `Resposta incompleta da OpenAI: ${response.data.incomplete_details.reason ?? 'sem motivo'}`,

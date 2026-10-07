@@ -680,3 +680,39 @@ active with custom instructions and connects every challenge to the approved
 lesson theme. Younger sheets use two complementary activities; older sheets
 use three varied challenges. Puzzle artwork is functional and optional for
 text-only questions; free coloring is exceptional.
+
+Items 6 and 7 have a formatting toolbar in their isolated editors. The saved
+canonical AST retains field marks, headings, tables, links, subscript/superscript
+and paragraph spacing; native DOCX/PDF
+rendering uses them in the same meditation sheet. Other stage editors and
+exports keep their existing behavior.
+
+Older meditation must contain substantial blocks, rather than three isolated
+questions. Generated instructions totaling fewer than 200 words trigger up to two
+targeted correction attempts; still-incomplete output is rejected before image uploads.
+Generation preserves the canonical theme and references in the header. Older
+panels use text beside functional artwork and proportionate row heights.
+
+Older PDF layout reserves footer space, including additional wrapped header
+and prayer lines. Text word-search grids must have uniform row lengths and
+contain every listed word; malformed puzzles receive up to two targeted corrections
+before image generation. Corrections include the previous response and counts
+for instructions only; no header, answers or artwork prompts count toward density. Images may not combine multiple activity panels.
+Item 7 permits text-only worksheets without printable assets. All other
+derived-stage asset requirements remain active. Local validation failures
+preserve their diagnostic under AI_CONTENT_INVALID.
+Older generation uses approved lesson text rather than younger activity text.
+Item 7 OpenAI text calls bound output reservation and retry only temporary rate
+limits, respecting the server wait. Other stages retain their request behavior.
+
+Story visual generation validates literal coverage of the complete approved narrative,
+sequential IDs and the requested asset count before creating images. Invalid output
+receives up to two targeted corrections using the approved story and previous JSON.
+Valid output makes no extra text calls. Persistent content failures retain
+AI_CONTENT_INVALID; provider errors are propagated without content correction retries.
+
+Older meditation rebuilds invalid recognizable text word-search grids locally
+from their listed words before validation and after each text correction. The
+rectangular grid includes every listed word, with a regenerated coordinate answer
+and no duplicate image for the repaired activity. Ambiguous lists still follow
+the bounded correction path and retain AI_CONTENT_INVALID on persistent failure.

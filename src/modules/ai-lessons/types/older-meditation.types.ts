@@ -5,5 +5,6 @@ export interface OlderMeditationSheet {
   introduction: string;
   prayer: string;
   logo: Buffer;
+  document?: Record<string, unknown>;
   activities: Array<{ instruction: string; image?: Buffer }>;
 }

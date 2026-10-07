@@ -709,9 +709,26 @@ identificação de provedor não são atribuídas automaticamente ao OpenAI.
 
 ## Estúdio: resposta incompleta
 
+`AI_CONTENT_INVALID` identifies local content validation failures during stage
+generation. The stage preserves the validation reason instead of reporting an
+unknown provider error. Older meditation accepts text-only activities without
+printable images; other derived stages retain their asset requirements.
+
 `AI_INCOMPLETE_RESPONSE` é o diagnóstico da etapa para OpenAI com
 `incomplete_details`, Gemini com `MAX_TOKENS` ou narrativa com sinais formais
 de corte. A interface recebe failureMessage orientando uma nova geração;
 a versão anterior não é substituída. Outros términos de bloqueio, como
 RECITATION e SAFETY, continuam classificados como AI_CONTENT_BLOCKED.
 Não se tenta salvar conteúdo parcial nem completar frases automaticamente.
+
+Story visual generation validates literal coverage of the complete approved narrative,
+sequential IDs and the requested asset count before creating images. Invalid output
+receives up to two targeted corrections using the approved story and previous JSON.
+Valid output makes no extra text calls. Persistent content failures retain
+AI_CONTENT_INVALID; provider errors are propagated without content correction retries.
+
+Older meditation rebuilds invalid recognizable text word-search grids locally
+from their listed words before validation and after each text correction. The
+rectangular grid includes every listed word, with a regenerated coordinate answer
+and no duplicate image for the repaired activity. Ambiguous lists still follow
+the bounded correction path and retain AI_CONTENT_INVALID on persistent failure.

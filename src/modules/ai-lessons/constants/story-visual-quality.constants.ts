@@ -1,0 +1,3 @@
+export const STORY_VISUAL_MAX_CORRECTIONS = 2;
+export const STORY_VISUAL_CORRECTION_INSTRUCTIONS =
+  'Retorne o JSON completo corrigido. Divida a narrativa aprovada inteira em trechos literais, contínuos e consecutivos no campo sourceExcerpt. Inclua também os subtítulos, a pontuação e o desfecho. Não resuma, parafraseie, repita ou omita palavras. A concatenação dos sourceExcerpt deve reproduzir toda a narrativa, na ordem. Preserve a quantidade solicitada e use IDs sequenciais visual-01, visual-02 e assim por diante. Ajuste as descrições e prompts das imagens aos trechos corrigidos, mantendo a consistência dos personagens.';

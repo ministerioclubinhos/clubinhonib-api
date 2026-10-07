@@ -25,7 +25,7 @@ export const LESSON_STAGE_QUALITY_RULES: Record<LessonStageType, string> = {
   [LessonStageType.MEDITATION_YOUNGER]:
     'Crie duas atividades complementares para 4–7 anos, priorizando labirinto/percurso/associação e reconhecimento com alternativas ou pintura seletiva. Desenho livre para colorir é excepcional. Confira todas as pistas, a solução verificável e os ids das artes; questão textual não recebe ilustração decorativa.',
   [LessonStageType.MEDITATION_OLDER]:
-    'Crie desafios variados para 8–11 anos com instruções completas, elementos imprimíveis suficientes e gabarito conferido. A resposta deve ser verificável e corresponder exatamente ao desafio; relacione a aplicação ao cotidiano infantil.',
+    'Crie três blocos substanciais para 8–11 anos, com 4–6 subitens de compreensão e enigmas completos de 5–8 pistas/palavras, ocupando a página inteira com conteúdo útil. Use o tema como título e somente referências no texto bíblico. Entregue instruções completas, elementos imprimíveis suficientes e gabarito conferido. A resposta deve ser verificável e corresponder exatamente ao desafio; relacione a aplicação ao cotidiano infantil.',
   [LessonStageType.MANUAL_WORK]:
     'Explique como realizar a atividade com o desenho fornecido e sua relação com a lição. Garanta áreas adequadas para colorir, margens para impressão e recorte seguro com ajuda de adulto quando necessário; não dependa de peças ou materiais ausentes.',
 };

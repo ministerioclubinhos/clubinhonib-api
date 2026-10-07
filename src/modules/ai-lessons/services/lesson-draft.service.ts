@@ -1,4 +1,22 @@
+import type {
+  LessonLlmGenerationInput,
+  LessonLlmGenerationResult,
+} from '../providers/lesson-llm.types';
+import {
+  STORY_VISUAL_CORRECTION_INSTRUCTIONS,
+  STORY_VISUAL_MAX_CORRECTIONS,
+} from '../constants/story-visual-quality.constants';
+import {
+  olderMeditationContentIssue,
+  olderMeditationExpansionContext,
+  olderMeditationLessonSource,
+} from '../utils/older-meditation-quality.utils';
+import {
+  OLDER_MEDITATION_EXPANSION_INSTRUCTIONS,
+  OLDER_MEDITATION_MAX_CORRECTIONS,
+} from '../constants/older-meditation-quality.constants';
 import { buildMeditationActivityImagePrompt } from '../utils/meditation-image.utils';
+import { repairMeditationWordSearch } from '../utils/repair-meditation-word-search.utils';
 import { lessonNarrativeIssue } from '../lessonNarrative.utils';
 import {
   LESSON_EDITORIAL_FIELD_ORDER,
@@ -380,13 +398,23 @@ export class LessonDraftService implements OnApplicationBootstrap {
     const uploadedUrls: string[] = [];
     try {
       const adminPrompt = await this.adminPrompts.effective(userId, type);
+      const approvedLessonStage = lesson.stages.find(
+        (item) => item.type === LessonStageType.LESSON,
+      );
       const generationInput = {
         theme: lesson.theme,
         biblicalReference: lesson.biblicalReference,
         weekNumber: lesson.weekNumber,
         stage: type,
         template,
-        approvedUpstream: upstream,
+        approvedUpstream:
+          type === LessonStageType.MEDITATION_OLDER
+            ? olderMeditationLessonSource(
+                approvedLessonStage
+                  ? this.currentContent(approvedLessonStage)
+                  : null,
+              )
+            : upstream,
         previousVariants: previousGameVariants,
         canonicalVerse: [
           LessonStageType.VERSE_VISUALS,
@@ -414,6 +442,17 @@ export class LessonDraftService implements OnApplicationBootstrap {
             .join('\n'),
         });
       }
+      if (type === LessonStageType.MEDITATION_OLDER)
+        generated = await this.expandOlderMeditation(
+          generationInput,
+          generated,
+        );
+      if (type === LessonStageType.LESSON_VISUALS)
+        generated = await this.correctStoryVisuals(
+          lesson,
+          generationInput,
+          generated,
+        );
       const derivedVerseStages = [
         LessonStageType.VERSE_VISUALS,
         LessonStageType.VERSE_FIXATION,
@@ -580,6 +619,9 @@ export class LessonDraftService implements OnApplicationBootstrap {
         'AI_INCOMPLETE_RESPONSE',
         'a resposta foi interrompida ou a narrativa contém sinais de incompletude. A versão anterior foi preservada; gere novamente para obter o conteúdo completo.',
       );
+
+    if (error instanceof ConflictException)
+      return result('AI_CONTENT_INVALID', raw);
 
     if (/API_KEY não configurada/i.test(raw))
       return result(
@@ -922,7 +964,7 @@ export class LessonDraftService implements OnApplicationBootstrap {
     const assets = Array.isArray(generated[assetKey])
       ? generated[assetKey].map((item) => this.asObject(item))
       : [];
-    if (!assets.length)
+    if (!assets.length && type !== LessonStageType.MEDITATION_OLDER)
       throw new ConflictException(
         'O material derivado precisa conter ao menos uma peça imprimível.',
       );
@@ -999,6 +1041,96 @@ export class LessonDraftService implements OnApplicationBootstrap {
     return text && reference
       ? { text, reference, version: lessonString(verse.version) || 'NVI' }
       : null;
+  }
+
+  private async correctStoryVisuals(
+    lesson: LessonEntity,
+    input: LessonLlmGenerationInput,
+    generated: LessonLlmGenerationResult,
+  ): Promise<LessonLlmGenerationResult> {
+    const sourceStage = lesson.stages.find(
+      (stage) => stage.type === LessonStageType.LESSON,
+    );
+    const source = sourceStage ? this.currentContent(sourceStage) : null;
+    const story = lessonString(source?.story).trim();
+    if (!story)
+      throw new ConflictException(
+        'A lição aprovada precisa conter a narrativa completa antes de gerar os visuais.',
+      );
+    let corrected = generated;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        this.validateCanonicalContent(
+          lesson,
+          LessonStageType.LESSON_VISUALS,
+          corrected.content,
+        );
+        const assets = Array.isArray(corrected.content.assets)
+          ? corrected.content.assets
+          : [];
+        if (input.visualConfig && assets.length !== input.visualConfig.quantity)
+          throw new ConflictException(
+            `A geração precisa retornar exatamente ${input.visualConfig.quantity} imagens.`,
+          );
+        return corrected;
+      } catch (error: unknown) {
+        if (
+          !(error instanceof ConflictException) ||
+          attempt >= STORY_VISUAL_MAX_CORRECTIONS
+        )
+          throw error;
+        corrected = await this.llm.generateStage({
+          ...input,
+          revisionInstructions: [
+            input.revisionInstructions,
+            `Corrija especificamente este problema: ${error.message}`,
+            STORY_VISUAL_CORRECTION_INSTRUCTIONS,
+            `NARRATIVA APROVADA COMPLETA:\n${story}`,
+            `VERSÃO A CORRIGIR:\n${JSON.stringify(corrected.content)}`,
+          ]
+            .filter(Boolean)
+            .join('\n'),
+        });
+      }
+    }
+  }
+
+  private async expandOlderMeditation(
+    input: LessonLlmGenerationInput,
+    generated: LessonLlmGenerationResult,
+  ): Promise<LessonLlmGenerationResult> {
+    let expanded = {
+      ...generated,
+      content: repairMeditationWordSearch(generated.content),
+    };
+    let issue = olderMeditationContentIssue(expanded.content);
+    for (
+      let attempt = 0;
+      issue && attempt < OLDER_MEDITATION_MAX_CORRECTIONS;
+      attempt++
+    ) {
+      expanded = await this.llm.generateStage({
+        ...input,
+        revisionInstructions: [
+          input.revisionInstructions,
+          `Corrija especificamente este problema: ${issue}`,
+          OLDER_MEDITATION_EXPANSION_INSTRUCTIONS,
+          olderMeditationExpansionContext(expanded.content),
+        ]
+          .filter(Boolean)
+          .join('\n'),
+      });
+      expanded = {
+        ...expanded,
+        content: repairMeditationWordSearch(expanded.content),
+      };
+      issue = olderMeditationContentIssue(expanded.content);
+    }
+    if (issue)
+      throw new ConflictException(
+        `A meditação dos maiores ficou incompleta: ${issue} Gere novamente para obter a folha completa.`,
+      );
+    return expanded;
   }
 
   private validateCanonicalContent(
@@ -1110,6 +1242,16 @@ export class LessonDraftService implements OnApplicationBootstrap {
         );
     }
 
+    if (
+      [
+        LessonStageType.MEDITATION_YOUNGER,
+        LessonStageType.MEDITATION_OLDER,
+      ].includes(type)
+    ) {
+      generated.title = lesson.theme;
+      if (type === LessonStageType.MEDITATION_OLDER)
+        generated.biblicalText = lesson.biblicalReference;
+    }
     return generated;
   }
 

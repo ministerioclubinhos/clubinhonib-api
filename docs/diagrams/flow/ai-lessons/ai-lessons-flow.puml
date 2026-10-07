@@ -38,6 +38,8 @@ loop cada etapa
   OpenAI --> API: JSON / PNG
   note right of API
     Texto: verifica término do provedor e integridade formal
+    Visuais: até duas correções de trechos, IDs e quantidade antes das imagens
+    Correção recebe narrativa aprovada completa e JSON anterior
     Interrompido: falha e preserva versão anterior
     Regras genéricas: desfecho, público infantil e gabarito coerente
   end note
@@ -56,6 +58,18 @@ note right of API
   Preserva fonte, tamanho, cor, espaçamento, links e células mescladas
   Tiptap salvo -> DOCX -> LibreOffice -> PDF
   Menores: editor com duas cópias sincronizadas -> AST único
+  Itens 6/7: barra de ferramentas -> campos com marcas e alinhamento
+  Formatação salva no AST -> estilos preservados no DOCX/PDF
+  Maiores: conteúdo ralo ou grade inválida -> até duas correções antes das artes
+  Correção recebe JSON anterior e contagens por bloco
+  Caça-palavras textual: grade retangular e palavras presentes
+  Grade textual inválida com lista reconhecível -> reconstrução local e gabarito conferido
+  Remove arte duplicada do mesmo desafio; demais blocos preservados
+  PDF maiores: reserva cabeçalho e oração antes dos desafios
+  Item 7 aceita zero artes; validação local preserva o motivo da falha
+  Item 7: fonte é a lição aprovada, sem assets de outras etapas
+  OpenAI item 7: saída limitada; 429 temporário -> espera -> até duas tentativas
+  Blocos substanciais; tema/referências canônicos; painéis proporcionais
   AST + assets -> duas metades A4 de altura fixa, texto e artes ajustados
   Maiores: core isolado -> AST -> uma página A4 inteira
   Prompts: menores 4-7, maiores 8-11; questões ligadas ao tema

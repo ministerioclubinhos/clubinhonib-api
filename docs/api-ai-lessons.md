@@ -178,3 +178,45 @@ codes and word searches include all necessary alternatives and clues. Free
 coloring is exceptional; selective painting may indicate the correct answer.
 Functional images may include puzzle labels; other stages retain their image
 text policy. Teacher answers remain internal.
+
+Meditation exports preserve inline emphasis, font family/size, text color,
+highlight, alignment and lists from the saved meditation AST. Both meditation
+renderers keep their fixed page composition while reading the styled fields;
+structured-only and legacy documents retain their text fallback.
+
+Older meditation uses three substantial activity blocks with multiple subitems
+and complete puzzle clues. Sparse generated worksheets trigger up to two targeted correction
+attempts before image generation; incomplete output after those attempts fails
+instead of being saved as a ready worksheet. Generated titles use the lesson
+theme and biblicalText uses canonical references. Text and artwork share each
+activity panel, and panel height follows its content instead of equal thirds.
+
+Item 7 reserves space for the prayer and nested-table paragraphs before
+allocating activity heights. Longer titles, verses and prayers reduce the
+activity budget. Textual word searches are checked for rectangular rows and
+the presence of every listed word in eight directions, with normalized accents.
+Invalid grids trigger the same bounded corrections, which receive
+the specific diagnostic, previous JSON and word counts per activity; invalid output is not saved. Raster puzzles still
+require visual review. Each generated image must belong to only its activity.
+The older meditation template is version 1.4.0; saved question content and
+images are preserved until regeneration or manual editing.
+Item 7 accepts an empty printableAssets array and still inherits the approved
+NVI verse. Local validation conflicts retain their reason as AI_CONTENT_INVALID.
+Its generation source is the approved lesson narrative, verse and application,
+not the younger worksheet. Image assets and unrelated lesson fields are omitted.
+OpenAI text requests for item 7 use a 4096-token output cap on models without
+reasoning. Temporary 429 rate_limit_exceeded/slow_down errors allow two retries,
+honoring Retry-After or the provider's seconds hint with jitter. Server delays
+above 60 seconds are not retried early; quota and billing errors are not retried.
+
+Story visual generation validates literal coverage of the complete approved narrative,
+sequential IDs and the requested asset count before creating images. Invalid output
+receives up to two targeted corrections using the approved story and previous JSON.
+Valid output makes no extra text calls. Persistent content failures retain
+AI_CONTENT_INVALID; provider errors are propagated without content correction retries.
+
+Older meditation rebuilds invalid recognizable text word-search grids locally
+from their listed words before validation and after each text correction. The
+rectangular grid includes every listed word, with a regenerated coordinate answer
+and no duplicate image for the repaired activity. Ambiguous lists still follow
+the bounded correction path and retain AI_CONTENT_INVALID on persistent failure.

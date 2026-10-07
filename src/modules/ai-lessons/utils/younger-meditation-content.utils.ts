@@ -1,4 +1,4 @@
-import { extractTiptapSectionText } from '../utils';
+import { extractMeditationSectionText } from './meditation-rich-text.utils';
 import type { MeditationJson } from '../types/younger-meditation.types';
 
 function nodeText(node: MeditationJson): string {
@@ -6,7 +6,15 @@ function nodeText(node: MeditationJson): string {
   return typeof node.text === 'string'
     ? node.text
     : Array.isArray(node.content)
-      ? node.content.map((child: MeditationJson) => nodeText(child)).join('')
+      ? node.content
+          .map((child: MeditationJson) => nodeText(child))
+          .join(
+            ['bulletList', 'orderedList', 'listItem'].includes(
+              String(node.type),
+            )
+              ? '\n'
+              : '',
+          )
       : '';
 }
 
@@ -25,13 +33,16 @@ export function editedYoungerMeditation(
       Number((node.attrs as MeditationJson)?.level) === 1 &&
       !/^MEDITAÇÃO|^LIÇÃO\s+\d|^TÍTULO$/i.test(nodeText(node).trim()),
   );
-  const verse = extractTiptapSectionText(document, 'VERSÍCULO PARA MEMORIZAR');
+  const verse = extractMeditationSectionText(
+    document,
+    'VERSÍCULO PARA MEMORIZAR',
+  );
   const verseLines =
     verse
       ?.split(/\n+/)
       .map((line) => line.trim())
       .filter(Boolean) ?? [];
-  const prayer = extractTiptapSectionText(document, 'FALANDO COM DEUS');
+  const prayer = extractMeditationSectionText(document, 'FALANDO COM DEUS');
   const hasPrayer = nodes.some(
     (node) =>
       node.type === 'heading' &&
@@ -43,10 +54,18 @@ export function editedYoungerMeditation(
       nodeText(node).trim().toUpperCase() === 'VERSÍCULO PARA MEMORIZAR',
   );
   const instructions = nodes.flatMap((node, index) => {
-    if (node.type !== 'heading' || nodeText(node).trim() !== 'INSTRUÇÃO')
+    if (
+      node.type !== 'heading' ||
+      (node.attrs as MeditationJson)?.meditationField ||
+      nodeText(node).trim() !== 'INSTRUÇÃO'
+    )
       return [];
     const remaining = nodes.slice(index + 1);
-    const end = remaining.findIndex((item) => item.type === 'heading');
+    const end = remaining.findIndex(
+      (item) =>
+        item.type === 'heading' &&
+        !(item.attrs as MeditationJson)?.meditationField,
+    );
     const instruction = (end < 0 ? remaining : remaining.slice(0, end))
       .map(nodeText)
       .join('\n')
@@ -58,6 +77,7 @@ export function editedYoungerMeditation(
     : [];
   return {
     ...data,
+    ...(nodes.length ? { meditationDocument: document } : {}),
     ...(title ? { title: nodeText(title).trim() } : {}),
     ...(hasPrayer ? { prayer: prayer ?? '' } : {}),
     ...(verseLines[0]

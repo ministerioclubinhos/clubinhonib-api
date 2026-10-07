@@ -1,3 +1,7 @@
+import {
+  meditationRichNodes,
+  meditationRichParagraphs,
+} from './meditation-rich-text.utils';
 import { youngerMeditationFit } from './younger-meditation-fit.utils';
 import {
   BorderStyle,
@@ -80,9 +84,22 @@ export function buildYoungerMeditationCopy(
                     cantSplit: true,
                     children: [
                       cell(
-                        titleLines.map((line) =>
-                          paragraph([text(line, fit.titleSize, true)], true),
-                        ),
+                        meditationRichNodes(sheet.document, 'title').length
+                          ? meditationRichParagraphs(
+                              sheet.document,
+                              'title',
+                              sheet.title,
+                              fit.titleSize,
+                              true,
+                              '',
+                              true,
+                            )
+                          : titleLines.map((line) =>
+                              paragraph(
+                                [text(line, fit.titleSize, true)],
+                                true,
+                              ),
+                            ),
                         bannerWidth,
                       ),
                     ],
@@ -124,7 +141,24 @@ export function buildYoungerMeditationCopy(
           ),
           cell([paragraph([text('❯', 46, true, 'ED1C24')], true)], 430),
           new TableCell({
-            children: [paragraph(textLines(sheet.verse, fit.verseSize), true)],
+            children: meditationRichNodes(sheet.document, 'verseText').length
+              ? [
+                  ...meditationRichParagraphs(
+                    sheet.document,
+                    'verseText',
+                    '',
+                    fit.verseSize,
+                    true,
+                  ),
+                  ...meditationRichParagraphs(
+                    sheet.document,
+                    'verseReference',
+                    '',
+                    fit.verseSize,
+                    true,
+                  ),
+                ]
+              : [paragraph(textLines(sheet.verse, fit.verseSize), true)],
             width: { size: innerWidth - 3680, type: WidthType.DXA },
             margins: { top: 70, bottom: 70, left: 90, right: 90 },
             verticalAlign: VerticalAlign.CENTER,
@@ -165,11 +199,13 @@ export function buildYoungerMeditationCopy(
                   : {}),
               },
               children: [
-                paragraph(
-                  textLines(
-                    `${index + 1}. ${activity.instruction}`,
-                    fit.textSize,
-                  ),
+                ...meditationRichParagraphs(
+                  sheet.document,
+                  `activity${index + 1}`,
+                  activity.instruction,
+                  fit.textSize,
+                  false,
+                  `${index + 1}. `,
                 ),
                 ...(activity.image
                   ? [imageParagraph(activity.image, 290, fit.imageHeight)]
@@ -192,7 +228,12 @@ export function buildYoungerMeditationCopy(
             L.prayerLabel,
           ),
           cell(
-            [paragraph(textLines(sheet.prayer, fit.textSize))],
+            meditationRichParagraphs(
+              sheet.document,
+              'prayer',
+              sheet.prayer,
+              fit.textSize,
+            ),
             innerWidth - 2650,
             L.gray,
           ),

@@ -170,7 +170,16 @@ describe('DocxExporterService lesson header', () => {
             },
             {
               type: 'paragraph',
-              content: [{ type: 'text', text: 'Pinte Jesus e seus amigos.' }],
+              content: [
+                {
+                  type: 'text',
+                  text: 'Pinte Jesus e seus amigos.',
+                  marks: [
+                    { type: 'bold' },
+                    { type: 'textStyle', attrs: { color: '#ff0000' } },
+                  ],
+                },
+              ],
             },
           ],
         },
@@ -188,6 +197,7 @@ describe('DocxExporterService lesson header', () => {
     }
     expect(xml).not.toContain('Gabarito privado');
     expect(xml).not.toContain('Tema original');
+    expect(xml.match(/w:color w:val="FF0000"/g)).toHaveLength(2);
     expect(xml).toContain('w:fill="FFF200"');
     expect(xml).toContain('w:val="dashed"');
     expect(xml).toContain('w:w="11906"');

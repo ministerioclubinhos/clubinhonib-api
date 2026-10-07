@@ -8,6 +8,7 @@ export interface YoungerMeditationSheet {
   verse: string;
   prayer: string;
   logo: Buffer;
+  document?: Record<string, unknown>;
   activities: YoungerMeditationActivity[];
 }
 

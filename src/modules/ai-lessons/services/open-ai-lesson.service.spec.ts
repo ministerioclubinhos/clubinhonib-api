@@ -24,6 +24,50 @@ describe('OpenAiLessonService image identity', () => {
 
   beforeEach(() => mockedAxios.post.mockReset());
 
+  it('limits older gpt-4o output reservation without changing other stage requests', async () => {
+    const instance = new OpenAiLessonService({
+      get: <T>(key: string) =>
+        (key === 'OPENAI_TEXT_MODEL'
+          ? 'gpt-4o'
+          : key === 'OPENAI_API_KEY'
+            ? 'test-key'
+            : undefined) as T | undefined,
+    });
+    mockedAxios.post.mockResolvedValue({
+      data: { id: 'test-response', output_text: '{}' },
+    });
+    for (const stage of [
+      LessonStageType.MEDITATION_OLDER,
+      LessonStageType.MEDITATION_YOUNGER,
+    ]) {
+      await instance.generateStage({
+        theme: 'Jesus vive',
+        biblicalReference: 'João 11',
+        weekNumber: 14,
+        stage,
+        template: LESSON_TEMPLATES[stage],
+        approvedUpstream: null,
+        adminPrompt: '',
+      });
+      const payload = mockedAxios.post.mock.lastCall?.[1] as Record<
+        string,
+        unknown
+      >;
+      if (stage === LessonStageType.MEDITATION_OLDER)
+        expect(payload.max_output_tokens).toBe(4096);
+      else expect(payload).not.toHaveProperty('max_output_tokens');
+    }
+  });
+
+  it('requires complete printable older blocks without changing the younger schema', () => {
+    expect(
+      JSON.stringify(schemaFor(LessonStageType.MEDITATION_OLDER)),
+    ).toContain('Não coloque as questões em answer');
+    expect(
+      JSON.stringify(schemaFor(LessonStageType.MEDITATION_YOUNGER)),
+    ).not.toContain('100–140 palavras');
+  });
+
   it.each([
     ['gpt-4o', 'none', false],
     ['gpt-4o', 'high', false],

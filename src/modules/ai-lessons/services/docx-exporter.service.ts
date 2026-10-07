@@ -1084,6 +1084,7 @@ export class DocxExporterService {
         verse: `“${lessonString(data.verseText)}” (${normalizeLessonVerseReference(data.verseReference)})`,
         prayer: lessonString(data.prayer),
         logo,
+        document: this.object(data.meditationDocument),
         activities: sheetActivities,
       });
     }
@@ -1113,6 +1114,7 @@ export class DocxExporterService {
       introduction: lessonString(data.introduction),
       prayer: lessonString(data.prayer),
       logo,
+      document: this.object(data.meditationDocument),
       activities: sheetActivities,
     });
   }

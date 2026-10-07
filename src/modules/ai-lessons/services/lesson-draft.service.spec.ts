@@ -1,3 +1,8 @@
+import type {
+  LessonLlmGenerationInput,
+  LessonLlmGenerationResult,
+} from '../providers/lesson-llm.types';
+import { LESSON_TEMPLATES } from '../templates/lesson-templates';
 import { ConflictException } from '@nestjs/common';
 import { LessonDraftService } from './lesson-draft.service';
 import { AiLessonsRepository } from '../repositories/ai-lessons.repository';
@@ -42,6 +47,317 @@ describe('LessonDraftService workflow safety', () => {
   );
 
   beforeEach(() => jest.clearAllMocks());
+
+  it('corrects omitted, rewritten and repeated story excerpts before accepting visuals', async () => {
+    const story = '### Início\nComeço. Parte central. Final.';
+    const lesson = {
+      stages: [
+        {
+          type: LessonStageType.LESSON,
+          currentVersionId: 'approved',
+          versions: [{ id: 'approved', structuredDataJson: { story } }],
+        },
+      ],
+    } as unknown as LessonEntity;
+    const valid = {
+      responseId: 'corrected',
+      content: {
+        assets: [
+          { id: 'visual-01', sourceExcerpt: '### Início\nComeço.' },
+          { id: 'visual-02', sourceExcerpt: 'Parte central. Final.' },
+        ],
+      },
+    };
+    const generateStage = jest.fn<
+      Promise<LessonLlmGenerationResult>,
+      [LessonLlmGenerationInput]
+    >();
+    const instance = new LessonDraftService(
+      repo as unknown as AiLessonsRepository,
+      { generateStage } as unknown as LessonLlmProviderContract,
+      {} as AwsS3Service,
+      {} as DocxExporterService,
+      {} as PdfLibreOfficeService,
+      weekMaterials as unknown as WeekMaterialsPageCreateService,
+      {} as AdminLessonPromptService,
+    );
+    const target = instance as unknown as {
+      correctStoryVisuals: (
+        lesson: LessonEntity,
+        input: LessonLlmGenerationInput,
+        generated: LessonLlmGenerationResult,
+      ) => Promise<LessonLlmGenerationResult>;
+    };
+    const input: LessonLlmGenerationInput = {
+      stage: LessonStageType.LESSON_VISUALS,
+      theme: 'Tema',
+      biblicalReference: 'Lucas 15:11-32',
+      weekNumber: 16,
+      template: LESSON_TEMPLATES[LessonStageType.LESSON_VISUALS],
+      approvedUpstream: { story },
+      adminPrompt: '',
+      revisionInstructions: 'Preserve o estilo.',
+      visualConfig: { quantity: 2, type: 'color', orientation: 'portrait' },
+    };
+    for (const excerpt of [
+      'Começo. Final.',
+      'Começo reescrito. Parte central. Final.',
+      `${story} Final.`,
+    ]) {
+      generateStage.mockClear().mockResolvedValue(valid);
+      const invalid = {
+        responseId: 'invalid',
+        content: {
+          assets: [{ id: 'visual-01', sourceExcerpt: excerpt }],
+        },
+      };
+      await expect(
+        target.correctStoryVisuals(lesson, input, invalid),
+      ).resolves.toEqual(valid);
+      expect(generateStage).toHaveBeenCalledTimes(1);
+      expect(generateStage.mock.calls[0][0].revisionInstructions).toContain(
+        story,
+      );
+      expect(generateStage.mock.calls[0][0].revisionInstructions).toContain(
+        JSON.stringify(invalid.content),
+      );
+      expect(generateStage.mock.calls[0][0].revisionInstructions).toContain(
+        'Preserve o estilo.',
+      );
+    }
+    generateStage.mockClear();
+    await expect(
+      target.correctStoryVisuals(lesson, input, valid),
+    ).resolves.toBe(valid);
+    expect(generateStage).not.toHaveBeenCalled();
+
+    const wrongQuantity = {
+      responseId: 'one',
+      content: {
+        assets: [{ id: 'visual-01', sourceExcerpt: story }],
+      },
+    };
+    generateStage.mockResolvedValue(wrongQuantity);
+    await expect(
+      target.correctStoryVisuals(lesson, input, wrongQuantity),
+    ).rejects.toThrow('exatamente 2');
+    expect(generateStage).toHaveBeenCalledTimes(2);
+
+    generateStage
+      .mockClear()
+      .mockRejectedValue(new Error('Provider unavailable'));
+    await expect(
+      target.correctStoryVisuals(lesson, input, wrongQuantity),
+    ).rejects.toThrow('Provider unavailable');
+    expect(generateStage).toHaveBeenCalledTimes(1);
+    generateStage.mockClear();
+    await expect(
+      target.correctStoryVisuals(
+        { stages: [] } as unknown as LessonEntity,
+        input,
+        valid,
+      ),
+    ).rejects.toThrow('narrativa completa');
+    expect(generateStage).not.toHaveBeenCalled();
+  });
+
+  it('allows older text-only meditation while preserving the approved verse and other asset requirements', () => {
+    const target = service as unknown as {
+      lockDerivedVerse: (
+        lesson: LessonEntity,
+        type: LessonStageType,
+        content: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const lesson = {
+      stages: [
+        {
+          type: LessonStageType.LESSON,
+          currentVersionId: 'approved-verse',
+          versions: [
+            {
+              id: 'approved-verse',
+              structuredDataJson: {
+                memoryVerse: {
+                  text: 'Eu sou a ressurreição e a vida.',
+                  reference: 'João 11:25',
+                  version: 'NVI',
+                },
+              },
+            },
+          ],
+        },
+      ],
+    } as unknown as LessonEntity;
+    const content = {
+      printableAssets: [],
+      activities: [{ instruction: 'Complete as frases.' }],
+    };
+    expect(
+      target.lockDerivedVerse(
+        lesson,
+        LessonStageType.MEDITATION_OLDER,
+        content,
+      ),
+    ).toMatchObject({
+      printableAssets: [],
+      verseText: 'Eu sou a ressurreição e a vida.',
+      verseReference: 'João 11:25',
+      verseVersion: 'NVI',
+      activities: content.activities,
+    });
+    for (const type of [
+      LessonStageType.MEDITATION_YOUNGER,
+      LessonStageType.VERSE_VISUALS,
+      LessonStageType.MANUAL_WORK,
+      LessonStageType.VERSE_FIXATION,
+    ])
+      expect(() => target.lockDerivedVerse(lesson, type, content)).toThrow(
+        'ao menos uma peça imprimível',
+      );
+  });
+
+  it('preserves local validation diagnostics instead of blaming the provider', () => {
+    const target = service as unknown as {
+      describeAiFailure: (
+        type: LessonStageType,
+        error: unknown,
+      ) => { code: string; message: string };
+    };
+    const failure = target.describeAiFailure(
+      LessonStageType.MEDITATION_OLDER,
+      new ConflictException(
+        'O material derivado precisa conter ao menos uma peça imprimível.',
+      ),
+    );
+    expect(failure.code).toBe('AI_CONTENT_INVALID');
+    expect(failure.message).toContain('ao menos uma peça imprimível');
+    expect(failure.message).not.toContain('provedor');
+    expect(failure.message).not.toContain('não reconhecido');
+  });
+
+  it('corrects older content with the previous JSON and counts, bounds retries and stops when valid', async () => {
+    const sparse = {
+      responseId: 'sparse',
+      content: {
+        activities: [
+          { instruction: 'Complete.' },
+          { instruction: 'Marque.' },
+          { instruction: 'Descubra.' },
+        ],
+      },
+    };
+    const generateStage = jest
+      .fn<Promise<LessonLlmGenerationResult>, [LessonLlmGenerationInput]>()
+      .mockResolvedValue(sparse);
+    const provider = { generateStage } as unknown as LessonLlmProviderContract;
+    const instance = new LessonDraftService(
+      repo as unknown as AiLessonsRepository,
+      provider,
+      {} as AwsS3Service,
+      {} as DocxExporterService,
+      {} as PdfLibreOfficeService,
+      weekMaterials as unknown as WeekMaterialsPageCreateService,
+      {} as AdminLessonPromptService,
+    );
+    const target = instance as unknown as {
+      expandOlderMeditation: (
+        input: LessonLlmGenerationInput,
+        content: LessonLlmGenerationResult,
+      ) => Promise<LessonLlmGenerationResult>;
+    };
+    const input = {
+      theme: 'Jesus vive',
+      biblicalReference: 'João 11',
+      weekNumber: 14,
+      stage: LessonStageType.MEDITATION_OLDER,
+      template: LESSON_TEMPLATES[LessonStageType.MEDITATION_OLDER],
+      revisionInstructions: 'Cubra ambos os relatos.',
+    } as LessonLlmGenerationInput;
+    await expect(target.expandOlderMeditation(input, sparse)).rejects.toThrow(
+      'ficou incompleta',
+    );
+    expect(generateStage).toHaveBeenCalledTimes(2);
+    expect(generateStage.mock.calls[0][0].revisionInstructions).toContain(
+      'Cubra ambos os relatos.',
+    );
+    expect(generateStage.mock.calls[0][0].revisionInstructions).toContain(
+      'Corrija especificamente este problema:',
+    );
+    expect(generateStage.mock.calls[0][0].revisionInstructions).toContain(
+      '3 palavras',
+    );
+    expect(generateStage.mock.calls[0][0].revisionInstructions).toContain(
+      JSON.stringify(sparse.content),
+    );
+    const complete = {
+      responseId: 'complete',
+      content: {
+        activities: Array.from({ length: 3 }, () => ({
+          instruction:
+            'Jesus mostrou seu poder e sua compaixão pelos seus amigos. '.repeat(
+              8,
+            ),
+        })),
+      },
+    };
+    generateStage.mockClear();
+    generateStage.mockResolvedValueOnce(sparse).mockResolvedValueOnce(complete);
+    await expect(target.expandOlderMeditation(input, sparse)).resolves.toEqual(
+      complete,
+    );
+    expect(generateStage).toHaveBeenCalledTimes(2);
+    generateStage.mockClear();
+    await expect(
+      target.expandOlderMeditation(input, complete),
+    ).resolves.toEqual(complete);
+    expect(generateStage).not.toHaveBeenCalled();
+    const brokenPuzzle = {
+      ...complete,
+      content: {
+        activities: [
+          {
+            id: '1',
+            instruction:
+              'Caça-palavras\nPIXVIÚVAJ\nQÁZARONES\nRESSUREIÇÃO\nPalavras: VIÚVA, LÁZARO, RESSURREIÇÃO',
+          },
+          ...complete.content.activities.slice(1),
+        ],
+      },
+    };
+    const repaired = await target.expandOlderMeditation(input, brokenPuzzle);
+    expect(generateStage).not.toHaveBeenCalled();
+    const repairedActivities = repaired.content.activities as Array<
+      Record<string, unknown>
+    >;
+    expect(repairedActivities[0].answer).toContain('RESSURREICAO: linha 4');
+  });
+
+  it('uses the approved theme and references for meditation header fields', () => {
+    const target = service as unknown as {
+      validateCanonicalContent: (
+        lesson: LessonEntity,
+        type: LessonStageType,
+        content: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const lesson = {
+      theme: 'O poder de Jesus sobre a morte',
+      biblicalReference: 'João 11:1-44; Lucas 7:11-17',
+    } as LessonEntity;
+    const result = target.validateCanonicalContent(
+      lesson,
+      LessonStageType.MEDITATION_OLDER,
+      {
+        title: 'Meditação para crianças maiores',
+        biblicalText: 'Hoje vamos descobrir...',
+        introduction: 'Jesus tem poder sobre a morte.',
+      },
+    );
+    expect(result.title).toBe(lesson.theme);
+    expect(result.biblicalText).toBe(lesson.biblicalReference);
+    expect(result.introduction).toBe('Jesus tem poder sobre a morte.');
+  });
 
   it('entrega ao editor o cabeçalho separado de uma versão já salva', async () => {
     const body = {

@@ -164,7 +164,7 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
     },
     [LessonStageType.MEDITATION_OLDER]: {
       key: 'clubinho.meditation-older.canonical',
-      version: '1.2.0',
+      version: '1.4.0',
       stage: LessonStageType.MEDITATION_OLDER,
       exactStructure: [
         'MEDITAÇÃO PARA CRIANÇAS MAIORES',
@@ -180,7 +180,7 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
       ],
       rules: [
         ...sharedRules,
-        'Criar exatamente três desafios variados para 8 a 11 anos, em uma página A4 inteira e sem desenho livre para colorir; pintura seletiva pode indicar a alternativa correta. As zero a três artes são opcionais e indispensáveis ao enigma, com ids 1, 2 ou 3 correspondentes aos desafios.',
+        'Criar exatamente três blocos substanciais para 8 a 11 anos, com 4–6 subitens nos exercícios textuais e 5–8 pistas/palavras nos enigmas, em uma página A4 inteira e sem desenho livre para colorir; pintura seletiva pode indicar a alternativa correta. As zero a três artes são opcionais e indispensáveis ao enigma, com ids 1, 2 ou 3 correspondentes aos desafios.',
         'Cada desafio precisa ter instrução completa e gabarito determinístico para o professor.',
         'Usar o único versículo principal NVI aprovado, sem paráfrase.',
         'Gerar somente as artes necessárias aos enigmas completos e solucionáveis. Permitir letras/números e legendas curtas quando indispensáveis; omitir cabeçalho, instruções e gabarito na imagem.',

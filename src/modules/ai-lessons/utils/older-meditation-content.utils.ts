@@ -1,4 +1,4 @@
-import { extractTiptapSectionText } from '../utils';
+import { extractMeditationSectionText } from './meditation-rich-text.utils';
 import type { MeditationJson } from '../types/younger-meditation.types';
 import { editedYoungerMeditation } from './younger-meditation-content.utils';
 
@@ -8,10 +8,10 @@ export function editedOlderMeditation(
 ): MeditationJson {
   const content = editedYoungerMeditation(data, document);
   if (!document) return content;
-  const biblicalText = extractTiptapSectionText(document, 'TEXTO BÍBLICO');
+  const biblicalText = extractMeditationSectionText(document, 'TEXTO BÍBLICO');
   const introduction =
-    extractTiptapSectionText(document, 'ENTENDENDO A LIÇÃO') ??
-    extractTiptapSectionText(document, 'INTRODUÇÃO');
+    extractMeditationSectionText(document, 'ENTENDENDO A LIÇÃO') ??
+    extractMeditationSectionText(document, 'INTRODUÇÃO');
   return {
     ...content,
     ...(biblicalText !== null ? { biblicalText } : {}),
