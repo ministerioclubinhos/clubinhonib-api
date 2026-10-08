@@ -8,3 +8,10 @@ export interface OlderMeditationSheet {
   document?: Record<string, unknown>;
   activities: Array<{ instruction: string; image?: Buffer }>;
 }
+
+export interface OlderMeditationFit {
+  fontSize: number;
+  imageHeight: number;
+  weights: number[];
+  activitySpace: number;
+}

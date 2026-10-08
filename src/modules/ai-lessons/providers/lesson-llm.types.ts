@@ -30,6 +30,11 @@ export type LessonLlmGenerationInput = {
   } | null;
   adminPrompt: string;
   revisionInstructions?: string;
+  olderMeditationBlockRevision?: {
+    number: number;
+    activity: Record<string, unknown>;
+    minimumWords: number;
+  };
   visualConfig?: {
     type: string;
     orientation: string;

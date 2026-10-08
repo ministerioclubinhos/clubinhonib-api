@@ -321,7 +321,12 @@ describe('LessonDraftService workflow safety', () => {
             instruction:
               'Caça-palavras\nPIXVIÚVAJ\nQÁZARONES\nRESSUREIÇÃO\nPalavras: VIÚVA, LÁZARO, RESSURREIÇÃO',
           },
-          ...complete.content.activities.slice(1),
+          ...complete.content.activities.slice(1).map((activity) => ({
+            ...activity,
+            instruction:
+              activity.instruction +
+              'Confira os fatos da lição e justifique sua resposta. '.repeat(5),
+          })),
         ],
       },
     };
@@ -331,6 +336,80 @@ describe('LessonDraftService workflow safety', () => {
       Record<string, unknown>
     >;
     expect(repairedActivities[0].answer).toContain('RESSURREICAO: linha 4');
+
+    // The full-sheet model keeps returning 160 words: expand only the shortest block.
+    const tooShort = {
+      responseId: 'short',
+      content: {
+        title: 'Tema salvo',
+        activities: [
+          {
+            number: 1,
+            instruction: 'palavra '.repeat(40),
+            answer: 'Primeiro gabarito',
+          },
+          {
+            number: 2,
+            instruction: 'palavra '.repeat(60),
+            answer: 'Segundo gabarito',
+          },
+          {
+            number: 3,
+            instruction: 'palavra '.repeat(60),
+            answer: 'Terceiro gabarito',
+          },
+        ],
+        printableAssets: [{ id: '1' }, { id: '2' }],
+      },
+    };
+    const detailed = {
+      responseId: 'block',
+      content: {
+        context:
+          'Vamos lembrar o que Jesus fez e refletir sobre a compaixão que mostrou às famílias da lição.',
+        command:
+          'Leia os fatos e responda a cada um dos subitens com atenção, usando somente a história estudada.',
+        subitems: Array.from(
+          { length: 6 },
+          () =>
+            'Leia o acontecimento apresentado na lição e explique o que ele mostra sobre o cuidado de Jesus pelas pessoas.',
+        ),
+        answers: Array.from({ length: 6 }, () => 'Resposta conferida.'),
+      },
+    };
+    generateStage
+      .mockClear()
+      .mockResolvedValueOnce(tooShort)
+      .mockResolvedValueOnce(tooShort)
+      .mockResolvedValueOnce(detailed);
+    const result = await target.expandOlderMeditation(
+      { ...input, approvedUpstream: { story: 'Jesus mostrou compaixão.' } },
+      tooShort,
+    );
+    expect(generateStage).toHaveBeenCalledTimes(3);
+    expect(
+      generateStage.mock.calls[2][0].olderMeditationBlockRevision?.number,
+    ).toBe(1);
+    const resultActivities = result.content.activities as Array<
+      Record<string, unknown>
+    >;
+    expect(resultActivities[0].instruction).toContain(
+      'a) Leia o acontecimento',
+    );
+    expect(resultActivities.slice(1)).toEqual(
+      tooShort.content.activities.slice(1),
+    );
+    expect(result.content.printableAssets).toEqual([{ id: '2' }]);
+    expect(result.content.title).toBe('Tema salvo');
+
+    generateStage.mockClear().mockResolvedValue(tooShort);
+    await expect(
+      target.expandOlderMeditation(
+        { ...input, approvedUpstream: { story: 'Fonte aprovada.' } },
+        tooShort,
+      ),
+    ).rejects.toThrow('160 palavras');
+    expect(generateStage).toHaveBeenCalledTimes(5);
   });
 
   it('uses the approved theme and references for meditation header fields', () => {

@@ -10,10 +10,15 @@ import {
   olderMeditationContentIssue,
   olderMeditationExpansionContext,
   olderMeditationLessonSource,
+  olderMeditationInstructionWords,
+  mergeOlderMeditationBlock,
 } from '../utils/older-meditation-quality.utils';
 import {
   OLDER_MEDITATION_EXPANSION_INSTRUCTIONS,
   OLDER_MEDITATION_MAX_CORRECTIONS,
+  OLDER_MEDITATION_MAX_BLOCK_CORRECTIONS,
+  OLDER_MEDITATION_BLOCK_TARGET_WORDS,
+  OLDER_MEDITATION_BLOCK_REVISION_PROMPT,
 } from '../constants/older-meditation-quality.constants';
 import { buildMeditationActivityImagePrompt } from '../utils/meditation-image.utils';
 import { repairMeditationWordSearch } from '../utils/repair-meditation-word-search.utils';
@@ -1124,6 +1129,40 @@ export class LessonDraftService implements OnApplicationBootstrap {
         ...expanded,
         content: repairMeditationWordSearch(expanded.content),
       };
+      issue = olderMeditationContentIssue(expanded.content);
+    }
+    for (
+      let attempt = 0;
+      issue?.startsWith('As questões têm pouco conteúdo') &&
+      lessonString(input.approvedUpstream?.story).trim() &&
+      attempt < OLDER_MEDITATION_MAX_BLOCK_CORRECTIONS;
+      attempt++
+    ) {
+      const activities = Array.isArray(expanded.content.activities)
+        ? expanded.content.activities.map((value) => this.asObject(value))
+        : [];
+      const counts = activities.map((activity) =>
+        olderMeditationInstructionWords(activity.instruction),
+      );
+      const index = counts.indexOf(Math.min(...counts));
+      const minimumWords = OLDER_MEDITATION_BLOCK_TARGET_WORDS;
+      const block = await this.llm.generateStage({
+        ...input,
+        olderMeditationBlockRevision: {
+          number: index + 1,
+          activity: activities[index],
+          minimumWords,
+        },
+        revisionInstructions: OLDER_MEDITATION_BLOCK_REVISION_PROMPT,
+      });
+      const merged = mergeOlderMeditationBlock(
+        expanded.content,
+        index,
+        block.content,
+        minimumWords,
+      );
+      if (merged !== expanded.content)
+        expanded = { content: merged, responseId: block.responseId };
       issue = olderMeditationContentIssue(expanded.content);
     }
     if (issue)

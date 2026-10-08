@@ -21,7 +21,7 @@ export function meditationWordSearchIssue(instruction: string): string | null {
   if (grid.length < 3) return null;
   if (grid.some((row) => row.length !== grid[0].length))
     return 'O caça-palavras tem linhas com tamanhos diferentes; refaça uma grade retangular.';
-  const list = instruction.match(/palavras\s*:\s*([^\n]+)/i)?.[1];
+  const list = instruction.match(/^\s*palavras\s*:\s*([^\n]+)/im)?.[1];
   if (!list)
     return 'O caça-palavras textual não apresenta a lista de palavras.';
   const words = list

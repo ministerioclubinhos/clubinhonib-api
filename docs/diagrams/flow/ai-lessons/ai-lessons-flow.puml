@@ -65,6 +65,10 @@ note right of API
   Caça-palavras textual: grade retangular e palavras presentes
   Grade textual inválida com lista reconhecível -> reconstrução local e gabarito conferido
   Remove arte duplicada do mesmo desafio; demais blocos preservados
+  Exportação: repara grade salva e sincroniza somente o campo corrigido no AST
+  Letras do caça-palavras -> células quadradas nativas no DOCX/PDF
+  Densidade ainda insuficiente -> até três correções de bloco isolado com seis subitens
+  Correção isolada preserva cabeçalho, outros blocos e gabaritos
   PDF maiores: reserva cabeçalho e oração antes dos desafios
   Item 7 aceita zero artes; validação local preserva o motivo da falha
   Item 7: fonte é a lição aprovada, sem assets de outras etapas

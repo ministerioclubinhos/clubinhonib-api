@@ -13,7 +13,7 @@ export function repairMeditationWordSearch(
 ): MeditationJson {
   if (!Array.isArray(content.activities)) return content;
   const repairedIds = new Set<string>();
-  const activities = content.activities.map((value: unknown) => {
+  const activities = content.activities.map((value: unknown, index: number) => {
     if (!value || typeof value !== 'object' || Array.isArray(value))
       return value;
     const activity = value as MeditationJson;
@@ -23,7 +23,7 @@ export function repairMeditationWordSearch(
       !meditationWordSearchIssue(instruction)
     )
       return activity;
-    const list = instruction.match(/palavras\s*:\s*([^\n]+)/i)?.[1];
+    const list = instruction.match(/^\s*palavras\s*:\s*([^\n]+)/im)?.[1];
     if (!list) return activity;
     const words = list.split(/[,;]|\s+e\s+/i).map((word) =>
       word
@@ -88,7 +88,13 @@ export function repairMeditationWordSearch(
       ...lines.slice(end),
     ].join('\n');
     if (meditationWordSearchIssue(correctedInstruction)) return activity;
-    if (typeof activity.id === 'string') repairedIds.add(activity.id);
+    repairedIds.add(
+      typeof activity.id === 'string'
+        ? activity.id
+        : typeof activity.number === 'number'
+          ? String(activity.number)
+          : String(index + 1),
+    );
     return {
       ...activity,
       instruction: correctedInstruction,

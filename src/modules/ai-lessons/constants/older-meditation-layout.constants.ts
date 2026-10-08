@@ -8,4 +8,12 @@ export const OLDER_MEDITATION_LAYOUT = {
   verseColumns: 70,
   introductionColumns: 100,
   lineHeight: 12,
+  gridCellSize: 320,
+  gridFontSize: 22,
+  gridFont: 'Courier New',
+  gridPadding: 56,
+  fontSizes: [26, 24, 22, 20, 18],
+  wrapSafety: 0.9,
+  activityMargins: 200,
+  paragraphReserve: 240,
 } as const;

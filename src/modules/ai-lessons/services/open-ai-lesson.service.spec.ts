@@ -24,6 +24,41 @@ describe('OpenAiLessonService image identity', () => {
 
   beforeEach(() => mockedAxios.post.mockReset());
 
+  it('requests only six paired subitems when correcting a sparse older block', async () => {
+    mockedAxios.post.mockResolvedValue({
+      data: { id: 'block-response', output_text: '{}' },
+    });
+    await service.generateStage({
+      theme: 'Jesus vive',
+      biblicalReference: 'João 11',
+      weekNumber: 14,
+      stage: LessonStageType.MEDITATION_OLDER,
+      template: LESSON_TEMPLATES[LessonStageType.MEDITATION_OLDER],
+      approvedUpstream: { story: 'Relato aprovado.' },
+      adminPrompt: 'Folha inteira.',
+      olderMeditationBlockRevision: {
+        number: 2,
+        activity: { instruction: 'Curta.' },
+        minimumWords: 110,
+      },
+    });
+    const payload = mockedAxios.post.mock.lastCall?.[1] as {
+      input: Array<{ content: string }>;
+      text: { format: { schema: Record<string, unknown> } };
+    };
+    expect(payload.input[0].content).toContain('Corrija SOMENTE um bloco');
+    expect(payload.input[1].content).not.toContain('Folha inteira.');
+    expect(payload.text.format.schema.required).toEqual([
+      'context',
+      'command',
+      'subitems',
+      'answers',
+    ]);
+    expect(JSON.stringify(payload.text.format.schema)).toContain(
+      '"minItems":6',
+    );
+  });
+
   it('limits older gpt-4o output reservation without changing other stage requests', async () => {
     const instance = new OpenAiLessonService({
       get: <T>(key: string) =>

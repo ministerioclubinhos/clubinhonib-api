@@ -1109,7 +1109,7 @@ export class DocxExporterService {
     );
     return buildOlderMeditationSheet({
       title: lessonString(data.title),
-      verse: `“${lessonString(data.verseText)}” (${normalizeLessonVerseReference(data.verseReference)})`,
+      verse: `“${lessonString(data.verseText)}”\n${normalizeLessonVerseReference(data.verseReference)} — NVI`,
       biblicalText: lessonString(data.biblicalText),
       introduction: lessonString(data.introduction),
       prayer: lessonString(data.prayer),

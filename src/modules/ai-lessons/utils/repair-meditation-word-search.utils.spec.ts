@@ -2,6 +2,25 @@ import { repairMeditationWordSearch } from './repair-meditation-word-search.util
 import { meditationWordSearchIssue } from './meditation-word-search.utils';
 
 describe('repair meditation word search', () => {
+  it('uses the word list rather than the Caça-palavras colon heading from the saved PDF', () => {
+    const content = {
+      activities: [
+        {
+          number: 3,
+          instruction:
+            'Caça-palavras: Encontre as palavras ligadas aos milagres de Jesus.\nPIXVIÚVAJ\nQÁZARONES\nRESSUREIÇÃO\nOCOIDZHLAM\nEJESUSBATT\nPOUCSNACAD\nMULTIDÃOZM\nEKPODERGYO\nPalavras: VIÚVA, JESUS, LÁZARO, RESSURREIÇÃO, PODER, MULTIDÃO',
+        },
+      ],
+      printableAssets: [{ id: '3', url: 'obsolete-grid' }],
+    };
+    const repaired = repairMeditationWordSearch(content);
+    const activity = (repaired.activities as Array<Record<string, unknown>>)[0];
+    expect(
+      meditationWordSearchIssue(activity.instruction as string),
+    ).toBeNull();
+    expect(activity.answer).toContain('RESSURREICAO');
+    expect(repaired.printableAssets).toEqual([]);
+  });
   it('rebuilds unequal rows with every complete word, exact positions and no duplicate image', () => {
     const instruction =
       'Caça-palavras\nPIXVIÚVAJ\nQÁZARONES\nRESSUREIÇÃO\nPalavras: VIÚVA, LÁZARO, RESSURREIÇÃO';

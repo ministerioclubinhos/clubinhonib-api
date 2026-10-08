@@ -2,9 +2,22 @@ import {
   olderMeditationContentIssue,
   olderMeditationExpansionContext,
   olderMeditationLessonSource,
+  olderMeditationInstructionWords,
 } from './older-meditation-quality.utils';
 
 describe('older meditation content density', () => {
+  it('does not turn spaced puzzle cells into prose words for the density requirement', () => {
+    expect(
+      olderMeditationInstructionWords(
+        'Caça-palavras\nJ E S U S\nA B C D E\nF G H I J\nPalavras: JESUS',
+      ),
+    ).toBe(3);
+    expect(
+      olderMeditationInstructionWords(
+        'Caça-palavras\nJESUS\nABCDE\nFGHIJ\nPalavras: JESUS',
+      ),
+    ).toBe(3);
+  });
   it('uses lesson narrative, verse and application without sending images or unrelated fields', () => {
     const source = olderMeditationLessonSource({
       title: 'Jesus vive',

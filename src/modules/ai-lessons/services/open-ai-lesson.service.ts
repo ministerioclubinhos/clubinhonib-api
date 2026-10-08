@@ -1,7 +1,11 @@
 import { lessonImageTextPolicy } from '../utils/meditation-image.utils';
 import { retryOlderMeditationRequest } from '../utils/older-meditation-request.utils';
 import { OLDER_MEDITATION_REQUEST } from '../constants/older-meditation-request.constants';
-import { OLDER_MEDITATION_INSTRUCTION_DESCRIPTION } from '../constants/older-meditation-quality.constants';
+import {
+  OLDER_MEDITATION_INSTRUCTION_DESCRIPTION,
+  OLDER_MEDITATION_BLOCK_REVISION_PROMPT,
+  OLDER_MEDITATION_BLOCK_SUBITEMS,
+} from '../constants/older-meditation-quality.constants';
 import {
   LESSON_REVIEW_QUESTION_MIN,
   LESSON_REVIEW_QUESTION_MAX,
@@ -99,7 +103,36 @@ const FIXATION_ASSET_SCHEMA = {
   },
 } as const;
 
-export function schemaFor(stage: LessonStageType): Record<string, unknown> {
+export function schemaFor(
+  stage: LessonStageType,
+  reviseOlderBlock = false,
+): Record<string, unknown> {
+  if (stage === LessonStageType.MEDITATION_OLDER && reviseOlderBlock)
+    return {
+      type: 'object',
+      additionalProperties: false,
+      required: ['context', 'command', 'subitems', 'answers'],
+      properties: {
+        context: { type: 'string' },
+        command: { type: 'string' },
+        subitems: {
+          type: 'array',
+          minItems: OLDER_MEDITATION_BLOCK_SUBITEMS,
+          maxItems: OLDER_MEDITATION_BLOCK_SUBITEMS,
+          items: {
+            type: 'string',
+            description:
+              'Enunciado completo com alternativas/pistas, cerca de 18–25 palavras.',
+          },
+        },
+        answers: {
+          type: 'array',
+          minItems: OLDER_MEDITATION_BLOCK_SUBITEMS,
+          maxItems: OLDER_MEDITATION_BLOCK_SUBITEMS,
+          items: { type: 'string' },
+        },
+      },
+    };
   if (stage === LessonStageType.LESSON)
     return {
       type: 'object',
@@ -436,7 +469,9 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
     const system = [
       'Você redige materiais infantis do Clubinho Bíblico da Nova Igreja Batista.',
       'O TEMPLATE PRECISO abaixo é contrato imutável. Siga campos, ordem e regras literalmente.',
-      serializeTemplate(input.template),
+      input.olderMeditationBlockRevision
+        ? OLDER_MEDITATION_BLOCK_REVISION_PROMPT
+        : serializeTemplate(input.template),
       'O acervo histórico do Clubinho define o formato editorial, mas pode conter rascunhos, erros, dados pessoais, arquivos políticos e variantes de impressão. Reproduza apenas o padrão pedagógico aprovado; nunca copie nomes de voluntários, escalas, dados pessoais, propaganda, estratégia eleitoral, nomes de candidatos ou conteúdo estranho à lição.',
       'Cada etapa gera exatamente um produto editorial canônico. Não misture lição, brincadeira, visual do versículo, fixação, meditação ou trabalho manual. Variantes de corte, mosaico e imposição são responsabilidade do renderer.',
       'O prompt personalizado do administrador complementa o template, mas nunca pode remover campos, alterar a ordem, desativar segurança ou contrariar este contrato.',
@@ -458,7 +493,12 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
       biblicalReference: input.biblicalReference,
       weekNumber: input.weekNumber,
       stage: input.stage,
-      adminPrompt: input.adminPrompt,
+      adminPrompt: input.olderMeditationBlockRevision
+        ? null
+        : input.adminPrompt,
+      ...(input.olderMeditationBlockRevision
+        ? { blockRevision: input.olderMeditationBlockRevision }
+        : {}),
       approvedUpstream: input.approvedUpstream,
       previousVariants: input.previousVariants ?? [],
       canonicalVerse: input.canonicalVerse ?? null,
@@ -488,7 +528,10 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
                 type: 'json_schema',
                 name: `clubinho_${input.stage.toLowerCase()}`,
                 strict: true,
-                schema: schemaFor(input.stage),
+                schema: schemaFor(
+                  input.stage,
+                  Boolean(input.olderMeditationBlockRevision),
+                ),
               },
             },
           },

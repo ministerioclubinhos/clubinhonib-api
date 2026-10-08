@@ -220,3 +220,20 @@ from their listed words before validation and after each text correction. The
 rectangular grid includes every listed word, with a regenerated coordinate answer
 and no duplicate image for the repaired activity. Ambiguous lists still follow
 the bounded correction path and retain AI_CONTENT_INVALID on persistent failure.
+
+Older meditation exports also repair saved text puzzles after applying editor
+edits, synchronize the corrected activity in the renderable AST and retain
+formatting in unaffected fields. The word list is matched on its own line,
+so the heading "Caça-palavras:" cannot be mistaken for the list. Puzzle letters
+render in equal native DOCX cells; activity numbers are not duplicated and
+extra generic answer lines are omitted. Sparse text uses a larger readable font.
+If two full-sheet corrections still leave fewer than 200 words and an approved
+narrative exists, generation makes at most three focused block corrections.
+Each requests six complete subitems and six paired answers with at least 110
+words, merges only the corrected block and removes its obsolete artwork.
+Malformed or insufficient block output is not merged; persistent invalid content
+still fails with AI_CONTENT_INVALID. This applies to both configured providers.
+
+The older sheet fits font and image size against estimated wrapped prose,
+native grid row height and reserved prayer space. Grid letters never count as
+prose words for density validation, even when they are separated by spaces.

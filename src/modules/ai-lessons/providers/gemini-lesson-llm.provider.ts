@@ -8,6 +8,7 @@ import {
 import { LessonProviderConfig } from './lesson-llm.types';
 import axios, { AxiosError } from 'axios';
 import { schemaFor } from '../services/open-ai-lesson.service';
+import { OLDER_MEDITATION_BLOCK_REVISION_PROMPT } from '../constants/older-meditation-quality.constants';
 import { serializeTemplate } from '../templates/lesson-templates';
 import {
   DEFAULT_GEMINI_IMAGE_MODEL,
@@ -63,7 +64,9 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
     const systemInstruction = [
       'Você redige materiais infantis do Clubinho Bíblico da Nova Igreja Batista.',
       'O TEMPLATE PRECISO abaixo é contrato imutável. Siga campos, ordem e regras literalmente.',
-      serializeTemplate(input.template),
+      input.olderMeditationBlockRevision
+        ? OLDER_MEDITATION_BLOCK_REVISION_PROMPT
+        : serializeTemplate(input.template),
       'O acervo histórico do Clubinho define o formato editorial, mas pode conter rascunhos, erros, dados pessoais, arquivos políticos e variantes de impressão. Reproduza apenas o padrão pedagógico aprovado; nunca copie nomes de voluntários, escalas, dados pessoais, propaganda, estratégia eleitoral, nomes de candidatos ou conteúdo estranho à lição.',
       'Cada etapa gera exatamente um produto editorial canônico. Não misture lição, brincadeira, visual do versículo, fixação, meditação ou trabalho manual. Variantes de corte, mosaico e imposição são responsabilidade do renderer.',
       'O prompt personalizado do administrador complementa o template, mas nunca pode remover campos, alterar a ordem, desativar segurança ou contrariar este contrato.',
@@ -85,7 +88,12 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
       biblicalReference: input.biblicalReference,
       weekNumber: input.weekNumber,
       stage: input.stage,
-      adminPrompt: input.adminPrompt,
+      adminPrompt: input.olderMeditationBlockRevision
+        ? null
+        : input.adminPrompt,
+      ...(input.olderMeditationBlockRevision
+        ? { blockRevision: input.olderMeditationBlockRevision }
+        : {}),
       approvedUpstream: input.approvedUpstream,
       previousVariants: input.previousVariants ?? [],
       canonicalVerse: input.canonicalVerse ?? null,
@@ -112,7 +120,10 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
               contents: [{ role: 'user', parts: [{ text: userInput }] }],
               generationConfig: {
                 responseMimeType: 'application/json',
-                responseJsonSchema: schemaFor(input.stage),
+                responseJsonSchema: schemaFor(
+                  input.stage,
+                  Boolean(input.olderMeditationBlockRevision),
+                ),
               },
             },
             apiKey,
