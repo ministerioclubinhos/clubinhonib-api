@@ -24,39 +24,41 @@ describe('OpenAiLessonService image identity', () => {
 
   beforeEach(() => mockedAxios.post.mockReset());
 
-  it('requests only six paired subitems when correcting a sparse older block', async () => {
+  it('reviews the real artwork with a separate schema and keeps administrator instructions out of the reviewer', async () => {
     mockedAxios.post.mockResolvedValue({
-      data: { id: 'block-response', output_text: '{}' },
+      data: { id: 'review-response', output_text: '{"issues":[]}' },
     });
     await service.generateStage({
-      theme: 'Jesus vive',
-      biblicalReference: 'João 11',
-      weekNumber: 14,
+      theme: 'Tema livre',
+      biblicalReference: 'Referência aprovada',
+      weekNumber: 1,
       stage: LessonStageType.MEDITATION_OLDER,
       template: LESSON_TEMPLATES[LessonStageType.MEDITATION_OLDER],
-      approvedUpstream: { story: 'Relato aprovado.' },
-      adminPrompt: 'Folha inteira.',
-      olderMeditationBlockRevision: {
-        number: 2,
-        activity: { instruction: 'Curta.' },
-        minimumWords: 110,
+      approvedUpstream: { story: 'Fonte aprovada.' },
+      adminPrompt: 'Instrução de geração',
+      olderMeditationReview: {
+        content: { activities: [] },
+        images: [
+          {
+            activityNumber: 2,
+            image: { data: Buffer.from('actual-image'), mimeType: 'image/png' },
+          },
+        ],
       },
     });
-    const payload = mockedAxios.post.mock.lastCall?.[1] as {
-      input: Array<{ content: string }>;
-      text: { format: { schema: Record<string, unknown> } };
+    const body = mockedAxios.post.mock.lastCall?.[1] as {
+      input: Array<{ content: unknown }>;
+      text: { format: { schema: { required: string[] } } };
     };
-    expect(payload.input[0].content).toContain('Corrija SOMENTE um bloco');
-    expect(payload.input[1].content).not.toContain('Folha inteira.');
-    expect(payload.text.format.schema.required).toEqual([
-      'context',
-      'command',
-      'subitems',
-      'answers',
-    ]);
-    expect(JSON.stringify(payload.text.format.schema)).toContain(
-      '"minItems":6',
+    expect(body.input[0].content).toContain('revisor independente');
+    expect(JSON.stringify(body.input[1].content)).toContain('input_image');
+    expect(JSON.stringify(body.input[1].content)).toContain(
+      Buffer.from('actual-image').toString('base64'),
     );
+    expect(JSON.stringify(body.input[1].content)).not.toContain(
+      'Instrução de geração',
+    );
+    expect(body.text.format.schema.required).toEqual(['issues']);
   });
 
   it('limits older gpt-4o output reservation without changing other stage requests', async () => {
@@ -97,10 +99,10 @@ describe('OpenAiLessonService image identity', () => {
   it('requires complete printable older blocks without changing the younger schema', () => {
     expect(
       JSON.stringify(schemaFor(LessonStageType.MEDITATION_OLDER)),
-    ).toContain('Não coloque as questões em answer');
+    ).toContain('sourceExcerpt');
     expect(
       JSON.stringify(schemaFor(LessonStageType.MEDITATION_YOUNGER)),
-    ).not.toContain('100–140 palavras');
+    ).not.toContain('sourceExcerpt');
   });
 
   it.each([
@@ -194,6 +196,34 @@ describe('OpenAiLessonService image identity', () => {
         closingPrayer: { type: 'string' },
       },
     });
+  });
+
+  it('retries a reset image request without regenerating text', async () => {
+    jest.useFakeTimers();
+    mockedAxios.post
+      .mockRejectedValueOnce(
+        Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' }),
+      )
+      .mockResolvedValueOnce({
+        data: {
+          data: [{ b64_json: Buffer.from('recovered').toString('base64') }],
+        },
+      });
+    try {
+      const pending = service.generateImage('Desenho aprovado');
+      await jest.runAllTimersAsync();
+      expect((await pending).toString()).toBe('recovered');
+      expect(mockedAxios.post.mock.calls).toHaveLength(2);
+      expect(mockedAxios.post.mock.calls.map((call) => call[0])).toEqual([
+        'https://api.openai.com/v1/images/generations',
+        'https://api.openai.com/v1/images/generations',
+      ]);
+      expect(mockedAxios.post.mock.calls[0][1]).toEqual(
+        mockedAxios.post.mock.calls[1][1],
+      );
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('usa edição com a imagem-mãe nas cenas seguintes', async () => {

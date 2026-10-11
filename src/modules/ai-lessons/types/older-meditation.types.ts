@@ -14,4 +14,10 @@ export interface OlderMeditationFit {
   imageHeight: number;
   weights: number[];
   activitySpace: number;
+  fits: boolean;
+}
+
+export interface OlderMeditationReviewIssue {
+  activityNumber: number;
+  reason: string;
 }

@@ -1,3 +1,6 @@
+import { LESSON_PUBLICATION_TITLES } from '../constants/lesson-publication.constants';
+import { buildManualWorkImagePrompt } from '../utils/manual-work-image.utils';
+import { editedOlderMeditation } from '../utils/older-meditation-content.utils';
 import type {
   LessonLlmGenerationInput,
   LessonLlmGenerationResult,
@@ -6,22 +9,12 @@ import {
   STORY_VISUAL_CORRECTION_INSTRUCTIONS,
   STORY_VISUAL_MAX_CORRECTIONS,
 } from '../constants/story-visual-quality.constants';
+import { olderMeditationLessonSource } from '../utils/older-meditation-quality.utils';
 import {
-  olderMeditationContentIssue,
-  olderMeditationExpansionContext,
-  olderMeditationLessonSource,
-  olderMeditationInstructionWords,
-  mergeOlderMeditationBlock,
-} from '../utils/older-meditation-quality.utils';
-import {
-  OLDER_MEDITATION_EXPANSION_INSTRUCTIONS,
-  OLDER_MEDITATION_MAX_CORRECTIONS,
-  OLDER_MEDITATION_MAX_BLOCK_CORRECTIONS,
-  OLDER_MEDITATION_BLOCK_TARGET_WORDS,
-  OLDER_MEDITATION_BLOCK_REVISION_PROMPT,
-} from '../constants/older-meditation-quality.constants';
+  createOlderMeditation,
+  createOlderMeditationImages,
+} from '../utils/older-meditation-generation.utils';
 import { buildMeditationActivityImagePrompt } from '../utils/meditation-image.utils';
-import { repairMeditationWordSearch } from '../utils/repair-meditation-word-search.utils';
 import { lessonNarrativeIssue } from '../lessonNarrative.utils';
 import {
   LESSON_EDITORIAL_FIELD_ORDER,
@@ -448,7 +441,7 @@ export class LessonDraftService implements OnApplicationBootstrap {
         });
       }
       if (type === LessonStageType.MEDITATION_OLDER)
-        generated = await this.expandOlderMeditation(
+        generated = await this.prepareOlderMeditation(
           generationInput,
           generated,
         );
@@ -487,12 +480,21 @@ export class LessonDraftService implements OnApplicationBootstrap {
           );
         normalized = { ...normalized, visualConfig };
       }
+      const olderImages =
+        type === LessonStageType.MEDITATION_OLDER
+          ? await createOlderMeditationImages(
+              this.llm,
+              generationInput,
+              normalized,
+            )
+          : undefined;
       const content = await this.generateAndStoreAssets(
         id,
         type,
         lesson,
         normalized,
         uploadedUrls,
+        olderImages,
       );
       const nextVersion =
         Math.max(
@@ -632,6 +634,12 @@ export class LessonDraftService implements OnApplicationBootstrap {
       return result(
         'AI_CONFIGURATION_MISSING',
         'a chave de API não está configurada. Salve a chave do provedor selecionado na página Configuração de provedores de IA e gere este item novamente.',
+      );
+
+    if (/\b(ECONNRESET|EPIPE|EAI_AGAIN)\b/i.test(raw))
+      return result(
+        'AI_CONNECTION_INTERRUPTED',
+        'a conexão com o provedor caiu durante a geração. Uma nova tentativa da imagem também falhou. Tente novamente em alguns minutos; a versão salva anteriormente foi preservada.',
       );
 
     const jsonStart = raw.indexOf('{');
@@ -783,6 +791,7 @@ export class LessonDraftService implements OnApplicationBootstrap {
     lesson: LessonEntity,
     content: JsonObject,
     uploadedUrls: string[],
+    preparedImages?: Map<string, Buffer>,
   ): Promise<JsonObject> {
     if (type === LessonStageType.LESSON) return content;
     const key = [
@@ -874,24 +883,36 @@ export class LessonDraftService implements OnApplicationBootstrap {
                       ).answer,
                     ),
                   )
-                : lessonString(asset.prompt);
-      const buffer = [
-        LessonStageType.MEDITATION_YOUNGER,
-        LessonStageType.MEDITATION_OLDER,
-      ].includes(type)
-        ? await this.llm.generateImage(
-            imagePrompt,
-            lessonString(visualConfig.orientation),
-            lessonString(visualConfig.type),
-            identityReferenceImage,
-            LessonImagePurpose.MEDITATION_ACTIVITY,
-          )
-        : await this.llm.generateImage(
-            imagePrompt,
-            lessonString(visualConfig.orientation),
-            lessonString(visualConfig.type),
-            identityReferenceImage,
-          );
+                : type === LessonStageType.MANUAL_WORK
+                  ? buildManualWorkImagePrompt(lessonString(asset.prompt))
+                  : lessonString(asset.prompt);
+      const buffer =
+        preparedImages?.get(String(asset.id)) ??
+        ([
+          LessonStageType.MEDITATION_YOUNGER,
+          LessonStageType.MEDITATION_OLDER,
+        ].includes(type)
+          ? await this.llm.generateImage(
+              imagePrompt,
+              lessonString(visualConfig.orientation),
+              lessonString(visualConfig.type),
+              identityReferenceImage,
+              LessonImagePurpose.MEDITATION_ACTIVITY,
+            )
+          : type === LessonStageType.MANUAL_WORK
+            ? await this.llm.generateImage(
+                imagePrompt,
+                lessonString(visualConfig.orientation),
+                lessonString(visualConfig.type),
+                undefined,
+                LessonImagePurpose.MANUAL_COLORING,
+              )
+            : await this.llm.generateImage(
+                imagePrompt,
+                lessonString(visualConfig.orientation),
+                lessonString(visualConfig.type),
+                identityReferenceImage,
+              ));
       const image = this.imageUploadMetadata(buffer);
       if (
         [
@@ -1100,76 +1121,11 @@ export class LessonDraftService implements OnApplicationBootstrap {
     }
   }
 
-  private async expandOlderMeditation(
+  private async prepareOlderMeditation(
     input: LessonLlmGenerationInput,
     generated: LessonLlmGenerationResult,
   ): Promise<LessonLlmGenerationResult> {
-    let expanded = {
-      ...generated,
-      content: repairMeditationWordSearch(generated.content),
-    };
-    let issue = olderMeditationContentIssue(expanded.content);
-    for (
-      let attempt = 0;
-      issue && attempt < OLDER_MEDITATION_MAX_CORRECTIONS;
-      attempt++
-    ) {
-      expanded = await this.llm.generateStage({
-        ...input,
-        revisionInstructions: [
-          input.revisionInstructions,
-          `Corrija especificamente este problema: ${issue}`,
-          OLDER_MEDITATION_EXPANSION_INSTRUCTIONS,
-          olderMeditationExpansionContext(expanded.content),
-        ]
-          .filter(Boolean)
-          .join('\n'),
-      });
-      expanded = {
-        ...expanded,
-        content: repairMeditationWordSearch(expanded.content),
-      };
-      issue = olderMeditationContentIssue(expanded.content);
-    }
-    for (
-      let attempt = 0;
-      issue?.startsWith('As questões têm pouco conteúdo') &&
-      lessonString(input.approvedUpstream?.story).trim() &&
-      attempt < OLDER_MEDITATION_MAX_BLOCK_CORRECTIONS;
-      attempt++
-    ) {
-      const activities = Array.isArray(expanded.content.activities)
-        ? expanded.content.activities.map((value) => this.asObject(value))
-        : [];
-      const counts = activities.map((activity) =>
-        olderMeditationInstructionWords(activity.instruction),
-      );
-      const index = counts.indexOf(Math.min(...counts));
-      const minimumWords = OLDER_MEDITATION_BLOCK_TARGET_WORDS;
-      const block = await this.llm.generateStage({
-        ...input,
-        olderMeditationBlockRevision: {
-          number: index + 1,
-          activity: activities[index],
-          minimumWords,
-        },
-        revisionInstructions: OLDER_MEDITATION_BLOCK_REVISION_PROMPT,
-      });
-      const merged = mergeOlderMeditationBlock(
-        expanded.content,
-        index,
-        block.content,
-        minimumWords,
-      );
-      if (merged !== expanded.content)
-        expanded = { content: merged, responseId: block.responseId };
-      issue = olderMeditationContentIssue(expanded.content);
-    }
-    if (issue)
-      throw new ConflictException(
-        `A meditação dos maiores ficou incompleta: ${issue} Gere novamente para obter a folha completa.`,
-      );
-    return expanded;
+    return createOlderMeditation(this.llm, input, generated);
   }
 
   private validateCanonicalContent(
@@ -1370,6 +1326,8 @@ export class LessonDraftService implements OnApplicationBootstrap {
         );
         if (editedStory) structured = { ...structured, story: editedStory };
       }
+      if (dto.stage === LessonStageType.MEDITATION_OLDER)
+        structured = editedOlderMeditation(structured, dto.tiptapAstJson);
       const entity = this.repo.createVersion({
         stage: { id: stage.id } as LessonStageEntity,
         stageId: stage.id,
@@ -1722,38 +1680,40 @@ export class LessonDraftService implements OnApplicationBootstrap {
         lesson: await this.getById(id),
         weekMaterialId: reservation.publishedId,
       };
-    const lesson = await this.getById(id);
-    const { pdfBuffer, fileName } = await this.exportPdf(id);
-    const fieldKey = 'generatedLessonPdf';
-    const dto = new CreateWeekMaterialsPageDto();
-    dto.pageTitle = `Lição — ${lesson.theme}`;
-    dto.pageSubtitle = lesson.biblicalReference;
-    dto.pageDescription = `Material completo da semana ${lesson.weekNumber}, revisado e aprovado.`;
-    dto.documents = [
-      {
-        title: `Lição completa — ${lesson.theme}`,
-        description: lesson.biblicalReference,
-        uploadType: UploadType.UPLOAD,
-        mediaType: MediaType.DOCUMENT,
-        isLocalFile: true,
-        fieldKey,
-        originalName: fileName,
-        size: pdfBuffer.length,
-      },
-    ];
-    const file = {
-      fieldname: fieldKey,
-      originalname: fileName,
-      encoding: '7bit',
-      mimetype: 'application/pdf',
-      size: pdfBuffer.length,
-      buffer: pdfBuffer,
-    } as Express.Multer.File;
     let createdPageId: string | null = null;
     try {
-      const page = await this.weekMaterials.createWeekMaterialsPage(dto, {
-        [fieldKey]: file,
-      });
+      const lesson = await this.getById(id);
+      const dto = new CreateWeekMaterialsPageDto();
+      dto.pageTitle = `Semana ${lesson.weekNumber} — ${lesson.theme}`;
+      dto.pageSubtitle = lesson.biblicalReference;
+      dto.pageDescription = `Material completo da semana ${lesson.weekNumber}, revisado e aprovado.`;
+      dto.documents = [];
+      const files: Record<string, Express.Multer.File> = {};
+      // Render every approved item before creating the page or uploading files.
+      for (const type of LESSON_STAGE_ORDER) {
+        const { pdfBuffer } = await this.previewStagePdf(id, type);
+        const fieldKey = `generated-${type.toLowerCase()}`;
+        const fileName = `${type.toLowerCase()}-semana-${lesson.weekNumber}.pdf`;
+        dto.documents.push({
+          title: LESSON_PUBLICATION_TITLES[type],
+          description: lesson.biblicalReference,
+          uploadType: UploadType.UPLOAD,
+          mediaType: MediaType.DOCUMENT,
+          isLocalFile: true,
+          fieldKey,
+          originalName: fileName,
+          size: pdfBuffer.length,
+        });
+        files[fieldKey] = {
+          fieldname: fieldKey,
+          originalname: fileName,
+          encoding: '7bit',
+          mimetype: 'application/pdf',
+          size: pdfBuffer.length,
+          buffer: pdfBuffer,
+        } as Express.Multer.File;
+      }
+      const page = await this.weekMaterials.createWeekMaterialsPage(dto, files);
       createdPageId = page.id;
       await this.repo.runInTransaction(async (manager) => {
         const locked = await this.repo.findLessonByIdForUpdate(id, manager);
@@ -2022,6 +1982,15 @@ export class LessonDraftService implements OnApplicationBootstrap {
             });
           else if (item && typeof item === 'object') {
             const entry = item as JsonObject;
+            if (stageType === LessonStageType.MEDITATION_OLDER) {
+              nodes.push({
+                type: 'heading',
+                attrs: { level: 3 },
+                content: [{ type: 'text', text: `ATIVIDADE ${index + 1}` }],
+              });
+              append('instruction', entry.instruction, 3);
+              return;
+            }
             const question = lessonString(entry.question).trim();
             const answer = lessonString(entry.answer).trim();
             if (

@@ -245,7 +245,8 @@ describe('DocxExporterService lesson header', () => {
       expect(xml.split(value)).toHaveLength(2);
     }
     expect(xml).not.toContain('Gabarito privado');
-    expect(xml.match(/w:hRule="exact"/g)).toHaveLength(1);
+    expect(xml).not.toContain('w:hRule="exact"');
+    expect(xml).toContain('w:val="15400" w:hRule="atLeast"');
   });
 
   it('exports an existing combined title as separate paragraphs and preserves edited content', async () => {

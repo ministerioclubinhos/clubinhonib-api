@@ -1,3 +1,4 @@
+import { UnprocessableEntityException } from '@nestjs/common';
 import {
   meditationRichNodes,
   meditationRichParagraphs,
@@ -31,8 +32,12 @@ export function buildOlderMeditationSheet(
   sheet: OlderMeditationSheet,
 ): Array<Paragraph | Table> {
   const width = L.width - 180;
-  const { fontSize, imageHeight, weights, activitySpace } =
+  const { fontSize, imageHeight, weights, activitySpace, fits } =
     fitOlderMeditationSheet(sheet);
+  if (!fits)
+    throw new UnprocessableEntityException(
+      'O conteúdo da meditação dos maiores não cabe em uma página legível. Reduza os textos ou as artes e visualize novamente.',
+    );
   const totalWeight = weights.reduce((sum, weight) => sum + weight, 0) || 1;
   const header = table(
     [
@@ -169,7 +174,12 @@ export function buildOlderMeditationSheet(
           new TableRow({
             cantSplit: true,
             height: {
-              value: Math.floor((activitySpace * weights[index]) / totalWeight),
+              value: Math.floor(
+                Math.min(
+                  (activitySpace * weights[index]) / totalWeight,
+                  weights[index] * O.maximumRowExpansion,
+                ),
+              ),
               rule: HeightRule.ATLEAST,
             },
             children: [
@@ -258,10 +268,11 @@ export function buildOlderMeditationSheet(
       rows: [
         new TableRow({
           cantSplit: true,
-          height: { value: O.height, rule: HeightRule.EXACT },
+          height: { value: O.height, rule: HeightRule.ATLEAST },
           children: [
             new TableCell({
-              margins: { top: 60, bottom: 60, left: 60, right: 60 },
+              margins: { top: 100, bottom: 100, left: 160, right: 160 },
+              verticalAlign: VerticalAlign.TOP,
               borders: Object.fromEntries(
                 ['top', 'bottom', 'left', 'right'].map((side) => [
                   side,

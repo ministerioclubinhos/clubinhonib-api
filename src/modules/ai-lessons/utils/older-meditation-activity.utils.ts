@@ -60,10 +60,10 @@ export function olderMeditationActivityBlocks(
   let numbered = false;
   for (let cursor = 0; cursor < nodes.length; ) {
     let end = cursor;
-    if (/caça[ -]palavras/i.test(instruction)) {
+    if (/caça[ -]palavras|cruzadinha/i.test(instruction)) {
       while (
         end < nodes.length &&
-        /^[A-ZÀ-Ü\s]{4,}$/.test(meditationNodeText(nodes[end]).trim())
+        /^[A-ZÀ-Ü0-9#._\s]{4,}$/.test(meditationNodeText(nodes[end]).trim())
       )
         end++;
     }
@@ -92,6 +92,9 @@ export function olderMeditationActivityBlocks(
                         width: { size: side, type: WidthType.DXA },
                         margins: { top: 20, bottom: 20, left: 0, right: 0 },
                         verticalAlign: VerticalAlign.CENTER,
+                        ...(letter === '#'
+                          ? { shading: { fill: '252223' } }
+                          : {}),
                         borders: Object.fromEntries(
                           ['top', 'bottom', 'left', 'right'].map((border) => [
                             border,
@@ -106,7 +109,9 @@ export function olderMeditationActivityBlocks(
                           paragraph(
                             [
                               new TextRun({
-                                text: letter,
+                                text: ['#', '.', '_'].includes(letter)
+                                  ? ''
+                                  : letter,
                                 font: O.gridFont,
                                 size: Math.min(O.gridFontSize, size),
                               }),

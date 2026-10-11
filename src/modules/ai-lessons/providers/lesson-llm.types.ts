@@ -3,6 +3,7 @@ import { LessonTemplateContract } from '../templates/lesson-templates';
 
 export enum LessonImagePurpose {
   MEDITATION_ACTIVITY = 'MEDITATION_ACTIVITY',
+  MANUAL_COLORING = 'MANUAL_COLORING',
 }
 
 export enum LessonLlmProvider {
@@ -30,10 +31,9 @@ export type LessonLlmGenerationInput = {
   } | null;
   adminPrompt: string;
   revisionInstructions?: string;
-  olderMeditationBlockRevision?: {
-    number: number;
-    activity: Record<string, unknown>;
-    minimumWords: number;
+  olderMeditationReview?: {
+    content: Record<string, unknown>;
+    images: Array<{ activityNumber: number; image: LessonImageReference }>;
   };
   visualConfig?: {
     type: string;

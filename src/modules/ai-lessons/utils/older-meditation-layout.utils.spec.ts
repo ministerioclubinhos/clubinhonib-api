@@ -5,7 +5,7 @@ import { olderMeditationActivityBlocks } from './older-meditation-activity.utils
 import { fitOlderMeditationSheet } from './older-meditation-fit.utils';
 
 describe('older meditation PDF layout', () => {
-  it('fits long question blocks plus native puzzle rows inside the available body before rendering the prayer', () => {
+  it('reports overflow instead of silently shrinking a dense sheet below readable size', () => {
     const dense =
       'Leia os fatos da lição e responda aos seis subitens com atenção.\n' +
       Array.from(
@@ -36,10 +36,33 @@ describe('older meditation PDF layout', () => {
       ],
     });
     expect(fit.fontSize).toBeLessThan(22);
-    expect(fit.fontSize).toBeGreaterThanOrEqual(18);
+    expect(fit.fontSize).toBeGreaterThanOrEqual(20);
+    expect(fit.fits).toBe(false);
     expect(
       fit.weights.reduce((sum, height) => sum + height, 0),
-    ).toBeLessThanOrEqual(fit.activitySpace);
+    ).toBeGreaterThan(fit.activitySpace);
+  });
+  it('reduces image boxes incrementally to fit all three without reducing text below 10pt', () => {
+    const base = {
+      title: 'Tema da lição',
+      verse: 'Versículo da lição.',
+      biblicalText: 'Referência',
+      introduction: 'Uma introdução breve para a folha.',
+      prayer: 'Senhor, ajuda-nos.',
+      logo: Buffer.alloc(0),
+      activities: [1, 2, 3].map(() => ({
+        instruction:
+          'Observe a cena e responda.\n' +
+          'Uma pergunta sobre o relato.\n'.repeat(8),
+        image: Buffer.alloc(0),
+      })),
+    };
+    const fit = fitOlderMeditationSheet(base);
+    expect(fit.fits).toBe(true);
+    expect(fit.fontSize).toBeGreaterThanOrEqual(20);
+    expect(fit.imageHeight).toBeLessThan(230);
+    expect(fit.imageHeight).toBeGreaterThanOrEqual(140);
+    expect(fit.weights).toHaveLength(3);
   });
   it('renders a rectangular puzzle as equal native cells and preserves styled prose without duplicate block numbers', async () => {
     const instruction =
@@ -124,12 +147,71 @@ describe('older meditation PDF layout', () => {
     const activityHeight = (document: string) =>
       Array.from(
         document.matchAll(/<w:trHeight w:val="(\d+)" w:hRule="atLeast"\/>/g),
-      ).reduce((sum, match) => sum + Number(match[1]), 0);
+      )
+        .filter((match) => Number(match[1]) !== 15400)
+        .reduce((sum, match) => sum + Number(match[1]), 0);
     expect(activityHeight(long)).toBeGreaterThan(0);
     expect(activityHeight(long)).toBeLessThan(10000);
-    expect(activityHeight(long)).toBeLessThan(activityHeight(short));
+    expect(activityHeight(long)).toBeLessThanOrEqual(activityHeight(short));
     expect(long).toContain('FALANDO COM DEUS:');
     expect(long).toContain('FIM DA ORAÇÃO.');
-    expect(long).toContain('w:val="15400" w:hRule="exact"');
+    expect(long).toContain('w:val="15400" w:hRule="atLeast"');
+  });
+});
+
+describe('older meditation overflow protection', () => {
+  it('rejects a sheet that cannot fit rather than clipping exercises or prayer', () => {
+    expect(() =>
+      buildOlderMeditationSheet({
+        title: 'Tema',
+        verse: 'Versículo',
+        biblicalText: 'Referência',
+        introduction: 'Introdução',
+        prayer: 'Oração final.',
+        logo: Buffer.from('logo'),
+        activities: Array.from({ length: 3 }, () => ({
+          instruction: 'Texto extenso '.repeat(1000),
+        })),
+      }),
+    ).toThrow('não cabe');
+  });
+});
+
+describe('older meditation edited formatting', () => {
+  it('detects oversized saved font sizes instead of trusting only plain text length', () => {
+    const sheet = {
+      title: 'Tema',
+      verse: 'Versículo',
+      biblicalText: 'Referência',
+      introduction: 'Introdução',
+      prayer: 'Oração',
+      logo: Buffer.from('logo'),
+      activities: [
+        { instruction: 'Questão curta.' },
+        { instruction: 'Outra questão.' },
+        { instruction: 'Aplicação.' },
+      ],
+    };
+    expect(fitOlderMeditationSheet(sheet).fits).toBe(true);
+    expect(
+      fitOlderMeditationSheet({
+        ...sheet,
+        document: {
+          content: [
+            {
+              type: 'paragraph',
+              attrs: { meditationField: 'firstActivity' },
+              content: [
+                {
+                  type: 'text',
+                  text: 'Questão curta.',
+                  marks: [{ type: 'textStyle', attrs: { fontSize: '300pt' } }],
+                },
+              ],
+            },
+          ],
+        },
+      }).fits,
+    ).toBe(false);
   });
 });

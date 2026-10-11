@@ -12,8 +12,11 @@ export const OLDER_MEDITATION_LAYOUT = {
   gridFontSize: 22,
   gridFont: 'Courier New',
   gridPadding: 56,
-  fontSizes: [26, 24, 22, 20, 18],
+  fontSizes: [24, 22, 20],
+  imageHeights: [230, 210, 190, 180, 170, 160, 150, 140],
   wrapSafety: 0.9,
   activityMargins: 200,
   paragraphReserve: 240,
+  maximumRowExpansion: 1.18,
+  inlineOptionsMaximumCharacters: 60,
 } as const;

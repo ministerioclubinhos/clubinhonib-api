@@ -1,11 +1,16 @@
+import {
+  imageConnectionErrorCode,
+  retryImageConnection,
+} from '../utils/image-request.utils';
+import { OlderMeditationReviewPhase } from '../enums/older-meditation.enums';
+import {
+  OLDER_MEDITATION_ACTIVITY_SCHEMA,
+  OLDER_MEDITATION_REVIEW_SCHEMA,
+  OLDER_MEDITATION_REVIEW_PROMPT,
+} from '../constants/older-meditation-contract.constants';
 import { lessonImageTextPolicy } from '../utils/meditation-image.utils';
 import { retryOlderMeditationRequest } from '../utils/older-meditation-request.utils';
 import { OLDER_MEDITATION_REQUEST } from '../constants/older-meditation-request.constants';
-import {
-  OLDER_MEDITATION_INSTRUCTION_DESCRIPTION,
-  OLDER_MEDITATION_BLOCK_REVISION_PROMPT,
-  OLDER_MEDITATION_BLOCK_SUBITEMS,
-} from '../constants/older-meditation-quality.constants';
 import {
   LESSON_REVIEW_QUESTION_MIN,
   LESSON_REVIEW_QUESTION_MAX,
@@ -105,34 +110,10 @@ const FIXATION_ASSET_SCHEMA = {
 
 export function schemaFor(
   stage: LessonStageType,
-  reviseOlderBlock = false,
+  reviewOlder = false,
 ): Record<string, unknown> {
-  if (stage === LessonStageType.MEDITATION_OLDER && reviseOlderBlock)
-    return {
-      type: 'object',
-      additionalProperties: false,
-      required: ['context', 'command', 'subitems', 'answers'],
-      properties: {
-        context: { type: 'string' },
-        command: { type: 'string' },
-        subitems: {
-          type: 'array',
-          minItems: OLDER_MEDITATION_BLOCK_SUBITEMS,
-          maxItems: OLDER_MEDITATION_BLOCK_SUBITEMS,
-          items: {
-            type: 'string',
-            description:
-              'Enunciado completo com alternativas/pistas, cerca de 18–25 palavras.',
-          },
-        },
-        answers: {
-          type: 'array',
-          minItems: OLDER_MEDITATION_BLOCK_SUBITEMS,
-          maxItems: OLDER_MEDITATION_BLOCK_SUBITEMS,
-          items: { type: 'string' },
-        },
-      },
-    };
+  if (stage === LessonStageType.MEDITATION_OLDER && reviewOlder)
+    return OLDER_MEDITATION_REVIEW_SCHEMA;
   if (stage === LessonStageType.LESSON)
     return {
       type: 'object',
@@ -380,16 +361,7 @@ export function schemaFor(
           maxItems: count,
           items:
             stage === LessonStageType.MEDITATION_OLDER
-              ? {
-                  ...activity,
-                  properties: {
-                    ...activity.properties,
-                    instruction: {
-                      type: 'string',
-                      description: OLDER_MEDITATION_INSTRUCTION_DESCRIPTION,
-                    },
-                  },
-                }
+              ? OLDER_MEDITATION_ACTIVITY_SCHEMA
               : activity,
         },
         prayer: { type: 'string' },
@@ -462,15 +434,15 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
     const model = this.config.get<string>('OPENAI_TEXT_MODEL') || 'gpt-5.4';
     const reasoningEffort = this.config.get<string>('OPENAI_REASONING_EFFORT');
     this.logger.log(
-      `[OpenAI Request] Geração de etapa '${input.stage}' | Modelo: ${model} | Tema: "${input.theme}" | Referência: "${input.biblicalReference}" | Semana: ${input.weekNumber}`,
+      `[OpenAI Request] Geração de etapa '${input.stage}' | Operação: ${input.olderMeditationReview ? (input.olderMeditationReview.images.length ? 'revisão de imagens' : 'revisão textual') : input.revisionInstructions ? 'geração com instruções de revisão' : 'geração'} | Modelo: ${model} | Tema: "${input.theme}" | Referência: "${input.biblicalReference}" | Semana: ${input.weekNumber}`,
     );
     const startTime = Date.now();
 
     const system = [
       'Você redige materiais infantis do Clubinho Bíblico da Nova Igreja Batista.',
       'O TEMPLATE PRECISO abaixo é contrato imutável. Siga campos, ordem e regras literalmente.',
-      input.olderMeditationBlockRevision
-        ? OLDER_MEDITATION_BLOCK_REVISION_PROMPT
+      input.olderMeditationReview
+        ? OLDER_MEDITATION_REVIEW_PROMPT
         : serializeTemplate(input.template),
       'O acervo histórico do Clubinho define o formato editorial, mas pode conter rascunhos, erros, dados pessoais, arquivos políticos e variantes de impressão. Reproduza apenas o padrão pedagógico aprovado; nunca copie nomes de voluntários, escalas, dados pessoais, propaganda, estratégia eleitoral, nomes de candidatos ou conteúdo estranho à lição.',
       'Cada etapa gera exatamente um produto editorial canônico. Não misture lição, brincadeira, visual do versículo, fixação, meditação ou trabalho manual. Variantes de corte, mosaico e imposição são responsabilidade do renderer.',
@@ -489,16 +461,19 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
       'Responda somente no JSON Schema. Não crie etapas posteriores e não use marcadores [Image #].',
     ].join('\n\n');
     const user = JSON.stringify({
+      ...(input.olderMeditationReview
+        ? {
+            worksheetToReview: input.olderMeditationReview.content,
+            reviewPhase: input.olderMeditationReview.images.length
+              ? OlderMeditationReviewPhase.IMAGES
+              : OlderMeditationReviewPhase.TEXT,
+          }
+        : {}),
       theme: input.theme,
       biblicalReference: input.biblicalReference,
       weekNumber: input.weekNumber,
       stage: input.stage,
-      adminPrompt: input.olderMeditationBlockRevision
-        ? null
-        : input.adminPrompt,
-      ...(input.olderMeditationBlockRevision
-        ? { blockRevision: input.olderMeditationBlockRevision }
-        : {}),
+      adminPrompt: input.olderMeditationReview ? null : input.adminPrompt,
       approvedUpstream: input.approvedUpstream,
       previousVariants: input.previousVariants ?? [],
       canonicalVerse: input.canonicalVerse ?? null,
@@ -521,7 +496,27 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
               : {}),
             input: [
               { role: 'system', content: system },
-              { role: 'user', content: user },
+              {
+                role: 'user',
+                content: input.olderMeditationReview?.images.length
+                  ? [
+                      { type: 'input_text', text: user },
+                      ...input.olderMeditationReview.images.flatMap(
+                        ({ activityNumber, image }) => [
+                          {
+                            type: 'input_text',
+                            text: `Imagem real do desafio ${activityNumber}`,
+                          },
+                          {
+                            type: 'input_image',
+                            image_url: `data:${image.mimeType};base64,${image.data.toString('base64')}`,
+                            detail: 'high',
+                          },
+                        ],
+                      ),
+                    ]
+                  : user,
+              },
             ],
             text: {
               format: {
@@ -530,7 +525,7 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
                 strict: true,
                 schema: schemaFor(
                   input.stage,
-                  Boolean(input.olderMeditationBlockRevision),
+                  Boolean(input.olderMeditationReview),
                 ),
               },
             },
@@ -610,47 +605,52 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
     try {
       const finalPrompt = `Ilustração bíblica infantil do Clubinho NIB para crianças de ${purpose === LessonImagePurpose.MEDITATION_ACTIVITY ? '4 a 11' : '5 a 11'} anos. Fidelidade ao contexto bíblico da NVI e à descrição fechada recebida da lição aprovada. Não acrescente personagens, fatos ou símbolos não pedidos. Estratégia pedagógica: ${visualType || 'definida no prompt'}. Orientação obrigatória: ${orientation || 'definida no prompt'}. Sem conteúdo sexual, romântico, erotizado, violência gráfica ou debates de sexualidade. Obedeça literalmente ao estilo, orientação, paleta, margem e finalidade pedidos a seguir. ${lessonImageTextPolicy(purpose)} ${prompt}`;
       const size = orientation === 'PORTRAIT' ? '1024x1536' : '1536x1024';
-      const request = identityReferenceImage
-        ? (() => {
-            const form = new FormData();
-            form.append('model', model);
-            form.append('prompt', finalPrompt);
-            form.append('size', size);
-            form.append('quality', quality);
-            form.append('output_format', 'png');
-            form.append(
-              'image[]',
-              new Blob([new Uint8Array(identityReferenceImage.data)], {
-                type: identityReferenceImage.mimeType,
-              }),
-              identityReferenceImage.mimeType === 'image/jpeg'
-                ? 'clubinho-identidade-visual.jpg'
-                : 'clubinho-identidade-visual.png',
-            );
-            return axios.post<{ data?: Array<{ b64_json?: string }> }>(
-              'https://api.openai.com/v1/images/edits',
-              form,
+      const request = () =>
+        identityReferenceImage
+          ? (() => {
+              const form = new FormData();
+              form.append('model', model);
+              form.append('prompt', finalPrompt);
+              form.append('size', size);
+              form.append('quality', quality);
+              form.append('output_format', 'png');
+              form.append(
+                'image[]',
+                new Blob([new Uint8Array(identityReferenceImage.data)], {
+                  type: identityReferenceImage.mimeType,
+                }),
+                identityReferenceImage.mimeType === 'image/jpeg'
+                  ? 'clubinho-identidade-visual.jpg'
+                  : 'clubinho-identidade-visual.png',
+              );
+              return axios.post<{ data?: Array<{ b64_json?: string }> }>(
+                'https://api.openai.com/v1/images/edits',
+                form,
+                {
+                  headers: { Authorization: `Bearer ${apiKey}` },
+                  timeout: 180000,
+                },
+              );
+            })()
+          : axios.post<{ data?: Array<{ b64_json?: string }> }>(
+              'https://api.openai.com/v1/images/generations',
+              {
+                model,
+                prompt: finalPrompt,
+                size,
+                quality,
+                output_format: 'png',
+              },
               {
                 headers: { Authorization: `Bearer ${apiKey}` },
                 timeout: 180000,
               },
             );
-          })()
-        : axios.post<{ data?: Array<{ b64_json?: string }> }>(
-            'https://api.openai.com/v1/images/generations',
-            {
-              model,
-              prompt: finalPrompt,
-              size,
-              quality,
-              output_format: 'png',
-            },
-            {
-              headers: { Authorization: `Bearer ${apiKey}` },
-              timeout: 180000,
-            },
-          );
-      const response = await request;
+      const response = await retryImageConnection(request, (code) => {
+        this.logger.warn(
+          `[OpenAI Image] phase=connection-retry code=${code} attempt=2/2 model=${model}`,
+        );
+      });
       const encoded = response.data.data?.[0]?.b64_json;
       if (!encoded)
         throw new BadGatewayException(
@@ -671,8 +671,9 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
         `[OpenAI Error] Geração de imagem falhou em ${elapsed}ms: ${detail.slice(0, 500)}`,
       );
       if (error instanceof BadGatewayException) throw error;
+      const connectionCode = imageConnectionErrorCode(error);
       throw new BadGatewayException(
-        `Falha ao gerar imagem na OpenAI: ${detail.slice(0, 500)}`,
+        `Falha ao gerar imagem na OpenAI: ${connectionCode ? `[${connectionCode}] ` : ''}${detail.slice(0, 500)}`,
       );
     }
   }

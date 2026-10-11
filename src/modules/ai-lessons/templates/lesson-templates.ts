@@ -164,7 +164,7 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
     },
     [LessonStageType.MEDITATION_OLDER]: {
       key: 'clubinho.meditation-older.canonical',
-      version: '1.4.0',
+      version: '2.0.0',
       stage: LessonStageType.MEDITATION_OLDER,
       exactStructure: [
         'MEDITAÇÃO PARA CRIANÇAS MAIORES',
@@ -180,10 +180,10 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
       ],
       rules: [
         ...sharedRules,
-        'Criar exatamente três blocos substanciais para 8 a 11 anos, com 4–6 subitens nos exercícios textuais e 5–8 pistas/palavras nos enigmas, em uma página A4 inteira e sem desenho livre para colorir; pintura seletiva pode indicar a alternativa correta. As zero a três artes são opcionais e indispensáveis ao enigma, com ids 1, 2 ou 3 correspondentes aos desafios.',
+        'Três blocos estruturados: narrativa, compreensão e aplicação concreta, com mecânicas distintas. Subitens e gabaritos completos; sem mínimo artificial de palavras. Sempre três imagens, uma como anexo ou apoio de cada questão, sem repetir texto ou revelar respostas.',
         'Cada desafio precisa ter instrução completa e gabarito determinístico para o professor.',
         'Usar o único versículo principal NVI aprovado, sem paráfrase.',
-        'Gerar somente as artes necessárias aos enigmas completos e solucionáveis. Permitir letras/números e legendas curtas quando indispensáveis; omitir cabeçalho, instruções e gabarito na imagem.',
+        'Gerar exatamente três imagens de anexo ou apoio às questões, ids 1, 2 e 3. Permitir letras/números e legendas curtas quando indispensáveis; omitir cabeçalho, instruções e gabarito na imagem.',
       ],
     },
     [LessonStageType.MANUAL_WORK]: {
@@ -199,7 +199,7 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
       ],
       rules: [
         ...sharedRules,
-        'Criar um desenho diretamente relacionado à lição e ao único versículo principal NVI aprovado.',
+        'Criar uma única imagem para a criança pintar, diretamente relacionada à lição e ao único versículo principal NVI aprovado. Nunca entregar desenho já colorido.',
         'A arte deve ser line art preto e branco puro, fundo branco, contornos nítidos e grossos, sem cinza, cor, sombra, textura fotográfica ou áreas excessivamente fechadas.',
         'Não inserir letras ou versículo na imagem; o renderer aplica texto e referência com fidelidade.',
         'Preparar duas cópias idênticas do trabalho manual em uma folha A4 retrato, com margens seguras para impressão e recorte.',

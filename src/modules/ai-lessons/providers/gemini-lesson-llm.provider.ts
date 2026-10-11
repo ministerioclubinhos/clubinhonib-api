@@ -1,3 +1,5 @@
+import { OlderMeditationReviewPhase } from '../enums/older-meditation.enums';
+import { OLDER_MEDITATION_REVIEW_PROMPT } from '../constants/older-meditation-contract.constants';
 import { lessonImageTextPolicy } from '../utils/meditation-image.utils';
 import {
   BadGatewayException,
@@ -8,7 +10,6 @@ import {
 import { LessonProviderConfig } from './lesson-llm.types';
 import axios, { AxiosError } from 'axios';
 import { schemaFor } from '../services/open-ai-lesson.service';
-import { OLDER_MEDITATION_BLOCK_REVISION_PROMPT } from '../constants/older-meditation-quality.constants';
 import { serializeTemplate } from '../templates/lesson-templates';
 import {
   DEFAULT_GEMINI_IMAGE_MODEL,
@@ -58,14 +59,14 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
       this.config.get<string>('GEMINI_TEXT_FALLBACK_MODEL') ||
       DEFAULT_GEMINI_TEXT_FALLBACK_MODEL;
     this.logger.log(
-      `[Gemini Request] Geração de etapa '${input.stage}' | Modelo principal: ${primaryModel} | Fallback: ${fallbackModel} | Tema: "${input.theme}" | Referência: "${input.biblicalReference}" | Semana: ${input.weekNumber}`,
+      `[Gemini Request] Geração de etapa '${input.stage}' | Operação: ${input.olderMeditationReview ? (input.olderMeditationReview.images.length ? 'revisão de imagens' : 'revisão textual') : input.revisionInstructions ? 'geração com instruções de revisão' : 'geração'} | Modelo principal: ${primaryModel} | Fallback: ${fallbackModel} | Tema: "${input.theme}" | Referência: "${input.biblicalReference}" | Semana: ${input.weekNumber}`,
     );
     const startTime = Date.now();
     const systemInstruction = [
       'Você redige materiais infantis do Clubinho Bíblico da Nova Igreja Batista.',
       'O TEMPLATE PRECISO abaixo é contrato imutável. Siga campos, ordem e regras literalmente.',
-      input.olderMeditationBlockRevision
-        ? OLDER_MEDITATION_BLOCK_REVISION_PROMPT
+      input.olderMeditationReview
+        ? OLDER_MEDITATION_REVIEW_PROMPT
         : serializeTemplate(input.template),
       'O acervo histórico do Clubinho define o formato editorial, mas pode conter rascunhos, erros, dados pessoais, arquivos políticos e variantes de impressão. Reproduza apenas o padrão pedagógico aprovado; nunca copie nomes de voluntários, escalas, dados pessoais, propaganda, estratégia eleitoral, nomes de candidatos ou conteúdo estranho à lição.',
       'Cada etapa gera exatamente um produto editorial canônico. Não misture lição, brincadeira, visual do versículo, fixação, meditação ou trabalho manual. Variantes de corte, mosaico e imposição são responsabilidade do renderer.',
@@ -84,16 +85,19 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
       'Responda somente conforme o JSON Schema. Não crie etapas posteriores e não use marcadores [Image #].',
     ].join('\n\n');
     const userInput = JSON.stringify({
+      ...(input.olderMeditationReview
+        ? {
+            worksheetToReview: input.olderMeditationReview.content,
+            reviewPhase: input.olderMeditationReview.images.length
+              ? OlderMeditationReviewPhase.IMAGES
+              : OlderMeditationReviewPhase.TEXT,
+          }
+        : {}),
       theme: input.theme,
       biblicalReference: input.biblicalReference,
       weekNumber: input.weekNumber,
       stage: input.stage,
-      adminPrompt: input.olderMeditationBlockRevision
-        ? null
-        : input.adminPrompt,
-      ...(input.olderMeditationBlockRevision
-        ? { blockRevision: input.olderMeditationBlockRevision }
-        : {}),
+      adminPrompt: input.olderMeditationReview ? null : input.adminPrompt,
       approvedUpstream: input.approvedUpstream,
       previousVariants: input.previousVariants ?? [],
       canonicalVerse: input.canonicalVerse ?? null,
@@ -117,12 +121,30 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
             `${GEMINI_API_BASE_URL}/models/${encodeURIComponent(model)}:generateContent`,
             {
               systemInstruction: { parts: [{ text: systemInstruction }] },
-              contents: [{ role: 'user', parts: [{ text: userInput }] }],
+              contents: [
+                {
+                  role: 'user',
+                  parts: [
+                    { text: userInput },
+                    ...(input.olderMeditationReview?.images ?? []).flatMap(
+                      ({ activityNumber, image }) => [
+                        { text: `Imagem real do desafio ${activityNumber}` },
+                        {
+                          inlineData: {
+                            mimeType: image.mimeType,
+                            data: image.data.toString('base64'),
+                          },
+                        },
+                      ],
+                    ),
+                  ],
+                },
+              ],
               generationConfig: {
                 responseMimeType: 'application/json',
                 responseJsonSchema: schemaFor(
                   input.stage,
-                  Boolean(input.olderMeditationBlockRevision),
+                  Boolean(input.olderMeditationReview),
                 ),
               },
             },

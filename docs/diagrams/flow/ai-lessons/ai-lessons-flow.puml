@@ -56,24 +56,38 @@ note right of API
   Editor e prévia/exportação PDF: normalizam cabeçalho salvo
   LIÇÃO (semana), TÍTULO e tema em blocos separados
   Preserva fonte, tamanho, cor, espaçamento, links e células mescladas
+  Item 8: MANUAL_COLORING -> contornos pretos/interiores brancos -> uma arte para pintar
+  PDF item 8: reserva texto -> duas cópias verticais em bloco indivisível A4
   Tiptap salvo -> DOCX -> LibreOffice -> PDF
   Menores: editor com duas cópias sincronizadas -> AST único
   Itens 6/7: barra de ferramentas -> campos com marcas e alinhamento
   Formatação salva no AST -> estilos preservados no DOCX/PDF
-  Maiores: conteúdo ralo ou grade inválida -> até duas correções antes das artes
-  Correção recebe JSON anterior e contagens por bloco
-  Caça-palavras textual: grade retangular e palavras presentes
-  Grade textual inválida com lista reconhecível -> reconstrução local e gabarito conferido
-  Remove arte duplicada do mesmo desafio; demais blocos preservados
-  Exportação: repara grade salva e sincroniza somente o campo corrigido no AST
-  Letras do caça-palavras -> células quadradas nativas no DOCX/PDF
-  Densidade ainda insuficiente -> até três correções de bloco isolado com seis subitens
-  Correção isolada preserva cabeçalho, outros blocos e gabaritos
+  Maiores 2.0.0: subitens estruturados + gabaritos internos
+  Narrativa -> compreensão -> aplicação concreta; mecânicas distintas
+  SEQUENCE: cronologia por relato -> embaralha -> ids impressos -> gabarito calculado
+  Fundamentação semântica na lição; aceita paráfrases fiéis
+  Sem mínimo artificial de palavras
+  Validação local -> revisão textual adicional -> até duas correções
+  Mesma falha local e contagens sem progresso -> interrompe correções
+  Overflow estimado -> salva para edição, sem regeneração textual
+  Alternativas curtas -> mesma linha; PDF continua validando encaixe
+  Imagem: ECONNRESET/EPIPE/EAI_AGAIN -> uma nova tentativa da mesma arte
+  Sem regenerar texto; falha persistente -> AI_CONNECTION_INTERRUPTED
+  Logs: fase, tentativa, responseId, contagens e motivo da rejeição
+  TEXT: defeitos objetivos; sugestões não provocam regeneração
+  Três artes obrigatórias (anexo/apoio por questão) -> revisão IMAGES antes do S3
+  TEXT não exige pixels; IMAGES não reabre revisão editorial
+  Arte reprovada -> até duas correções, sem mudar o exercício
+  Persistindo falha -> preserva versão anterior
+  Caça-palavras/cruzadinha textual -> grade nativa editável
   PDF maiores: reserva cabeçalho e oração antes dos desafios
-  Item 7 aceita zero artes; validação local preserva o motivo da falha
+  Ajusta alturas das três artes gradualmente, sem cortar texto
+  Publicação: falha na exportação antes de criar material -> READY_FOR_PUBLICATION
+  Item 7 exige ids 1, 2, 3; validação local preserva o motivo da falha
   Item 7: fonte é a lição aprovada, sem assets de outras etapas
   OpenAI item 7: saída limitada; 429 temporário -> espera -> até duas tentativas
-  Blocos substanciais; tema/referências canônicos; painéis proporcionais
+  Edição salva -> sincroniza campos -> mesmo conteúdo no PDF
+  Editor avisa excesso; PDF rejeita folha ilegível (422), sem corte
   AST + assets -> duas metades A4 de altura fixa, texto e artes ajustados
   Maiores: core isolado -> AST -> uma página A4 inteira
   Prompts: menores 4-7, maiores 8-11; questões ligadas ao tema
@@ -82,7 +96,8 @@ note right of API
 end note
 Frontend -> API: POST /publish-week-material
 API -> MySQL: lock; READY -> PUBLISHING
-API -> Week: criar página e PDF
+API -> API: renderizar os oito PDFs aprovados
+API -> Week: criar página Semana + tema, rota e oito documentos
 Week --> API: weekMaterialId
 API -> MySQL: PUBLISHED + weekMaterialId
 API --> Frontend: vínculo persistido

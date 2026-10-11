@@ -1,3 +1,4 @@
+import { LessonImagePurpose } from '../providers/lesson-llm.types';
 import type {
   LessonLlmGenerationInput,
   LessonLlmGenerationResult,
@@ -161,6 +162,51 @@ describe('LessonDraftService workflow safety', () => {
     expect(generateStage).not.toHaveBeenCalled();
   });
 
+  it('sends an uncolored manual-work image prompt and coloring purpose to the provider', async () => {
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aS1sAAAAASUVORK5CYII=',
+      'base64',
+    );
+    const generateImage = jest.fn().mockResolvedValue(png);
+    const target = new LessonDraftService(
+      repo as unknown as AiLessonsRepository,
+      { generateImage } as unknown as LessonLlmProviderContract,
+      {
+        upload: jest.fn().mockResolvedValue('https://example.test/manual.png'),
+      } as unknown as AwsS3Service,
+      {} as DocxExporterService,
+      {} as PdfLibreOfficeService,
+      weekMaterials as unknown as WeekMaterialsPageCreateService,
+      {} as AdminLessonPromptService,
+    ) as unknown as {
+      generateAndStoreAssets: (
+        id: string,
+        type: LessonStageType,
+        lesson: LessonEntity,
+        content: Record<string, unknown>,
+        uploaded: string[],
+      ) => Promise<Record<string, unknown>>;
+    };
+    await target.generateAndStoreAssets(
+      'lesson',
+      LessonStageType.MANUAL_WORK,
+      { stages: [] } as unknown as LessonEntity,
+      {
+        printableAssets: [
+          { id: 'manual', prompt: 'Cena com céu azul e roupas vermelhas.' },
+        ],
+      },
+      [],
+    );
+    expect(generateImage).toHaveBeenCalledTimes(1);
+    expect(generateImage).toHaveBeenCalledWith(
+      expect.stringContaining('Não use cores, tons de cinza'),
+      '',
+      '',
+      undefined,
+      LessonImagePurpose.MANUAL_COLORING,
+    );
+  });
   it('allows older text-only meditation while preserving the approved verse and other asset requirements', () => {
     const target = service as unknown as {
       lockDerivedVerse: (
@@ -217,6 +263,24 @@ describe('LessonDraftService workflow safety', () => {
       );
   });
 
+  it('reports interrupted image connections with a specific diagnostic', () => {
+    const target = service as unknown as {
+      describeAiFailure: (
+        type: LessonStageType,
+        error: unknown,
+      ) => { code: string; message: string };
+    };
+    const failure = target.describeAiFailure(
+      LessonStageType.MEDITATION_OLDER,
+      new Error(
+        'Falha ao gerar imagem na OpenAI: [ECONNRESET] read ECONNRESET',
+      ),
+    );
+    expect(failure.code).toBe('AI_CONNECTION_INTERRUPTED');
+    expect(failure.message).toContain('conexão');
+    expect(failure.message).not.toContain('não reconhecido');
+  });
+
   it('preserves local validation diagnostics instead of blaming the provider', () => {
     const target = service as unknown as {
       describeAiFailure: (
@@ -236,180 +300,132 @@ describe('LessonDraftService workflow safety', () => {
     expect(failure.message).not.toContain('não reconhecido');
   });
 
-  it('corrects older content with the previous JSON and counts, bounds retries and stops when valid', async () => {
-    const sparse = {
-      responseId: 'sparse',
-      content: {
-        activities: [
-          { instruction: 'Complete.' },
-          { instruction: 'Marque.' },
-          { instruction: 'Descubra.' },
-        ],
-      },
+  it('synchronizes manually edited older fields before saving without regenerating or overwriting the document', async () => {
+    const document = {
+      type: 'doc',
+      content: [
+        {
+          type: 'heading',
+          attrs: { level: 1 },
+          content: [{ type: 'text', text: 'Tema editado' }],
+        },
+        {
+          type: 'heading',
+          attrs: { level: 3 },
+          content: [{ type: 'text', text: 'INSTRUÇÃO' }],
+        },
+        {
+          type: 'paragraph',
+          attrs: { meditationField: 'firstActivity' },
+          content: [
+            {
+              type: 'text',
+              text: 'Questão revisada com os dados corretos.',
+              marks: [{ type: 'bold' }],
+            },
+          ],
+        },
+      ],
     };
-    const generateStage = jest
-      .fn<Promise<LessonLlmGenerationResult>, [LessonLlmGenerationInput]>()
-      .mockResolvedValue(sparse);
-    const provider = { generateStage } as unknown as LessonLlmProviderContract;
+    const stage = {
+      id: 'stage',
+      type: LessonStageType.MEDITATION_OLDER,
+      status: LessonStageStatus.DRAFT,
+      lockVersion: 7,
+      currentVersionId: 'old',
+      versions: [
+        {
+          id: 'old',
+          versionNumber: 1,
+          structuredDataJson: {
+            activities: [{ instruction: 'Questão antiga.', answer: 'Interno' }],
+            printableAssets: [],
+          },
+        },
+      ],
+    };
+    const lesson = {
+      id: 'lesson',
+      stages: [stage],
+      status: LessonStatus.IN_PROGRESS,
+    };
+    const savedVersions: Array<Record<string, unknown>> = [];
+    const localRepo = {
+      ...repo,
+      runInTransaction: jest.fn(
+        async (work: (manager: never) => Promise<unknown>) =>
+          work(undefined as never),
+      ),
+      findLessonByIdForUpdate: jest.fn().mockResolvedValue(lesson),
+      findLessonById: jest.fn().mockResolvedValue(lesson),
+      createVersion: jest.fn((data: Record<string, unknown>) => data),
+      saveVersion: jest.fn((data: Record<string, unknown>) => {
+        savedVersions.push(data);
+        return Promise.resolve({ ...data, id: 'new' });
+      }),
+    };
     const instance = new LessonDraftService(
-      repo as unknown as AiLessonsRepository,
-      provider,
+      localRepo as unknown as AiLessonsRepository,
+      {} as LessonLlmProviderContract,
       {} as AwsS3Service,
       {} as DocxExporterService,
       {} as PdfLibreOfficeService,
       weekMaterials as unknown as WeekMaterialsPageCreateService,
       {} as AdminLessonPromptService,
     );
-    const target = instance as unknown as {
-      expandOlderMeditation: (
-        input: LessonLlmGenerationInput,
-        content: LessonLlmGenerationResult,
-      ) => Promise<LessonLlmGenerationResult>;
-    };
-    const input = {
-      theme: 'Jesus vive',
-      biblicalReference: 'João 11',
-      weekNumber: 14,
-      stage: LessonStageType.MEDITATION_OLDER,
-      template: LESSON_TEMPLATES[LessonStageType.MEDITATION_OLDER],
-      revisionInstructions: 'Cubra ambos os relatos.',
-    } as LessonLlmGenerationInput;
-    await expect(target.expandOlderMeditation(input, sparse)).rejects.toThrow(
-      'ficou incompleta',
-    );
-    expect(generateStage).toHaveBeenCalledTimes(2);
-    expect(generateStage.mock.calls[0][0].revisionInstructions).toContain(
-      'Cubra ambos os relatos.',
-    );
-    expect(generateStage.mock.calls[0][0].revisionInstructions).toContain(
-      'Corrija especificamente este problema:',
-    );
-    expect(generateStage.mock.calls[0][0].revisionInstructions).toContain(
-      '3 palavras',
-    );
-    expect(generateStage.mock.calls[0][0].revisionInstructions).toContain(
-      JSON.stringify(sparse.content),
-    );
-    const complete = {
-      responseId: 'complete',
-      content: {
-        activities: Array.from({ length: 3 }, () => ({
-          instruction:
-            'Jesus mostrou seu poder e sua compaixão pelos seus amigos. '.repeat(
-              8,
-            ),
-        })),
+    await instance.saveContent(
+      'lesson',
+      {
+        stage: LessonStageType.MEDITATION_OLDER,
+        lockVersion: 7,
+        tiptapAstJson: document,
       },
-    };
-    generateStage.mockClear();
-    generateStage.mockResolvedValueOnce(sparse).mockResolvedValueOnce(complete);
-    await expect(target.expandOlderMeditation(input, sparse)).resolves.toEqual(
-      complete,
+      'admin',
     );
-    expect(generateStage).toHaveBeenCalledTimes(2);
-    generateStage.mockClear();
-    await expect(
-      target.expandOlderMeditation(input, complete),
-    ).resolves.toEqual(complete);
-    expect(generateStage).not.toHaveBeenCalled();
-    const brokenPuzzle = {
-      ...complete,
-      content: {
+    expect(savedVersions[0].tiptapAstJson).toEqual(document);
+    expect(savedVersions[0].structuredDataJson).toMatchObject({
+      title: 'Tema editado',
+      activities: [
+        {
+          instruction: 'Questão revisada com os dados corretos.',
+          answer: 'Interno',
+        },
+      ],
+    });
+  });
+
+  it('keeps older source excerpts, subitem keys and review metadata out of the editable child document', () => {
+    const target = service as unknown as {
+      toTiptap: (
+        value: Record<string, unknown>,
+        week?: number,
+        stage?: LessonStageType,
+      ) => Record<string, unknown>;
+    };
+    const result = target.toTiptap(
+      {
         activities: [
           {
-            id: '1',
-            instruction:
-              'Caça-palavras\nPIXVIÚVAJ\nQÁZARONES\nRESSUREIÇÃO\nPalavras: VIÚVA, LÁZARO, RESSURREIÇÃO',
-          },
-          ...complete.content.activities.slice(1).map((activity) => ({
-            ...activity,
-            instruction:
-              activity.instruction +
-              'Confira os fatos da lição e justifique sua resposta. '.repeat(5),
-          })),
-        ],
-      },
-    };
-    const repaired = await target.expandOlderMeditation(input, brokenPuzzle);
-    expect(generateStage).not.toHaveBeenCalled();
-    const repairedActivities = repaired.content.activities as Array<
-      Record<string, unknown>
-    >;
-    expect(repairedActivities[0].answer).toContain('RESSURREICAO: linha 4');
-
-    // The full-sheet model keeps returning 160 words: expand only the shortest block.
-    const tooShort = {
-      responseId: 'short',
-      content: {
-        title: 'Tema salvo',
-        activities: [
-          {
-            number: 1,
-            instruction: 'palavra '.repeat(40),
-            answer: 'Primeiro gabarito',
-          },
-          {
-            number: 2,
-            instruction: 'palavra '.repeat(60),
-            answer: 'Segundo gabarito',
-          },
-          {
-            number: 3,
-            instruction: 'palavra '.repeat(60),
-            answer: 'Terceiro gabarito',
+            instruction: 'Questão imprimível.',
+            answer: 'Gabarito privado.',
+            sourceExcerpt: 'Fonte interna.',
+            mechanic: 'OTHER',
+            subitems: [{ answer: 'Resposta interna.' }],
           },
         ],
-        printableAssets: [{ id: '1' }, { id: '2' }],
       },
-    };
-    const detailed = {
-      responseId: 'block',
-      content: {
-        context:
-          'Vamos lembrar o que Jesus fez e refletir sobre a compaixão que mostrou às famílias da lição.',
-        command:
-          'Leia os fatos e responda a cada um dos subitens com atenção, usando somente a história estudada.',
-        subitems: Array.from(
-          { length: 6 },
-          () =>
-            'Leia o acontecimento apresentado na lição e explique o que ele mostra sobre o cuidado de Jesus pelas pessoas.',
-        ),
-        answers: Array.from({ length: 6 }, () => 'Resposta conferida.'),
-      },
-    };
-    generateStage
-      .mockClear()
-      .mockResolvedValueOnce(tooShort)
-      .mockResolvedValueOnce(tooShort)
-      .mockResolvedValueOnce(detailed);
-    const result = await target.expandOlderMeditation(
-      { ...input, approvedUpstream: { story: 'Jesus mostrou compaixão.' } },
-      tooShort,
+      undefined,
+      LessonStageType.MEDITATION_OLDER,
     );
-    expect(generateStage).toHaveBeenCalledTimes(3);
-    expect(
-      generateStage.mock.calls[2][0].olderMeditationBlockRevision?.number,
-    ).toBe(1);
-    const resultActivities = result.content.activities as Array<
-      Record<string, unknown>
-    >;
-    expect(resultActivities[0].instruction).toContain(
-      'a) Leia o acontecimento',
-    );
-    expect(resultActivities.slice(1)).toEqual(
-      tooShort.content.activities.slice(1),
-    );
-    expect(result.content.printableAssets).toEqual([{ id: '2' }]);
-    expect(result.content.title).toBe('Tema salvo');
-
-    generateStage.mockClear().mockResolvedValue(tooShort);
-    await expect(
-      target.expandOlderMeditation(
-        { ...input, approvedUpstream: { story: 'Fonte aprovada.' } },
-        tooShort,
-      ),
-    ).rejects.toThrow('160 palavras');
-    expect(generateStage).toHaveBeenCalledTimes(5);
+    const serialized = JSON.stringify(result);
+    expect(serialized).toContain('Questão imprimível.');
+    for (const privateText of [
+      'Gabarito privado.',
+      'Fonte interna.',
+      'Resposta interna.',
+      'OTHER',
+    ])
+      expect(serialized).not.toContain(privateText);
   });
 
   it('uses the approved theme and references for meditation header fields', () => {
@@ -694,6 +710,57 @@ describe('LessonDraftService workflow safety', () => {
     expect(repo.saveLesson).not.toHaveBeenCalled();
   });
 
+  it('publishes all eight approved items as distinct PDFs on one weekly page', async () => {
+    const lesson = {
+      id: 'lesson-1',
+      weekNumber: 14,
+      theme: 'Tema aprovado',
+      biblicalReference: 'João 11',
+      status: LessonStatus.READY_FOR_PUBLICATION,
+      weekMaterialId: null,
+      stages: Object.values(LessonStageType).map((type) => ({
+        type,
+        status: LessonStageStatus.APPROVED,
+        currentVersionId: `version-${type}`,
+      })),
+    } as unknown as LessonEntity;
+    repo.runInTransaction.mockImplementation(
+      async (work: (manager: object) => Promise<unknown>) => work({}),
+    );
+    repo.findLessonByIdForUpdate.mockResolvedValue(lesson);
+    repo.findLessonById.mockResolvedValue(lesson);
+    weekMaterials.createWeekMaterialsPage.mockResolvedValue({ id: 'page-1' });
+    const render = jest
+      .spyOn(service, 'previewStagePdf')
+      .mockImplementation((_id, type) =>
+        Promise.resolve({
+          pdfBuffer: Buffer.from(type),
+          fileName: 'preview.pdf',
+        }),
+      );
+    try {
+      await service.publishToWeekMaterial('lesson-1');
+      expect(render).toHaveBeenCalledTimes(8);
+      const [dto, files] = weekMaterials.createWeekMaterialsPage.mock
+        .calls[0] as [
+        import('src/modules/pages/week-material-page/dto/create-week-material.dto').CreateWeekMaterialsPageDto,
+        Record<string, Express.Multer.File>,
+      ];
+      expect(dto.pageTitle).toBe('Semana 14 — Tema aprovado');
+      expect(dto.documents).toHaveLength(8);
+      expect(new Set(dto.documents?.map((doc) => doc.fieldKey)).size).toBe(8);
+      for (const type of Object.values(LessonStageType)) {
+        expect(files[`generated-${type.toLowerCase()}`].buffer.toString()).toBe(
+          type,
+        );
+      }
+      expect(lesson.status).toBe(LessonStatus.PUBLISHED);
+      expect(lesson.weekMaterialId).toBe('page-1');
+    } finally {
+      render.mockRestore();
+    }
+  });
+
   it('retorna o vínculo existente sem criar outro material', async () => {
     const published = {
       id: 'lesson-1',
@@ -710,6 +777,46 @@ describe('LessonDraftService workflow safety', () => {
     expect(weekMaterials.createWeekMaterialsPage).not.toHaveBeenCalled();
   });
 
+  it('restores readiness if exporting the PDF fails before creating the weekly material', async () => {
+    const lesson = {
+      id: 'lesson-1',
+      status: LessonStatus.READY_FOR_PUBLICATION,
+      weekMaterialId: null,
+      stages: Object.values(LessonStageType).map((type, index) => ({
+        id: `stage-${index}`,
+        type,
+        status: LessonStageStatus.APPROVED,
+        currentVersionId: `version-${index}`,
+      })),
+    } as unknown as LessonEntity;
+    repo.runInTransaction.mockImplementation(
+      async (work: (manager: object) => Promise<unknown>) => work({}),
+    );
+    repo.findLessonByIdForUpdate.mockResolvedValue(lesson);
+    repo.findLessonById.mockResolvedValue(lesson);
+    const exportPdf = jest
+      .spyOn(service, 'previewStagePdf')
+      .mockResolvedValueOnce({
+        pdfBuffer: Buffer.from('first'),
+        fileName: 'first.pdf',
+      })
+      .mockResolvedValueOnce({
+        pdfBuffer: Buffer.from('second'),
+        fileName: 'second.pdf',
+      })
+      .mockRejectedValue(new ConflictException('PDF sem espaço.'));
+    try {
+      await expect(service.publishToWeekMaterial('lesson-1')).rejects.toThrow(
+        'PDF sem espaço.',
+      );
+      expect(exportPdf).toHaveBeenCalledTimes(3);
+      expect(lesson.status).toBe(LessonStatus.READY_FOR_PUBLICATION);
+      expect(repo.saveLesson).toHaveBeenCalledTimes(2);
+      expect(weekMaterials.createWeekMaterialsPage).not.toHaveBeenCalled();
+    } finally {
+      exportPdf.mockRestore();
+    }
+  });
   it('rejeita uma segunda publicação enquanto a primeira está em andamento', async () => {
     repo.runInTransaction.mockImplementation(
       async (work: (manager: object) => Promise<unknown>) => work({}),

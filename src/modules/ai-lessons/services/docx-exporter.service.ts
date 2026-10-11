@@ -1,3 +1,5 @@
+import { buildManualWorkSheet } from '../utils/manual-work-layout.utils';
+import { MANUAL_WORK_LAYOUT } from '../constants/manual-work-layout.constants';
 import { editedOlderMeditation } from '../utils/older-meditation-content.utils';
 import { buildOlderMeditationSheet } from '../utils/older-meditation-layout.utils';
 import { meditationActivityAsset } from '../utils/meditation-assets.utils';
@@ -305,7 +307,18 @@ export class DocxExporterService {
                     right: YOUNGER_MEDITATION_LAYOUT.margin,
                   },
                 }
-              : { margin: { top: 220, bottom: 220, left: 220, right: 220 } },
+              : {
+                  size: {
+                    width: MANUAL_WORK_LAYOUT.pageWidth,
+                    height: MANUAL_WORK_LAYOUT.pageHeight,
+                  },
+                  margin: {
+                    top: MANUAL_WORK_LAYOUT.margin,
+                    bottom: MANUAL_WORK_LAYOUT.margin,
+                    left: MANUAL_WORK_LAYOUT.margin,
+                    right: MANUAL_WORK_LAYOUT.margin,
+                  },
+                },
         },
         children: page,
       })),
@@ -1119,7 +1132,7 @@ export class DocxExporterService {
     });
   }
 
-  private async manualWorkPage(data: Json): Promise<Paragraph[]> {
+  private async manualWorkPage(data: Json): Promise<Array<Paragraph | Table>> {
     const assets = Array.isArray(data.printableAssets)
       ? data.printableAssets
       : [];
@@ -1130,58 +1143,11 @@ export class DocxExporterService {
       'LESSON_HEADER_RIGHT_PATH',
       '../clubinhonib-app/public/header_direito.png',
     );
-    const oneCopy = (): Paragraph[] => [
-      new Paragraph({
-        alignment: AlignmentType.CENTER,
-        children: [
-          new ImageRun({
-            data: logo,
-            transformation: { width: 86, height: 43 },
-            type: 'png',
-          }),
-          new TextRun({
-            text: '     TRABALHO MANUAL',
-            bold: true,
-            color: 'FFFFFF',
-            shading: { fill: '111111' },
-            size: 20,
-          }),
-        ],
-        spacing: { after: 30 },
-      }),
-      new Paragraph({
-        alignment: AlignmentType.CENTER,
-        children: [
-          new TextRun({
-            text: `“${lessonString(data.verseText)}” (${lessonString(data.verseReference)} - NVI)`,
-            size: 14,
-          }),
-        ],
-        spacing: { after: 30 },
-      }),
-      new Paragraph({
-        alignment: AlignmentType.CENTER,
-        children: [
-          new ImageRun({
-            data: image,
-            transformation: { width: 570, height: 318 },
-            type: 'png',
-          }),
-        ],
-        spacing: { after: 30 },
-      }),
-    ];
-    return [
-      ...oneCopy(),
-      new Paragraph({
-        children: [new TextRun('')],
-        border: {
-          bottom: { color: '777777', style: BorderStyle.DASHED, size: 8 },
-        },
-        spacing: { after: 45 },
-      }),
-      ...oneCopy(),
-    ];
+    return buildManualWorkSheet(
+      image,
+      logo,
+      `“${lessonString(data.verseText)}” (${lessonString(data.verseReference)} - NVI)`,
+    );
   }
 
   private async downloadImage(url: string): Promise<Buffer> {

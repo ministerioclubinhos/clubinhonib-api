@@ -58,6 +58,46 @@ describe('GeminiLessonLlmProvider', () => {
     } as unknown as AxiosError;
   }
 
+  it('sends the actual numbered artwork to the independent review schema', async () => {
+    mockedAxios.post.mockResolvedValueOnce({
+      data: {
+        responseId: 'review',
+        candidates: [
+          {
+            finishReason: 'STOP',
+            content: { parts: [{ text: '{"issues":[]}' }] },
+          },
+        ],
+      },
+    });
+    await provider.generateStage({
+      theme: 'Tema livre',
+      biblicalReference: 'Referência',
+      weekNumber: 1,
+      stage: LessonStageType.MEDITATION_OLDER,
+      template: LESSON_TEMPLATES[LessonStageType.MEDITATION_OLDER],
+      approvedUpstream: { story: 'Fonte aprovada.' },
+      adminPrompt: 'Não deve orientar a revisão.',
+      olderMeditationReview: {
+        content: {},
+        images: [
+          {
+            activityNumber: 3,
+            image: { data: Buffer.from('art'), mimeType: 'image/png' },
+          },
+        ],
+      },
+    });
+    const [, body] = lastPostCall();
+    expect(JSON.stringify(body.contents)).toContain('inlineData');
+    expect(JSON.stringify(body.contents)).toContain(
+      Buffer.from('art').toString('base64'),
+    );
+    expect(JSON.stringify(body.contents)).toContain('desafio 3');
+    expect(JSON.stringify(body.contents)).not.toContain('Não deve orientar');
+    expect(JSON.stringify(body.generationConfig)).toContain('issues');
+  });
+
   it('gera conteúdo estruturado usando o schema da etapa', async () => {
     mockedAxios.post.mockResolvedValueOnce({
       data: {

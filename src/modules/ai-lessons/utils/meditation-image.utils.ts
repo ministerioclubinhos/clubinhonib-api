@@ -1,6 +1,8 @@
 import { LessonImagePurpose } from '../providers/lesson-llm.types';
 
 export function lessonImageTextPolicy(purpose?: LessonImagePurpose): string {
+  if (purpose === LessonImagePurpose.MANUAL_COLORING)
+    return 'Imagem para pintar: somente contornos pretos, interiores brancos e fundo branco puro. Sem cores, cinza, sombras, texturas, preenchimentos, letras ou logotipos.';
   return purpose === LessonImagePurpose.MEDITATION_ACTIVITY
     ? 'Letras, números e rótulos curtos são permitidos somente quando indispensáveis ao enigma descrito, em português e legíveis. Não acrescente texto editorial, logotipos, marcas nem gabarito.'
     : 'Sem letras, palavras, números, logotipos ou marcas.';
@@ -11,7 +13,14 @@ export function buildMeditationActivityImagePrompt(
   instruction: string,
   proposedComposition: string,
   answer: string,
+  supportImage = false,
 ): string {
+  if (supportImage)
+    return `Crie uma imagem de anexo ou apoio à questão para crianças de ${ageGroup}.
+QUESTÃO: ${instruction}
+COMPOSIÇÃO PLANEJADA: ${proposedComposition}
+GABARITO INTERNO, NÃO REVELAR: ${answer}
+A imagem pode ilustrar a situação e os elementos relevantes ou conter os dados visuais do desafio. Não invente outro jogo. Não repita enunciados ou alternativas já impressos. Não indique a resposta, não mostre o caminho resolvido, pares ligados ou alternativas destacadas. Em apoio contextual, não transforme a cena em enigma. Use traços limpos, fundo branco, composição compacta e legível, sem cabeçalho, logotipo, versículo ou oração. Preserve os dados e legendas indispensáveis se a atividade exigir elementos visuais executáveis.`;
   return `Crie somente os elementos imprimíveis necessários à atividade para crianças de ${ageGroup}.
 INSTRUÇÃO REAL: ${instruction}
 COMPOSIÇÃO PLANEJADA: ${proposedComposition}

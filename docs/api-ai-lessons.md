@@ -237,3 +237,71 @@ still fails with AI_CONTENT_INVALID. This applies to both configured providers.
 The older sheet fits font and image size against estimated wrapped prose,
 native grid row height and reserved prayer space. Grid letters never count as
 prose words for density validation, even when they are separated by spaces.
+
+## Meditação dos maiores: contrato 2.0.0
+
+A etapa 7 usa regras gerais, independentes do tema. Novas gerações têm três
+atividades estruturadas: narrativa, compreensão e aplicação em uma situação
+concreta. Cada atividade declara `mechanic`, `goal`, `sourceExcerpt`, `context`,
+`command`, `supportText`, `subitems` (`prompt`, `options`, `answer`) e
+`visualRequired`. O adaptador monta `instruction` e o gabarito interno; esses
+metadados e as respostas não entram no documento infantil.
+
+O contrato admite alternativas, lacunas, verdadeiro/falso, associação, sequência,
+caça-palavras, cruzadinha, código, iniciais, labirinto, encontrar erros, resposta
+aberta e `OTHER` para outra mecânica completa. Não há seleção de conteúdo por
+semana, tema ou nome de personagem. São verificadas completude dos subitens,
+alternativas e gabaritos, variedade, fundamentação na fonte, extensão máxima e
+espaço legível. Não há mínimo artificial de palavras nem correção que transforme
+um enigma em questionário para preencher a folha.
+
+Uma chamada de revisão separada usa o mesmo provedor configurado para conferir
+fidelidade, dificuldade, repetição semântica, aplicação e soluções. Há até duas
+correções do JSON completo. Isso acrescenta chamadas de texto; revisão por IA não
+substitui a aprovação humana. Falha do revisor não é tratada como aprovação.
+
+Artes são permitidas somente para atividades que precisam delas. As imagens reais
+são enviadas ao modelo de texto com visão, identificadas pelo número da atividade,
+antes de qualquer upload. Artes rejeitadas recebem até duas correções; persistindo
+o problema, a geração falha e mantém a versão anterior. Um modelo configurado que
+não aceite imagens precisa ser substituído na configuração para gerar esses
+exercícios visuais; não há aceitação silenciosa sem revisão.
+
+Questões textuais não recebem imagens redundantes. Caça-palavras usa grade nativa
+validada, sem bitmap de letras. Cruzadinhas textuais usam `#` como casa bloqueada,
+`.` como casa vazia e dígitos para início de pistas. O editor mantém texto e grades
+editáveis, e o PDF usa células nativas para grades reconhecidas.
+
+Editor e exportação usam o documento editado como fonte. Salvar sincroniza os
+campos da meditação com os dados estruturados; a exportação preserva a formatação.
+O editor mostra aviso quando o conteúdo transborda. O PDF não usa altura exata
+que corte o conteúdo e rejeita folhas que excedem o ajuste legível (mínimo 10 pt),
+com erro 422 no envelope global. Versões antigas continuam legíveis, mas não são
+reescritas pedagogicamente: é necessário editar ou regenerar para corrigir seu
+conteúdo. Nenhuma alteração de banco é necessária.
+
+A fundamentação (`sourceExcerpt`) do item 7 aceita trechos e paráfrases fiéis. A validação local exige evidência preenchida; a revisão semântica obrigatória confronta evidência e exercícios com a lição aprovada. Diferenças literais não provocam rejeição automática; fatos sem apoio continuam sujeitos a correção e falha após o limite de tentativas.
+
+O item 7 aceita de 1 a 6 subitens completos por bloco para todas as mecânicas. Não há mínimo fixo de quatro perguntas para narrativa ou compreensão. A revisão obrigatória avalia substância e cobertura da lição; blocos vazios, incompletos ou excessivos continuam rejeitados.
+
+Diagnóstico do item 7: logs `[meditation-older]` identificam fase, tentativa, responseId, contagens de palavras/subitens e motivos de rejeição, sem imprimir a folha ou os prompts. Introduções não vazias de até 45 palavras não exigem mínimo de 15 palavras. Correções que repetem a mesma falha local com as mesmas contagens são interrompidas antes de nova chamada paga; a mensagem explica a ausência de progresso.
+
+O encaixe estimado do item 7 é diagnóstico de diagramação, não motivo para regenerar texto via IA. Após aprovação semântica, a versão é salva para edição mesmo com overflow estimado; o log `phase=layout` informa alturas disponível/necessária, alturas por bloco e fonte. Editor sinaliza excesso e exportação continua bloqueando cortes. Alternativas curtas são impressas juntas na mesma linha, preservando ordem, numeração e gabarito.
+
+Regra vigente do item 7: sempre três imagens, IDs 1, 2 e 3, uma por questão como anexo ou apoio visual. A exigência inclui questões textuais e substitui a antiga regra de imagens opcionais. Caça-palavras mantém grade nativa e recebe ilustração de apoio sem duplicar a grade. Revisão aceita apoio contextual relacionado à questão, preservando proibição de respostas expostas, enunciados duplicados e jogos não solicitados.
+
+Revisão do item 7 declara `reviewPhase` TEXT (antes da geração de artes) ou IMAGES (após). Issues possuem severity BLOCKER/SUGGESTION e code categorizado. Sugestões editoriais não causam regeneração; ausência de imagem pronta não bloqueia TEXT. IMAGES avalia somente defeitos das artes relacionadas ao texto aprovado, sem reabrir redação/aplicação. Gabarito incorreto, fatos sem apoio e exercícios incompletos continuam bloqueantes na fase textual. Logs distinguem advisory e outside-phase sem uma chamada adicional de classificação.
+
+SEQUENCE no item 7 usa `sequenceEvents` com relato (`story`), acontecimento (`text`) e posição cronológica dentro do relato (`order`). O servidor separa relatos, embaralha sem entregar a ordem resolvida, atribui `displayedId` e calcula o gabarito a partir desses identificadores. Posições faltantes/repetidas, grupos unitários e eventos duplicados são rejeitados localmente. A revisão semântica confere acontecimentos na fonte; uma inversão precisa identificar os fatos concretos envolvidos, nunca presumir que o gabarito de uma lista embaralhada seja 1,2,3. O servidor ignora apontamentos ANSWER_KEY somente quando lista e gabarito da sequência correspondem exatamente ao cálculo local; cronologia semanticamente errada permanece bloqueante como SOURCE_FACT. Gabaritos alterados ou listas divergentes não recebem essa exceção. A mesma instrução montada alimenta edição e PDF.
+
+Item 8 (Trabalho manual): a geração de arte aplica finalidade MANUAL_COLORING e um prompt obrigatório de contornos pretos, fundo e interiores brancos, sem cores, cinza, sombras ou preenchimentos. Essa regra é aplicada após a composição proposta, inclusive se o texto gerado sugerir uma paleta colorida. Gera uma única arte para pintar; o exportador monta as duas cópias de impressão.
+
+O PDF do item 8 usa A4 retrato explícito e duas cópias idênticas empilhadas numa única linha de tabela não divisível. O dimensionamento reserva cabeçalho e versículo antes da imagem, preserva proporções e inclui separador para recorte. Texto excepcionalmente longo que elimina o espaço mínimo da arte é rejeitado antes da conversão, sem reduzir a legibilidade nem separar cópias em páginas distintas.
+
+Cada uma das duas cópias do trabalho manual possui moldura preta contínua nos quatro lados, com margem interna segura; ambas permanecem no mesmo bloco indivisível em A4.
+
+Falhas ao carregar a lição, exportar ou converter o PDF durante a publicação também restauram READY_FOR_PUBLICATION quando nenhum material foi criado; não deixam a lição presa em PUBLISHING. A meditação dos maiores reduz os limites de altura das três imagens gradualmente (até 140px) antes de rejeitar encaixe, preservando fontes de pelo menos 10pt e todos os textos/imagens.
+
+Weekly material publication now renders the eight approved stages as eight independently named PDF documents, each with a unique upload field and filename. All PDFs must succeed before the weekly page is created. The page title includes the week number and theme, and its public route follows the existing weekly-material route generator (`materiais_semanal_` + normalized title). Consolidated PDF export remains available separately. Already published lessons retain their existing link and are not silently duplicated or rewritten.
+
+Image generation retries a transient socket reset (ECONNRESET/EPIPE) or temporary DNS failure (EAI_AGAIN) exactly once after 1.5 seconds, recreating only the same image request. Text and previously completed artwork are not regenerated during that retry. Invalid requests, authorization/billing/429 errors, and ambiguous timeouts are not retried by this policy. Exhausted connection failures expose AI_CONNECTION_INTERRUPTED rather than AI_UNKNOWN_ERROR; the previous persisted version remains intact. Provider retries can incur additional image charges.

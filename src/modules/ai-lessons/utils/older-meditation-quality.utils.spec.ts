@@ -1,108 +1,196 @@
 import {
   olderMeditationContentIssue,
-  olderMeditationExpansionContext,
-  olderMeditationLessonSource,
   olderMeditationInstructionWords,
+  normalizeOlderMeditation,
 } from './older-meditation-quality.utils';
+import { olderMeditationFixture } from '../fixtures/older-meditation.fixture';
+import type { MeditationJson } from '../types/younger-meditation.types';
+import { OlderMeditationMechanic as M } from '../enums/older-meditation.enums';
 
-describe('older meditation content density', () => {
-  it('does not turn spaced puzzle cells into prose words for the density requirement', () => {
+function activities(content: MeditationJson): MeditationJson[] {
+  return content.activities as MeditationJson[];
+}
+
+describe('older meditation executable content contract', () => {
+  it.each(['O bom samaritano', 'A criação', 'Jesus acalma a tempestade'])(
+    'does not prescribe topic words or a fixed activity template: %s',
+    (theme) => {
+      const content = normalizeOlderMeditation(olderMeditationFixture(theme));
+      expect(olderMeditationContentIssue(content)).toBeNull();
+      expect(content.title).toBe(theme);
+    },
+  );
+  it.each([1, 2, 3])(
+    'accepts %i complete textual subitems without padding to four',
+    (count) => {
+      const content = olderMeditationFixture();
+      for (const activity of activities(content).slice(0, 2)) {
+        activity.subitems = (activity.subitems as MeditationJson[]).slice(
+          0,
+          count,
+        );
+      }
+      expect(
+        olderMeditationContentIssue(normalizeOlderMeditation(content)),
+      ).toBeNull();
+    },
+  );
+  it.each([0, 7])(
+    'rejects %i subitems outside the shared contract',
+    (count) => {
+      const content = olderMeditationFixture();
+      const first = activities(content)[0];
+      const item = (first.subitems as MeditationJson[])[0];
+      first.subitems = Array.from({ length: count }, () => ({ ...item }));
+      expect(
+        olderMeditationContentIssue(normalizeOlderMeditation(content)),
+      ).toContain('1–6 subitens');
+    },
+  );
+  it.each([
+    'Pense no que aprendeu.',
+    'Recorde a história e observe as atitudes das pessoas.',
+  ])('accepts short meaningful introductions: %s', (introduction) => {
+    const content = olderMeditationFixture();
+    content.introduction = introduction;
     expect(
-      olderMeditationInstructionWords(
-        'Caça-palavras\nJ E S U S\nA B C D E\nF G H I J\nPalavras: JESUS',
-      ),
-    ).toBe(3);
-    expect(
-      olderMeditationInstructionWords(
-        'Caça-palavras\nJESUS\nABCDE\nFGHIJ\nPalavras: JESUS',
-      ),
-    ).toBe(3);
-  });
-  it('uses lesson narrative, verse and application without sending images or unrelated fields', () => {
-    const source = olderMeditationLessonSource({
-      title: 'Jesus vive',
-      story: 'Relato aprovado.',
-      memoryVerse: { text: 'Jesus vive.' },
-      applicationAndAppeal: 'Confie em Jesus.',
-      visualScenes: [{ prompt: 'Arte extensa.' }],
-      printableAssets: [{ url: 'image-url' }],
-    });
-    expect(source).toMatchObject({
-      story: 'Relato aprovado.',
-      memoryVerse: { text: 'Jesus vive.' },
-      applicationAndAppeal: 'Confie em Jesus.',
-    });
-    expect(source).not.toHaveProperty('visualScenes');
-    expect(source).not.toHaveProperty('printableAssets');
-    expect(olderMeditationLessonSource(null)).toBeNull();
-  });
-  it('counts only child instructions and supplies the previous content for targeted correction', () => {
-    const content = {
-      introduction: 'Introdução longa não conta.',
-      activities: [
-        {
-          instruction: 'Leia e responda.',
-          answer: 'Gabarito também não conta.',
-        },
-        { instruction: 'Complete as frases.' },
-        { instruction: 'Marque a alternativa.' },
-      ],
-    };
-    expect(olderMeditationExpansionContext(content)).toContain('9 palavras');
-    expect(olderMeditationExpansionContext(content)).toContain('3, 3, 3');
-    expect(olderMeditationExpansionContext(content)).toContain(
-      JSON.stringify(content),
-    );
-    expect(olderMeditationContentIssue(content)).toContain(
-      '9 palavras; mínimo 200',
-    );
-  });
-  it('rejects the sparse three-question worksheet before generating images', () => {
-    expect(
-      olderMeditationContentIssue({
-        activities: [
-          { instruction: 'Complete a frase: Jesus é a vida.' },
-          { instruction: 'Certo ou errado? Jesus chorou.' },
-          { instruction: 'Descubra a mensagem pelas iniciais.' },
-        ],
-      }),
-    ).toContain('pouco conteúdo');
-  });
-  it('accepts substantial blocks of questions and clues', () => {
-    expect(
-      olderMeditationContentIssue({
-        activities: Array.from({ length: 3 }, () => ({
-          instruction:
-            'Jesus mostrou seu poder e sua compaixão pelos seus amigos. '.repeat(
-              8,
-            ),
-        })),
-      }),
+      olderMeditationContentIssue(normalizeOlderMeditation(content)),
     ).toBeNull();
   });
-  it('rejects missing blocks or instructions', () => {
-    expect(olderMeditationContentIssue({ activities: [] })).toContain(
-      'três blocos',
+  it.each(['', 'palavra '.repeat(46)])(
+    'rejects empty or oversized introductions',
+    (introduction) => {
+      const content = olderMeditationFixture();
+      content.introduction = introduction;
+      expect(
+        olderMeditationContentIssue(normalizeOlderMeditation(content)),
+      ).toContain('introdução');
+    },
+  );
+  it('prints short choices on one line without changing their order or answer', () => {
+    const content = olderMeditationFixture();
+    const activity = activities(content)[1];
+    activity.mechanic = M.TRUE_FALSE;
+    for (const item of activity.subitems as MeditationJson[]) {
+      item.options = ['Verdadeiro', 'Falso'];
+      item.answer = 'Verdadeiro';
+    }
+    const normalized = normalizeOlderMeditation(content);
+    expect(activities(normalized)[1].instruction).toContain(
+      '(1) Verdadeiro   (2) Falso',
     );
+    expect(olderMeditationContentIssue(normalized)).toBeNull();
     expect(
-      olderMeditationContentIssue({
-        activities: [{ instruction: '' }, {}, {}],
-      }),
-    ).toContain('sem instrução');
+      (activities(normalized)[1].subitems as MeditationJson[])[0].answer,
+    ).toBe('Verdadeiro');
   });
-  it('rejects malformed puzzles even when instructions meet the word count', () => {
+  it('requires evidence but leaves semantic grounding to the mandatory reviewer', () => {
+    const content = olderMeditationFixture();
+    activities(content)[0].sourceExcerpt =
+      'O viajante recebeu cuidados de um samaritano.';
     expect(
-      olderMeditationContentIssue({
-        activities: [
-          {
-            instruction:
-              'Caça-palavras\nPIXVIÚVAJ\nQÁZARONES\nRESSUREIÇÃO\nPalavras: VIÚVA, JESUS\n' +
-              'Confira os fatos da lição. '.repeat(50),
-          },
-          { instruction: 'Marque as respostas.' },
-          { instruction: 'Complete as frases.' },
-        ],
-      }),
-    ).toContain('tamanhos diferentes');
+      olderMeditationContentIssue(normalizeOlderMeditation(content)),
+    ).toBeNull();
+    activities(content)[0].sourceExcerpt = '  ';
+    expect(
+      olderMeditationContentIssue(normalizeOlderMeditation(content)),
+    ).toContain('falta o trecho');
+  });
+  it('does not accept repetitive prose in place of exercises or an empty answer key', () => {
+    const content = olderMeditationFixture();
+    content.activities = [
+      { instruction: 'Texto de preenchimento. '.repeat(100) },
+      { instruction: 'Responda.' },
+      { instruction: 'Responda.' },
+    ];
+    expect(
+      olderMeditationContentIssue(normalizeOlderMeditation(content)),
+    ).not.toBeNull();
+    const valid = olderMeditationFixture();
+    (activities(valid)[0].subitems as MeditationJson[])[0].answer = '';
+    expect(
+      olderMeditationContentIssue(normalizeOlderMeditation(valid)),
+    ).toContain('gabarito');
+  });
+  it('rejects image/text duplication, missing visual assets and repeated questions', () => {
+    const duplicate = olderMeditationFixture();
+    duplicate.printableAssets = [
+      { id: '1', prompt: 'Repita o exercício e acrescente um caça-palavras.' },
+    ];
+    expect(
+      olderMeditationContentIssue(normalizeOlderMeditation(duplicate)),
+    ).toContain('arte');
+    const missing = olderMeditationFixture();
+    missing.printableAssets = [];
+    expect(
+      olderMeditationContentIssue(normalizeOlderMeditation(missing)),
+    ).toContain('arte');
+    const repeated = olderMeditationFixture();
+    (activities(repeated)[1].subitems as MeditationJson[])[0].prompt = (
+      activities(repeated)[0].subitems as MeditationJson[]
+    )[0].prompt;
+    expect(
+      olderMeditationContentIssue(normalizeOlderMeditation(repeated)),
+    ).toContain('repete uma pergunta');
+  });
+  it('rejects incomplete choices, a wrong selection key and a missing application block', () => {
+    for (const options of [[], ['Uma', 'Uma', 'Outra']]) {
+      const content = olderMeditationFixture();
+      (activities(content)[1].subitems as MeditationJson[])[0].options =
+        options;
+      expect(
+        olderMeditationContentIssue(normalizeOlderMeditation(content)),
+      ).not.toBeNull();
+    }
+    const wrong = olderMeditationFixture();
+    (activities(wrong)[1].subitems as MeditationJson[])[0].answer =
+      'Resposta ausente das alternativas';
+    expect(
+      olderMeditationContentIssue(normalizeOlderMeditation(wrong)),
+    ).toContain('gabarito');
+    const noApplication = olderMeditationFixture();
+    activities(noApplication)[2].goal = 'NARRATIVE';
+    expect(
+      olderMeditationContentIssue(normalizeOlderMeditation(noApplication)),
+    ).toContain('aplicação');
+  });
+  it('requires a real word-search grid and checks its words instead of assuming an image exists', () => {
+    const content = olderMeditationFixture();
+    activities(content)[0] = {
+      ...activities(content)[0],
+      mechanic: M.WORD_SEARCH,
+      supportText: 'Caça-palavras\nPalavras: AMOR, CUIDADO.',
+      subitems: [
+        {
+          prompt: 'Encontre as palavras.',
+          options: [],
+          answer: 'Posições das palavras.',
+        },
+      ],
+    };
+    expect(
+      olderMeditationContentIssue(normalizeOlderMeditation(content)),
+    ).toContain('lista e grade');
+    activities(content)[0].supportText =
+      'Caça-palavras\nA M O R A B C\nC U I D A D O\nB C D E F G H\nPalavras: AMOR, CUIDADO';
+    expect(
+      olderMeditationContentIssue(normalizeOlderMeditation(content)),
+    ).toBeNull();
+    expect(
+      olderMeditationInstructionWords(
+        'Caça-palavras\nA M O R\nJ E S U S\nPalavras: AMOR',
+      ),
+    ).toBe(3);
+  });
+  it('rejects too much prose and does not add the internal key or evidence to printable instructions', () => {
+    const content = normalizeOlderMeditation(olderMeditationFixture());
+    const first = activities(content)[0];
+    expect(first.instruction).not.toContain('a) caminho');
+    expect(first.instruction).not.toContain(first.sourceExcerpt);
+    const long = olderMeditationFixture();
+    activities(long)[2].context = 'Texto longo. '.repeat(100);
+    expect(
+      olderMeditationContentIssue(normalizeOlderMeditation(long)),
+    ).toContain('contexto breve');
   });
 });
