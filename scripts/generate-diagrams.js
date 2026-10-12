@@ -10,17 +10,26 @@ const DIAGRAMS_DIR = path.join(__dirname, '../docs/diagrams');
  * Renders a PlantUML string to PNG using Kroki or local plantuml CLI.
  */
 async function renderPlantUmlToPng(pumlContent, outputPath) {
-  // Try local plantuml command first if available
+  const tempPuml = outputPath.replace(/\.png$/, '.temp.puml');
+  const tempPng = outputPath.replace(/\.png$/, '.temp.png');
   try {
     execSync('which plantuml', { stdio: 'ignore' });
-    const tempPuml = outputPath.replace(/\.png$/, '.temp.puml');
     fs.writeFileSync(tempPuml, pumlContent, 'utf8');
     execSync(`plantuml -tpng "${tempPuml}" -o "${path.dirname(outputPath)}"`, { stdio: 'inherit' });
     if (fs.existsSync(tempPuml)) {
       fs.unlinkSync(tempPuml);
     }
+    if (fs.existsSync(tempPng)) {
+      fs.renameSync(tempPng, outputPath);
+    }
     return;
   } catch (_err) {
+    if (fs.existsSync(tempPuml)) {
+      fs.unlinkSync(tempPuml);
+    }
+    if (fs.existsSync(tempPng)) {
+      fs.unlinkSync(tempPng);
+    }
     // Fall back to HTTP rendering via Kroki service
   }
 

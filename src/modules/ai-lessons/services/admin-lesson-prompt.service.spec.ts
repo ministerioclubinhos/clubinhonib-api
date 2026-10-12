@@ -92,7 +92,7 @@ describe('AdminLessonPromptService', () => {
     async (stage, age, activity) => {
       const result = await service.save(
         'admin-a',
-        stage as LessonStageType,
+        stage,
         'Use o tema aprovado.',
       );
       expect(result.effectivePrompt).toContain(age);

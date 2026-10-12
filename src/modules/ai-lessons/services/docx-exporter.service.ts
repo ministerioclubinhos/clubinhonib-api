@@ -38,6 +38,7 @@ import type { LessonInlineExportOptions } from '../types/lesson-document.types';
 import { YOUNGER_MEDITATION_LAYOUT } from '../constants/younger-meditation-layout.constants';
 import { buildYoungerMeditationSheet } from '../utils/younger-meditation-layout.utils';
 import { editedYoungerMeditation } from '../utils/younger-meditation-content.utils';
+import { assertSafeImageUrl } from '../utils/asset-url.utils';
 import {
   lessonHeaderLines,
   lessonString,
@@ -940,10 +941,7 @@ export class DocxExporterService {
       for (const raw of rawAssets) {
         const asset = this.object(raw);
         if (typeof asset.url !== 'string') continue;
-        const image = await axios.get<ArrayBuffer>(asset.url, {
-          responseType: 'arraybuffer',
-          timeout: 30000,
-        });
+        const image = await this.downloadImage(asset.url);
         const instruction =
           typeof asset.instruction === 'string' ? asset.instruction.trim() : '';
         const instructionWithoutRepeatedNumber = instruction.replace(
@@ -980,7 +978,7 @@ export class DocxExporterService {
             alignment: AlignmentType.CENTER,
             children: [
               new ImageRun({
-                data: Buffer.from(image.data),
+                data: image,
                 transformation: {
                   width: displayText ? 984 : 1070,
                   height: displayText ? 620 : 758,
@@ -1151,6 +1149,7 @@ export class DocxExporterService {
   }
 
   private async downloadImage(url: string): Promise<Buffer> {
+    assertSafeImageUrl(url);
     const image = await axios.get<ArrayBuffer>(url, {
       responseType: 'arraybuffer',
       timeout: 30000,

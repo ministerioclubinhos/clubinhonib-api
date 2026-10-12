@@ -300,4 +300,31 @@ describe('DocxExporterService lesson header', () => {
     expect(texts).not.toContain('LIÇÃO 20 – O SEMEADOR');
     expect(xml).not.toContain('Título estruturado antigo');
   });
+
+  it('T-B12: rejeita URLs de assets proibidas (SSRF) antes de tentar download', async () => {
+    const exporter = new DocxExporterService({
+      get: jest.fn(),
+    } as unknown as ConfigService);
+
+    await expect(
+      exporter.buildDocxFromTiptapOrStructuredJson(
+        {
+          [LessonStageType.LESSON_VISUALS]: {
+            structuredDataJson: {
+              assets: [
+                {
+                  id: 'visual-1',
+                  url: 'http://169.254.169.254/latest/meta-data/',
+                  instruction: 'Passo 1',
+                },
+              ],
+            },
+          },
+        },
+        20,
+      ),
+    ).rejects.toThrow(
+      'Acesso a endereço IP privado ou de metadados não é permitido.',
+    );
+  });
 });

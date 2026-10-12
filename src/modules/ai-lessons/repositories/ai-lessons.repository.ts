@@ -118,7 +118,7 @@ export class AiLessonsRepository {
   async findDraftsPaginated(
     params: QueryLessonsDto,
   ): Promise<{ items: LessonEntity[]; total: number }> {
-    const { status, search, page, limit, sort, order } = params;
+    const { status, statuses, search, page, limit, sort, order } = params;
 
     const query = this.lessonsRepo
       .createQueryBuilder('lesson')
@@ -128,7 +128,9 @@ export class AiLessonsRepository {
       .skip((page - 1) * limit)
       .take(limit);
 
-    if (status) {
+    if (statuses && statuses.length > 0) {
+      query.andWhere('lesson.status IN (:...statuses)', { statuses });
+    } else if (status) {
       query.andWhere('lesson.status = :status', { status });
     }
     if (search?.trim()) {
@@ -162,8 +164,11 @@ export class AiLessonsRepository {
       .getMany();
   }
 
-  async removeLesson(lesson: LessonEntity): Promise<void> {
-    await this.lessonsRepo.remove(lesson);
+  async removeLesson(
+    lesson: LessonEntity,
+    manager?: EntityManager,
+  ): Promise<void> {
+    await this.lessons(manager).remove(lesson);
   }
 
   createStage(data: Partial<LessonStageEntity>): LessonStageEntity {

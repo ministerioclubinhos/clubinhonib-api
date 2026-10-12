@@ -4,7 +4,9 @@ import { LessonEntity } from './lesson.entity';
 
 @Entity('lesson_comments')
 export class LessonCommentEntity extends BaseEntity {
-  @ManyToOne(() => LessonEntity, (lesson) => lesson.comments, { onDelete: 'CASCADE' })
+  @ManyToOne(() => LessonEntity, (lesson) => lesson.comments, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'lesson_id' })
   lesson: LessonEntity;
 

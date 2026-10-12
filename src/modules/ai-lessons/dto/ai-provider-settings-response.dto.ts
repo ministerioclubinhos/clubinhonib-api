@@ -5,7 +5,7 @@ export class OpenAiSettingsResponseDto {
   imageModel: string;
   imageQuality: string;
   reasoningEffort: string;
-  apiKey: string;
+  hasApiKey: boolean;
 }
 
 export class GeminiSettingsResponseDto {
@@ -15,7 +15,7 @@ export class GeminiSettingsResponseDto {
   imageSize: string;
   maxRetries: number;
   retryBaseDelayMs: number;
-  apiKey: string;
+  hasApiKey: boolean;
 }
 
 export class AiProviderSettingsResponseDto {

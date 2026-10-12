@@ -23,33 +23,51 @@ export class UpdateAiProviderSettingsService {
   async saveOpenAiSettings(
     dto: SaveOpenAiSettingsDto,
   ): Promise<OpenAiSettingsResponseDto> {
-    const updated = { ...(await this.get.getOpenAiSettings()), ...dto };
-    await this.repo.saveProviderSettings(AiProviderSettingsKey.OPENAI, {
-      ...updated,
-    });
-    return updated;
+    const current = await this.get.getInternalOpenAiSettings();
+    const apiKey =
+      dto.apiKey !== undefined ? dto.apiKey.trim() : current.apiKey;
+    const updated = {
+      ...current,
+      ...dto,
+      apiKey,
+    };
+    await this.repo.saveProviderSettings(AiProviderSettingsKey.OPENAI, updated);
+    return this.get.getOpenAiSettings();
   }
 
   async saveGeminiSettings(
     dto: SaveGeminiSettingsDto,
   ): Promise<GeminiSettingsResponseDto> {
-    const updated = { ...(await this.get.getGeminiSettings()), ...dto };
-    await this.repo.saveProviderSettings(AiProviderSettingsKey.GEMINI, {
-      ...updated,
-    });
-    return updated;
+    const current = await this.get.getInternalGeminiSettings();
+    const apiKey =
+      dto.apiKey !== undefined ? dto.apiKey.trim() : current.apiKey;
+    const updated = {
+      ...current,
+      ...dto,
+      apiKey,
+    };
+    await this.repo.saveProviderSettings(AiProviderSettingsKey.GEMINI, updated);
+    return this.get.getGeminiSettings();
   }
 
   async saveSettings(
     dto: SaveAiProviderSettingsDto,
   ): Promise<AiProviderSettingsResponseDto> {
-    const current = await this.get.getSettings();
-    const updated = {
+    const current = await this.get.getInternalSettings();
+    const openaiApiKey =
+      dto.openai?.apiKey !== undefined
+        ? dto.openai.apiKey.trim()
+        : current.openai.apiKey;
+    const geminiApiKey =
+      dto.gemini?.apiKey !== undefined
+        ? dto.gemini.apiKey.trim()
+        : current.gemini.apiKey;
+    const toSave = {
       llmProvider: dto.llmProvider,
-      openai: { ...current.openai, ...dto.openai },
-      gemini: { ...current.gemini, ...dto.gemini },
+      openai: { ...current.openai, ...dto.openai, apiKey: openaiApiKey },
+      gemini: { ...current.gemini, ...dto.gemini, apiKey: geminiApiKey },
     };
-    await this.repo.saveAllSettings(updated);
-    return updated;
+    await this.repo.saveAllSettings(toSave);
+    return this.get.getSettings();
   }
 }

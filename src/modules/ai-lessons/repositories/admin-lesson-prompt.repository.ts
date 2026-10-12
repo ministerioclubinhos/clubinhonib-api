@@ -22,11 +22,15 @@ export class AdminLessonPromptRepository {
     return this.repo.findOne({ where: { adminId, stage } });
   }
 
-  createPrompt(data: Partial<AdminLessonPromptEntity>): AdminLessonPromptEntity {
+  createPrompt(
+    data: Partial<AdminLessonPromptEntity>,
+  ): AdminLessonPromptEntity {
     return this.repo.create(data);
   }
 
-  async savePrompt(entity: AdminLessonPromptEntity): Promise<AdminLessonPromptEntity> {
+  async savePrompt(
+    entity: AdminLessonPromptEntity,
+  ): Promise<AdminLessonPromptEntity> {
     return this.repo.save(entity);
   }
 

@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { GetAiProviderSettingsService } from '../services/get-ai-provider-settings.service';
-import { AiProviderSettingsResponseDto } from '../dto/ai-provider-settings-response.dto';
+import { InternalAiProviderSettings } from '../types/ai-provider-settings.types';
 import { ConfiguredLessonLlmProvider } from './configured-lesson-llm.provider';
 import { LessonLlmProvider } from './lesson-llm.types';
 import { LessonStageType } from '../enums/lesson.enums';
@@ -10,7 +10,7 @@ jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 describe('Provedor selecionado na página de configurações', () => {
-  const settings: AiProviderSettingsResponseDto = {
+  const settings: InternalAiProviderSettings = {
     llmProvider: LessonLlmProvider.GEMINI,
     openai: {
       apiKey: 'saved-openai-key',
@@ -29,7 +29,10 @@ describe('Provedor selecionado na página de configurações', () => {
       retryBaseDelayMs: 0,
     },
   };
-  const getter = { getSettings: jest.fn(() => Promise.resolve(settings)) };
+  const getter = {
+    getInternalSettings: jest.fn(() => Promise.resolve(settings)),
+    getSettings: jest.fn(() => Promise.resolve(settings)),
+  };
   const provider = new ConfiguredLessonLlmProvider(
     getter as unknown as GetAiProviderSettingsService,
   );

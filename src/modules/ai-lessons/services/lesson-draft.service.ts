@@ -55,6 +55,7 @@ import {
 import { DocxExporterService } from './docx-exporter.service';
 import { PdfLibreOfficeService } from './pdf-libreoffice.service';
 import { WeekMaterialsPageCreateService } from 'src/modules/pages/week-material-page/services/create-week-material.service';
+import { WeekMaterialsPageGetService } from 'src/modules/pages/week-material-page/services/get-week-material.service';
 import { CreateWeekMaterialsPageDto } from 'src/modules/pages/week-material-page/dto/create-week-material.dto';
 import {
   MediaType,
@@ -97,6 +98,7 @@ export class LessonDraftService implements OnApplicationBootstrap {
     private readonly docx: DocxExporterService,
     private readonly pdf: PdfLibreOfficeService,
     private readonly weekMaterials: WeekMaterialsPageCreateService,
+    private readonly weekMaterialsGet: WeekMaterialsPageGetService,
     private readonly adminPrompts: AdminLessonPromptService,
   ) {}
 
@@ -116,12 +118,16 @@ export class LessonDraftService implements OnApplicationBootstrap {
         await this.repo.saveStage(stage);
         continue;
       }
+      const attemptToken = `${this.generationWorkerId}:${randomUUID()}`;
       const claimed = await this.repo.claimGeneration(
         stage.id,
-        this.generationWorkerId,
+        attemptToken,
         this.nextGenerationLease(),
       );
-      if (claimed) this.startGeneration(stage);
+      if (claimed) {
+        stage.generationLeaseOwner = attemptToken;
+        this.startGeneration(stage, attemptToken);
+      }
     }
   }
 
@@ -273,6 +279,14 @@ export class LessonDraftService implements OnApplicationBootstrap {
       if (lockedStage.status === LessonStageStatus.GENERATING)
         throw new ConflictException('Esta etapa já está sendo gerada.');
       if (
+        locked.stages.some(
+          (item) => item.status === LessonStageStatus.GENERATING,
+        )
+      )
+        throw new ConflictException(
+          'Já existe uma etapa sendo gerada nesta lição.',
+        );
+      if (
         [
           LessonStatus.IN_REVIEW,
           LessonStatus.READY_FOR_PUBLICATION,
@@ -303,24 +317,39 @@ export class LessonDraftService implements OnApplicationBootstrap {
     return lesson;
   }
 
-  private startGeneration(stage: LessonStageEntity): void {
+  private startGeneration(
+    stage: LessonStageEntity,
+    attemptToken: string,
+  ): void {
     const key = `${stage.lessonId}:${stage.type}`;
     if (this.activeGenerations.has(key)) return;
     this.activeGenerations.add(key);
     const heartbeat = setInterval(() => {
-      void this.repo.renewGenerationLease(
-        stage.id,
-        this.generationWorkerId,
-        this.nextGenerationLease(),
-      );
+      this.repo
+        .renewGenerationLease(
+          stage.id,
+          attemptToken,
+          this.nextGenerationLease(),
+        )
+        .catch((err: unknown) => {
+          this.logger.warn(
+            `Falha ao renovar lease da etapa ${stage.type}: ${String(err)}`,
+          );
+        });
     }, 10000);
     void this.executeStageGeneration(
       stage.lessonId,
       stage.generationRequestJson!,
       stage.generationRequestedById!,
+      attemptToken,
     )
       .catch((error: unknown) =>
-        this.failInterruptedGeneration(stage.lessonId, stage.type, error),
+        this.failInterruptedGeneration(
+          stage.lessonId,
+          stage.type,
+          attemptToken,
+          error,
+        ),
       )
       .finally(() => {
         clearInterval(heartbeat);
@@ -335,37 +364,52 @@ export class LessonDraftService implements OnApplicationBootstrap {
   private async failInterruptedGeneration(
     lessonId: string,
     type: LessonStageType,
+    attemptToken: string,
     error: unknown,
   ): Promise<void> {
-    const lesson = await this.getById(lessonId);
-    const stage = lesson.stages.find((item) => item.type === type);
-    if (!stage || stage.status !== LessonStageStatus.GENERATING) return;
-    const failure = this.describeAiFailure(type, error);
-    stage.status = LessonStageStatus.FAILED;
-    stage.failureCode = failure.code;
-    stage.failureMessage = failure.message;
-    stage.generationRequestJson = null;
-    stage.generationRequestedById = null;
-    stage.generationLeaseOwner = null;
-    stage.generationLeaseUntil = null;
-    await this.repo.updateStage(stage.id, {
-      status: stage.status,
-      failureCode: stage.failureCode,
-      failureMessage: stage.failureMessage,
-      generationRequestJson: null,
-      generationRequestedById: null,
-      generationLeaseOwner: null,
-      generationLeaseUntil: null,
+    await this.repo.runInTransaction(async (manager) => {
+      const locked = await this.repo.findLessonByIdForUpdate(lessonId, manager);
+      if (!locked) return;
+      const stage = locked.stages.find((item) => item.type === type);
+      if (!stage || stage.status !== LessonStageStatus.GENERATING) return;
+      if (
+        stage.generationLeaseOwner &&
+        stage.generationLeaseOwner !== attemptToken
+      ) {
+        return;
+      }
+      const failure = this.describeAiFailure(type, error);
+      stage.status = LessonStageStatus.FAILED;
+      stage.failureCode = failure.code;
+      stage.failureMessage = failure.message;
+      stage.generationRequestJson = null;
+      stage.generationRequestedById = null;
+      stage.generationLeaseOwner = null;
+      stage.generationLeaseUntil = null;
+      await this.repo.updateStage(
+        stage.id,
+        {
+          status: stage.status,
+          failureCode: stage.failureCode,
+          failureMessage: stage.failureMessage,
+          generationRequestJson: null,
+          generationRequestedById: null,
+          generationLeaseOwner: null,
+          generationLeaseUntil: null,
+        },
+        manager,
+      );
+      this.logger.error(
+        `Geração ${lessonId}:${type} falhou antes do processamento: ${stage.failureMessage}`,
+      );
     });
-    this.logger.error(
-      `Geração ${lessonId}:${type} falhou antes do processamento: ${stage.failureMessage}`,
-    );
   }
 
   private async executeStageGeneration(
     id: string,
     dto: GenerateStageRequestDto,
     userId: string,
+    attemptToken: string,
   ): Promise<void> {
     const { stage: type, revisionInstructions } = dto;
     const lesson = await this.getById(id);
@@ -388,6 +432,7 @@ export class LessonDraftService implements OnApplicationBootstrap {
           }))
       : [];
     const upstream = this.assertDependency(lesson, type);
+    const upstreamChecksum = upstream ? this.checksum(upstream) : null;
     const template = LESSON_TEMPLATES[type];
     const visualConfig =
       type === LessonStageType.LESSON_VISUALS
@@ -528,44 +573,89 @@ export class LessonDraftService implements OnApplicationBootstrap {
           .digest('hex'),
         contentChecksum: this.checksum(content),
       });
-      const version = await this.repo.saveVersion(entity);
-      stage.currentVersionId = version.id;
-      stage.status = LessonStageStatus.DRAFT;
-      stage.generationRequestJson = null;
-      stage.generationRequestedById = null;
-      stage.generationLeaseOwner = null;
-      stage.generationLeaseUntil = null;
-      await this.repo.updateStage(stage.id, {
-        currentVersionId: version.id,
-        status: LessonStageStatus.DRAFT,
-        generationRequestJson: null,
-        generationRequestedById: null,
-        generationLeaseOwner: null,
-        generationLeaseUntil: null,
+      let committed = false;
+      await this.repo.runInTransaction(async (manager) => {
+        const locked = await this.repo.findLessonByIdForUpdate(id, manager);
+        if (!locked) return;
+        const lockedStage = locked.stages.find((item) => item.type === type);
+        if (!lockedStage) return;
+
+        if (
+          lockedStage.status !== LessonStageStatus.GENERATING ||
+          (lockedStage.generationLeaseOwner &&
+            lockedStage.generationLeaseOwner !== attemptToken)
+        ) {
+          this.logger.warn(
+            `Tentativa ${attemptToken} não possui mais a posse da etapa ${type}. Abortando commit.`,
+          );
+          return;
+        }
+
+        const currentUpstream = this.assertDependency(locked, type);
+        const currentUpstreamChecksum = currentUpstream
+          ? this.checksum(currentUpstream)
+          : null;
+        if (upstreamChecksum !== currentUpstreamChecksum) {
+          this.logger.warn(
+            `Dependência upstream da etapa ${type} foi alterada durante o processamento. Abortando commit.`,
+          );
+          lockedStage.status = LessonStageStatus.FAILED;
+          lockedStage.failureCode = 'UPSTREAM_CHANGED';
+          lockedStage.failureMessage =
+            'O conteúdo da etapa anterior foi alterado durante a geração. Gere esta etapa novamente para usar o novo conteúdo.';
+          lockedStage.generationLeaseOwner = null;
+          lockedStage.generationLeaseUntil = null;
+          await this.repo.updateStage(
+            lockedStage.id,
+            {
+              status: LessonStageStatus.FAILED,
+              failureCode: 'UPSTREAM_CHANGED',
+              failureMessage: lockedStage.failureMessage,
+              generationLeaseOwner: null,
+              generationLeaseUntil: null,
+            },
+            manager,
+          );
+          return;
+        }
+
+        const version = await this.repo.saveVersion(entity, manager);
+        lockedStage.currentVersionId = version.id;
+        lockedStage.status = LessonStageStatus.DRAFT;
+        lockedStage.failureCode = null;
+        lockedStage.failureMessage = null;
+        lockedStage.generationRequestJson = null;
+        lockedStage.generationRequestedById = null;
+        lockedStage.generationLeaseOwner = null;
+        lockedStage.generationLeaseUntil = null;
+        await this.repo.updateStage(
+          lockedStage.id,
+          {
+            currentVersionId: version.id,
+            status: LessonStageStatus.DRAFT,
+            failureCode: null,
+            failureMessage: null,
+            generationRequestJson: null,
+            generationRequestedById: null,
+            generationLeaseOwner: null,
+            generationLeaseUntil: null,
+          },
+          manager,
+        );
+        await this.invalidateDownstream(locked, type, manager);
+        committed = true;
       });
-      await this.invalidateDownstream(lesson, type);
+
+      if (!committed) {
+        await Promise.all(
+          uploadedUrls.map((url) => this.s3.delete(url).catch(() => undefined)),
+        );
+      }
     } catch (error: unknown) {
-      await Promise.all(uploadedUrls.map((url) => this.s3.delete(url)));
-      const failure = this.describeAiFailure(type, error);
-      stage.status = LessonStageStatus.FAILED;
-      stage.failureCode = failure.code;
-      stage.failureMessage = failure.message;
-      stage.generationRequestJson = null;
-      stage.generationRequestedById = null;
-      stage.generationLeaseOwner = null;
-      stage.generationLeaseUntil = null;
-      this.logger.error(
-        `Geração ${id}:${type} falhou: ${stage.failureMessage}`,
+      await Promise.all(
+        uploadedUrls.map((url) => this.s3.delete(url).catch(() => undefined)),
       );
-      await this.repo.updateStage(stage.id, {
-        status: LessonStageStatus.FAILED,
-        failureCode: stage.failureCode,
-        failureMessage: stage.failureMessage,
-        generationRequestJson: null,
-        generationRequestedById: null,
-        generationLeaseOwner: null,
-        generationLeaseUntil: null,
-      });
+      await this.failInterruptedGeneration(id, type, attemptToken, error);
     }
   }
 
@@ -1366,44 +1456,82 @@ export class LessonDraftService implements OnApplicationBootstrap {
     id: string,
     type: LessonStageType,
   ): Promise<LessonEntity> {
-    const lesson = await this.getById(id);
-    const stage = lesson.stages.find((item) => item.type === type);
-    if (!stage?.currentVersionId)
-      throw new BadRequestException('Etapa sem conteúdo para concluir.');
-    if (
-      ![
-        LessonStageStatus.DRAFT,
-        LessonStageStatus.PRODUCER_APPROVED,
-        LessonStageStatus.CHANGES_REQUESTED,
-        LessonStageStatus.STALE,
-        LessonStageStatus.FAILED,
-      ].includes(stage.status)
-    )
-      throw new ConflictException(
-        'Somente uma etapa em produção pode ser concluída.',
-      );
-    stage.status = LessonStageStatus.PRODUCER_APPROVED;
-    stage.approvedAt = null;
-    stage.approvedById = null;
-    await this.repo.updateStage(stage.id, {
-      status: LessonStageStatus.PRODUCER_APPROVED,
-      approvedAt: null,
-      approvedById: null,
-      failureCode: null,
-      failureMessage: null,
-    });
-    const allReady = lesson.stages.every(
-      (item) =>
-        item.id === stage.id ||
-        [
+    await this.repo.runInTransaction(async (manager) => {
+      const lesson = await this.repo.findLessonByIdForUpdate(id, manager);
+      if (!lesson) throw new NotFoundException('Lição não encontrada.');
+      const stage = lesson.stages.find((item) => item.type === type);
+      if (!stage?.currentVersionId)
+        throw new BadRequestException('Etapa sem conteúdo para concluir.');
+      if (
+        ![
+          LessonStageStatus.DRAFT,
           LessonStageStatus.PRODUCER_APPROVED,
-          LessonStageStatus.APPROVED,
-        ].includes(item.status),
-    );
-    lesson.status = allReady
-      ? LessonStatus.PACKAGE_READY
-      : LessonStatus.IN_PROGRESS;
-    await this.repo.updateLesson(lesson.id, { status: lesson.status });
+          LessonStageStatus.CHANGES_REQUESTED,
+          LessonStageStatus.STALE,
+          LessonStageStatus.FAILED,
+        ].includes(stage.status)
+      )
+        throw new ConflictException(
+          'Somente uma etapa em produção pode ser concluída.',
+        );
+      stage.status = LessonStageStatus.PRODUCER_APPROVED;
+      stage.approvedAt = null;
+      stage.approvedById = null;
+      await this.repo.updateStage(
+        stage.id,
+        {
+          status: LessonStageStatus.PRODUCER_APPROVED,
+          approvedAt: null,
+          approvedById: null,
+          failureCode: null,
+          failureMessage: null,
+        },
+        manager,
+      );
+
+      const allValid =
+        lesson.stages.length === LESSON_STAGE_ORDER.length &&
+        lesson.stages.every(
+          (item) =>
+            Boolean(item.currentVersionId) &&
+            [
+              LessonStageStatus.PRODUCER_APPROVED,
+              LessonStageStatus.IN_REVIEW,
+              LessonStageStatus.APPROVED,
+            ].includes(
+              item.id === stage.id
+                ? LessonStageStatus.PRODUCER_APPROVED
+                : item.status,
+            ),
+        );
+
+      if (allValid) {
+        const allApproved = lesson.stages.every(
+          (item) =>
+            (item.id === stage.id
+              ? LessonStageStatus.PRODUCER_APPROVED
+              : item.status) === LessonStageStatus.APPROVED,
+        );
+        const anyProducerApproved = lesson.stages.some(
+          (item) =>
+            (item.id === stage.id
+              ? LessonStageStatus.PRODUCER_APPROVED
+              : item.status) === LessonStageStatus.PRODUCER_APPROVED,
+        );
+        lesson.status = allApproved
+          ? LessonStatus.READY_FOR_PUBLICATION
+          : anyProducerApproved
+            ? LessonStatus.PACKAGE_READY
+            : LessonStatus.IN_REVIEW;
+      } else {
+        lesson.status = LessonStatus.IN_PROGRESS;
+      }
+      await this.repo.updateLesson(
+        lesson.id,
+        { status: lesson.status },
+        manager,
+      );
+    });
     return this.getById(id);
   }
 
@@ -1422,6 +1550,7 @@ export class LessonDraftService implements OnApplicationBootstrap {
             Boolean(stage.currentVersionId) &&
             [
               LessonStageStatus.PRODUCER_APPROVED,
+              LessonStageStatus.IN_REVIEW,
               LessonStageStatus.APPROVED,
             ].includes(stage.status),
         )
@@ -1431,12 +1560,15 @@ export class LessonDraftService implements OnApplicationBootstrap {
         );
       for (const stage of lesson.stages.filter(
         (item) => item.status === LessonStageStatus.PRODUCER_APPROVED,
-      ))
+      )) {
+        stage.status = LessonStageStatus.IN_REVIEW;
         await this.repo.updateStage(
           stage.id,
           { status: LessonStageStatus.IN_REVIEW },
           manager,
         );
+      }
+      lesson.status = LessonStatus.IN_REVIEW;
       await this.repo.updateLesson(
         lesson.id,
         { status: LessonStatus.IN_REVIEW },
@@ -1454,7 +1586,11 @@ export class LessonDraftService implements OnApplicationBootstrap {
     await this.repo.runInTransaction(async (manager) => {
       const lesson = await this.repo.findLessonByIdForUpdate(id, manager);
       if (!lesson) throw new NotFoundException('Lição não encontrada.');
-      if (lesson.status !== LessonStatus.IN_REVIEW)
+      if (
+        ![LessonStatus.IN_REVIEW, LessonStatus.CHANGES_REQUESTED].includes(
+          lesson.status,
+        )
+      )
         throw new ConflictException(
           'Itens só podem ser aprovados durante a revisão final.',
         );
@@ -1467,12 +1603,15 @@ export class LessonDraftService implements OnApplicationBootstrap {
         throw new ConflictException(
           'Este item não está disponível para aprovação.',
         );
+      stage.status = LessonStageStatus.APPROVED;
+      stage.approvedById = userId;
+      stage.approvedAt = new Date();
       await this.repo.updateStage(
         stage.id,
         {
           status: LessonStageStatus.APPROVED,
           approvedById: userId,
-          approvedAt: new Date(),
+          approvedAt: stage.approvedAt,
         },
         manager,
       );
@@ -1480,12 +1619,33 @@ export class LessonDraftService implements OnApplicationBootstrap {
         (item) =>
           item.id === stage.id || item.status === LessonStageStatus.APPROVED,
       );
-      if (allApproved)
+      const anyChangesRequested = lesson.stages.some(
+        (item) =>
+          item.id !== stage.id &&
+          item.status === LessonStageStatus.CHANGES_REQUESTED,
+      );
+      if (allApproved) {
+        lesson.status = LessonStatus.READY_FOR_PUBLICATION;
         await this.repo.updateLesson(
           lesson.id,
           { status: LessonStatus.READY_FOR_PUBLICATION },
           manager,
         );
+      } else if (anyChangesRequested) {
+        lesson.status = LessonStatus.CHANGES_REQUESTED;
+        await this.repo.updateLesson(
+          lesson.id,
+          { status: LessonStatus.CHANGES_REQUESTED },
+          manager,
+        );
+      } else {
+        lesson.status = LessonStatus.IN_REVIEW;
+        await this.repo.updateLesson(
+          lesson.id,
+          { status: LessonStatus.IN_REVIEW },
+          manager,
+        );
+      }
     });
 
     return this.getById(id);
@@ -1505,7 +1665,11 @@ export class LessonDraftService implements OnApplicationBootstrap {
     await this.repo.runInTransaction(async (manager) => {
       const lesson = await this.repo.findLessonByIdForUpdate(id, manager);
       if (!lesson) throw new NotFoundException('Lição não encontrada.');
-      if (lesson.status !== LessonStatus.IN_REVIEW)
+      if (
+        ![LessonStatus.IN_REVIEW, LessonStatus.CHANGES_REQUESTED].includes(
+          lesson.status,
+        )
+      )
         throw new ConflictException(
           'Ajustes só podem ser solicitados durante a revisão final.',
         );
@@ -1518,6 +1682,9 @@ export class LessonDraftService implements OnApplicationBootstrap {
         throw new ConflictException(
           'Este item não está disponível para revisão.',
         );
+      stage.status = LessonStageStatus.CHANGES_REQUESTED;
+      stage.approvedAt = null;
+      stage.approvedById = null;
       await this.repo.updateStage(
         stage.id,
         {
@@ -1537,6 +1704,7 @@ export class LessonDraftService implements OnApplicationBootstrap {
         }),
         manager,
       );
+      lesson.status = LessonStatus.CHANGES_REQUESTED;
       await this.repo.updateLesson(
         lesson.id,
         { status: LessonStatus.CHANGES_REQUESTED },
@@ -1646,9 +1814,38 @@ export class LessonDraftService implements OnApplicationBootstrap {
     };
   }
 
+  private async findExistingWeekMaterialPage(
+    lessonId: string,
+  ): Promise<{ id: string } | null> {
+    try {
+      const result = await this.weekMaterialsGet.findAllPaginated({
+        searchString: `[origem:licao:${lessonId}]`,
+        limit: 5,
+      });
+      const match = result.data.find((item) =>
+        item.description?.includes(`[origem:licao:${lessonId}]`),
+      );
+      return match ? { id: match.id } : null;
+    } catch {
+      return null;
+    }
+  }
+
   async publishToWeekMaterial(
     id: string,
   ): Promise<{ lesson: LessonEntity; weekMaterialId: string }> {
+    const existing = await this.findExistingWeekMaterialPage(id);
+    if (existing) {
+      await this.repo.runInTransaction(async (manager) => {
+        const locked = await this.repo.findLessonByIdForUpdate(id, manager);
+        if (!locked) throw new NotFoundException('Lição não encontrada.');
+        locked.status = LessonStatus.PUBLISHED;
+        locked.weekMaterialId = existing.id;
+        await this.repo.saveLesson(locked, manager);
+      });
+      return { lesson: await this.getById(id), weekMaterialId: existing.id };
+    }
+
     const reservation = await this.repo.runInTransaction(async (manager) => {
       const locked = await this.repo.findLessonByIdForUpdate(id, manager);
       if (!locked) throw new NotFoundException('Lição não encontrada.');
@@ -1680,13 +1877,14 @@ export class LessonDraftService implements OnApplicationBootstrap {
         lesson: await this.getById(id),
         weekMaterialId: reservation.publishedId,
       };
+
     let createdPageId: string | null = null;
     try {
       const lesson = await this.getById(id);
       const dto = new CreateWeekMaterialsPageDto();
       dto.pageTitle = `Semana ${lesson.weekNumber} — ${lesson.theme}`;
       dto.pageSubtitle = lesson.biblicalReference;
-      dto.pageDescription = `Material completo da semana ${lesson.weekNumber}, revisado e aprovado.`;
+      dto.pageDescription = `Material completo da semana ${lesson.weekNumber}, revisado e aprovado. [origem:licao:${lesson.id}]`;
       dto.documents = [];
       const files: Record<string, Express.Multer.File> = {};
       // Render every approved item before creating the page or uploading files.
@@ -1724,57 +1922,71 @@ export class LessonDraftService implements OnApplicationBootstrap {
       });
       return { lesson: await this.getById(id), weekMaterialId: page.id };
     } catch (error: unknown) {
-      await this.repo.runInTransaction(async (manager) => {
-        const locked = await this.repo.findLessonByIdForUpdate(id, manager);
-        if (
-          !createdPageId &&
-          locked?.status === LessonStatus.PUBLISHING &&
-          !locked.weekMaterialId
-        ) {
-          locked.status = LessonStatus.READY_FOR_PUBLICATION;
-          await this.repo.saveLesson(locked, manager);
-        }
-      });
+      await this.repo
+        .runInTransaction(async (manager) => {
+          const locked = await this.repo.findLessonByIdForUpdate(id, manager);
+          if (!locked) return;
+          if (createdPageId) {
+            locked.status = LessonStatus.PUBLISHED;
+            locked.weekMaterialId = createdPageId;
+            await this.repo.saveLesson(locked, manager);
+          } else if (
+            locked.status === LessonStatus.PUBLISHING &&
+            !locked.weekMaterialId
+          ) {
+            locked.status = LessonStatus.READY_FOR_PUBLICATION;
+            await this.repo.saveLesson(locked, manager);
+          }
+        })
+        .catch((e: unknown) => {
+          this.logger.error(
+            `Falha ao atualizar status pós-erro de publicação: ${String(e)}`,
+          );
+        });
       throw error;
     }
   }
 
   async delete(id: string): Promise<{ success: boolean; message: string }> {
-    const lesson = await this.repo.findLessonById(id);
-
-    if (!lesson) {
-      throw new NotFoundException('Lição não encontrada.');
-    }
-    if (
-      lesson.status === LessonStatus.PUBLISHING ||
-      lesson.stages.some(
-        (stage) => stage.status === LessonStageStatus.GENERATING,
-      )
-    )
-      throw new ConflictException(
-        'Aguarde a geração ou publicação em andamento antes de excluir a lição.',
-      );
-    if (lesson.status === LessonStatus.PUBLISHED)
-      throw new ConflictException(
-        'Uma lição publicada deve ser arquivada, não excluída.',
-      );
-
-    // Coleta e remove arquivos do S3 (PDFs, DOCXs e imagens geradas nas versões)
     const s3Urls = new Set<string>();
-    for (const stage of lesson.stages || []) {
-      for (const version of stage.versions || []) {
-        if (version.docxS3Key) s3Urls.add(version.docxS3Key);
-        if (version.pdfS3Key) s3Urls.add(version.pdfS3Key);
-        if (version.structuredDataJson) {
-          this.extractS3UrlsFromJson(version.structuredDataJson).forEach(
-            (url) => s3Urls.add(url),
-          );
+
+    await this.repo.runInTransaction(async (manager) => {
+      const lesson = await this.repo.findLessonById(id, manager, true);
+
+      if (!lesson) {
+        throw new NotFoundException('Lição não encontrada.');
+      }
+      if (
+        lesson.status === LessonStatus.PUBLISHING ||
+        lesson.stages.some(
+          (stage) => stage.status === LessonStageStatus.GENERATING,
+        )
+      ) {
+        throw new ConflictException(
+          'Aguarde a geração ou publicação em andamento antes de excluir a lição.',
+        );
+      }
+      if (lesson.status === LessonStatus.PUBLISHED) {
+        throw new ConflictException(
+          'Uma lição publicada deve ser arquivada, não excluída.',
+        );
+      }
+
+      for (const stage of lesson.stages || []) {
+        for (const version of stage.versions || []) {
+          if (version.docxS3Key) s3Urls.add(version.docxS3Key);
+          if (version.pdfS3Key) s3Urls.add(version.pdfS3Key);
+          if (version.structuredDataJson) {
+            this.extractS3UrlsFromJson(version.structuredDataJson).forEach(
+              (url) => s3Urls.add(url),
+            );
+          }
         }
       }
-    }
 
-    // O banco é removido primeiro; falha no S3 deixa um órfão auditável, nunca uma lição quebrada.
-    await this.repo.removeLesson(lesson);
+      await this.repo.removeLesson(lesson, manager);
+    });
+
     await Promise.all([...s3Urls].map((url) => this.s3.delete(url)));
 
     return {

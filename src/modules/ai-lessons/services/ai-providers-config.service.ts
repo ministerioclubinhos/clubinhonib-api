@@ -32,7 +32,8 @@ export class AiProvidersConfigService {
   async getOpenAiModels(
     apiKeyParam?: string,
   ): Promise<AiProviderModelsResponseDto> {
-    const keyToUse = apiKeyParam || (await this.getOpenAiSettings()).apiKey;
+    const keyToUse =
+      apiKeyParam || (await this.get.getInternalOpenAiSettings()).apiKey;
 
     if (keyToUse) {
       try {

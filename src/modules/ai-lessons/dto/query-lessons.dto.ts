@@ -1,5 +1,5 @@
-import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsEnum,
   IsIn,
   IsInt,
@@ -9,6 +9,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
 import { LessonStatus } from '../enums/lesson.enums';
 
 export enum LessonSortField {
@@ -25,6 +26,24 @@ export enum SortOrder {
 
 export class QueryLessonsDto {
   @IsOptional() @IsEnum(LessonStatus) status?: LessonStatus;
+
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }): unknown[] => {
+    if (typeof value === 'string') {
+      return value
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+    if (Array.isArray(value)) {
+      return value as unknown[];
+    }
+    return [value];
+  })
+  @IsArray()
+  @IsEnum(LessonStatus, { each: true })
+  statuses?: LessonStatus[];
+
   @IsOptional() @IsString() @MaxLength(200) search?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) page = 1;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(50) limit = 10;

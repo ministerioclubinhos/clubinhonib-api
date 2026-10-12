@@ -10,8 +10,8 @@ participant "Materiais da semana" as Week
 
 Administrador -> Frontend: configura provedor e parâmetros
 Frontend -> API: PUT /lessons/providers/settings
-API -> MySQL: transação: OpenAI + Gemini + escolha ativa
-API --> Frontend: configurações salvas (ou erro)
+API -> MySQL: transação: OpenAI + Gemini + escolha ativa (apiKey armazenada com segurança)
+API --> Frontend: configurações salvas mascaradas (hasApiKey booleano, sem expor apiKey)
 
 Administrador -> Frontend: cria pacote
 Frontend -> API: POST /lessons
@@ -33,7 +33,8 @@ loop cada etapa
     8 a 10 perguntas; oração final opcional
     Referências incompletas para revisão humana
   end note
-  API -> MySQL: resolve provedor e parâmetros salvos
+  API -> MySQL: adquire lease com attemptToken único (workerId:uuid)
+  API -> MySQL: resolve provedor e parâmetros salvos (chaves internas)
   API -> OpenAI: conteúdo e imagens (sem env)
   OpenAI --> API: JSON / PNG
   note right of API
@@ -42,12 +43,14 @@ loop cada etapa
     Correção recebe narrativa aprovada completa e JSON anterior
     Interrompido: falha e preserva versão anterior
     Regras genéricas: desfecho, público infantil e gabarito coerente
+    Validação transacional: geração verifica integridade do checksum upstream
+    e confirma generationLeaseOwner == attemptToken antes de comitar
   end note
   API -> S3: uploads rastreados
-  API -> MySQL: versão + etapa
+  API -> MySQL: transação: valida lease + upstream checksum -> salva versão + etapa
   note right of API
-    Falha remove uploads
-    ainda não referenciados
+    Falha remove uploads não referenciados
+    Conclusão da etapa e ciclo de revisão com locking pessimista
   end note
 end
 
@@ -95,12 +98,18 @@ note right of API
   Itens 6/7 sem galeria externa; demais editores preservados
 end note
 Frontend -> API: POST /publish-week-material
-API -> MySQL: lock; READY -> PUBLISHING
-API -> API: renderizar os oito PDFs aprovados
-API -> Week: criar página Semana + tema, rota e oito documentos
-Week --> API: weekMaterialId
-API -> MySQL: PUBLISHED + weekMaterialId
-API --> Frontend: vínculo persistido
+API -> MySQL: lock; READY/PUBLISHING -> PUBLISHING
+API -> Week: verifica página existente com tag [origem:licao:id]
+alt página já existente encontrada (recuperação de interrupção)
+  API -> MySQL: PUBLISHED + weekMaterialId existente
+  API --> Frontend: vínculo recuperado sem duplicar materiais ou páginas
+else primeira publicação
+  API -> API: renderizar os oito PDFs aprovados
+  API -> Week: criar página Semana + tema, rota, documentos e tag [origem:licao:id]
+  Week --> API: weekMaterialId
+  API -> MySQL: PUBLISHED + weekMaterialId
+  API --> Frontend: vínculo persistido
+end
 
 Administrador -> Frontend: publicar novamente
 Frontend -> API: POST /publish-week-material

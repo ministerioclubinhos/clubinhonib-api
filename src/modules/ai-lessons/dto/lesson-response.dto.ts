@@ -22,6 +22,7 @@ export class LessonStageResponseDto {
   status: LessonStageStatus;
   currentVersionId: string | null;
   lockVersion: number;
+  failureCode: string | null;
   failureMessage: string | null;
   versions: LessonVersionResponseDto[];
 }
@@ -84,6 +85,7 @@ const mapStage = (stage: LessonStageEntity): LessonStageResponseDto => ({
   status: stage.status,
   currentVersionId: stage.currentVersionId,
   lockVersion: stage.lockVersion,
+  failureCode: stage.failureCode,
   failureMessage: stage.failureMessage,
   versions: (stage.versions ?? []).map(mapVersion),
 });

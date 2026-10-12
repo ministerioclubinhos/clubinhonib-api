@@ -17,7 +17,7 @@ export class ConfiguredLessonLlmProvider implements LessonLlmProviderContract {
   constructor(private readonly settings: GetAiProviderSettingsService) {}
 
   private async selected(): Promise<LessonLlmProviderContract> {
-    const settings = await this.settings.getSettings();
+    const settings = await this.settings.getInternalSettings();
     const config = new LessonRuntimeConfig({
       OPENAI_API_KEY: settings.openai.apiKey,
       OPENAI_TEXT_MODEL: settings.openai.generalModel,

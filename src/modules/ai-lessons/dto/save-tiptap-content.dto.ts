@@ -1,4 +1,11 @@
-import { IsEnum, IsInt, IsObject, IsOptional, IsString, Min } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsObject,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 import { LessonStageType } from '../enums/lesson.enums';
 
 export class SaveTiptapContentDto {

@@ -2,6 +2,8 @@ import { AiLessonsRepository } from './ai-lessons.repository';
 import { LessonStageEntity } from '../entities/lesson-stage.entity';
 import { LessonVersionEntity } from '../entities/lesson-version.entity';
 import { LessonEntity } from '../entities/lesson.entity';
+import { LessonStatus } from '../enums/lesson.enums';
+import { LessonSortField, SortOrder } from '../dto/query-lessons.dto';
 
 describe('AiLessonsRepository relation binding', () => {
   let repository: AiLessonsRepository;
@@ -24,11 +26,13 @@ describe('AiLessonsRepository relation binding', () => {
     };
 
     repository = new AiLessonsRepository(
-      {} as any,
-      mockLessonsRepo as any,
-      mockStagesRepo as any,
-      mockVersionsRepo as any,
-      {} as any,
+      {} as unknown as import('typeorm').DataSource,
+      mockLessonsRepo as unknown as import('typeorm').Repository<LessonEntity>,
+      mockStagesRepo as unknown as import('typeorm').Repository<LessonStageEntity>,
+      mockVersionsRepo as unknown as import('typeorm').Repository<LessonVersionEntity>,
+      {} as unknown as import('typeorm').Repository<
+        import('../entities/lesson-comment.entity').LessonCommentEntity
+      >,
     );
   });
 
@@ -65,5 +69,48 @@ describe('AiLessonsRepository relation binding', () => {
     expect(lesson.stages[0].versions[0].stage).toBe(stage);
     expect(lesson.stages[0].versions[0].stageId).toBe('stage-456');
     expect(mockLessonsRepo.save).toHaveBeenCalledWith(lesson);
+  });
+
+  it('T-B14: filtra lista por múltiplos status no servidor e calcula total/página coerentemente', async () => {
+    const qb = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      addOrderBy: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getManyAndCount: jest.fn().mockResolvedValue([
+        [
+          { id: 'lesson-1', status: 'IN_REVIEW' },
+          { id: 'lesson-2', status: 'PACKAGE_READY' },
+        ],
+        2,
+      ]),
+    };
+    (
+      mockLessonsRepo as unknown as { createQueryBuilder: jest.Mock }
+    ).createQueryBuilder = jest.fn().mockReturnValue(qb);
+
+    const result = await repository.findDraftsPaginated({
+      statuses: [LessonStatus.PACKAGE_READY, LessonStatus.IN_REVIEW],
+      search: 'Páscoa',
+      page: 1,
+      limit: 10,
+      sort: LessonSortField.UPDATED_AT,
+      order: SortOrder.DESC,
+    });
+
+    expect(qb.andWhere).toHaveBeenCalledWith(
+      'lesson.status IN (:...statuses)',
+      {
+        statuses: [LessonStatus.PACKAGE_READY, LessonStatus.IN_REVIEW],
+      },
+    );
+    expect(qb.andWhere).toHaveBeenCalledWith(
+      '(LOWER(lesson.theme) LIKE LOWER(:search) OR LOWER(lesson.biblicalReference) LIKE LOWER(:search))',
+      { search: '%Páscoa%' },
+    );
+    expect(result.total).toBe(2);
+    expect(result.items).toHaveLength(2);
   });
 });

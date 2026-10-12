@@ -2,8 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AiProviderSettingEntity } from '../entities/ai-provider-setting.entity';
-import { AiProviderSettingsResponseDto } from '../dto/ai-provider-settings-response.dto';
 import { AiProviderSettingsKey } from '../constants/ai-provider-settings.constants';
+
+import { LessonLlmProvider } from '../providers/lesson-llm.types';
 
 @Injectable()
 export class AiProviderSettingRepository {
@@ -27,9 +28,11 @@ export class AiProviderSettingRepository {
     return settings;
   }
 
-  async saveAllSettings(
-    settings: AiProviderSettingsResponseDto,
-  ): Promise<void> {
+  async saveAllSettings(settings: {
+    llmProvider: LessonLlmProvider;
+    openai: Record<string, unknown>;
+    gemini: Record<string, unknown>;
+  }): Promise<void> {
     await this.repo.manager.transaction(async (manager) => {
       const repo = manager.getRepository(AiProviderSettingEntity);
       await repo.save([

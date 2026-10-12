@@ -1,4 +1,12 @@
-import { IsEnum, IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
 import { LessonStageType } from '../enums/lesson.enums';
 
 export class SaveAdminLessonPromptDto {
