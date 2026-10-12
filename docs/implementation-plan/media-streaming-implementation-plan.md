@@ -32,7 +32,7 @@ Nenhum item marcado como **DECISÃO PENDENTE** pode ser transformado em código,
 - **Streaming Obrigatório para Toda Mídia:** Vídeos, áudios, imagens e documentos/PDFs enviados por upload serão lidos do S3 pela API NestJS e transmitidos via streaming ao cliente.
 - **Transferência Parcial via HTTP 206 (`Range Requests`):** O endpoint de streaming da API deve suportar o cabeçalho `Range: bytes=x-y` e retornar `HTTP 206 Partial Content`, garantindo reprodução contínua, avanço, recuo e buffering progressivo em players nativos de vídeo e áudio.
 - **Download Seguro via API:** Downloads são realizados exclusivamente através de rota dedicada do backend (`GET /media-items/:id/download`), que injeta o cabeçalho `Content-Disposition: attachment; filename="..."` e faz o pipe seguro do arquivo sem revelar o S3.
-- **Padrão Zero Suposições:** O plano de implementação segue o padrão rigoroso de trava de decisões dos documentos da pasta `doc/implementaion-plan/`.
+- **Padrão Zero Suposições:** O plano de implementação segue o padrão rigoroso de trava de decisões dos documentos da pasta `docs/implementation-plan/`.
 
 ---
 

@@ -5,7 +5,7 @@ Como a API registra **erros técnicos** (observabilidade) e **ações**
 administrador consulta.
 
 Plano de origem:
-[`../doc/implementaion-plan/observability-audit-implementation-plan.md`](../doc/implementaion-plan/observability-audit-implementation-plan.md).
+[`implementation-plan/observability-audit-implementation-plan.md`](implementation-plan/observability-audit-implementation-plan.md).
 As decisões D-001 a D-022 adotadas pela implementação estão na seção 21 dele.
 
 ## 1. Visão geral

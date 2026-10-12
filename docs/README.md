@@ -77,3 +77,9 @@ Welcome to the official documentation for the **Clubinho NIB API**. This hub ser
 | **Diagram Index** | [`docs/diagrams/README.md`](diagrams/README.md) | Navigable list of database and feature diagrams. |
 | **Database Schemas** | [`docs/diagrams/database/`](diagrams/database/) | Database ER schema diagrams in PlantUML (`.puml`) and rendered images (`.png`). |
 | **Feature Flows** | [`docs/diagrams/flow/`](diagrams/flow/) | Feature-specific execution flow diagrams structured per feature folder (`.puml` + `.png`). |
+
+## 🧭 Implementation Plans
+
+- [Estúdio Clubinho](implementation-plan/estudio-clubinho-improvements-implementation-plan.md)
+- [Media Streaming](implementation-plan/media-streaming-implementation-plan.md)
+- [Observability Audit](implementation-plan/observability-audit-implementation-plan.md)
