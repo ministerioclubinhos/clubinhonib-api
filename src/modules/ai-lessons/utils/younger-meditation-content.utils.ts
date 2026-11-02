@@ -1,4 +1,8 @@
-import { extractMeditationSectionText } from './meditation-rich-text.utils';
+import {
+  extractMeditationSectionText,
+  meditationNodeText,
+  meditationRichNodes,
+} from './meditation-rich-text.utils';
 import type { MeditationJson } from '../types/younger-meditation.types';
 
 function nodeText(node: MeditationJson): string {
@@ -33,6 +37,13 @@ export function editedYoungerMeditation(
       Number((node.attrs as MeditationJson)?.level) === 1 &&
       !/^MEDITAÇÃO|^LIÇÃO\s+\d|^TÍTULO$/i.test(nodeText(node).trim()),
   );
+  const richTitleNodes = meditationRichNodes(document, 'title');
+  const resolvedTitle = title
+    ? nodeText(title).trim()
+    : richTitleNodes.length
+      ? richTitleNodes.map(meditationNodeText).join(' ').trim()
+      : undefined;
+
   const verse = extractMeditationSectionText(
     document,
     'VERSÍCULO PARA MEMORIZAR',
@@ -43,6 +54,7 @@ export function editedYoungerMeditation(
       .map((line) => line.trim())
       .filter(Boolean) ?? [];
   const prayer = extractMeditationSectionText(document, 'FALANDO COM DEUS');
+  const richPrayerNodes = meditationRichNodes(document, 'prayer');
   const hasPrayer = nodes.some(
     (node) =>
       node.type === 'heading' &&
@@ -78,19 +90,41 @@ export function editedYoungerMeditation(
   return {
     ...data,
     ...(nodes.length ? { meditationDocument: document } : {}),
-    ...(title ? { title: nodeText(title).trim() } : {}),
-    ...(hasPrayer ? { prayer: prayer ?? '' } : {}),
-    ...(verseLines[0]
-      ? { verseText: verseLines[0].replace(/^[“"]|[”"]$/g, '') }
-      : {}),
-    ...(hasVerse
-      ? { verseReference: (verseLines[1] ?? '').replace(/\s*—\s*NVI$/i, '') }
-      : {}),
-    activities: activities.map((activity, index) => ({
-      ...activity,
-      ...(instructions[index] !== undefined
-        ? { instruction: instructions[index] }
+    ...(resolvedTitle !== undefined ? { title: resolvedTitle } : {}),
+    ...(hasPrayer
+      ? { prayer: prayer ?? '' }
+      : richPrayerNodes.length
+        ? { prayer: richPrayerNodes.map(meditationNodeText).join('\n').trim() }
         : {}),
-    })),
+    ...(hasVerse
+      ? {
+          verseText: (verseLines[0] ?? '').replace(/^[“"]|[”"]$/g, ''),
+          verseReference: (verseLines[1] ?? '').replace(/\s*—\s*NVI$/i, ''),
+        }
+      : verseLines[0]
+        ? { verseText: verseLines[0].replace(/^[“"]|[”"]$/g, '') }
+        : {}),
+    activities: activities.map((activity, index) => {
+      if (instructions[index] !== undefined) {
+        return {
+          ...activity,
+          instruction: instructions[index],
+        };
+      }
+      const richActivityNodes = meditationRichNodes(
+        document,
+        `activity${index + 1}`,
+      );
+      if (richActivityNodes.length) {
+        return {
+          ...activity,
+          instruction: richActivityNodes
+            .map(meditationNodeText)
+            .join('\n')
+            .trim(),
+        };
+      }
+      return activity;
+    }),
   };
 }

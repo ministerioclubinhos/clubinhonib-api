@@ -49,6 +49,7 @@ entity "week_material_pages" as e_week_page {
   * id : UUID <<PK>>
   --
   routeId : UUID <<FK,UQ>>
+  sourceLessonId : varchar(36)? <<UQ>>
   currentWeek : boolean
 }
 

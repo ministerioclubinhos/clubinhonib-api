@@ -114,12 +114,22 @@ export class WeekMaterialsPageRepository {
     });
   }
 
+  async findOneBySourceLessonId(
+    sourceLessonId: string,
+    manager?: EntityManager,
+  ): Promise<WeekMaterialsPageEntity | null> {
+    return this.scoped(manager).findOne({
+      where: { sourceLessonId },
+      relations: [...WEEK_MATERIAL_PAGE_RELATIONS],
+    });
+  }
+
   async createPage(
     content: Pick<
       WeekMaterialPageContent,
       'title' | 'subtitle' | 'description'
     > &
-      Partial<Pick<WeekMaterialPageContent, 'currentWeek'>>,
+      Partial<Pick<WeekMaterialPageContent, 'currentWeek' | 'sourceLessonId'>>,
     manager?: EntityManager,
   ): Promise<WeekMaterialsPageEntity> {
     const repository = this.scoped(manager);

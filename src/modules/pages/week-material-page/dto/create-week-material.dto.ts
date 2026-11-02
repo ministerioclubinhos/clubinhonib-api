@@ -19,4 +19,8 @@ export class CreateWeekMaterialsPageDto extends WeekMaterialsPageMediaDto {
   @IsOptional()
   @IsBoolean({ message: 'O campo "currentWeek" deve ser um boolean.' })
   currentWeek?: boolean;
+
+  @IsOptional()
+  @IsString({ message: 'O campo "sourceLessonId" deve ser uma string.' })
+  sourceLessonId?: string;
 }

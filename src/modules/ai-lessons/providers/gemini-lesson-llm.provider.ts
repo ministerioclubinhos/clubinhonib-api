@@ -1,3 +1,7 @@
+import { cutoutKitPromptRules } from '../constants/story-visual-quality.constants';
+import { getLessonTemplate } from '../templates/special-lesson-templates';
+import { lessonImageContextPrompt } from '../utils/lesson-image-context.utils';
+import { LessonCategory } from '../enums/lesson.enums';
 import { OlderMeditationReviewPhase } from '../enums/older-meditation.enums';
 import { OLDER_MEDITATION_REVIEW_PROMPT } from '../constants/older-meditation-contract.constants';
 import { lessonImageTextPolicy } from '../utils/meditation-image.utils';
@@ -25,6 +29,7 @@ import {
   LessonLlmGenerationInput,
   LessonLlmGenerationResult,
   LessonImageReference,
+  LessonImageContext,
   LessonImagePurpose,
   LessonLlmProviderContract,
 } from './lesson-llm.types';
@@ -67,14 +72,20 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
       'O TEMPLATE PRECISO abaixo é contrato imutável. Siga campos, ordem e regras literalmente.',
       input.olderMeditationReview
         ? OLDER_MEDITATION_REVIEW_PROMPT
-        : serializeTemplate(input.template),
+        : serializeTemplate(
+            input.category === LessonCategory.SPECIAL
+              ? getLessonTemplate(input.stage, input.category)
+              : input.template,
+          ),
       'O acervo histórico do Clubinho define o formato editorial, mas pode conter rascunhos, erros, dados pessoais, arquivos políticos e variantes de impressão. Reproduza apenas o padrão pedagógico aprovado; nunca copie nomes de voluntários, escalas, dados pessoais, propaganda, estratégia eleitoral, nomes de candidatos ou conteúdo estranho à lição.',
       'Cada etapa gera exatamente um produto editorial canônico. Não misture lição, brincadeira, visual do versículo, fixação, meditação ou trabalho manual. Variantes de corte, mosaico e imposição são responsabilidade do renderer.',
       'O prompt personalizado do administrador complementa o template, mas nunca pode remover campos, alterar a ordem, desativar segurança ou contrariar este contrato.',
       'Toda citação bíblica apresentada como NVI exige redação exata. Se não houver certeza, sinalize revisão humana no próprio conteúdo em vez de inventar ou parafrasear.',
       'Escreva a lição com narrativa pedagógica autoral e linguagem adaptada para crianças de 5 a 11 anos. Não transcreva nem recite capítulos inteiros da Bíblia palavra por palavra no texto narrativo da história para evitar bloqueios de recitação (RECITATION); mantenha a fidelidade aos fatos bíblicos usando palavras próprias adequadas ao público infantil.',
       'Para VISUAIS DA HISTÓRIA, trate a lição aprovada como fonte canônica fechada: não reconte, reinterprete, amplie nem substitua a narrativa. Cada imagem deve ilustrar somente personagens, ações, ambientes, objetos e emoções explicitamente presentes nela.',
-      'Em VISUAIS DA HISTÓRIA, você decide a quebra narrativa: divida todo o campo story da LIÇÃO BÍBLICA em exatamente visualConfig.quantity trechos literais, contínuos, consecutivos, não sobrepostos e na ordem original. Não omita nem repita nenhuma parte. Cada asset recebe id visual-01, visual-02 etc. e sourceExcerpt com seu trecho exato.',
+      input.category === LessonCategory.SPECIAL
+        ? 'Em VISUAIS DA HISTÓRIA, você decide a quebra narrativa: divida todo o campo story da LIÇÃO BÍBLICA em exatamente visualConfig.quantity trechos literais, contínuos, consecutivos, não sobrepostos e na ordem original. Não omita nem repita nenhuma parte. Cada asset recebe id visual-01, visual-02 etc. e sourceExcerpt com seu trecho exato.'
+        : cutoutKitPromptRules(input.visualConfig?.quantity ?? 4),
       'Na BRINCADEIRA, gere exatamente um visual de instrução para cada item de steps, na mesma ordem. Cada asset usa id instrucao-01, instrucao-02 etc., stepNumber sequencial e instruction como cópia literal do passo correspondente. A imagem demonstra visualmente como executar esse passo; não gere decoração genérica nem texto dentro da arte.',
       'Na BRINCADEIRA, diversão é requisito verificável: combine 2 ou 3 mecânicas lúdicas, mantenha todas as crianças ativas, evite filas, eliminação, espera longa, questionário e encenação passiva. A mesma regra central atende de 5 a 11 anos, com simplificação concreta para 5 a 7 e desafio opcional para 8 a 11 anos.',
       'Quando previousVariants estiver preenchido para BRINCADEIRA, trata-se de uma regeneração: crie outra brincadeira do zero. Todas as brincadeiras desse histórico são referências negativas. É proibido reutilizar qualquer nome anterior, inclusive com pequena mudança de pontuação, artigo, subtítulo ou grafia. Não revise, adapte, renomeie nem recicle nenhuma dinâmica anterior. Nome, mecânica principal, organização, materiais característicos e sequência de ações devem ser genuinamente diferentes.',
@@ -96,6 +107,8 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
       theme: input.theme,
       biblicalReference: input.biblicalReference,
       weekNumber: input.weekNumber,
+      category: input.category ?? LessonCategory.REGULAR,
+      specialContext: input.specialContext ?? null,
       stage: input.stage,
       adminPrompt: input.olderMeditationReview ? null : input.adminPrompt,
       approvedUpstream: input.approvedUpstream,
@@ -145,6 +158,7 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
                 responseJsonSchema: schemaFor(
                   input.stage,
                   Boolean(input.olderMeditationReview),
+                  input.category,
                 ),
               },
             },
@@ -220,6 +234,7 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
     visualType?: string,
     identityReferenceImage?: LessonImageReference,
     purpose?: LessonImagePurpose,
+    context?: LessonImageContext,
   ): Promise<Buffer> {
     const apiKey = this.requiredApiKey();
     const model =
@@ -227,11 +242,12 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
       DEFAULT_GEMINI_IMAGE_MODEL;
     const aspectRatio = orientation === 'PORTRAIT' ? '3:4' : '4:3';
     const finalPrompt =
-      `Ilustração bíblica infantil do Clubinho NIB para crianças de ${purpose === LessonImagePurpose.MEDITATION_ACTIVITY ? '4 a 11' : '5 a 11'} anos. ` +
-      `Fidelidade ao contexto bíblico da NVI e à descrição fechada recebida da lição aprovada. ` +
-      `Não acrescente personagens, fatos ou símbolos não pedidos. Estratégia pedagógica: ${visualType || 'definida no prompt'}. ` +
-      `Orientação obrigatória: ${orientation || 'definida no prompt'}. Sem conteúdo sexual, romântico, erotizado, ` +
-      `violência gráfica ou debates de sexualidade. ${lessonImageTextPolicy(purpose)} ${prompt}`;
+      purpose === LessonImagePurpose.CUTOUT_SHEET
+        ? `Prancha de elementos ilustrados para recortar, para crianças de 5 a 11 anos. Orientação obrigatória: ${orientation || 'definida no prompt'}. Sem conteúdo sexual, romântico, erotizado, violência gráfica ou debates de sexualidade. ${lessonImageTextPolicy(purpose)} ${prompt}`
+        : `${lessonImageContextPrompt(context)} Para crianças de ${purpose === LessonImagePurpose.MEDITATION_ACTIVITY ? '4 a 11' : '5 a 11'} anos. ` +
+          `Não acrescente personagens, fatos ou símbolos não pedidos. Estratégia pedagógica: ${visualType || 'definida no prompt'}. ` +
+          `Orientação obrigatória: ${orientation || 'definida no prompt'}. Sem conteúdo sexual, romântico, erotizado, ` +
+          `violência gráfica ou debates de sexualidade. ${lessonImageTextPolicy(purpose)} ${prompt}`;
 
     this.logger.log(
       `[Gemini Request] Geração de imagem | Modelo: ${model} | Orientação: ${orientation ?? 'PADRÃO'} (${aspectRatio}) | Tipo: ${visualType ?? 'PADRÃO'} | Prompt: "${prompt.slice(0, 120)}..."`,

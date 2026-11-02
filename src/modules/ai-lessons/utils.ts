@@ -1,3 +1,5 @@
+import { LessonCategory } from './enums/lesson.enums';
+
 export function lessonString(value: unknown): string {
   return typeof value === 'string' ||
     typeof value === 'number' ||
@@ -8,18 +10,21 @@ export function lessonString(value: unknown): string {
 
 export function lessonHeaderLines(
   title: string,
-  weekNumber?: number,
+  weekNumber?: number | null,
+  category?: LessonCategory | null,
 ): string[] {
-  const prefix = /^LIÇÃO\s*(\d+)?\s*(?:[–—:-]\s*|\r?\n\s*|$)/i;
+  const isSpecial = category === LessonCategory.SPECIAL;
+  const prefix = /^LIÇÃO(?:\s+ESPECIAL)?\s*(\d+)?\s*(?:[–—:-]\s*|\r?\n\s*|$)/i;
   const match = title.trim().match(prefix);
   const number = weekNumber ?? (match?.[1] ? Number(match[1]) : undefined);
+  const label = isSpecial ? 'LIÇÃO ESPECIAL' : 'LIÇÃO';
   const cleanTitle = title
     .trim()
     .replace(prefix, '')
     .replace(/^TÍTULO\s*\r?\n\s*/i, '')
     .trim();
   return [
-    number === undefined ? 'LIÇÃO' : `LIÇÃO ${number}`,
+    number === undefined ? label : `${label} ${number}`,
     'TÍTULO',
     cleanTitle,
   ].filter(Boolean);
@@ -29,8 +34,15 @@ type JsonObject = Record<string, unknown>;
 
 export function normalizeLessonDocumentHeader(
   document: JsonObject,
-  weekNumber?: number,
+  weekNumber?: number | null,
+  category?: LessonCategory | null,
 ): JsonObject {
+  const label =
+    category === LessonCategory.SPECIAL ? 'LIÇÃO ESPECIAL' : 'LIÇÃO';
+  const expectedFirst =
+    weekNumber === undefined || weekNumber === null
+      ? label
+      : `${label} ${weekNumber}`;
   const nodes: JsonObject[] = Array.isArray(document.content)
     ? document.content.filter(
         (item: unknown): item is JsonObject =>
@@ -42,17 +54,21 @@ export function normalizeLessonDocumentHeader(
   const title = tiptapNodeText(first).trim();
   const second = nodes[1] as JsonObject | undefined;
   if (second && tiptapNodeText(second).trim() === 'TÍTULO') {
-    if (weekNumber === undefined || title === `LIÇÃO ${weekNumber}`)
+    if (
+      (weekNumber === undefined || weekNumber === null) &&
+      category !== LessonCategory.SPECIAL
+    )
       return document;
+    if (title === expectedFirst) return document;
     nodes[0] = {
       ...first,
-      content: [{ type: 'text', text: `LIÇÃO ${weekNumber}` }],
+      content: [{ type: 'text', text: expectedFirst }],
     };
   } else {
     nodes.splice(
       0,
       1,
-      ...lessonHeaderLines(title, weekNumber).map((text) => ({
+      ...lessonHeaderLines(title, weekNumber, category).map((text) => ({
         ...first,
         content: [{ type: 'text', text }],
       })),
@@ -114,6 +130,7 @@ export function extractTiptapSectionText(
 }
 
 export function buildStoryVisualImagePrompt(input: {
+  category?: LessonCategory;
   completeStory: string;
   canonicalScene: JsonObject;
   proposedComposition: string;
@@ -127,10 +144,54 @@ export function buildStoryVisualImagePrompt(input: {
     'COMPOSIÇÃO VISUAL PROPOSTA:',
     input.proposedComposition.trim(),
     'IDENTIDADE VISUAL FIXA:',
-    input.hasIdentityReference
-      ? 'Use a imagem de referência anexada como identidade-mãe. Preserve rigorosamente os mesmos personagens, rostos, idades aparentes, cabelos, roupas, proporções, traço artístico, paleta de cores, iluminação e representação dos ambientes. A referência define somente a identidade visual; a ação deve seguir a cena atual.'
-      : 'Esta é a imagem-mãe da sequência. Estabeleça personagens, rostos, idades aparentes, cabelos, roupas, proporções, traço artístico, paleta de cores, iluminação e ambientes de forma clara e reutilizável nas próximas cenas.',
+    input.category === LessonCategory.SPECIAL
+      ? 'Preserve o estilo, a paleta e a identidade somente dos personagens que reaparecem no trecho. Respeite mudanças de época, idade, roupa e ambiente explicitamente narradas; não copie a cena ou o elenco da imagem-mãe para outra época. Dicas ao professor são orientações de apresentação, não objetos ou ações da história.'
+      : input.hasIdentityReference
+        ? 'Use a imagem de referência anexada como identidade-mãe. Preserve rigorosamente os mesmos personagens, rostos, idades aparentes, cabelos, roupas, proporções, traço artístico, paleta de cores, iluminação e representação dos ambientes. A referência define somente a identidade visual; a ação deve seguir a cena atual.'
+        : 'Esta é a imagem-mãe da sequência. Estabeleça personagens, rostos, idades aparentes, cabelos, roupas, proporções, traço artístico, paleta de cores, iluminação e ambientes de forma clara e reutilizável nas próximas cenas.',
     'REGRA OBRIGATÓRIA: produza somente a cena aprovada acima, usando exclusivamente personagens, ações, objetos, ambientes e emoções explicitamente presentes na LIÇÃO BÍBLICA completa. Não invente, acrescente, substitua ou antecipe qualquer elemento narrativo.',
+  ].join('\n\n');
+}
+
+export function buildCutoutKitImagePrompt(input: {
+  completeStory: string;
+  category: string;
+  title?: string;
+  items: JsonObject[];
+  layoutPlan?: string;
+  proposedComposition: string;
+  hasIdentityReference: boolean;
+}): string {
+  const items = input.items.map((item) => ({
+    label: item.label,
+    description: item.description,
+    size: item.size,
+    variantOf: item.variantOf ?? undefined,
+  }));
+  return [
+    'FONTE CANÔNICA E EXCLUSIVA — LIÇÃO BÍBLICA COMPLETA:',
+    input.completeStory.trim(),
+    `PRANCHA DE ELEMENTOS PARA RECORTAR — CATEGORIA ${input.category}${input.title ? ` (${input.title})` : ''}. ELEMENTOS OBRIGATÓRIOS DESTA PRANCHA:`,
+    JSON.stringify(items),
+    'ORGANIZAÇÃO PLANEJADA:',
+    [input.layoutPlan, input.proposedComposition]
+      .map((part) => lessonString(part).trim())
+      .filter(Boolean)
+      .join('\n'),
+    'REGRAS DE PRANCHA DE RECORTES:',
+    [
+      'Prancha de elementos para recortar: cada elemento fica isolado, com corpo ou objeto inteiro, sem cortes pelas bordas e com margem segura na borda da imagem.',
+      'Deixe espaço branco de pelo menos 8% entre os elementos. Sem sobreposição e sem sombras projetadas no chão que se misturem com outros elementos (sombra suave opcional, contida no próprio elemento).',
+      'Sem cena, sem horizonte compartilhado e sem fundo colorido contínuo. Fundo branco puro. Cenário (montanhas, mar, céu) somente em faixas ou peças recortáveis separadas; nuvens, sol, lua e estrelas sempre como peças soltas.',
+      'Elementos grandes e nítidos, bordas completas, nada espremido nem minúsculo, mesmo que sobre espaço em branco. Peças pequenas só quando o objeto é naturalmente pequeno (pássaro, peixe, estrela).',
+      'Mantenha a escala relativa coerente (adulto ≈ 1,0; criança ≈ 0,6; casa ≈ 3,0; árvore ≈ 2,5). Personagens de frente ou 3/4, pose neutra, corpo inteiro e pés visíveis. Multidão sem rosto como silhuetas cinza.',
+      'Não escreva letras, números, legendas ou logotipos: os nomes são aplicados depois pelo sistema.',
+    ].join(' '),
+    'IDENTIDADE VISUAL FIXA:',
+    input.hasIdentityReference
+      ? 'Use a imagem de referência anexada como identidade-mãe do kit. Preserve rigorosamente o mesmo traço artístico, paleta, proporções e, quando reaparecerem, os mesmos rostos, idades aparentes, cabelos e roupas. A referência define somente a identidade visual; os elementos desta prancha seguem a lista acima.'
+      : 'Esta é a prancha-mãe do kit. Estabeleça com clareza o traço artístico, a paleta de cores, as proporções e as características (rosto, idade aparente, cabelo, roupa) que serão reutilizados nas demais pranchas.',
+    'REGRA OBRIGATÓRIA: desenhe somente os elementos listados, baseados exclusivamente na LIÇÃO BÍBLICA completa, sem inventar personagens, fatos ou objetos. Nada violento, assustador ou sexualizado.',
   ].join('\n\n');
 }
 

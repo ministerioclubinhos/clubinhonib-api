@@ -1,3 +1,7 @@
+import { cutoutKitPromptRules } from '../constants/story-visual-quality.constants';
+import { getLessonTemplate } from '../templates/special-lesson-templates';
+import { lessonImageContextPrompt } from '../utils/lesson-image-context.utils';
+import { LessonCategory, LessonStageType } from '../enums/lesson.enums';
 import {
   imageConnectionErrorCode,
   retryImageConnection,
@@ -23,13 +27,13 @@ import {
 } from '@nestjs/common';
 import { LessonProviderConfig } from '../providers/lesson-llm.types';
 import axios, { AxiosError } from 'axios';
-import { LessonStageType } from '../enums/lesson.enums';
 import { serializeTemplate } from '../templates/lesson-templates';
 import { supportsOpenAiReasoning } from '../utils/openai-model-capabilities.utils';
 import {
   LessonLlmGenerationInput,
   LessonLlmGenerationResult,
   LessonImageReference,
+  LessonImageContext,
   LessonImagePurpose,
   LessonLlmProviderContract,
 } from '../providers/lesson-llm.types';
@@ -74,6 +78,104 @@ const STORY_VISUAL_ASSET_SCHEMA = {
     altText: { type: 'string' },
   },
 } as const;
+const CUTOUT_CATEGORY_VALUES = [
+  'CHARACTERS',
+  'ANIMALS',
+  'BUILDINGS',
+  'SCENERY',
+  'SKY_AND_NATURE',
+  'OBJECTS',
+];
+const CUTOUT_KIT_ASSET_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'id',
+    'category',
+    'title',
+    'items',
+    'layoutPlan',
+    'prompt',
+    'altText',
+  ],
+  properties: {
+    id: {
+      type: 'string',
+      description:
+        'ID sequencial no formato kit-01, kit-02 e assim por diante.',
+    },
+    category: { type: 'string', enum: CUTOUT_CATEGORY_VALUES },
+    title: { type: 'string' },
+    items: {
+      type: 'array',
+      minItems: 1,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: [
+          'label',
+          'description',
+          'category',
+          'storyEvidence',
+          'variantOf',
+          'extra',
+          'size',
+        ],
+        properties: {
+          label: {
+            type: 'string',
+            description: 'Legenda curta aplicada pelo renderer sob o elemento.',
+          },
+          description: { type: 'string' },
+          category: { type: 'string', enum: CUTOUT_CATEGORY_VALUES },
+          storyEvidence: {
+            type: 'string',
+            description:
+              'Trecho literal da LIÇÃO BÍBLICA que justifica o elemento (vazio só para itens neutros de SKY_AND_NATURE ou extras).',
+          },
+          variantOf: { type: ['string', 'null'] },
+          extra: { type: 'boolean' },
+          size: { type: 'string', enum: ['LARGE', 'MEDIUM', 'SMALL'] },
+        },
+      },
+    },
+    layoutPlan: {
+      type: 'string',
+      description:
+        'Como os elementos se organizam na prancha e por que cabem sem encolher.',
+    },
+    prompt: { type: 'string' },
+    altText: { type: 'string' },
+  },
+} as const;
+const CUTOUT_KIT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['assets', 'coverageChecklist'],
+  properties: {
+    assets: {
+      type: 'array',
+      minItems: 4,
+      maxItems: 10,
+      items: CUTOUT_KIT_ASSET_SCHEMA,
+    },
+    coverageChecklist: {
+      type: 'array',
+      minItems: 6,
+      maxItems: 6,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['category', 'status', 'justification'],
+        properties: {
+          category: { type: 'string', enum: CUTOUT_CATEGORY_VALUES },
+          status: { type: 'string', enum: ['COVERED', 'NOT_APPLICABLE'] },
+          justification: { type: 'string' },
+        },
+      },
+    },
+  },
+} as const;
 const GAME_INSTRUCTION_ASSET_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -111,6 +213,7 @@ const FIXATION_ASSET_SCHEMA = {
 export function schemaFor(
   stage: LessonStageType,
   reviewOlder = false,
+  category: LessonCategory = LessonCategory.REGULAR,
 ): Record<string, unknown> {
   if (stage === LessonStageType.MEDITATION_OLDER && reviewOlder)
     return OLDER_MEDITATION_REVIEW_SCHEMA;
@@ -151,14 +254,18 @@ export function schemaFor(
         story: {
           type: 'string',
           description:
-            'Aula completa e participativa, com acontecimento central e desfecho de todos os relatos antes da aplicação, sem falas interrompidas, descrições de arte ou marcadores de cena.',
+            category === LessonCategory.SPECIAL
+              ? 'História contemporânea ilustrativa ou panorama bíblico, com cenas/cartazes, dicas participativas e conexão explícita às Escrituras, sem confundir ficção com fatos bíblicos.'
+              : 'Aula completa e participativa, com acontecimento central e desfecho de todos os relatos antes da aplicação, sem falas interrompidas, descrições de arte ou marcadores de cena.',
         },
         applicationAndAppeal: { type: 'string' },
         counseling: { type: 'string' },
         closingPrayer: {
           type: 'string',
           description:
-            'Vazio salvo solicitação explícita de oração final separada.',
+            category === LessonCategory.SPECIAL
+              ? 'Oração curta, voluntária, em linguagem infantil e ligada ao tema.'
+              : 'Vazio salvo solicitação explícita de oração final separada.',
         },
         reviewQuestions: {
           type: 'array',
@@ -177,6 +284,11 @@ export function schemaFor(
         visualScenes: { type: 'array', minItems: 3, items: ASSET_SCHEMA },
       },
     };
+  if (
+    stage === LessonStageType.LESSON_VISUALS &&
+    category !== LessonCategory.SPECIAL
+  )
+    return CUTOUT_KIT_SCHEMA;
   if (stage === LessonStageType.LESSON_VISUALS)
     return {
       type: 'object',
@@ -443,14 +555,20 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
       'O TEMPLATE PRECISO abaixo é contrato imutável. Siga campos, ordem e regras literalmente.',
       input.olderMeditationReview
         ? OLDER_MEDITATION_REVIEW_PROMPT
-        : serializeTemplate(input.template),
+        : serializeTemplate(
+            input.category === LessonCategory.SPECIAL
+              ? getLessonTemplate(input.stage, input.category)
+              : input.template,
+          ),
       'O acervo histórico do Clubinho define o formato editorial, mas pode conter rascunhos, erros, dados pessoais, arquivos políticos e variantes de impressão. Reproduza apenas o padrão pedagógico aprovado; nunca copie nomes de voluntários, escalas, dados pessoais, propaganda, estratégia eleitoral, nomes de candidatos ou conteúdo estranho à lição.',
       'Cada etapa gera exatamente um produto editorial canônico. Não misture lição, brincadeira, visual do versículo, fixação, meditação ou trabalho manual. Variantes de corte, mosaico e imposição são responsabilidade do renderer.',
       'O prompt personalizado do administrador complementa o template, mas nunca pode remover campos, alterar a ordem, desativar segurança ou contrariar este contrato.',
       'Toda citação bíblica apresentada como NVI exige redação exata. Se não houver certeza, sinalize revisão humana no próprio conteúdo em vez de inventar ou parafrasear.',
       'Escreva a lição com narrativa pedagógica autoral e linguagem adaptada para crianças de 5 a 11 anos. Não transcreva nem recite capítulos inteiros da Bíblia palavra por palavra no texto narrativo da história; mantenha a fidelidade aos fatos bíblicos usando palavras próprias adequadas ao público infantil.',
       'Para VISUAIS DA HISTÓRIA, trate a lição aprovada como fonte canônica fechada: não reconte, reinterprete, amplie nem substitua a narrativa. Cada imagem deve ilustrar somente personagens, ações, ambientes, objetos e emoções explicitamente presentes nela. Não invente nova cena, personagem, milagre, diálogo, versículo, roupa relevante ou conclusão.',
-      'Em VISUAIS DA HISTÓRIA, você decide a quebra narrativa: divida todo o campo story da LIÇÃO BÍBLICA em exatamente visualConfig.quantity trechos literais, contínuos, consecutivos, não sobrepostos e na ordem original. Não omita nem repita nenhuma parte. Cada asset recebe id visual-01, visual-02 etc. e sourceExcerpt com seu trecho exato.',
+      input.category === LessonCategory.SPECIAL
+        ? 'Em VISUAIS DA HISTÓRIA, você decide a quebra narrativa: divida todo o campo story da LIÇÃO BÍBLICA em exatamente visualConfig.quantity trechos literais, contínuos, consecutivos, não sobrepostos e na ordem original. Não omita nem repita nenhuma parte. Cada asset recebe id visual-01, visual-02 etc. e sourceExcerpt com seu trecho exato.'
+        : cutoutKitPromptRules(input.visualConfig?.quantity ?? 4),
       'Na BRINCADEIRA, gere exatamente um visual de instrução para cada item de steps, na mesma ordem. Cada asset usa id instrucao-01, instrucao-02 etc., stepNumber sequencial e instruction como cópia literal do passo correspondente. A imagem demonstra visualmente como executar esse passo; não gere decoração genérica nem texto dentro da arte.',
       'Na BRINCADEIRA, diversão é requisito verificável: combine 2 ou 3 mecânicas lúdicas, mantenha todas as crianças ativas, evite filas, eliminação, espera longa, questionário e encenação passiva. A mesma regra central atende de 5 a 11 anos, com simplificação concreta para 5 a 7 e desafio opcional para 8 a 11 anos.',
       'Quando previousVariants estiver preenchido para BRINCADEIRA, trata-se de uma regeneração: crie outra brincadeira do zero. Todas as brincadeiras desse histórico são referências negativas. É proibido reutilizar qualquer nome anterior, inclusive com pequena mudança de pontuação, artigo, subtítulo ou grafia. Não revise, adapte, renomeie nem recicle nenhuma dinâmica anterior. Nome, mecânica principal, organização, materiais característicos e sequência de ações devem ser genuinamente diferentes.',
@@ -472,6 +590,8 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
       theme: input.theme,
       biblicalReference: input.biblicalReference,
       weekNumber: input.weekNumber,
+      category: input.category ?? LessonCategory.REGULAR,
+      specialContext: input.specialContext ?? null,
       stage: input.stage,
       adminPrompt: input.olderMeditationReview ? null : input.adminPrompt,
       approvedUpstream: input.approvedUpstream,
@@ -526,6 +646,7 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
                 schema: schemaFor(
                   input.stage,
                   Boolean(input.olderMeditationReview),
+                  input.category,
                 ),
               },
             },
@@ -591,6 +712,7 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
     visualType?: string,
     identityReferenceImage?: LessonImageReference,
     purpose?: LessonImagePurpose,
+    context?: LessonImageContext,
   ): Promise<Buffer> {
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
     if (!apiKey)
@@ -603,7 +725,10 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
     );
     const startTime = Date.now();
     try {
-      const finalPrompt = `Ilustração bíblica infantil do Clubinho NIB para crianças de ${purpose === LessonImagePurpose.MEDITATION_ACTIVITY ? '4 a 11' : '5 a 11'} anos. Fidelidade ao contexto bíblico da NVI e à descrição fechada recebida da lição aprovada. Não acrescente personagens, fatos ou símbolos não pedidos. Estratégia pedagógica: ${visualType || 'definida no prompt'}. Orientação obrigatória: ${orientation || 'definida no prompt'}. Sem conteúdo sexual, romântico, erotizado, violência gráfica ou debates de sexualidade. Obedeça literalmente ao estilo, orientação, paleta, margem e finalidade pedidos a seguir. ${lessonImageTextPolicy(purpose)} ${prompt}`;
+      const finalPrompt =
+        purpose === LessonImagePurpose.CUTOUT_SHEET
+          ? `Prancha de elementos ilustrados para recortar, para crianças de 5 a 11 anos. Orientação obrigatória: ${orientation || 'definida no prompt'}. Sem conteúdo sexual, romântico, erotizado, violência gráfica ou debates de sexualidade. ${lessonImageTextPolicy(purpose)} ${prompt}`
+          : `${lessonImageContextPrompt(context)} Para crianças de ${purpose === LessonImagePurpose.MEDITATION_ACTIVITY ? '4 a 11' : '5 a 11'} anos. Não acrescente personagens, fatos ou símbolos não pedidos. Estratégia pedagógica: ${visualType || 'definida no prompt'}. Orientação obrigatória: ${orientation || 'definida no prompt'}. Sem conteúdo sexual, romântico, erotizado, violência gráfica ou debates de sexualidade. Obedeça literalmente ao estilo, orientação, paleta, margem e finalidade pedidos a seguir. ${lessonImageTextPolicy(purpose)} ${prompt}`;
       const size = orientation === 'PORTRAIT' ? '1024x1536' : '1536x1024';
       const request = () =>
         identityReferenceImage

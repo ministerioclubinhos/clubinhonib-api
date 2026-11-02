@@ -707,6 +707,14 @@ novamente. A identificação do provedor ignora maiúsculas e minúsculas,
 incluindo mensagens como `GEMINI_API_KEY não configurada`. Falhas sem
 identificação de provedor não são atribuídas automaticamente ao OpenAI.
 
+## Estúdio: upstream changes during generation
+
+`UPSTREAM_CHANGED` means the completed upstream content differs between generation
+start and the transactional commit check. The commit reloads versions after
+locking the lesson and orders dependencies canonically, so unloaded relations or
+query ordering do not trigger this error. A real conflict preserves the previous
+version, removes uncommitted uploads and requires generating the item again.
+
 ## Estúdio: resposta incompleta
 
 `AI_CONTENT_INVALID` identifies local content validation failures during stage

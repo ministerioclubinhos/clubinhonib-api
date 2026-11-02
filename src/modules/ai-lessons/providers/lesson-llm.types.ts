@@ -1,9 +1,10 @@
-import { LessonStageType } from '../enums/lesson.enums';
+import { LessonCategory, LessonStageType } from '../enums/lesson.enums';
 import { LessonTemplateContract } from '../templates/lesson-templates';
 
 export enum LessonImagePurpose {
   MEDITATION_ACTIVITY = 'MEDITATION_ACTIVITY',
   MANUAL_COLORING = 'MANUAL_COLORING',
+  CUTOUT_SHEET = 'CUTOUT_SHEET',
 }
 
 export enum LessonLlmProvider {
@@ -19,7 +20,9 @@ export type LessonLlmGenerationResult = {
 export type LessonLlmGenerationInput = {
   theme: string;
   biblicalReference: string;
-  weekNumber: number;
+  weekNumber: number | null;
+  category?: LessonCategory;
+  specialContext?: string | null;
   stage: LessonStageType;
   template: LessonTemplateContract;
   approvedUpstream: Record<string, unknown> | null;
@@ -47,6 +50,21 @@ export type LessonImageReference = {
   mimeType: 'image/jpeg' | 'image/png';
 };
 
+export interface LessonImageContext {
+  category: LessonCategory;
+}
+
+export interface LessonAttemptProviderMetadata {
+  provider: string;
+  textModel: string;
+  imageModel: string;
+}
+
+export interface LessonAttemptProviderSnapshot {
+  provider: LessonLlmProviderContract;
+  metadata: LessonAttemptProviderMetadata;
+}
+
 export interface LessonLlmProviderContract {
   generateStage(
     input: LessonLlmGenerationInput,
@@ -58,7 +76,12 @@ export interface LessonLlmProviderContract {
     visualType?: string,
     identityReferenceImage?: LessonImageReference,
     purpose?: LessonImagePurpose,
+    context?: LessonImageContext,
   ): Promise<Buffer>;
+
+  createAttemptProvider?(
+    frozen?: LessonAttemptProviderMetadata,
+  ): Promise<LessonAttemptProviderSnapshot>;
 }
 
 export interface LessonProviderConfig {

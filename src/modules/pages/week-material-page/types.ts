@@ -34,6 +34,7 @@ export interface WeekMaterialPageContent {
   subtitle: string;
   description: string;
   currentWeek: boolean;
+  sourceLessonId?: string | null;
 }
 
 /** Campo pelo qual a listagem pode ser ordenada. */

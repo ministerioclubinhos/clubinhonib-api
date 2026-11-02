@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Put, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 import { AdminRoleGuard } from 'src/core/auth/guards/role-guard';
 import { AiProvidersConfigService } from '../services/ai-providers-config.service';
@@ -39,10 +39,8 @@ export class AiProvidersController {
   }
 
   @Get('openai/models')
-  getOpenAiModels(
-    @Query('apiKey') apiKey?: string,
-  ): Promise<AiProviderModelsResponseDto> {
-    return this.service.getOpenAiModels(apiKey);
+  getOpenAiModels(): Promise<AiProviderModelsResponseDto> {
+    return this.service.getOpenAiModels();
   }
 
   @Get('openai/settings')

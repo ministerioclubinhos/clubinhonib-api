@@ -32,6 +32,25 @@ export const LESSON_STAGE_ORDER: readonly LessonStageType[] = [
   LessonStageType.MANUAL_WORK,
 ];
 
+export enum LessonCategory {
+  REGULAR = 'REGULAR', // Material Semanal (8 itens)
+  SPECIAL = 'SPECIAL', // Material Especial (3 itens: Lição, Visual da Lição, Visual do Versículo)
+}
+
+export const SPECIAL_LESSON_STAGE_ORDER: readonly LessonStageType[] = [
+  LessonStageType.LESSON,
+  LessonStageType.LESSON_VISUALS,
+  LessonStageType.VERSE_VISUALS,
+];
+
+export function getLessonStageOrder(
+  category?: LessonCategory | null,
+): readonly LessonStageType[] {
+  return category === LessonCategory.SPECIAL
+    ? SPECIAL_LESSON_STAGE_ORDER
+    : LESSON_STAGE_ORDER;
+}
+
 export enum LessonStageStatus {
   NOT_STARTED = 'NOT_STARTED',
   GENERATING = 'GENERATING',
@@ -51,10 +70,20 @@ export enum LessonVersionSource {
 }
 
 export enum LessonVisualType {
+  CUTOUT_KIT = 'CUTOUT_KIT',
   STORY_SEQUENCE = 'STORY_SEQUENCE',
   CHARACTER_AND_EMOTION = 'CHARACTER_AND_EMOTION',
   VISUAL_ANCHORS = 'VISUAL_ANCHORS',
   INTERACTIVE_COLORING = 'INTERACTIVE_COLORING',
+}
+
+export enum CutoutCategory {
+  CHARACTERS = 'CHARACTERS',
+  ANIMALS = 'ANIMALS',
+  BUILDINGS = 'BUILDINGS',
+  SCENERY = 'SCENERY',
+  SKY_AND_NATURE = 'SKY_AND_NATURE',
+  OBJECTS = 'OBJECTS',
 }
 
 export enum LessonVisualOrientation {

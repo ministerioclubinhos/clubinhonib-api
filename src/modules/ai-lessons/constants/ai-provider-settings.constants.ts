@@ -4,8 +4,17 @@ export enum AiProviderSettingsKey {
   ACTIVE = 'active',
 }
 
+export enum AiModelCatalogSource {
+  LIVE = 'LIVE',
+  FALLBACK = 'FALLBACK',
+  STATIC = 'STATIC',
+}
+
 export const AI_PROVIDER_MAX_RETRIES = 10;
 export const AI_PROVIDER_MAX_RETRY_DELAY_MS = 10000;
+export const AI_PROVIDER_MAX_MODEL_LENGTH = 120;
+export const AI_PROVIDER_MAX_OPTION_LENGTH = 40;
+export const AI_PROVIDER_MAX_API_KEY_LENGTH = 512;
 export const DEFAULT_OPENAI_GENERAL_MODELS = [
   'gpt-6-luna',
   'gpt-5.6-luna',

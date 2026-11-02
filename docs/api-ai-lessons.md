@@ -44,6 +44,17 @@ Ao regenerar uma brincadeira existente, todas as versões anteriores são enviad
 
 Prompts personalizados são anexados ao prompt-base da etapa. Eles nunca substituem as regras editoriais, a segurança infantil, o formato de impressão ou o contrato bíblico.
 
+
+### Visuais da história: kit de recortes (template 3.0.0, 2026-11-02)
+
+Para lições `REGULAR`, `visualConfig.type` é sempre `CUTOUT_KIT` (omitido na requisição, assume o padrão; outros tipos retornam 400). A Lição Especial mantém os cartazes de cena (`STORY_SEQUENCE` etc.) e rejeita `CUTOUT_KIT`. `visualConfig.quantity` (4 a 10) passa a significar o número de pranchas. Lições antigas continuam legíveis (`sourceExcerpt` é opcional).
+
+Cada asset é uma prancha: `{ id: 'kit-NN', category, title, items[], layoutPlan, prompt, altText }`, com `items[] = { label, description, category, storyEvidence, variantOf, extra, size }` e `category` em `CHARACTERS | ANIMALS | BUILDINGS | SCENERY | SKY_AND_NATURE | OBJECTS`. A resposta traz também `coverageChecklist` (6 categorias, `COVERED` ou `NOT_APPLICABLE` com justificativa).
+
+Validação no servidor (com correção automática até `STORY_VISUAL_MAX_CORRECTIONS`): IDs sequenciais, quantidade exata, `storyEvidence` literal na lição (vazio só em itens neutros de `SKY_AND_NATURE` ou `extra`), `layoutPlan` e `size` declarados, checklist completo e coerente, ao menos uma prancha de personagens, uma de cenário/construções e itens de céu e natureza, e pelo menos `quantity - 4` itens `extra` quando houver mais de 4 pranchas. O básico entra em qualquer quantidade; `CUTOUT_KIT_TIERS` só reorganiza categorias e acrescenta peças.
+
+As imagens usam `LessonImagePurpose.CUTOUT_SHEET` (fundo branco, sem texto). A prancha `CHARACTERS` é gerada primeiro e serve de identidade visual; o array salvo mantém a ordem original. As legendas (`items[].label`) são aplicadas pelo exportador DOCX/PDF abaixo da imagem.
+
 ## Provedor de IA
 
 O Estúdio usa exclusivamente as configurações persistidas por `/adm/config-provedores-ia` na tabela `ai_provider_settings`. Nenhum provedor, modelo, chave ou parâmetro de LLM é lido de variáveis de ambiente. Sem configurações salvas, a API devolve valores iniciais editáveis e chaves vazias; não importa credenciais do ambiente nem usa chaves embutidas.
@@ -63,6 +74,22 @@ Uma lição percorre `DRAFT`, `IN_PROGRESS`, `PACKAGE_READY`, `IN_REVIEW`, `CHAN
 `GET /api/v1/lessons/:id` é leitura pura: nunca cria etapas, atualiza templates ou revoga aprovação. A criação do pacote grava a lição e suas oito etapas numa única transação.
 
 `GET /api/v1/lessons/:id/events` mantém um stream SSE autenticado com snapshots do pacote. `POST /api/v1/lessons/:id/stages/generate` persiste a solicitação e retorna sem aguardar o LLM; o processamento continua em background e é retomado na inicialização da API quando uma etapa permaneceu em `GENERATING`.
+
+Each generation lease uses a fresh UUID per attempt, fitting the existing
+`generation_lease_owner` column (`varchar(36)`). The same UUID identifies lease
+renewals and ownership checks before committing or recording a failure. Pending
+requests are checked at startup and every five seconds; only an absent or expired
+lease can be acquired. A rejected claim never starts generation. Requests blocked
+by the former 73-character `workerId:uuid` value resume through this existing
+mechanism after the corrected API starts, without resetting their content or status.
+
+Before saving a generated version, the API locks the lesson, verifies lease
+ownership and reloads the stage versions using the same transaction manager.
+The upstream checksum includes completed stages in canonical production order,
+independent of the order returned by MySQL. The lightweight locking query does
+not load versions and must not be used as the source for that checksum.
+`UPSTREAM_CHANGED` rejects actual content changes during generation and removes
+the uncommitted uploads; unchanged upstream content allows the result to be saved.
 
 ## Listagem
 
@@ -305,3 +332,16 @@ Falhas ao carregar a lição, exportar ou converter o PDF durante a publicação
 Weekly material publication now renders the eight approved stages as eight independently named PDF documents, each with a unique upload field and filename. All PDFs must succeed before the weekly page is created. The page title includes the week number and theme, and its public route follows the existing weekly-material route generator (`materiais_semanal_` + normalized title). Consolidated PDF export remains available separately. Already published lessons retain their existing link and are not silently duplicated or rewritten.
 
 Image generation retries a transient socket reset (ECONNRESET/EPIPE) or temporary DNS failure (EAI_AGAIN) exactly once after 1.5 seconds, recreating only the same image request. Text and previously completed artwork are not regenerated during that retry. Invalid requests, authorization/billing/429 errors, and ambiguous timeouts are not retried by this policy. Exhausted connection failures expose AI_CONNECTION_INTERRUPTED rather than AI_UNKNOWN_ERROR; the previous persisted version remains intact. Provider retries can incur additional image charges.
+
+## Melhorias de Segurança, Concorrência e Resiliência (2026-11-01 — BE01 a BE10)
+
+- **BE01 — Leitura segura de assets (SSRF / validação de imagem)**: `downloadSafeImageBuffer` valida protocolo (`http`/`https`), rejeita credenciais na URL, bloqueia IPs privados/loopback/link-local/CGNAT/multicast/reservados em IPv4 e IPv6 (incluindo IPv4-mapped `::ffff:` e representações numéricas/octais/hexadecimais), fixa o IP resolvido no agente HTTP/HTTPS para evitar DNS rebinding, rejeita redirecionamentos (`maxRedirects: 0`), limita o download a 10 MiB e valida a assinatura binária (PNG/JPEG/WebP) antes de incorporar imagens ao DOCX/PDF.
+- **BE02 — Rastreamento de propriedade de assets S3 e auditoria de órfãos**: As versões geradas registram explicitamente os URLs criados em `_ownedAssetUrls`. Edições manuais preservam os assets de servidor (`preserveServerOwnedAssetsOnManualSave`), e `delete` remove no S3 apenas chaves pertencentes à própria lição (`<lessonId>-...`) que não estejam referenciadas por outras lições (`isAssetReferencedElsewhere`). O script `scripts/s3/audit-orphans.js` consulta `media_items` e `lesson_versions` (`docx_s3_key`, `pdf_s3_key`, `structured_data_json`) antes de classificar qualquer objeto como órfão.
+- **BE03 — Reconciliação canônica do conteúdo editado**: `reconcileStageStructuredContent` sincroniza o AST Tiptap editado com `structuredDataJson` para `LESSON` (incluindo `title`, `biblicalReference`, `purpose`, `songs`, `memoryVerse`, `principleExplanation`, `story`, `applicationAndAppeal`, `counseling`, `reviewQuestions`, `closingPrayer`), `STANDARD_GAME`, `VERSE_FIXATION`, `MEDITATION_YOUNGER` e `MEDITATION_OLDER`. `assertStageReadyForCompletionOrPublication` impede concluir, aprovar, visualizar PDF ou publicar etapas com campos obrigatórios vazios ou desalinhados.
+- **BE04 — Revisão, conclusão e preview PDF vinculados a `lockVersion` / `versionId`**: `completeProductionStage`, `approveStage`, `requestChanges` e `previewStagePdf` validam `lockVersion` (e `versionId` no preview/publicação) e bloqueiam mutações quando outra etapa está em `GENERATING` ou a lição está em `PUBLISHING`.
+- **BE05 — Lease de publicação, recuperação automática e `sourceLessonId` único**: `lessons` persiste `publication_lease_owner`, `publication_lease_until`, `publication_reserved_versions_json` e `publication_failure_message`. `week_material_pages` persiste `sourceLessonId` com índice único (`uq_week_material_pages_source_lesson_id`). Publicações interrompidas com lease expirado são reconciliadas automaticamente a cada 15 segundos ou na nova tentativa de publicação.
+- **BE06 — Concorrência e redefinição monotônica de prompts do administrador**: `AdminLessonPromptService` protege `(adminId, stage)` contra corridas em voo, executa atualização condicional por `lock_version` no banco e mantém a linha com `custom_prompt = ''` e `lock_version` monotônico ao restaurar o padrão.
+- **BE07 — Snapshot imutável por tentativa e limite de concorrência do LibreOffice**: Cada tentativa de geração captura um snapshot congelado (`FrozenAttemptProviderConfig`) do provedor e modelos no início da tentativa, registrando o provedor real em `changeSummary`. `PdfLibreOfficeService` limita conversões simultâneas via semáforo (`PDF_CONVERSION_MAX_CONCURRENCY`, padrão `2`) e garante limpeza do diretório temporário.
+- **BE08 — Modo compacto (`view=compact`) e heartbeats SSE com tempo de vida limitado**: `GET /api/v1/lessons/:id?view=compact` e `GET /api/v1/lessons/:id/events?view=compact` retornam apenas a versão atual (`currentVersionId`) de cada etapa. O stream SSE deduplica snapshots idênticos por digest completo, emite eventos `heartbeat` quando não há mudança e encerra após 90 ciclos (~180 s) para rotação limpa de conexão.
+- **BE09 — Proveniência explícita do catálogo de modelos e criptografia de chaves em repouso**: `GET /api/v1/lessons/providers/openai/models` não aceita mais `apiKey` na query string e informa `source: 'LIVE' | 'FALLBACK'`, `isLive` e `warning`. `GET /api/v1/lessons/providers/gemini/models` informa `source: 'STATIC'` e `isLive: false`. Quando `AI_PROVIDER_SETTINGS_ENCRYPTION_KEY` está configurada, `apiKey` é persistida criptografada com AES-256-GCM (`enc:v1:...`), mantendo compatibilidade de leitura com valores legados.
+

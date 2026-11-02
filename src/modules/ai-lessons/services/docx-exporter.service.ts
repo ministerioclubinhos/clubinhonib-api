@@ -1,4 +1,5 @@
 import { buildManualWorkSheet } from '../utils/manual-work-layout.utils';
+import { specialPresentationGuide } from '../utils/special-presentation-guide.utils';
 import { MANUAL_WORK_LAYOUT } from '../constants/manual-work-layout.constants';
 import { editedOlderMeditation } from '../utils/older-meditation-content.utils';
 import { buildOlderMeditationSheet } from '../utils/older-meditation-layout.utils';
@@ -7,7 +8,6 @@ import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import axios from 'axios';
 import {
   AlignmentType,
   BorderStyle,
@@ -25,7 +25,7 @@ import {
   ParagraphChild,
   WidthType,
 } from 'docx';
-import { LessonStageType } from '../enums/lesson.enums';
+import { LessonCategory, LessonStageType } from '../enums/lesson.enums';
 import {
   documentFontFamily,
   documentFontSize,
@@ -38,7 +38,11 @@ import type { LessonInlineExportOptions } from '../types/lesson-document.types';
 import { YOUNGER_MEDITATION_LAYOUT } from '../constants/younger-meditation-layout.constants';
 import { buildYoungerMeditationSheet } from '../utils/younger-meditation-layout.utils';
 import { editedYoungerMeditation } from '../utils/younger-meditation-content.utils';
-import { assertSafeImageUrl } from '../utils/asset-url.utils';
+import {
+  downloadSafeImageBuffer,
+  type SafeImageDownloadOptions,
+} from '../utils/asset-url.utils';
+import { reconcileStageStructuredContent } from '../utils/lesson-canonical-content.utils';
 import {
   lessonHeaderLines,
   lessonString,
@@ -52,11 +56,18 @@ type Alignment = (typeof AlignmentType)[keyof typeof AlignmentType];
 
 @Injectable()
 export class DocxExporterService {
+  private downloadOptions: SafeImageDownloadOptions = {};
+
   constructor(private readonly config: ConfigService) {}
+
+  setDownloadOptions(options: SafeImageDownloadOptions): void {
+    this.downloadOptions = options;
+  }
 
   async buildDocxFromTiptapOrStructuredJson(
     input: Json,
-    weekNumber?: number,
+    weekNumber?: number | null,
+    category?: LessonCategory | null,
   ): Promise<Buffer> {
     const children: (Paragraph | Table)[] = [];
     const lesson = this.stageData(input[LessonStageType.LESSON]);
@@ -65,12 +76,14 @@ export class DocxExporterService {
       if (lessonDoc) {
         this.addTiptap(
           children,
-          normalizeLessonDocumentHeader(lessonDoc, weekNumber),
+          normalizeLessonDocumentHeader(lessonDoc, weekNumber, category),
         );
       } else {
-        lessonHeaderLines(lessonString(lesson.title), weekNumber).forEach(
-          (line) => this.addHeading(children, line, 1),
-        );
+        lessonHeaderLines(
+          lessonString(lesson.title),
+          weekNumber,
+          category,
+        ).forEach((line) => this.addHeading(children, line, 1));
         this.addField(children, 'TEXTO BÍBLICO', lesson.biblicalReference);
         this.addField(children, 'PROPÓSITO', lesson.purpose);
         this.addList(children, 'MÚSICAS', lesson.songs);
@@ -116,11 +129,28 @@ export class DocxExporterService {
       }
     }
     const visualStage = this.stageData(input[LessonStageType.LESSON_VISUALS]);
-    const gameStage = this.stageData(input[LessonStageType.STANDARD_GAME]);
+    if (category === LessonCategory.SPECIAL) {
+      children.push(...specialPresentationGuide(visualStage.assets));
+    }
+    const rawGameData = this.stageData(input[LessonStageType.STANDARD_GAME]);
+    const gameStage = reconcileStageStructuredContent(
+      LessonStageType.STANDARD_GAME,
+      rawGameData,
+      rawGameData,
+      this.stageDocument(input[LessonStageType.STANDARD_GAME]),
+    );
     const verseVisualStage = this.stageData(
       input[LessonStageType.VERSE_VISUALS],
     );
-    const fixationStage = this.stageData(input[LessonStageType.VERSE_FIXATION]);
+    const rawFixationData = this.stageData(
+      input[LessonStageType.VERSE_FIXATION],
+    );
+    const fixationStage = reconcileStageStructuredContent(
+      LessonStageType.VERSE_FIXATION,
+      rawFixationData,
+      rawFixationData,
+      this.stageDocument(input[LessonStageType.VERSE_FIXATION]),
+    );
     const youngerMeditation = editedYoungerMeditation(
       this.stageData(input[LessonStageType.MEDITATION_YOUNGER]),
       this.stageDocument(input[LessonStageType.MEDITATION_YOUNGER]),
@@ -921,7 +951,8 @@ export class DocxExporterService {
     if (!Object.keys(data).length) return;
     this.addHeading(out, title, 1);
     for (const [key, value] of Object.entries(data)) {
-      if (key === 'assets' || key === 'printableAssets') continue;
+      if (key === 'assets' || key === 'printableAssets' || key.startsWith('_'))
+        continue;
       if (typeof value === 'string') this.addField(out, key, value);
       else if (
         Array.isArray(value) &&
@@ -929,6 +960,16 @@ export class DocxExporterService {
       )
         this.addList(out, key, value);
     }
+  }
+
+  /** Legendas do kit de recortes: nomes dos elementos aplicados pelo renderer, nunca embutidos na imagem. */
+  private cutoutLegend(asset: Json): string {
+    if (!Array.isArray(asset.items)) return '';
+    return asset.items
+      .map((item) => this.object(item).label)
+      .filter((label): label is string => typeof label === 'string' && !!label.trim())
+      .map((label, index) => `${index + 1}. ${label.trim()}`)
+      .join('   ');
   }
 
   private async landscapeAssetPages(
@@ -956,6 +997,7 @@ export class DocxExporterService {
             : typeof asset.displayText === 'string'
               ? asset.displayText.trim()
               : '';
+        const legend = imageOnly ? '' : this.cutoutLegend(asset);
         const visualContent = [
           ...(displayText
             ? [
@@ -980,14 +1022,25 @@ export class DocxExporterService {
               new ImageRun({
                 data: image,
                 transformation: {
-                  width: displayText ? 984 : 1070,
-                  height: displayText ? 620 : 758,
+                  width: displayText || legend ? 984 : 1070,
+                  height: displayText || legend ? 620 : 758,
                 },
                 type: 'png',
               }),
             ],
             spacing: { after: 0 },
           }),
+          ...(legend
+            ? [
+                new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  children: [
+                    new TextRun({ text: legend, size: 20, color: '333333' }),
+                  ],
+                  spacing: { before: 40, after: 0 },
+                }),
+              ]
+            : []),
         ];
         pages.push([
           new Table({
@@ -1149,11 +1202,13 @@ export class DocxExporterService {
   }
 
   private async downloadImage(url: string): Promise<Buffer> {
-    assertSafeImageUrl(url);
-    const image = await axios.get<ArrayBuffer>(url, {
-      responseType: 'arraybuffer',
-      timeout: 30000,
+    const bucketName =
+      this.downloadOptions.bucketName ??
+      this.config?.get<string>('AWS_S3_BUCKET_NAME') ??
+      undefined;
+    return downloadSafeImageBuffer(url, {
+      ...this.downloadOptions,
+      bucketName,
     });
-    return Buffer.from(image.data);
   }
 }

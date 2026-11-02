@@ -1,58 +1,91 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsDefined,
   IsEnum,
   IsInt,
-  IsOptional,
   IsString,
   Max,
+  MaxLength,
   Min,
+  MinLength,
   ValidateNested,
   ValidateIf,
 } from 'class-validator';
 import { LessonLlmProvider } from '../providers/lesson-llm.types';
 import {
+  AI_PROVIDER_MAX_API_KEY_LENGTH,
+  AI_PROVIDER_MAX_MODEL_LENGTH,
+  AI_PROVIDER_MAX_OPTION_LENGTH,
   AI_PROVIDER_MAX_RETRIES,
   AI_PROVIDER_MAX_RETRY_DELAY_MS,
 } from '../constants/ai-provider-settings.constants';
 
+const trimIfString = ({ value }: { value: unknown }): unknown =>
+  typeof value === 'string' ? value.trim() : value;
+
 export class SaveOpenAiSettingsDto {
-  @IsOptional()
+  @ValidateIf((_object: unknown, value: unknown) => value !== undefined)
+  @Transform(trimIfString)
   @IsString()
+  @MinLength(1)
+  @MaxLength(AI_PROVIDER_MAX_MODEL_LENGTH)
   generalModel?: string;
 
-  @IsOptional()
+  @ValidateIf((_object: unknown, value: unknown) => value !== undefined)
+  @Transform(trimIfString)
   @IsString()
+  @MinLength(1)
+  @MaxLength(AI_PROVIDER_MAX_MODEL_LENGTH)
   imageModel?: string;
 
-  @IsOptional()
+  @ValidateIf((_object: unknown, value: unknown) => value !== undefined)
+  @Transform(trimIfString)
   @IsString()
+  @MinLength(1)
+  @MaxLength(AI_PROVIDER_MAX_OPTION_LENGTH)
   imageQuality?: string;
 
-  @IsOptional()
+  @ValidateIf((_object: unknown, value: unknown) => value !== undefined)
+  @Transform(trimIfString)
   @IsString()
+  @MinLength(1)
+  @MaxLength(AI_PROVIDER_MAX_OPTION_LENGTH)
   reasoningEffort?: string;
 
-  @IsOptional()
+  @ValidateIf((_object: unknown, value: unknown) => value !== undefined)
+  @Transform(trimIfString)
   @IsString()
+  @MaxLength(AI_PROVIDER_MAX_API_KEY_LENGTH)
   apiKey?: string;
 }
 
 export class SaveGeminiSettingsDto {
-  @IsOptional()
+  @ValidateIf((_object: unknown, value: unknown) => value !== undefined)
+  @Transform(trimIfString)
   @IsString()
+  @MinLength(1)
+  @MaxLength(AI_PROVIDER_MAX_MODEL_LENGTH)
   generalModel?: string;
 
-  @IsOptional()
+  @ValidateIf((_object: unknown, value: unknown) => value !== undefined)
+  @Transform(trimIfString)
   @IsString()
+  @MinLength(1)
+  @MaxLength(AI_PROVIDER_MAX_MODEL_LENGTH)
   fallbackModel?: string;
 
-  @IsOptional()
+  @ValidateIf((_object: unknown, value: unknown) => value !== undefined)
+  @Transform(trimIfString)
   @IsString()
+  @MinLength(1)
+  @MaxLength(AI_PROVIDER_MAX_MODEL_LENGTH)
   imageModel?: string;
 
-  @IsOptional()
+  @ValidateIf((_object: unknown, value: unknown) => value !== undefined)
+  @Transform(trimIfString)
   @IsString()
+  @MinLength(1)
+  @MaxLength(AI_PROVIDER_MAX_OPTION_LENGTH)
   imageSize?: string;
 
   @ValidateIf((_object: unknown, value: unknown) => value !== undefined)
@@ -69,8 +102,10 @@ export class SaveGeminiSettingsDto {
   @Max(AI_PROVIDER_MAX_RETRY_DELAY_MS)
   retryBaseDelayMs?: number;
 
-  @IsOptional()
+  @ValidateIf((_object: unknown, value: unknown) => value !== undefined)
+  @Transform(trimIfString)
   @IsString()
+  @MaxLength(AI_PROVIDER_MAX_API_KEY_LENGTH)
   apiKey?: string;
 }
 

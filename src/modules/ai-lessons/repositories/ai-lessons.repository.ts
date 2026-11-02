@@ -118,7 +118,8 @@ export class AiLessonsRepository {
   async findDraftsPaginated(
     params: QueryLessonsDto,
   ): Promise<{ items: LessonEntity[]; total: number }> {
-    const { status, statuses, search, page, limit, sort, order } = params;
+    const { status, statuses, category, search, page, limit, sort, order } =
+      params;
 
     const query = this.lessonsRepo
       .createQueryBuilder('lesson')
@@ -132,6 +133,9 @@ export class AiLessonsRepository {
       query.andWhere('lesson.status IN (:...statuses)', { statuses });
     } else if (status) {
       query.andWhere('lesson.status = :status', { status });
+    }
+    if (category) {
+      query.andWhere('lesson.category = :category', { category });
     }
     if (search?.trim()) {
       query.andWhere(
@@ -227,11 +231,98 @@ export class AiLessonsRepository {
     stageId: string,
     owner: string,
     leaseUntil: Date,
-  ): Promise<void> {
-    await this.stagesRepo.update(
-      { id: stageId, generationLeaseOwner: owner },
+  ): Promise<boolean> {
+    const result = await this.stagesRepo.update(
+      {
+        id: stageId,
+        generationLeaseOwner: owner,
+        status: LessonStageStatus.GENERATING,
+      },
       { generationLeaseUntil: leaseUntil },
     );
+    return (result.affected ?? 0) === 1;
+  }
+
+  async findPublishingLessons(): Promise<LessonEntity[]> {
+    return this.lessonsRepo.find({
+      where: { status: LessonStatus.PUBLISHING },
+      relations: ['stages'],
+    });
+  }
+
+  async claimPublication(
+    lessonId: string,
+    owner: string,
+    leaseUntil: Date,
+  ): Promise<boolean> {
+    const result = await this.lessonsRepo
+      .createQueryBuilder()
+      .update(LessonEntity)
+      .set({ publicationLeaseOwner: owner, publicationLeaseUntil: leaseUntil })
+      .where('id = :lessonId', { lessonId })
+      .andWhere('status = :status', { status: LessonStatus.PUBLISHING })
+      .andWhere(
+        '(publication_lease_until IS NULL OR publication_lease_until < CURRENT_TIMESTAMP)',
+      )
+      .execute();
+    return result.affected === 1;
+  }
+
+  async renewPublicationLease(
+    lessonId: string,
+    owner: string,
+    leaseUntil: Date,
+  ): Promise<boolean> {
+    const result = await this.lessonsRepo.update(
+      {
+        id: lessonId,
+        publicationLeaseOwner: owner,
+        status: LessonStatus.PUBLISHING,
+      },
+      { publicationLeaseUntil: leaseUntil },
+    );
+    return (result.affected ?? 0) === 1;
+  }
+
+  async isAssetReferencedElsewhere(
+    lessonId: string,
+    assetUrl: string,
+  ): Promise<boolean> {
+    const trimmed = assetUrl.trim();
+    if (!trimmed) return false;
+    let keySearch = trimmed;
+    try {
+      const parsed = new URL(trimmed);
+      const cleanPath = decodeURIComponent(
+        parsed.pathname.replace(/^\/+/, ''),
+      ).trim();
+      if (cleanPath) {
+        keySearch = cleanPath.split('/').pop() ?? cleanPath;
+      }
+    } catch {
+      keySearch = trimmed;
+    }
+
+    const otherVersionRows = await this.dataSource.query<Array<{ id: string }>>(
+      `SELECT lv.id
+       FROM lesson_versions lv
+       INNER JOIN lesson_stages ls ON ls.id = lv.stage_id
+       WHERE ls.lesson_id <> ?
+         AND (
+           lv.docx_s3_key = ?
+           OR lv.pdf_s3_key = ?
+           OR CAST(lv.structured_data_json AS CHAR) LIKE ?
+         )
+       LIMIT 1`,
+      [lessonId, trimmed, trimmed, `%${keySearch}%`],
+    );
+    if (otherVersionRows.length > 0) return true;
+
+    const mediaRows = await this.dataSource.query<Array<{ id: string }>>(
+      `SELECT id FROM media_items WHERE url = ? OR url LIKE ? LIMIT 1`,
+      [trimmed, `%${keySearch}%`],
+    );
+    return mediaRows.length > 0;
   }
 
   createVersion(data: Partial<LessonVersionEntity>): LessonVersionEntity {

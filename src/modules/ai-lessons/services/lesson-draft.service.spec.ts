@@ -5,9 +5,17 @@ import type {
 } from '../providers/lesson-llm.types';
 import { LESSON_TEMPLATES } from '../templates/lesson-templates';
 import { ConflictException } from '@nestjs/common';
+import * as crypto from 'node:crypto';
+import { getMetadataArgsStorage } from 'typeorm';
 import { LessonDraftService } from './lesson-draft.service';
 import { AiLessonsRepository } from '../repositories/ai-lessons.repository';
 import { LessonEntity } from '../entities/lesson.entity';
+import { LessonStageEntity } from '../entities/lesson-stage.entity';
+import { LessonVersionEntity } from '../entities/lesson-version.entity';
+import {
+  olderMeditationFixture,
+  OLDER_MEDITATION_SOURCE,
+} from '../fixtures/older-meditation.fixture';
 import { LessonCommentEntity } from '../entities/lesson-comment.entity';
 import {
   LESSON_STAGE_ORDER,
@@ -36,7 +44,10 @@ describe('LessonDraftService workflow safety', () => {
     saveStage: jest.fn(),
     updateStage: jest.fn(),
     findGeneratingStages: jest.fn(),
-    claimGeneration: jest.fn(),
+    claimGeneration: jest.fn<
+      ReturnType<AiLessonsRepository['claimGeneration']>,
+      Parameters<AiLessonsRepository['claimGeneration']>
+    >(),
     renewGenerationLease: jest.fn(),
     createComment: jest.fn((value: Partial<LessonCommentEntity>) => value),
     saveComment: jest.fn(),
@@ -668,6 +679,70 @@ describe('LessonDraftService workflow safety', () => {
     expect(serialized).not.toContain('FUN MECHANICS');
     expect(serialized).not.toContain('AGES8TO11');
   });
+
+  it.each([true, false])(
+    'uses distinct lease UUIDs within the persisted column limit when claimed=%s',
+    async (claimed) => {
+      const tokens = [
+        '005eda9e-6cba-4ac9-a310-4328d6a55838',
+        'c981c1d7-6ebd-4f57-8a23-d89caa989295',
+      ] as const;
+      const uuid = jest
+        .spyOn(crypto, 'randomUUID')
+        .mockReturnValueOnce(tokens[0])
+        .mockReturnValueOnce(tokens[1]);
+      const target = service as unknown as {
+        startGeneration: (stage: LessonStageEntity, token: string) => void;
+      };
+      const start = jest
+        .spyOn(target, 'startGeneration')
+        .mockImplementation(() => undefined);
+      const stage = Object.assign(new LessonStageEntity(), {
+        id: 'stage-pending',
+        lessonId: 'lesson-pending',
+        type: LessonStageType.LESSON_VISUALS,
+        status: LessonStageStatus.GENERATING,
+        generationLeaseOwner: null,
+        generationRequestJson: { stage: LessonStageType.LESSON_VISUALS },
+        generationRequestedById: 'producer',
+      });
+      const column = getMetadataArgsStorage().columns.find(
+        (item) =>
+          item.target === LessonStageEntity &&
+          item.propertyName === 'generationLeaseOwner',
+      );
+      repo.findGeneratingStages.mockResolvedValue([stage]);
+      repo.claimGeneration.mockResolvedValue(claimed);
+
+      try {
+        await service.onApplicationBootstrap();
+        await service.resumePendingGenerations();
+
+        expect(repo.claimGeneration).toHaveBeenCalledTimes(tokens.length);
+        for (const [index, token] of tokens.entries()) {
+          const owner = repo.claimGeneration.mock.calls[index][1];
+          expect(owner.length).toBeLessThanOrEqual(
+            Number(column?.options.length),
+          );
+          expect(repo.claimGeneration).toHaveBeenNthCalledWith(
+            index + 1,
+            stage.id,
+            token,
+            expect.any(Date),
+          );
+          if (claimed)
+            expect(start).toHaveBeenNthCalledWith(index + 1, stage, token);
+        }
+        expect(start).toHaveBeenCalledTimes(claimed ? tokens.length : 0);
+        expect(stage.generationLeaseOwner).toBe(claimed ? tokens[1] : null);
+      } finally {
+        start.mockRestore();
+        uuid.mockRestore();
+        repo.findGeneratingStages.mockResolvedValue([]);
+        repo.claimGeneration.mockReset();
+      }
+    },
+  );
 
   it('marca como falha uma geração legada sem dados persistidos para retomada', async () => {
     const stage = {
@@ -1382,7 +1457,7 @@ describe('LessonDraftService workflow safety', () => {
       }) => unknown;
     };
     const base = {
-      visualType: 'STORY_SEQUENCE',
+      visualType: 'CUTOUT_KIT',
       visualOrientation: 'LANDSCAPE',
     };
 
@@ -1639,6 +1714,132 @@ describe('LessonDraftService workflow safety', () => {
     expect(repo.saveVersion).not.toHaveBeenCalled();
   });
 
+  it.each([false, true])(
+    'commits older meditation with unchanged upstream after the lock query omits versions (reordered=%s)',
+    async (reordered) => {
+      const content = olderMeditationFixture();
+      const attemptToken = '005eda9e-6cba-4ac9-a310-4328d6a55838';
+      const lesson = Object.assign(new LessonEntity(), {
+        id: 'lesson-older-upstream',
+        theme: content.title,
+        biblicalReference: content.biblicalText,
+        weekNumber: 5,
+        status: LessonStatus.IN_PROGRESS,
+        stages: LESSON_STAGE_ORDER.map((type) =>
+          Object.assign(new LessonStageEntity(), {
+            id: `stage-${type}`,
+            lessonId: 'lesson-older-upstream',
+            type,
+            status:
+              type === LessonStageType.MEDITATION_OLDER
+                ? LessonStageStatus.GENERATING
+                : type === LessonStageType.MANUAL_WORK
+                  ? LessonStageStatus.NOT_STARTED
+                  : LessonStageStatus.PRODUCER_APPROVED,
+            generationLeaseOwner:
+              type === LessonStageType.MEDITATION_OLDER ? attemptToken : null,
+            currentVersionId: `version-${type}`,
+            versions: [
+              Object.assign(new LessonVersionEntity(), {
+                id: `version-${type}`,
+                versionNumber: 1,
+                structuredDataJson:
+                  type === LessonStageType.LESSON
+                    ? {
+                        ...OLDER_MEDITATION_SOURCE,
+                        memoryVerse: {
+                          text: content.verseText,
+                          reference: content.verseReference,
+                          version: content.verseVersion,
+                        },
+                      }
+                    : { marker: type },
+              }),
+            ],
+          }),
+        ),
+      });
+      const refreshed = structuredClone(lesson);
+      if (reordered) refreshed.stages.reverse();
+      const locked = Object.assign(new LessonEntity(), {
+        ...refreshed,
+        stages: refreshed.stages.map((stage) =>
+          Object.assign(new LessonStageEntity(), {
+            id: stage.id,
+            type: stage.type,
+            status: stage.status,
+            currentVersionId: stage.currentVersionId,
+            generationLeaseOwner: stage.generationLeaseOwner,
+          }),
+        ),
+      });
+      const llm = {
+        generateStage: jest
+          .fn<Promise<LessonLlmGenerationResult>, [LessonLlmGenerationInput]>()
+          .mockResolvedValue({
+            responseId: 'review-ok',
+            content: { issues: [] },
+          })
+          .mockResolvedValueOnce({ responseId: 'generated-older', content }),
+        generateImage: jest
+          .fn()
+          .mockResolvedValue(
+            Buffer.from(
+              'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aS1sAAAAASUVORK5CYII=',
+              'base64',
+            ),
+          ),
+      };
+      const s3 = {
+        upload: jest.fn().mockResolvedValue('https://s3.example.com/older.png'),
+        delete: jest.fn().mockResolvedValue(undefined),
+      };
+      const instance = new LessonDraftService(
+        repo as unknown as AiLessonsRepository,
+        llm as LessonLlmProviderContract,
+        s3 as unknown as AwsS3Service,
+        {} as DocxExporterService,
+        {} as PdfLibreOfficeService,
+        weekMaterials as unknown as WeekMaterialsPageCreateService,
+        weekMaterialsGet as unknown as WeekMaterialsPageGetService,
+        {
+          effective: jest.fn().mockResolvedValue(''),
+        } as unknown as AdminLessonPromptService,
+      );
+      repo.findLessonById
+        .mockResolvedValueOnce(lesson)
+        .mockResolvedValue(refreshed);
+      repo.findLessonByIdForUpdate.mockResolvedValue(locked);
+      const target = instance as unknown as {
+        executeStageGeneration: (
+          id: string,
+          dto: { stage: LessonStageType },
+          userId: string,
+          token: string,
+        ) => Promise<void>;
+      };
+
+      await target.executeStageGeneration(
+        lesson.id,
+        { stage: LessonStageType.MEDITATION_OLDER },
+        'producer',
+        attemptToken,
+      );
+
+      expect(repo.saveVersion).toHaveBeenCalledTimes(1);
+      const stage = locked.stages.find(
+        (item) => item.type === LessonStageType.MEDITATION_OLDER,
+      )!;
+      expect(stage.status).toBe(LessonStageStatus.DRAFT);
+      expect(stage.failureCode).toBeNull();
+      expect(s3.delete).not.toHaveBeenCalled();
+      expect(repo.findLessonById).toHaveBeenLastCalledWith(
+        lesson.id,
+        expect.any(Object),
+      );
+    },
+  );
+
   it('T-B06: executeStageGeneration aborta commit com UPSTREAM_CHANGED se upstream mudou durante a geração', async () => {
     const stage0 = {
       id: 'stage-0',
@@ -1735,6 +1936,9 @@ describe('LessonDraftService workflow safety', () => {
       ],
     };
     repo.findLessonByIdForUpdate.mockResolvedValue(lockedLesson);
+    repo.findLessonById
+      .mockResolvedValueOnce(lesson)
+      .mockResolvedValue(lockedLesson);
 
     const target = testService as unknown as {
       executeStageGeneration: (
@@ -1810,5 +2014,257 @@ describe('LessonDraftService workflow safety', () => {
       ConflictException,
     );
     expect(repo.removeLesson).not.toHaveBeenCalled();
+  });
+
+  it('sincroniza story, memoryVerse e applicationAndAppeal ao salvar conteúdo editado da LESSON e rejeita edição durante GENERATING', async () => {
+    const stage1 = {
+      id: 'stage-lesson',
+      type: LessonStageType.LESSON,
+      status: LessonStageStatus.DRAFT,
+      lockVersion: 1,
+      currentVersionId: 'v-1',
+      versions: [
+        {
+          id: 'v-1',
+          versionNumber: 1,
+          structuredDataJson: {
+            title: 'LIÇÃO: TEMA ORIGINAL',
+            story: 'Narrativa original.',
+            memoryVerse: {
+              text: 'Versículo original.',
+              reference: 'João 3:16',
+              version: 'NVI',
+            },
+            applicationAndAppeal: 'Aplicação original.',
+          },
+        },
+      ],
+    };
+    const stage2 = {
+      id: 'stage-visuals',
+      type: LessonStageType.LESSON_VISUALS,
+      status: LessonStageStatus.GENERATING,
+      lockVersion: 1,
+      currentVersionId: null,
+      versions: [],
+    };
+    const lesson = {
+      id: 'lesson-sync',
+      status: LessonStatus.IN_PROGRESS,
+      stages: [stage1, stage2],
+    } as unknown as LessonEntity;
+
+    repo.findLessonByIdForUpdate.mockResolvedValue(lesson);
+    repo.findLessonById.mockResolvedValue(lesson);
+
+    await expect(
+      service.saveContent(
+        'lesson-sync',
+        {
+          stage: LessonStageType.LESSON,
+          lockVersion: 1,
+          tiptapAstJson: { type: 'doc', content: [] },
+        },
+        'producer-1',
+      ),
+    ).rejects.toThrow(ConflictException);
+
+    stage2.status = LessonStageStatus.NOT_STARTED;
+    repo.saveVersion.mockImplementation((v: Record<string, unknown>) => {
+      const saved = { ...v, id: 'v-2' };
+      stage1.versions.push(saved as never);
+      return Promise.resolve(saved);
+    });
+
+    await service.saveContent(
+      'lesson-sync',
+      {
+        stage: LessonStageType.LESSON,
+        lockVersion: 1,
+        tiptapAstJson: {
+          type: 'doc',
+          content: [
+            {
+              type: 'heading',
+              attrs: { level: 2 },
+              content: [{ type: 'text', text: 'VERSÍCULO PARA MEMORIZAR' }],
+            },
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: '“O Senhor é o meu pastor.”' }],
+            },
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: 'Salmos 23:1 — NVI' }],
+            },
+            {
+              type: 'heading',
+              attrs: { level: 2 },
+              content: [{ type: 'text', text: 'LIÇÃO BÍBLICA' }],
+            },
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: 'Narrativa editada completa.' }],
+            },
+            {
+              type: 'heading',
+              attrs: { level: 2 },
+              content: [{ type: 'text', text: 'APLICAÇÃO E APELO' }],
+            },
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: 'Aplicação editada.' }],
+            },
+          ],
+        },
+      },
+      'producer-1',
+    );
+
+    const latest = stage1.versions[stage1.versions.length - 1]
+      .structuredDataJson as Record<string, unknown>;
+    expect(latest.story).toBe('Narrativa editada completa.');
+    expect(latest.applicationAndAppeal).toBe('Aplicação editada.');
+    expect(latest.memoryVerse).toEqual({
+      text: 'O Senhor é o meu pastor.',
+      reference: 'Salmos 23:1',
+      version: 'NVI',
+    });
+  });
+
+  it('rejeita approveStage, requestChanges, completeProductionStage e previewStagePdf quando lockVersion ou currentVersionId divergem', async () => {
+    const stage = {
+      id: 'stage-review',
+      type: LessonStageType.LESSON,
+      status: LessonStageStatus.IN_REVIEW,
+      lockVersion: 2,
+      currentVersionId: 'v-2',
+      versions: [
+        {
+          id: 'v-2',
+          versionNumber: 2,
+          structuredDataJson: {
+            story: 'Narrativa válida.',
+            memoryVerse: {
+              text: 'Deus é amor.',
+              reference: '1 João 4:8',
+              version: 'NVI',
+            },
+          },
+        },
+      ],
+    };
+    const lesson = {
+      id: 'lesson-lock-check',
+      weekNumber: 1,
+      status: LessonStatus.IN_REVIEW,
+      stages: [stage],
+    } as unknown as LessonEntity;
+
+    repo.findLessonByIdForUpdate.mockResolvedValue(lesson);
+    repo.findLessonById.mockResolvedValue(lesson);
+
+    await expect(
+      service.approveStage(
+        'lesson-lock-check',
+        LessonStageType.LESSON,
+        'rev-1',
+        1,
+      ),
+    ).rejects.toThrow(ConflictException);
+
+    await expect(
+      service.requestChanges(
+        'lesson-lock-check',
+        LessonStageType.LESSON,
+        'Ajustar texto',
+        'rev-1',
+        1,
+      ),
+    ).rejects.toThrow(ConflictException);
+
+    await expect(
+      service.previewStagePdf(
+        'lesson-lock-check',
+        LessonStageType.LESSON,
+        1,
+        'v-2',
+      ),
+    ).rejects.toThrow(ConflictException);
+
+    await expect(
+      service.previewStagePdf(
+        'lesson-lock-check',
+        LessonStageType.LESSON,
+        2,
+        'v-old',
+      ),
+    ).rejects.toThrow(ConflictException);
+
+    stage.status = LessonStageStatus.DRAFT;
+    lesson.status = LessonStatus.IN_PROGRESS;
+    await expect(
+      service.completeProductionStage(
+        'lesson-lock-check',
+        LessonStageType.LESSON,
+        1,
+      ),
+    ).rejects.toThrow(ConflictException);
+  });
+
+  it('exclui no S3 apenas assets pertencentes à própria lição e ignora URLs arbitrárias injetadas no JSON', async () => {
+    const ownedUrl =
+      'https://studio-bucket.s3.us-east-1.amazonaws.com/lesson-own-1-LESSON_VISUALS-visual-01.png';
+    const foreignUrl =
+      'https://studio-bucket.s3.us-east-1.amazonaws.com/shared-site-banner.png';
+    const deletedUrls: string[] = [];
+
+    const localService = new LessonDraftService(
+      repo as unknown as AiLessonsRepository,
+      {} as LessonLlmProviderContract,
+      {
+        delete: jest.fn((url: string) => {
+          deletedUrls.push(url);
+          return Promise.resolve();
+        }),
+      } as unknown as AwsS3Service,
+      {} as DocxExporterService,
+      {} as PdfLibreOfficeService,
+      weekMaterials as unknown as WeekMaterialsPageCreateService,
+      weekMaterialsGet as unknown as WeekMaterialsPageGetService,
+      {} as AdminLessonPromptService,
+    );
+
+    const lesson = {
+      id: 'lesson-own-1',
+      status: LessonStatus.DRAFT,
+      stages: [
+        {
+          id: 'stage-v',
+          type: LessonStageType.LESSON_VISUALS,
+          status: LessonStageStatus.DRAFT,
+          versions: [
+            {
+              id: 'ver-1',
+              docxS3Key: null,
+              pdfS3Key: null,
+              structuredDataJson: {
+                note: foreignUrl,
+                _ownedAssetUrls: [ownedUrl, foreignUrl],
+                assets: [
+                  { id: 'visual-01', url: ownedUrl },
+                  { id: 'visual-02', url: foreignUrl },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    } as unknown as LessonEntity;
+
+    repo.findLessonById.mockResolvedValue(lesson);
+    await localService.delete('lesson-own-1');
+
+    expect(deletedUrls).toEqual([ownedUrl]);
   });
 });

@@ -1,3 +1,4 @@
+import { AiModelCatalogSource } from '../constants/ai-provider-settings.constants';
 import { LessonLlmProvider } from '../providers/lesson-llm.types';
 
 export class OpenAiSettingsResponseDto {
@@ -26,6 +27,9 @@ export class AiProviderSettingsResponseDto {
 
 export class AiProviderModelsResponseDto {
   models: { general: string[]; image: string[] };
+  source?: AiModelCatalogSource;
+  isLive?: boolean;
+  warning?: string | null;
 }
 
 export interface OpenAiModelListResponse {

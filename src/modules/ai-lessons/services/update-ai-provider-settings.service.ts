@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { AppValidationException, ErrorCode } from 'src/shared/exceptions';
 import { AiProviderSettingRepository } from '../repositories/ai-provider-setting.repository';
 import { AiProviderSettingsKey } from '../constants/ai-provider-settings.constants';
 import { GetAiProviderSettingsService } from './get-ai-provider-settings.service';
@@ -12,6 +13,7 @@ import {
   GeminiSettingsResponseDto,
   OpenAiSettingsResponseDto,
 } from '../dto/ai-provider-settings-response.dto';
+import { encryptProviderSecret } from '../aiProviderSettings.utils';
 
 @Injectable()
 export class UpdateAiProviderSettingsService {
@@ -20,12 +22,24 @@ export class UpdateAiProviderSettingsService {
     private readonly get: GetAiProviderSettingsService,
   ) {}
 
+  private resolveApiKey(incoming: unknown, currentPlaintext: string): string {
+    if (incoming === undefined) {
+      return encryptProviderSecret(currentPlaintext);
+    }
+    if (typeof incoming !== 'string') {
+      throw new AppValidationException(
+        ErrorCode.VALIDATION_ERROR,
+        'O campo apiKey deve ser uma string válida ou omitido.',
+      );
+    }
+    return encryptProviderSecret(incoming);
+  }
+
   async saveOpenAiSettings(
     dto: SaveOpenAiSettingsDto,
   ): Promise<OpenAiSettingsResponseDto> {
     const current = await this.get.getInternalOpenAiSettings();
-    const apiKey =
-      dto.apiKey !== undefined ? dto.apiKey.trim() : current.apiKey;
+    const apiKey = this.resolveApiKey(dto.apiKey, current.apiKey);
     const updated = {
       ...current,
       ...dto,
@@ -39,8 +53,7 @@ export class UpdateAiProviderSettingsService {
     dto: SaveGeminiSettingsDto,
   ): Promise<GeminiSettingsResponseDto> {
     const current = await this.get.getInternalGeminiSettings();
-    const apiKey =
-      dto.apiKey !== undefined ? dto.apiKey.trim() : current.apiKey;
+    const apiKey = this.resolveApiKey(dto.apiKey, current.apiKey);
     const updated = {
       ...current,
       ...dto,
@@ -54,14 +67,14 @@ export class UpdateAiProviderSettingsService {
     dto: SaveAiProviderSettingsDto,
   ): Promise<AiProviderSettingsResponseDto> {
     const current = await this.get.getInternalSettings();
-    const openaiApiKey =
-      dto.openai?.apiKey !== undefined
-        ? dto.openai.apiKey.trim()
-        : current.openai.apiKey;
-    const geminiApiKey =
-      dto.gemini?.apiKey !== undefined
-        ? dto.gemini.apiKey.trim()
-        : current.gemini.apiKey;
+    const openaiApiKey = this.resolveApiKey(
+      dto.openai?.apiKey,
+      current.openai.apiKey,
+    );
+    const geminiApiKey = this.resolveApiKey(
+      dto.gemini?.apiKey,
+      current.gemini.apiKey,
+    );
     const toSave = {
       llmProvider: dto.llmProvider,
       openai: { ...current.openai, ...dto.openai, apiKey: openaiApiKey },

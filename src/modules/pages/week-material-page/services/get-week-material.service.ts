@@ -37,6 +37,12 @@ export class WeekMaterialsPageGetService {
     return page;
   }
 
+  async findOneBySourceLessonId(
+    sourceLessonId: string,
+  ): Promise<WeekMaterialsPageEntity | null> {
+    return this.pageRepo.findOneBySourceLessonId(sourceLessonId);
+  }
+
   /** Loads every media item attached to a page. */
   async findMediaOfPage(pageId: string): Promise<MediaItemEntity[]> {
     return this.mediaItemProcessor.findMediaItemsByTarget(

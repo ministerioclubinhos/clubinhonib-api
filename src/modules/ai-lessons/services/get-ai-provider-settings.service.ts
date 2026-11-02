@@ -13,6 +13,7 @@ import {
   OpenAiSettingsResponseDto,
 } from '../dto/ai-provider-settings-response.dto';
 import {
+  decryptProviderSecret,
   parseLessonProvider,
   providerSettingInteger,
   providerSettingString,
@@ -46,7 +47,7 @@ export class GetAiProviderSettingsService {
       imageModel: read('imageModel', DEFAULT_OPENAI_IMAGE_MODEL),
       imageQuality: read('imageQuality', DEFAULT_OPENAI_IMAGE_QUALITY),
       reasoningEffort: read('reasoningEffort', DEFAULT_OPENAI_REASONING_EFFORT),
-      apiKey: read('apiKey', ''),
+      apiKey: decryptProviderSecret(saved?.apiKey),
     };
   }
 
@@ -67,7 +68,7 @@ export class GetAiProviderSettingsService {
         saved?.retryBaseDelayMs,
         DEFAULT_GEMINI_RETRY_BASE_DELAY_MS,
       ),
-      apiKey: read('apiKey', ''),
+      apiKey: decryptProviderSecret(saved?.apiKey),
     };
   }
 

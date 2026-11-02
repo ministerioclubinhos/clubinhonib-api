@@ -2,12 +2,22 @@ import { Column, Entity, Index, OneToMany } from 'typeorm';
 import { BaseEntity } from 'src/shared/share-entity/base.entity';
 import { LessonCommentEntity } from './lesson-comment.entity';
 import { LessonStageEntity } from './lesson-stage.entity';
-import { LessonStatus } from '../enums/lesson.enums';
+import { LessonCategory, LessonStatus } from '../enums/lesson.enums';
 
 @Entity('lessons')
 export class LessonEntity extends BaseEntity {
   @Column({ type: 'int', nullable: true })
-  weekNumber: number;
+  weekNumber: number | null;
+
+  @Column({
+    type: 'enum',
+    enum: LessonCategory,
+    default: LessonCategory.REGULAR,
+  })
+  category: LessonCategory;
+
+  @Column({ name: 'special_context', type: 'text', nullable: true })
+  specialContext: string | null;
 
   @Column({ type: 'varchar', length: 255 })
   theme: string;
@@ -33,6 +43,36 @@ export class LessonEntity extends BaseEntity {
     nullable: true,
   })
   weekMaterialId: string | null;
+
+  @Column({
+    name: 'publication_lease_owner',
+    type: 'varchar',
+    length: 36,
+    nullable: true,
+  })
+  publicationLeaseOwner: string | null;
+
+  @Column({
+    name: 'publication_lease_until',
+    type: 'datetime',
+    nullable: true,
+  })
+  publicationLeaseUntil: Date | null;
+
+  @Column({
+    name: 'publication_reserved_versions_json',
+    type: 'json',
+    nullable: true,
+  })
+  publicationReservedVersionsJson: Record<string, string> | null;
+
+  @Column({
+    name: 'publication_failure_message',
+    type: 'varchar',
+    length: 500,
+    nullable: true,
+  })
+  publicationFailureMessage: string | null;
 
   @OneToMany(() => LessonStageEntity, (stage) => stage.lesson, {
     cascade: true,

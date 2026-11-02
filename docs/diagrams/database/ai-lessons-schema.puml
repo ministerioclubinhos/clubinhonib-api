@@ -11,11 +11,24 @@ note right of ai_provider_settings
   openai / gemini: parâmetros
   active: llmProvider
 end note
+entity admin_lesson_prompts {
+  * id : uuid
+  * admin_id : uuid
+  * stage : enum
+  --
+  custom_prompt : text
+  lock_version : int
+  UNIQUE(admin_id, stage)
+}
 entity lessons {
   * id : uuid
   --
   status : enum
   week_material_id : uuid nullable <<index>>
+  publication_lease_owner : varchar(64) nullable
+  publication_lease_until : datetime nullable
+  publication_reserved_versions_json : json nullable
+  publication_failure_message : text nullable
 }
 entity lesson_stages {
   * id : uuid
@@ -34,8 +47,10 @@ entity lesson_versions {
 }
 entity week_material_pages {
   * id : uuid
+  --
+  sourceLessonId : varchar(36) nullable <<unique>>
 }
 lessons ||--|{ lesson_stages
 lesson_stages ||--o{ lesson_versions
-lessons }o--o| week_material_pages : week_material_id
+lessons }o--o| week_material_pages : week_material_id / sourceLessonId
 @enduml

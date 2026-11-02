@@ -1,13 +1,16 @@
 /**
- * Audita os arquivos do bucket contra a tabela `media_items`.
+ * Audita os arquivos do bucket contra `media_items`, `lesson_versions` e `lesson_stages`.
  *
- * Relata duas inconsistências:
- *  - ÓRFÃOS: objeto no bucket que nenhuma mídia referencia (ocupa espaço à toa);
- *  - QUEBRADOS: mídia no banco cujo objeto não está mais no bucket (a página
- *    exibe um link morto).
+ * Relata inconsistências:
+ *  - ÓRFÃOS: objeto no bucket que nenhuma mídia ou versão/etapa do Studio referencia
+ *    e que não é um upload do Studio protegido em andamento/sem ledger;
+ *  - PROTEGIDOS (STUDIO): objetos referenciados por versões/etapas de lições ou
+ *    protegidos conservadoramente por padrão de upload do Studio;
+ *  - QUEBRADOS: mídia no banco cujo objeto não está mais no bucket.
  *
- * Por padrão só relata. A remoção exige `--delete --confirm` e apaga apenas os
- * órfãos — nunca os quebrados, que precisam ser resolvidos no banco.
+ * Por padrão só relata (dry-run). A remoção exige `--delete --confirm` e falha de forma
+ * conservadora (fail-closed) se qualquer tabela/fonte de referência não puder ser lida
+ * ou contiver JSON inválido.
  *
  *   node scripts/s3/audit-orphans.js
  *   node scripts/s3/audit-orphans.js --out=orfaos.json
@@ -21,6 +24,17 @@ const {
   ListObjectsV2Command,
   DeleteObjectCommand,
 } = require('@aws-sdk/client-s3');
+
+const STUDIO_STAGE_TOKENS = [
+  'LESSON',
+  'LESSON_VISUALS',
+  'STANDARD_GAME',
+  'VERSE_VISUALS',
+  'VERSE_FIXATION',
+  'MEDITATION_YOUNGER',
+  'MEDITATION_OLDER',
+  'MANUAL_WORK',
+];
 
 function loadEnvFile() {
   const envFile = process.env.ENV_FILE || 'env/local.env';
@@ -47,11 +61,22 @@ function parseArgs(argv) {
   return args;
 }
 
-/** Chave do objeto dentro do bucket, nas duas formas de URL do S3. */
-function extractKey(url, bucket) {
+/** Chave do objeto dentro do bucket, nas duas formas de URL do S3 ou chave direta. */
+function extractKey(urlOrKey, bucket) {
+  if (!urlOrKey || typeof urlOrKey !== 'string') return null;
+  const trimmed = urlOrKey.trim();
+  if (!trimmed) return null;
+
+  if (!trimmed.includes('://')) {
+    if (trimmed.includes('/uploads/') || trimmed.startsWith('uploads/')) {
+      return trimmed.replace(/^\/+/, '');
+    }
+    return null;
+  }
+
   let parsed;
   try {
-    parsed = new URL(url);
+    parsed = new URL(trimmed);
   } catch {
     return null;
   }
@@ -69,6 +94,50 @@ function extractKey(url, bucket) {
   }
 
   return null;
+}
+
+function collectStringsFromJson(value, out = []) {
+  if (!value) return out;
+  if (typeof value === 'string') {
+    out.push(value);
+    return out;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectStringsFromJson(item, out);
+    return out;
+  }
+  if (typeof value === 'object') {
+    for (const entry of Object.values(value)) {
+      collectStringsFromJson(entry, out);
+    }
+  }
+  return out;
+}
+
+function parseJsonColumn(raw, contextLabel) {
+  if (raw === null || raw === undefined || raw === '') return null;
+  if (typeof raw === 'object') return raw;
+  if (typeof raw === 'string') {
+    try {
+      return JSON.parse(raw);
+    } catch (error) {
+      throw new Error(
+        `JSON inválido em ${contextLabel}: ${error?.message || String(error)}`,
+      );
+    }
+  }
+  return null;
+}
+
+function isPotentialStudioUploadKey(key) {
+  if (!key || typeof key !== 'string') return false;
+  const baseName = key.split('/').pop() || key;
+  return STUDIO_STAGE_TOKENS.some(
+    (token) =>
+      baseName.includes(`-${token}-`) ||
+      baseName.includes(`_${token}_`) ||
+      baseName.includes(`-${token}.`),
+  );
 }
 
 async function listBucketObjects(s3, bucket, prefix) {
@@ -98,25 +167,122 @@ async function listBucketObjects(s3, bucket, prefix) {
   return objects;
 }
 
-async function loadReferencedKeys(connection, bucket) {
-  const [rows] = await connection.execute(
-    'SELECT id, url, targetType, targetId FROM media_items WHERE url IS NOT NULL AND url <> ""',
-  );
+function registerReference(byKey, key, ref) {
+  if (!byKey.has(key)) byKey.set(key, []);
+  byKey.get(key).push(ref);
+}
 
+async function loadReferencedKeys(connection, bucket) {
   const byKey = new Map();
   const foreign = [];
 
-  for (const row of rows) {
-    const key = extractKey(row.url, bucket);
-    if (!key) {
-      foreign.push(row);
-      continue;
-    }
-    if (!byKey.has(key)) byKey.set(key, []);
-    byKey.get(key).push(row);
+  const [mediaRows] = await connection.execute(
+    'SELECT id, url, targetType, targetId FROM media_items WHERE url IS NOT NULL AND url <> ""',
+  );
+  if (!Array.isArray(mediaRows)) {
+    throw new Error('Fonte de referência media_items indisponível.');
   }
 
-  return { byKey, foreign, total: rows.length };
+  for (const row of mediaRows) {
+    const key = extractKey(row.url, bucket);
+    if (!key) {
+      foreign.push({ source: 'media_items', ...row });
+      continue;
+    }
+    registerReference(byKey, key, {
+      source: 'media_items',
+      id: row.id,
+      url: row.url,
+      targetType: row.targetType,
+      targetId: row.targetId,
+    });
+  }
+
+  const [versionRows] = await connection.execute(
+    'SELECT id, stage_id AS stageId, docxS3Key, pdfS3Key, structuredDataJson, tiptapAstJson FROM lesson_versions',
+  );
+  if (!Array.isArray(versionRows)) {
+    throw new Error('Fonte de referência lesson_versions indisponível.');
+  }
+
+  for (const row of versionRows) {
+    for (const directField of ['docxS3Key', 'pdfS3Key']) {
+      if (row[directField]) {
+        const key = extractKey(row[directField], bucket);
+        if (key) {
+          registerReference(byKey, key, {
+            source: 'lesson_versions',
+            id: row.id,
+            field: directField,
+            url: row[directField],
+          });
+        }
+      }
+    }
+
+    const structured = parseJsonColumn(
+      row.structuredDataJson,
+      `lesson_versions(${row.id}).structuredDataJson`,
+    );
+    const tiptap = parseJsonColumn(
+      row.tiptapAstJson,
+      `lesson_versions(${row.id}).tiptapAstJson`,
+    );
+
+    const strings = [
+      ...collectStringsFromJson(structured),
+      ...collectStringsFromJson(tiptap),
+    ];
+    for (const candidate of strings) {
+      const key = extractKey(candidate, bucket);
+      if (key) {
+        registerReference(byKey, key, {
+          source: 'lesson_versions',
+          id: row.id,
+          stageId: row.stageId,
+          url: candidate,
+        });
+      }
+    }
+  }
+
+  const [stageRows] = await connection.execute(
+    'SELECT id, lesson_id AS lessonId, type, status, generation_request_json AS generationRequestJson FROM lesson_stages WHERE status = "GENERATING" OR generation_request_json IS NOT NULL',
+  );
+  if (!Array.isArray(stageRows)) {
+    throw new Error('Fonte de referência lesson_stages indisponível.');
+  }
+
+  const activeGeneratingLessonIds = new Set();
+  for (const row of stageRows) {
+    if (row.status === 'GENERATING' && row.lessonId) {
+      activeGeneratingLessonIds.add(row.lessonId);
+    }
+    const genReq = parseJsonColumn(
+      row.generationRequestJson,
+      `lesson_stages(${row.id}).generationRequestJson`,
+    );
+    for (const candidate of collectStringsFromJson(genReq)) {
+      const key = extractKey(candidate, bucket);
+      if (key) {
+        registerReference(byKey, key, {
+          source: 'lesson_stages',
+          id: row.id,
+          lessonId: row.lessonId,
+          url: candidate,
+        });
+      }
+    }
+  }
+
+  return {
+    byKey,
+    foreign,
+    total: mediaRows.length,
+    lessonVersionsCount: versionRows.length,
+    activeStagesCount: stageRows.length,
+    activeGeneratingLessonIds,
+  };
 }
 
 const formatMB = (bytes) => `${(bytes / 1024 / 1024).toFixed(2)} MB`;
@@ -147,13 +313,35 @@ async function main() {
 
   try {
     const objects = await listBucketObjects(s3, bucket, prefix);
-    const { byKey, foreign, total } = await loadReferencedKeys(
-      connection,
-      bucket,
-    );
+    const {
+      byKey,
+      foreign,
+      total,
+      lessonVersionsCount,
+      activeGeneratingLessonIds,
+    } = await loadReferencedKeys(connection, bucket);
 
     const bucketKeys = new Set(objects.map((object) => object.key));
-    const orphans = objects.filter((object) => !byKey.has(object.key));
+    const protectedStudioUploads = [];
+    const orphans = [];
+
+    for (const object of objects) {
+      if (byKey.has(object.key)) continue;
+      const isInFlightLessonAsset = [...activeGeneratingLessonIds].some((id) =>
+        object.key.includes(id),
+      );
+      if (isInFlightLessonAsset || isPotentialStudioUploadKey(object.key)) {
+        protectedStudioUploads.push({
+          ...object,
+          protectedBy: isInFlightLessonAsset
+            ? 'lesson_stages:GENERATING'
+            : 'studio_upload_pattern_guard',
+        });
+        continue;
+      }
+      orphans.push(object);
+    }
+
     const broken = [...byKey.entries()]
       .filter(([key]) => !bucketKeys.has(key))
       .flatMap(([, rows]) => rows);
@@ -162,11 +350,15 @@ async function main() {
 
     console.log(`Objetos no bucket:        ${objects.length}`);
     console.log(`Mídias no banco:          ${total}`);
+    console.log(`Versões do Studio lidas:  ${lessonVersionsCount}`);
+    console.log(
+      `Protegidos pelo Studio:   ${protectedStudioUploads.length}`,
+    );
     console.log(`  fora deste bucket:      ${foreign.length} (links externos)`);
     console.log(
-      `ÓRFÃOS (arquivo sem mídia): ${orphans.length} — ${formatMB(wastedBytes)}`,
+      `ÓRFÃOS (arquivo sem vínculo): ${orphans.length} — ${formatMB(wastedBytes)}`,
     );
-    console.log(`QUEBRADOS (mídia sem arquivo): ${broken.length}\n`);
+    console.log(`QUEBRADOS (referência sem arquivo): ${broken.length}\n`);
 
     for (const item of orphans.slice(0, 20)) {
       console.log(
@@ -178,7 +370,9 @@ async function main() {
     }
 
     for (const row of broken.slice(0, 20)) {
-      console.log(`  quebrado  media_items.id=${row.id}  ${row.url}`);
+      console.log(
+        `  quebrado  ${row.source}.id=${row.id}  ${row.url}`,
+      );
     }
     if (broken.length > 20) {
       console.log(`  ... e mais ${broken.length - 20}`);
@@ -187,22 +381,24 @@ async function main() {
     if (args.out) {
       fs.writeFileSync(
         args.out,
-        JSON.stringify({ orphans, broken, foreign }, null, 2),
+        JSON.stringify(
+          { orphans, protectedStudioUploads, broken, foreign },
+          null,
+          2,
+        ),
       );
       console.log(`\nRelatório salvo em ${args.out}`);
     }
 
     if (!args.delete) {
       console.log(
-        '\nNada foi apagado. Use --delete --confirm para remover só os órfãos.',
+        '\nNada foi apagado. Use --delete --confirm para remover só os órfãos confirmados.',
       );
       return;
     }
 
     if (!args.confirm) {
-      console.log(
-        '\n--delete exige também --confirm. Nada foi apagado.',
-      );
+      console.log('\n--delete exige também --confirm. Nada foi apagado.');
       return;
     }
 
@@ -218,8 +414,28 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error('\nFalha na auditoria:', error?.message || error);
-  console.error(error?.stack || '');
-  process.exit(1);
-});
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    extractKey,
+    collectStringsFromJson,
+    parseJsonColumn,
+    isPotentialStudioUploadKey,
+    loadReferencedKeys,
+    listBucketObjects,
+    parseArgs,
+    main,
+  };
+}
+
+const isDirectExecution =
+  typeof require !== 'undefined' && typeof module !== 'undefined'
+    ? require.main === module
+    : true;
+
+if (isDirectExecution) {
+  main().catch((error) => {
+    console.error('\nFalha na auditoria:', error?.message || error);
+    console.error(error?.stack || '');
+    process.exit(1);
+  });
+}

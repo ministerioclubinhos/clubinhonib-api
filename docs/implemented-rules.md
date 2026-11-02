@@ -592,6 +592,20 @@ A oração final separada é opcional (string vazia por padrão), e sua seção 
 não é renderizada. A oração do apelo permanece. Editor ordena as seções
 independentemente da ordem das propriedades do JSON. Ver api-ai-lessons.md.
 
+## Estúdio: generation lease ownership
+
+Every generation attempt uses a distinct UUID that fits `generation_lease_owner`
+(`varchar(36)`). Acquisition, heartbeat, commit and failure handling share that
+attempt token; a worker whose lease has been taken over cannot commit its result.
+Startup and the five-second scheduler resume persisted requests only when their
+lease is absent or expired. The owner does not concatenate worker and attempt IDs.
+
+The generation commit compares complete upstream version content, reloaded after
+the lesson lock in the same transaction. Dependencies follow canonical stage
+order for both checksums. Missing relations in the lightweight locking query and
+changes in query ordering must not produce `UPSTREAM_CHANGED`; actual upstream
+content changes still reject the result and clean up its uploaded assets.
+
 ## Estúdio: configuração de provedores
 
 O documento da etapa de lição separa o cabeçalho em `LIÇÃO <semana>`,

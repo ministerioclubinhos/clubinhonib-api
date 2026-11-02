@@ -1,4 +1,4 @@
-import { Entity, Column, OneToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, Index, OneToOne, JoinColumn } from 'typeorm';
 import { RouteEntity } from 'src/modules/routes/route-page.entity';
 import { BaseEntity } from 'src/shared/share-entity/base.entity';
 
@@ -15,6 +15,15 @@ export class WeekMaterialsPageEntity extends BaseEntity {
 
   @Column({ type: 'text' })
   description: string;
+
+  @Index('uq_week_material_pages_source_lesson_id', { unique: true })
+  @Column({
+    name: 'source_lesson_id',
+    type: 'varchar',
+    length: 36,
+    nullable: true,
+  })
+  sourceLessonId: string | null;
 
   @OneToOne(() => RouteEntity, {
     cascade: true,

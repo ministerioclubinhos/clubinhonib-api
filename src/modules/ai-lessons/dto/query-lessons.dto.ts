@@ -10,7 +10,7 @@ import {
   Min,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
-import { LessonStatus } from '../enums/lesson.enums';
+import { LessonCategory, LessonStatus } from '../enums/lesson.enums';
 
 export enum LessonSortField {
   CREATED_AT = 'createdAt',
@@ -26,6 +26,8 @@ export enum SortOrder {
 
 export class QueryLessonsDto {
   @IsOptional() @IsEnum(LessonStatus) status?: LessonStatus;
+
+  @IsOptional() @IsEnum(LessonCategory) category?: LessonCategory;
 
   @IsOptional()
   @Transform(({ value }: { value: unknown }): unknown[] => {

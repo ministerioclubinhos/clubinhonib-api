@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AdminLessonPromptEntity } from '../entities/admin-lesson-prompt.entity';
-import { LessonStageType } from '../enums/lesson.enums';
+import { LessonCategory, LessonStageType } from '../enums/lesson.enums';
 
 @Injectable()
 export class AdminLessonPromptRepository {
@@ -11,15 +11,19 @@ export class AdminLessonPromptRepository {
     private readonly repo: Repository<AdminLessonPromptEntity>,
   ) {}
 
-  async findByAdminId(adminId: string): Promise<AdminLessonPromptEntity[]> {
-    return this.repo.find({ where: { adminId } });
+  async findByAdminId(
+    adminId: string,
+    category: LessonCategory = LessonCategory.REGULAR,
+  ): Promise<AdminLessonPromptEntity[]> {
+    return this.repo.find({ where: { adminId, category } });
   }
 
   async findByAdminIdAndStage(
     adminId: string,
     stage: LessonStageType,
+    category: LessonCategory = LessonCategory.REGULAR,
   ): Promise<AdminLessonPromptEntity | null> {
-    return this.repo.findOne({ where: { adminId, stage } });
+    return this.repo.findOne({ where: { adminId, stage, category } });
   }
 
   createPrompt(
@@ -34,7 +38,31 @@ export class AdminLessonPromptRepository {
     return this.repo.save(entity);
   }
 
-  async deletePrompt(adminId: string, stage: LessonStageType): Promise<void> {
-    await this.repo.delete({ adminId, stage });
+  async updatePromptWhereVersion(
+    id: string,
+    expectedLockVersion: number,
+    customPrompt: string,
+  ): Promise<boolean> {
+    const result = await this.repo
+      .createQueryBuilder()
+      .update(AdminLessonPromptEntity)
+      .set({
+        customPrompt,
+        lockVersion: () => 'lock_version + 1',
+      })
+      .where('id = :id', { id })
+      .andWhere('lock_version = :expectedLockVersion', {
+        expectedLockVersion,
+      })
+      .execute();
+    return result.affected === 1;
+  }
+
+  async deletePrompt(
+    adminId: string,
+    stage: LessonStageType,
+    category: LessonCategory = LessonCategory.REGULAR,
+  ): Promise<void> {
+    await this.repo.delete({ adminId, stage, category });
   }
 }

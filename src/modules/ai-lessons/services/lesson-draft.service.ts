@@ -1,11 +1,12 @@
+import { getLessonTemplate } from '../templates/special-lesson-templates';
 import { LESSON_PUBLICATION_TITLES } from '../constants/lesson-publication.constants';
 import { buildManualWorkImagePrompt } from '../utils/manual-work-image.utils';
-import { editedOlderMeditation } from '../utils/older-meditation-content.utils';
 import type {
   LessonLlmGenerationInput,
   LessonLlmGenerationResult,
 } from '../providers/lesson-llm.types';
 import {
+  CUTOUT_KIT_CORRECTION_INSTRUCTIONS,
   STORY_VISUAL_CORRECTION_INSTRUCTIONS,
   STORY_VISUAL_MAX_CORRECTIONS,
 } from '../constants/story-visual-quality.constants';
@@ -14,12 +15,24 @@ import {
   createOlderMeditation,
   createOlderMeditationImages,
 } from '../utils/older-meditation-generation.utils';
+import {
+  cutoutKitGenerationOrder,
+  validateCutoutKit,
+} from '../utils/cutout-kit.utils';
 import { buildMeditationActivityImagePrompt } from '../utils/meditation-image.utils';
 import { lessonNarrativeIssue } from '../lessonNarrative.utils';
 import {
   LESSON_EDITORIAL_FIELD_ORDER,
   LESSON_NARRATIVE_INCOMPLETE_PREFIX,
 } from '../constants/lesson-editorial.constants';
+import {
+  attachOwnedAssetUrls,
+  extractOwnedLessonVersionAssetUrls,
+} from '../utils/lesson-asset-ownership.utils';
+import {
+  assertStageReadyForCompletionOrPublication,
+  reconcileStageStructuredContent,
+} from '../utils/lesson-canonical-content.utils';
 import {
   BadRequestException,
   ConflictException,
@@ -39,7 +52,8 @@ import { LessonStageEntity } from '../entities/lesson-stage.entity';
 import { GenerateLessonRequestDto } from '../dto/generate-lesson-request.dto';
 import { SaveTiptapContentDto } from '../dto/save-tiptap-content.dto';
 import {
-  LESSON_STAGE_ORDER,
+  getLessonStageOrder,
+  LessonCategory,
   LessonStageStatus,
   LessonStageType,
   LessonStatus,
@@ -48,10 +62,7 @@ import {
   LessonVisualType,
 } from '../enums/lesson.enums';
 import { GenerateStageRequestDto } from '../dto/generate-stage-request.dto';
-import {
-  LESSON_TEMPLATES,
-  templateChecksum,
-} from '../templates/lesson-templates';
+import { templateChecksum } from '../templates/lesson-templates';
 import { DocxExporterService } from './docx-exporter.service';
 import { PdfLibreOfficeService } from './pdf-libreoffice.service';
 import { WeekMaterialsPageCreateService } from 'src/modules/pages/week-material-page/services/create-week-material.service';
@@ -67,8 +78,8 @@ import { QueryLessonsDto } from '../dto/query-lessons.dto';
 import {
   buildGameInstructionImagePrompt,
   buildStoryVisualImagePrompt,
+  buildCutoutKitImagePrompt,
   buildVerseVisualImagePrompt,
-  extractTiptapSectionText,
   lessonString,
   lessonStoryHeading,
   normalizeLessonVerseReference,
@@ -88,7 +99,11 @@ type JsonObject = Record<string, unknown>;
 export class LessonDraftService implements OnApplicationBootstrap {
   private readonly logger = new Logger(LessonDraftService.name);
   private readonly activeGenerations = new Set<string>();
-  private readonly generationWorkerId = randomUUID();
+  private readonly activePublications = new Set<string>();
+  private readonly maxConcurrentGenerations = Math.max(
+    1,
+    Number(process.env.AI_LESSONS_MAX_CONCURRENT_GENERATIONS) || 3,
+  );
 
   constructor(
     private readonly repo: AiLessonsRepository,
@@ -110,6 +125,9 @@ export class LessonDraftService implements OnApplicationBootstrap {
   async resumePendingGenerations(): Promise<void> {
     const interrupted = await this.repo.findGeneratingStages();
     for (const stage of interrupted) {
+      if (this.activeGenerations.size >= this.maxConcurrentGenerations) {
+        break;
+      }
       if (!stage.generationRequestJson || !stage.generationRequestedById) {
         stage.status = LessonStageStatus.FAILED;
         stage.failureCode = 'GENERATION_REQUEST_MISSING';
@@ -118,7 +136,8 @@ export class LessonDraftService implements OnApplicationBootstrap {
         await this.repo.saveStage(stage);
         continue;
       }
-      const attemptToken = `${this.generationWorkerId}:${randomUUID()}`;
+      // Each attempt needs its own UUID to fit generation_lease_owner (varchar(36)).
+      const attemptToken = randomUUID();
       const claimed = await this.repo.claimGeneration(
         stage.id,
         attemptToken,
@@ -128,6 +147,59 @@ export class LessonDraftService implements OnApplicationBootstrap {
         stage.generationLeaseOwner = attemptToken;
         this.startGeneration(stage, attemptToken);
       }
+    }
+    await this.resumeInterruptedPublications();
+  }
+
+  private async resumeInterruptedPublications(): Promise<void> {
+    if (typeof this.repo.findPublishingLessons !== 'function') return;
+    try {
+      const publishingLessons = await this.repo.findPublishingLessons();
+      const now = new Date();
+      for (const lesson of publishingLessons) {
+        if (this.activePublications.has(lesson.id)) continue;
+        if (
+          lesson.publicationLeaseUntil &&
+          lesson.publicationLeaseUntil > now
+        ) {
+          continue;
+        }
+        const existing = await this.findExistingWeekMaterialPage(lesson.id);
+        await this.repo.runInTransaction(async (manager) => {
+          const locked = await this.repo.findLessonByIdForUpdate(
+            lesson.id,
+            manager,
+          );
+          if (!locked || locked.status !== LessonStatus.PUBLISHING) return;
+          if (
+            locked.publicationLeaseUntil &&
+            locked.publicationLeaseUntil > new Date()
+          ) {
+            return;
+          }
+          if (existing) {
+            locked.status = LessonStatus.PUBLISHED;
+            locked.weekMaterialId = existing.id;
+            locked.publicationLeaseOwner = null;
+            locked.publicationLeaseUntil = null;
+            locked.publicationReservedVersionsJson = null;
+            locked.publicationFailureMessage = null;
+            await this.repo.saveLesson(locked, manager);
+            return;
+          }
+          locked.status = LessonStatus.READY_FOR_PUBLICATION;
+          locked.publicationLeaseOwner = null;
+          locked.publicationLeaseUntil = null;
+          locked.publicationReservedVersionsJson = null;
+          locked.publicationFailureMessage =
+            'A publicação anterior foi interrompida antes da criação do material semanal. Você pode publicar novamente.';
+          await this.repo.saveLesson(locked, manager);
+        });
+      }
+    } catch (error: unknown) {
+      this.logger.warn(
+        `Falha ao reconciliar publicações interrompidas: ${String(error)}`,
+      );
     }
   }
 
@@ -140,7 +212,12 @@ export class LessonDraftService implements OnApplicationBootstrap {
         this.repo.createLesson({
           theme: dto.theme.trim(),
           biblicalReference: dto.biblicalReference.trim(),
-          weekNumber: dto.weekNumber,
+          weekNumber: dto.weekNumber ?? null,
+          category: dto.category ?? LessonCategory.REGULAR,
+          specialContext:
+            (dto.category ?? LessonCategory.REGULAR) === LessonCategory.SPECIAL
+              ? (dto.specialContext ?? null)
+              : null,
           status: LessonStatus.DRAFT,
           createdById: userId,
           weekMaterialId: null,
@@ -148,8 +225,8 @@ export class LessonDraftService implements OnApplicationBootstrap {
         manager,
       );
       await this.repo.saveStages(
-        LESSON_STAGE_ORDER.map((type) => {
-          const template = LESSON_TEMPLATES[type];
+        getLessonStageOrder(dto.category).map((type) => {
+          const template = getLessonTemplate(type, dto.category);
           return this.repo.createStage({
             lessonId: created.id,
             type,
@@ -211,9 +288,9 @@ export class LessonDraftService implements OnApplicationBootstrap {
   async getById(id: string): Promise<LessonEntity> {
     const lesson = await this.repo.findLessonById(id);
     if (!lesson) throw new NotFoundException('Lição não encontrada.');
+    const stageOrder = getLessonStageOrder(lesson.category);
     lesson.stages.sort(
-      (a, b) =>
-        LESSON_STAGE_ORDER.indexOf(a.type) - LESSON_STAGE_ORDER.indexOf(b.type),
+      (a, b) => stageOrder.indexOf(a.type) - stageOrder.indexOf(b.type),
     );
     for (const stage of lesson.stages) {
       stage.versions?.sort((a, b) => a.versionNumber - b.versionNumber);
@@ -223,6 +300,7 @@ export class LessonDraftService implements OnApplicationBootstrap {
             version.tiptapAstJson = normalizeLessonDocumentHeader(
               version.tiptapAstJson,
               lesson.weekNumber,
+              lesson.category,
             );
     }
     return lesson;
@@ -238,10 +316,11 @@ export class LessonDraftService implements OnApplicationBootstrap {
     lesson: LessonEntity,
     type: LessonStageType,
   ): JsonObject | null {
-    const index = LESSON_STAGE_ORDER.indexOf(type);
+    const stageOrder = getLessonStageOrder(lesson.category);
+    const index = stageOrder.indexOf(type);
     if (index === 0) return null;
     const dependency = lesson.stages.find(
-      (stage) => stage.type === LESSON_STAGE_ORDER[index - 1],
+      (stage) => stage.type === stageOrder[index - 1],
     );
     const completedStatuses = [
       LessonStageStatus.PRODUCER_APPROVED,
@@ -250,15 +329,16 @@ export class LessonDraftService implements OnApplicationBootstrap {
     ];
     if (!dependency || !completedStatuses.includes(dependency.status))
       throw new ConflictException(
-        `A etapa ${LESSON_STAGE_ORDER[index - 1]} precisa ser concluída pelo produtor.`,
+        `A etapa ${stageOrder[index - 1]} precisa ser concluída pelo produtor.`,
       );
     return Object.fromEntries(
       lesson.stages
         .filter(
           (stage) =>
-            LESSON_STAGE_ORDER.indexOf(stage.type) < index &&
+            stageOrder.indexOf(stage.type) < index &&
             completedStatuses.includes(stage.status),
         )
+        .sort((a, b) => stageOrder.indexOf(a.type) - stageOrder.indexOf(b.type))
         .map((stage) => [stage.type, this.currentContent(stage)]),
     );
   }
@@ -269,12 +349,36 @@ export class LessonDraftService implements OnApplicationBootstrap {
     userId: string,
   ): Promise<LessonEntity> {
     const { stage: type } = dto;
+    const lessonCategory = (await this.repo.findLessonById(id))?.category;
+    const frozenPrompt =
+      typeof this.adminPrompts?.effective === 'function'
+        ? await this.adminPrompts
+            .effective(userId, type, lessonCategory)
+            .catch(() => undefined)
+        : undefined;
+    const attemptSnapshot =
+      typeof this.llm?.createAttemptProvider === 'function'
+        ? await this.llm
+            .createAttemptProvider(dto.frozenProvider)
+            .catch(() => undefined)
+        : undefined;
+    const enrichedDto: GenerateStageRequestDto = {
+      ...dto,
+      ...(attemptSnapshot?.metadata
+        ? { frozenProvider: attemptSnapshot.metadata }
+        : {}),
+      ...(frozenPrompt ? { frozenAdminPrompt: frozenPrompt } : {}),
+    };
     const lesson = await this.repo.runInTransaction(async (manager) => {
       const lock = await this.repo.findLessonByIdForUpdate(id, manager);
       if (!lock) throw new NotFoundException('Lição não encontrada.');
       const locked = await this.repo.findLessonById(id, manager);
       if (!locked) throw new NotFoundException('Lição não encontrada.');
       const lockedStage = locked.stages.find((item) => item.type === type);
+      if (!getLessonStageOrder(locked.category).includes(type))
+        throw new BadRequestException(
+          'Esta etapa não pertence a este tipo de material.',
+        );
       if (!lockedStage) throw new NotFoundException('Etapa não encontrada.');
       if (lockedStage.status === LessonStageStatus.GENERATING)
         throw new ConflictException('Esta etapa já está sendo gerada.');
@@ -299,14 +403,14 @@ export class LessonDraftService implements OnApplicationBootstrap {
           'A produção não pode ser regenerada durante ou depois da revisão final.',
         );
       this.assertDependency(locked, type);
-      const activeTemplate = LESSON_TEMPLATES[type];
+      const activeTemplate = getLessonTemplate(type, locked.category);
       lockedStage.templateKey = activeTemplate.key;
       lockedStage.templateVersion = activeTemplate.version;
       lockedStage.templateChecksum = templateChecksum(activeTemplate);
       lockedStage.status = LessonStageStatus.GENERATING;
       lockedStage.failureCode = null;
       lockedStage.failureMessage = null;
-      lockedStage.generationRequestJson = dto;
+      lockedStage.generationRequestJson = enrichedDto;
       lockedStage.generationRequestedById = userId;
       lockedStage.generationLeaseOwner = null;
       lockedStage.generationLeaseUntil = null;
@@ -331,6 +435,13 @@ export class LessonDraftService implements OnApplicationBootstrap {
           attemptToken,
           this.nextGenerationLease(),
         )
+        .then((renewed) => {
+          if (renewed === false) {
+            this.logger.warn(
+              `Lease da etapa ${stage.type} (${stage.id}) não pôde ser renovada para ${attemptToken}.`,
+            );
+          }
+        })
         .catch((err: unknown) => {
           this.logger.warn(
             `Falha ao renovar lease da etapa ${stage.type}: ${String(err)}`,
@@ -354,6 +465,9 @@ export class LessonDraftService implements OnApplicationBootstrap {
       .finally(() => {
         clearInterval(heartbeat);
         this.activeGenerations.delete(key);
+        if (this.activeGenerations.size < this.maxConcurrentGenerations) {
+          void this.resumePendingGenerations();
+        }
       });
   }
 
@@ -433,14 +547,28 @@ export class LessonDraftService implements OnApplicationBootstrap {
       : [];
     const upstream = this.assertDependency(lesson, type);
     const upstreamChecksum = upstream ? this.checksum(upstream) : null;
-    const template = LESSON_TEMPLATES[type];
+    const template = getLessonTemplate(type, lesson.category);
     const visualConfig =
       type === LessonStageType.LESSON_VISUALS
-        ? this.validateVisualConfig(dto)
+        ? this.validateVisualConfig(dto, lesson.category)
         : null;
     const uploadedUrls: string[] = [];
     try {
-      const adminPrompt = await this.adminPrompts.effective(userId, type);
+      const attemptSnapshot =
+        typeof this.llm?.createAttemptProvider === 'function'
+          ? await this.llm.createAttemptProvider(dto.frozenProvider)
+          : {
+              provider: this.llm,
+              metadata: dto.frozenProvider ?? {
+                provider: 'openai',
+                textModel: '',
+                imageModel: '',
+              },
+            };
+      const attemptLlm = attemptSnapshot.provider;
+      const adminPrompt =
+        dto.frozenAdminPrompt ??
+        (await this.adminPrompts.effective(userId, type, lesson.category));
       const approvedLessonStage = lesson.stages.find(
         (item) => item.type === LessonStageType.LESSON,
       );
@@ -448,6 +576,8 @@ export class LessonDraftService implements OnApplicationBootstrap {
         theme: lesson.theme,
         biblicalReference: lesson.biblicalReference,
         weekNumber: lesson.weekNumber,
+        category: lesson.category,
+        specialContext: lesson.specialContext,
         stage: type,
         template,
         approvedUpstream:
@@ -469,13 +599,13 @@ export class LessonDraftService implements OnApplicationBootstrap {
         revisionInstructions,
         visualConfig,
       };
-      let generated = await this.llm.generateStage(generationInput);
+      let generated = await attemptLlm.generateStage(generationInput);
       if (
         isGameStage &&
         previousGameVariants.length > 0 &&
         !this.isNewGameFromHistory(previousGameVariants, generated.content)
       ) {
-        generated = await this.llm.generateStage({
+        generated = await attemptLlm.generateStage({
           ...generationInput,
           revisionInstructions: [
             revisionInstructions,
@@ -489,12 +619,14 @@ export class LessonDraftService implements OnApplicationBootstrap {
         generated = await this.prepareOlderMeditation(
           generationInput,
           generated,
+          attemptLlm,
         );
       if (type === LessonStageType.LESSON_VISUALS)
         generated = await this.correctStoryVisuals(
           lesson,
           generationInput,
           generated,
+          attemptLlm,
         );
       const derivedVerseStages = [
         LessonStageType.VERSE_VISUALS,
@@ -506,7 +638,12 @@ export class LessonDraftService implements OnApplicationBootstrap {
       let normalized = derivedVerseStages.includes(type)
         ? this.lockDerivedVerse(lesson, type, generated.content)
         : generated.content;
-      normalized = this.validateCanonicalContent(lesson, type, normalized);
+      normalized = this.validateCanonicalContent(
+        lesson,
+        type,
+        normalized,
+        visualConfig?.type,
+      );
       if (
         isGameStage &&
         previousGameVariants.length > 0 &&
@@ -528,7 +665,7 @@ export class LessonDraftService implements OnApplicationBootstrap {
       const olderImages =
         type === LessonStageType.MEDITATION_OLDER
           ? await createOlderMeditationImages(
-              this.llm,
+              attemptLlm,
               generationInput,
               normalized,
             )
@@ -540,12 +677,15 @@ export class LessonDraftService implements OnApplicationBootstrap {
         normalized,
         uploadedUrls,
         olderImages,
+        attemptLlm,
       );
       const nextVersion =
         Math.max(
           0,
           ...(stage.versions ?? []).map((version) => version.versionNumber),
         ) + 1;
+      const providerLabel =
+        attemptSnapshot.metadata.provider === 'gemini' ? 'Gemini' : 'OpenAI';
       const entity = this.repo.createVersion({
         stage: { id: stage.id } as LessonStageEntity,
         stageId: stage.id,
@@ -555,12 +695,13 @@ export class LessonDraftService implements OnApplicationBootstrap {
           content,
           type === LessonStageType.LESSON ? lesson.weekNumber : undefined,
           type,
+          lesson.category,
         ),
         docxS3Key: null,
         pdfS3Key: null,
         changeSummary: revisionInstructions
           ? 'Regeneração orientada por revisão'
-          : 'Geração via OpenAI',
+          : `Geração via ${providerLabel}`,
         createdSource:
           nextVersion === 1
             ? LessonVersionSource.AI_GENERATED
@@ -591,7 +732,10 @@ export class LessonDraftService implements OnApplicationBootstrap {
           return;
         }
 
-        const currentUpstream = this.assertDependency(locked, type);
+        // The locking query loads stages only; compare their persisted versions.
+        const currentLesson = await this.repo.findLessonById(id, manager);
+        if (!currentLesson) return;
+        const currentUpstream = this.assertDependency(currentLesson, type);
         const currentUpstreamChecksum = currentUpstream
           ? this.checksum(currentUpstream)
           : null;
@@ -659,13 +803,19 @@ export class LessonDraftService implements OnApplicationBootstrap {
     }
   }
 
-  private validateVisualConfig(dto: GenerateStageRequestDto): {
+  private validateVisualConfig(
+    dto: GenerateStageRequestDto,
+    category?: LessonCategory | null,
+  ): {
     type: LessonVisualType;
     orientation: LessonVisualOrientation;
     quantity: number;
   } {
+    const isSpecial = category === LessonCategory.SPECIAL;
+    const visualType =
+      dto.visualType ?? (isSpecial ? undefined : LessonVisualType.CUTOUT_KIT);
     if (
-      !dto.visualType ||
+      !visualType ||
       !dto.visualOrientation ||
       !dto.visualQuantity ||
       !Number.isInteger(dto.visualQuantity) ||
@@ -675,8 +825,16 @@ export class LessonDraftService implements OnApplicationBootstrap {
       throw new BadRequestException(
         'Escolha o tipo pedagógico, a orientação e a quantidade de 4 a 10 imagens.',
       );
+    if (!isSpecial && visualType !== LessonVisualType.CUTOUT_KIT)
+      throw new BadRequestException(
+        'Os visuais da lição agora são gerados como kit de recortes (CUTOUT_KIT).',
+      );
+    if (isSpecial && visualType === LessonVisualType.CUTOUT_KIT)
+      throw new BadRequestException(
+        'A Lição Especial mantém os cartazes de cena; escolha um tipo de cena.',
+      );
     return {
-      type: dto.visualType,
+      type: visualType,
       orientation: dto.visualOrientation,
       quantity: dto.visualQuantity,
     };
@@ -882,6 +1040,7 @@ export class LessonDraftService implements OnApplicationBootstrap {
     content: JsonObject,
     uploadedUrls: string[],
     preparedImages?: Map<string, Buffer>,
+    llmProvider: LessonLlmProviderContract = this.llm,
   ): Promise<JsonObject> {
     if (type === LessonStageType.LESSON) return content;
     const key = [
@@ -911,10 +1070,30 @@ export class LessonDraftService implements OnApplicationBootstrap {
       );
     const completed: JsonObject[] = [];
     let identityReferenceImage: LessonImageReference | undefined;
-    for (const [assetIndex, asset] of assets.entries()) {
-      const imagePrompt =
-        type === LessonStageType.LESSON_VISUALS
+    const isCutoutKit =
+      type === LessonStageType.LESSON_VISUALS &&
+      visualConfig.type === LessonVisualType.CUTOUT_KIT;
+    const generationOrder = isCutoutKit
+      ? cutoutKitGenerationOrder(assets)
+      : assets.map((_, index) => index);
+    const completedByIndex = new Map<number, JsonObject>();
+    for (const [position, assetIndex] of generationOrder.entries()) {
+      const asset = assets[assetIndex];
+      const imagePrompt = isCutoutKit
+        ? buildCutoutKitImagePrompt({
+            completeStory,
+            category: lessonString(asset.category),
+            title: lessonString(asset.title),
+            items: Array.isArray(asset.items)
+              ? (asset.items as JsonObject[])
+              : [],
+            layoutPlan: lessonString(asset.layoutPlan),
+            proposedComposition: lessonString(asset.prompt),
+            hasIdentityReference: Boolean(identityReferenceImage),
+          })
+        : type === LessonStageType.LESSON_VISUALS
           ? buildStoryVisualImagePrompt({
+              category: lesson.category,
               completeStory,
               canonicalScene: {
                 id: asset.id,
@@ -978,31 +1157,48 @@ export class LessonDraftService implements OnApplicationBootstrap {
                   : lessonString(asset.prompt);
       const buffer =
         preparedImages?.get(String(asset.id)) ??
-        ([
-          LessonStageType.MEDITATION_YOUNGER,
-          LessonStageType.MEDITATION_OLDER,
-        ].includes(type)
-          ? await this.llm.generateImage(
+        (isCutoutKit
+          ? await llmProvider.generateImage(
               imagePrompt,
               lessonString(visualConfig.orientation),
               lessonString(visualConfig.type),
               identityReferenceImage,
-              LessonImagePurpose.MEDITATION_ACTIVITY,
+              LessonImagePurpose.CUTOUT_SHEET,
             )
-          : type === LessonStageType.MANUAL_WORK
-            ? await this.llm.generateImage(
-                imagePrompt,
-                lessonString(visualConfig.orientation),
-                lessonString(visualConfig.type),
-                undefined,
-                LessonImagePurpose.MANUAL_COLORING,
-              )
-            : await this.llm.generateImage(
+          : [
+                LessonStageType.MEDITATION_YOUNGER,
+                LessonStageType.MEDITATION_OLDER,
+              ].includes(type)
+            ? await llmProvider.generateImage(
                 imagePrompt,
                 lessonString(visualConfig.orientation),
                 lessonString(visualConfig.type),
                 identityReferenceImage,
-              ));
+                LessonImagePurpose.MEDITATION_ACTIVITY,
+              )
+            : type === LessonStageType.MANUAL_WORK
+              ? await llmProvider.generateImage(
+                  imagePrompt,
+                  lessonString(visualConfig.orientation),
+                  lessonString(visualConfig.type),
+                  undefined,
+                  LessonImagePurpose.MANUAL_COLORING,
+                )
+              : lesson.category === LessonCategory.SPECIAL
+                ? await llmProvider.generateImage(
+                    imagePrompt,
+                    lessonString(visualConfig.orientation),
+                    lessonString(visualConfig.type),
+                    identityReferenceImage,
+                    undefined,
+                    { category: LessonCategory.SPECIAL },
+                  )
+                : await llmProvider.generateImage(
+                    imagePrompt,
+                    lessonString(visualConfig.orientation),
+                    lessonString(visualConfig.type),
+                    identityReferenceImage,
+                  ));
       const image = this.imageUploadMetadata(buffer);
       if (
         [
@@ -1010,7 +1206,7 @@ export class LessonDraftService implements OnApplicationBootstrap {
           LessonStageType.STANDARD_GAME,
           LessonStageType.VERSE_FIXATION,
         ].includes(type) &&
-        assetIndex === 0
+        position === 0
       )
         identityReferenceImage = {
           data: Buffer.from(buffer),
@@ -1024,7 +1220,7 @@ export class LessonDraftService implements OnApplicationBootstrap {
         size: buffer.length,
       } as Express.Multer.File);
       uploadedUrls.push(url);
-      completed.push({
+      completedByIndex.set(assetIndex, {
         ...asset,
         url,
         ...([
@@ -1032,11 +1228,15 @@ export class LessonDraftService implements OnApplicationBootstrap {
           LessonStageType.STANDARD_GAME,
           LessonStageType.VERSE_FIXATION,
         ].includes(type)
-          ? { identityReference: assetIndex === 0 }
+          ? { identityReference: position === 0 }
           : {}),
       });
     }
-    return { ...content, [key]: completed };
+    for (const index of assets.keys()) {
+      const item = completedByIndex.get(index);
+      if (item) completed.push(item);
+    }
+    return attachOwnedAssetUrls({ ...content, [key]: completed }, uploadedUrls);
   }
 
   private imageUploadMetadata(buffer: Buffer): {
@@ -1163,6 +1363,7 @@ export class LessonDraftService implements OnApplicationBootstrap {
     lesson: LessonEntity,
     input: LessonLlmGenerationInput,
     generated: LessonLlmGenerationResult,
+    llmProvider: LessonLlmProviderContract = this.llm,
   ): Promise<LessonLlmGenerationResult> {
     const sourceStage = lesson.stages.find(
       (stage) => stage.type === LessonStageType.LESSON,
@@ -1180,6 +1381,7 @@ export class LessonDraftService implements OnApplicationBootstrap {
           lesson,
           LessonStageType.LESSON_VISUALS,
           corrected.content,
+          input.visualConfig?.type,
         );
         const assets = Array.isArray(corrected.content.assets)
           ? corrected.content.assets
@@ -1195,12 +1397,14 @@ export class LessonDraftService implements OnApplicationBootstrap {
           attempt >= STORY_VISUAL_MAX_CORRECTIONS
         )
           throw error;
-        corrected = await this.llm.generateStage({
+        corrected = await llmProvider.generateStage({
           ...input,
           revisionInstructions: [
             input.revisionInstructions,
             `Corrija especificamente este problema: ${error.message}`,
-            STORY_VISUAL_CORRECTION_INSTRUCTIONS,
+            input.visualConfig?.type === LessonVisualType.CUTOUT_KIT
+              ? CUTOUT_KIT_CORRECTION_INSTRUCTIONS
+              : STORY_VISUAL_CORRECTION_INSTRUCTIONS,
             `NARRATIVA APROVADA COMPLETA:\n${story}`,
             `VERSÃO A CORRIGIR:\n${JSON.stringify(corrected.content)}`,
           ]
@@ -1214,14 +1418,16 @@ export class LessonDraftService implements OnApplicationBootstrap {
   private async prepareOlderMeditation(
     input: LessonLlmGenerationInput,
     generated: LessonLlmGenerationResult,
+    llmProvider: LessonLlmProviderContract = this.llm,
   ): Promise<LessonLlmGenerationResult> {
-    return createOlderMeditation(this.llm, input, generated);
+    return createOlderMeditation(llmProvider, input, generated);
   }
 
   private validateCanonicalContent(
     lesson: LessonEntity,
     type: LessonStageType,
     generated: JsonObject,
+    visualType?: string,
   ): JsonObject {
     if (type === LessonStageType.LESSON) {
       const issue = lessonNarrativeIssue(generated.story);
@@ -1264,7 +1470,21 @@ export class LessonDraftService implements OnApplicationBootstrap {
       }
     }
 
-    if (type === LessonStageType.LESSON_VISUALS) {
+    if (
+      type === LessonStageType.LESSON_VISUALS &&
+      visualType === LessonVisualType.CUTOUT_KIT
+    ) {
+      const sourceStage = lesson.stages.find(
+        (stage) => stage.type === LessonStageType.LESSON,
+      );
+      const source = sourceStage ? this.currentContent(sourceStage) : null;
+      validateCutoutKit(generated, lessonString(source?.story).trim());
+    }
+
+    if (
+      type === LessonStageType.LESSON_VISUALS &&
+      visualType !== LessonVisualType.CUTOUT_KIT
+    ) {
       const sourceStage = lesson.stages.find(
         (stage) => stage.type === LessonStageType.LESSON,
       );
@@ -1386,6 +1606,16 @@ export class LessonDraftService implements OnApplicationBootstrap {
       if (!locked) throw new NotFoundException('Lição não encontrada.');
       const lesson = await this.repo.findLessonById(id, manager);
       if (!lesson) throw new NotFoundException('Lição não encontrada.');
+      if (
+        lesson.status === LessonStatus.PUBLISHING ||
+        lesson.stages.some(
+          (item) => item.status === LessonStageStatus.GENERATING,
+        )
+      ) {
+        throw new ConflictException(
+          'Aguarde a geração ou publicação em andamento antes de editar a lição.',
+        );
+      }
       const stage = lesson.stages.find((item) => item.type === dto.stage);
       if (!stage) throw new NotFoundException('Etapa não encontrada.');
       if (stage.lockVersion !== dto.lockVersion)
@@ -1407,17 +1637,13 @@ export class LessonDraftService implements OnApplicationBootstrap {
       const nextVersion =
         Math.max(0, ...stage.versions.map((version) => version.versionNumber)) +
         1;
-      let structured =
-        dto.structuredDataJson ?? this.currentContent(stage) ?? {};
-      if (dto.stage === LessonStageType.LESSON) {
-        const editedStory = extractTiptapSectionText(
-          dto.tiptapAstJson,
-          'LIÇÃO BÍBLICA',
-        );
-        if (editedStory) structured = { ...structured, story: editedStory };
-      }
-      if (dto.stage === LessonStageType.MEDITATION_OLDER)
-        structured = editedOlderMeditation(structured, dto.tiptapAstJson);
+      const currentStructured = this.currentContent(stage);
+      const structured = reconcileStageStructuredContent(
+        dto.stage,
+        currentStructured,
+        dto.structuredDataJson,
+        dto.tiptapAstJson,
+      );
       const entity = this.repo.createVersion({
         stage: { id: stage.id } as LessonStageEntity,
         stageId: stage.id,
@@ -1455,13 +1681,33 @@ export class LessonDraftService implements OnApplicationBootstrap {
   async completeProductionStage(
     id: string,
     type: LessonStageType,
+    lockVersion?: number,
   ): Promise<LessonEntity> {
     await this.repo.runInTransaction(async (manager) => {
       const lesson = await this.repo.findLessonByIdForUpdate(id, manager);
       if (!lesson) throw new NotFoundException('Lição não encontrada.');
+      if (
+        lesson.status === LessonStatus.PUBLISHING ||
+        lesson.stages.some(
+          (item) => item.status === LessonStageStatus.GENERATING,
+        )
+      ) {
+        throw new ConflictException(
+          'Aguarde a geração ou publicação em andamento antes de concluir a etapa.',
+        );
+      }
       const stage = lesson.stages.find((item) => item.type === type);
       if (!stage?.currentVersionId)
         throw new BadRequestException('Etapa sem conteúdo para concluir.');
+      if (
+        lockVersion !== undefined &&
+        typeof stage.lockVersion === 'number' &&
+        stage.lockVersion !== lockVersion
+      ) {
+        throw new ConflictException(
+          'Esta etapa foi alterada em outra sessão. Recarregue antes de concluir.',
+        );
+      }
       if (
         ![
           LessonStageStatus.DRAFT,
@@ -1474,6 +1720,25 @@ export class LessonDraftService implements OnApplicationBootstrap {
         throw new ConflictException(
           'Somente uma etapa em produção pode ser concluída.',
         );
+      let currentVersion = Array.isArray(stage.versions)
+        ? stage.versions.find((item) => item.id === stage.currentVersionId)
+        : undefined;
+      if (!currentVersion && !Array.isArray(stage.versions)) {
+        const hydrated = await this.repo.findLessonById(id, manager);
+        const hydratedStage = hydrated?.stages.find(
+          (item) => item.type === type,
+        );
+        currentVersion = hydratedStage?.versions?.find(
+          (item) => item.id === stage.currentVersionId,
+        );
+      }
+      if (currentVersion) {
+        assertStageReadyForCompletionOrPublication(
+          type,
+          currentVersion.structuredDataJson,
+          currentVersion.tiptapAstJson,
+        );
+      }
       stage.status = LessonStageStatus.PRODUCER_APPROVED;
       stage.approvedAt = null;
       stage.approvedById = null;
@@ -1490,7 +1755,7 @@ export class LessonDraftService implements OnApplicationBootstrap {
       );
 
       const allValid =
-        lesson.stages.length === LESSON_STAGE_ORDER.length &&
+        lesson.stages.length === getLessonStageOrder(lesson.category).length &&
         lesson.stages.every(
           (item) =>
             Boolean(item.currentVersionId) &&
@@ -1544,7 +1809,7 @@ export class LessonDraftService implements OnApplicationBootstrap {
           'Somente um pacote concluído pode ser submetido para revisão.',
         );
       if (
-        lesson.stages.length !== LESSON_STAGE_ORDER.length ||
+        lesson.stages.length !== getLessonStageOrder(lesson.category).length ||
         !lesson.stages.every(
           (stage) =>
             Boolean(stage.currentVersionId) &&
@@ -1582,10 +1847,21 @@ export class LessonDraftService implements OnApplicationBootstrap {
     id: string,
     type: LessonStageType,
     userId: string,
+    lockVersion?: number,
   ): Promise<LessonEntity> {
     await this.repo.runInTransaction(async (manager) => {
       const lesson = await this.repo.findLessonByIdForUpdate(id, manager);
       if (!lesson) throw new NotFoundException('Lição não encontrada.');
+      if (
+        lesson.status === LessonStatus.PUBLISHING ||
+        lesson.stages.some(
+          (item) => item.status === LessonStageStatus.GENERATING,
+        )
+      ) {
+        throw new ConflictException(
+          'Aguarde a geração ou publicação em andamento antes de revisar.',
+        );
+      }
       if (
         ![LessonStatus.IN_REVIEW, LessonStatus.CHANGES_REQUESTED].includes(
           lesson.status,
@@ -1603,6 +1879,29 @@ export class LessonDraftService implements OnApplicationBootstrap {
         throw new ConflictException(
           'Este item não está disponível para aprovação.',
         );
+      if (
+        (typeof stage.lockVersion === 'number' &&
+          stage.lockVersion !== lockVersion) ||
+        (Array.isArray(stage.versions) &&
+          stage.versions.length > 0 &&
+          !stage.versions.some(
+            (version) => version.id === stage.currentVersionId,
+          ))
+      ) {
+        throw new ConflictException(
+          'Este item foi atualizado em outra sessão. Recarregue antes de aprovar.',
+        );
+      }
+      const currentVersion = Array.isArray(stage.versions)
+        ? stage.versions.find((item) => item.id === stage.currentVersionId)
+        : undefined;
+      if (currentVersion) {
+        assertStageReadyForCompletionOrPublication(
+          type,
+          currentVersion.structuredDataJson,
+          currentVersion.tiptapAstJson,
+        );
+      }
       stage.status = LessonStageStatus.APPROVED;
       stage.approvedById = userId;
       stage.approvedAt = new Date();
@@ -1656,6 +1955,7 @@ export class LessonDraftService implements OnApplicationBootstrap {
     type: LessonStageType,
     note: string | undefined,
     userId: string,
+    lockVersion?: number,
   ): Promise<LessonEntity> {
     const feedback = note?.trim();
     if (!feedback)
@@ -1665,6 +1965,16 @@ export class LessonDraftService implements OnApplicationBootstrap {
     await this.repo.runInTransaction(async (manager) => {
       const lesson = await this.repo.findLessonByIdForUpdate(id, manager);
       if (!lesson) throw new NotFoundException('Lição não encontrada.');
+      if (
+        lesson.status === LessonStatus.PUBLISHING ||
+        lesson.stages.some(
+          (item) => item.status === LessonStageStatus.GENERATING,
+        )
+      ) {
+        throw new ConflictException(
+          'Aguarde a geração ou publicação em andamento antes de revisar.',
+        );
+      }
       if (
         ![LessonStatus.IN_REVIEW, LessonStatus.CHANGES_REQUESTED].includes(
           lesson.status,
@@ -1682,6 +1992,19 @@ export class LessonDraftService implements OnApplicationBootstrap {
         throw new ConflictException(
           'Este item não está disponível para revisão.',
         );
+      if (
+        (typeof stage.lockVersion === 'number' &&
+          stage.lockVersion !== lockVersion) ||
+        (Array.isArray(stage.versions) &&
+          stage.versions.length > 0 &&
+          !stage.versions.some(
+            (version) => version.id === stage.currentVersionId,
+          ))
+      ) {
+        throw new ConflictException(
+          'Este item foi atualizado em outra sessão. Recarregue antes de devolver.',
+        );
+      }
       stage.status = LessonStageStatus.CHANGES_REQUESTED;
       stage.approvedAt = null;
       stage.approvedById = null;
@@ -1719,10 +2042,11 @@ export class LessonDraftService implements OnApplicationBootstrap {
     type: LessonStageType,
     manager?: EntityManager,
   ): Promise<void> {
-    const index = LESSON_STAGE_ORDER.indexOf(type);
+    const stageOrder = getLessonStageOrder(lesson.category);
+    const index = stageOrder.indexOf(type);
     for (const stage of lesson.stages.filter(
       (item) =>
-        LESSON_STAGE_ORDER.indexOf(item.type) > index &&
+        stageOrder.indexOf(item.type) > index &&
         item.status !== LessonStageStatus.NOT_STARTED,
     )) {
       stage.status = LessonStageStatus.STALE;
@@ -1776,14 +2100,23 @@ export class LessonDraftService implements OnApplicationBootstrap {
     const docxBuffer = await this.docx.buildDocxFromTiptapOrStructuredJson(
       content,
       lesson.weekNumber,
+      lesson.category,
     );
     const pdfBuffer = await this.pdf.convertDocxToPdf(docxBuffer);
-    return { pdfBuffer, fileName: `licao-semana-${lesson.weekNumber}.pdf` };
+    return {
+      pdfBuffer,
+      fileName:
+        lesson.category === LessonCategory.SPECIAL
+          ? `licao-especial${lesson.weekNumber ? `-semana-${lesson.weekNumber}` : ''}.pdf`
+          : `licao-semana-${lesson.weekNumber}.pdf`,
+    };
   }
 
   async previewStagePdf(
     id: string,
     type: LessonStageType,
+    expectedLockVersion?: number,
+    expectedVersionId?: string,
   ): Promise<{ pdfBuffer: Buffer; fileName: string }> {
     const lesson = await this.getById(id);
     const stage = lesson.stages.find((item) => item.type === type);
@@ -1791,11 +2124,33 @@ export class LessonDraftService implements OnApplicationBootstrap {
       throw new BadRequestException(
         'Gere e salve o item antes de visualizar o PDF.',
       );
+    if (
+      expectedLockVersion !== undefined &&
+      typeof stage.lockVersion === 'number' &&
+      stage.lockVersion !== expectedLockVersion
+    ) {
+      throw new ConflictException(
+        'O item foi atualizado em outra sessão. Recarregue antes de visualizar o PDF.',
+      );
+    }
+    if (
+      expectedVersionId !== undefined &&
+      stage.currentVersionId !== expectedVersionId
+    ) {
+      throw new ConflictException(
+        'A versão solicitada para o PDF não corresponde mais à versão atual do item.',
+      );
+    }
     const version = stage.versions.find(
       (item) => item.id === stage.currentVersionId,
     );
     if (!version)
       throw new NotFoundException('Versão atual do item não encontrada.');
+    assertStageReadyForCompletionOrPublication(
+      type,
+      version.structuredDataJson,
+      version.tiptapAstJson,
+    );
     const input = {
       [type]: {
         structuredDataJson: version.structuredDataJson,
@@ -1806,11 +2161,15 @@ export class LessonDraftService implements OnApplicationBootstrap {
     const docxBuffer = await this.docx.buildDocxFromTiptapOrStructuredJson(
       input,
       lesson.weekNumber,
+      lesson.category,
     );
     const pdfBuffer = await this.pdf.convertDocxToPdf(docxBuffer);
     return {
       pdfBuffer,
-      fileName: `preview-${type.toLowerCase()}-semana-${lesson.weekNumber}.pdf`,
+      fileName:
+        lesson.category === LessonCategory.SPECIAL
+          ? `preview-${type.toLowerCase()}-licao-especial${lesson.weekNumber ? `-semana-${lesson.weekNumber}` : ''}.pdf`
+          : `preview-${type.toLowerCase()}-semana-${lesson.weekNumber}.pdf`,
     };
   }
 
@@ -1818,14 +2177,17 @@ export class LessonDraftService implements OnApplicationBootstrap {
     lessonId: string,
   ): Promise<{ id: string } | null> {
     try {
+      const direct =
+        await this.weekMaterialsGet.findOneBySourceLessonId?.(lessonId);
+      if (direct) return { id: direct.id };
       const result = await this.weekMaterialsGet.findAllPaginated({
         searchString: `[origem:licao:${lessonId}]`,
         limit: 5,
       });
-      const match = result.data.find((item) =>
+      const matches = (result?.data ?? []).filter((item) =>
         item.description?.includes(`[origem:licao:${lessonId}]`),
       );
-      return match ? { id: match.id } : null;
+      return matches.length === 1 ? { id: matches[0].id } : null;
     } catch {
       return null;
     }
@@ -1841,36 +2203,65 @@ export class LessonDraftService implements OnApplicationBootstrap {
         if (!locked) throw new NotFoundException('Lição não encontrada.');
         locked.status = LessonStatus.PUBLISHED;
         locked.weekMaterialId = existing.id;
+        locked.publicationLeaseOwner = null;
+        locked.publicationLeaseUntil = null;
+        locked.publicationReservedVersionsJson = null;
+        locked.publicationFailureMessage = null;
         await this.repo.saveLesson(locked, manager);
       });
       return { lesson: await this.getById(id), weekMaterialId: existing.id };
     }
 
+    const attemptToken = randomUUID();
     const reservation = await this.repo.runInTransaction(async (manager) => {
       const locked = await this.repo.findLessonByIdForUpdate(id, manager);
       if (!locked) throw new NotFoundException('Lição não encontrada.');
       if (locked.status === LessonStatus.PUBLISHED && locked.weekMaterialId)
-        return { publishedId: locked.weekMaterialId };
-      if (locked.status === LessonStatus.PUBLISHING)
-        throw new ConflictException(
-          'A publicação desta lição já está em andamento.',
-        );
-      const allStagesApproved = locked.stages.every(
+        return {
+          publishedId: locked.weekMaterialId,
+          reservedVersions: null as Record<string, string> | null,
+        };
+      if (locked.status === LessonStatus.PUBLISHING) {
+        const leaseActive =
+          this.activePublications.has(id) ||
+          Boolean(
+            locked.publicationLeaseUntil &&
+              locked.publicationLeaseUntil > new Date(),
+          ) ||
+          !Array.isArray(locked.stages);
+        if (leaseActive) {
+          throw new ConflictException(
+            'A publicação desta lição já está em andamento.',
+          );
+        }
+      }
+      const stages = Array.isArray(locked.stages) ? locked.stages : [];
+      const allStagesApproved = stages.every(
         (s) =>
           s.status === LessonStageStatus.APPROVED &&
           Boolean(s.currentVersionId),
       );
       if (
-        locked.status !== LessonStatus.READY_FOR_PUBLICATION ||
-        locked.stages.length !== LESSON_STAGE_ORDER.length ||
+        ![LessonStatus.READY_FOR_PUBLICATION, LessonStatus.PUBLISHING].includes(
+          locked.status,
+        ) ||
+        stages.length !== getLessonStageOrder(locked.category).length ||
         !allStagesApproved
       )
         throw new ConflictException(
-          'A publicação exige que os oito itens tenham sido revisados e aprovados.',
+          `A publicação exige que os ${getLessonStageOrder(locked.category).length} itens tenham sido revisados e aprovados.`,
         );
+      const reservedVersions: Record<string, string> = {};
+      for (const stage of stages) {
+        reservedVersions[stage.type] = stage.currentVersionId!;
+      }
       locked.status = LessonStatus.PUBLISHING;
+      locked.publicationLeaseOwner = attemptToken;
+      locked.publicationLeaseUntil = new Date(Date.now() + 60_000);
+      locked.publicationReservedVersionsJson = reservedVersions;
+      locked.publicationFailureMessage = null;
       await this.repo.saveLesson(locked, manager);
-      return { publishedId: null };
+      return { publishedId: null, reservedVersions };
     });
     if (reservation.publishedId)
       return {
@@ -1878,20 +2269,51 @@ export class LessonDraftService implements OnApplicationBootstrap {
         weekMaterialId: reservation.publishedId,
       };
 
+    this.activePublications.add(id);
+    const heartbeat = setInterval(() => {
+      void this.repo
+        .renewPublicationLease?.(
+          id,
+          attemptToken,
+          new Date(Date.now() + 60_000),
+        )
+        ?.catch(() => undefined);
+    }, 20_000);
+    heartbeat.unref?.();
+
     let createdPageId: string | null = null;
     try {
       const lesson = await this.getById(id);
       const dto = new CreateWeekMaterialsPageDto();
-      dto.pageTitle = `Semana ${lesson.weekNumber} — ${lesson.theme}`;
+      const isSpecial = lesson.category === LessonCategory.SPECIAL;
+      const weekSuffix = lesson.weekNumber
+        ? `-semana-${lesson.weekNumber}`
+        : '';
+      dto.pageTitle = isSpecial
+        ? lesson.weekNumber
+          ? `Material Especial (Semana ${lesson.weekNumber}) — ${lesson.theme}`
+          : `Material Especial — ${lesson.theme}`
+        : `Semana ${lesson.weekNumber} — ${lesson.theme}`;
       dto.pageSubtitle = lesson.biblicalReference;
-      dto.pageDescription = `Material completo da semana ${lesson.weekNumber}, revisado e aprovado. [origem:licao:${lesson.id}]`;
+      dto.pageDescription = isSpecial
+        ? `Material Especial completo (Lição, Visuais da Lição e Visuais do Versículo)${lesson.weekNumber ? ` — Semana ${lesson.weekNumber}` : ''}, revisado e aprovado. [tipo:especial] [origem:licao:${lesson.id}]`
+        : `Material completo da semana ${lesson.weekNumber}, revisado e aprovado. [origem:licao:${lesson.id}]`;
+      dto.sourceLessonId = lesson.id;
       dto.documents = [];
       const files: Record<string, Express.Multer.File> = {};
       // Render every approved item before creating the page or uploading files.
-      for (const type of LESSON_STAGE_ORDER) {
-        const { pdfBuffer } = await this.previewStagePdf(id, type);
+      for (const type of getLessonStageOrder(lesson.category)) {
+        const expectedVersionId = reservation.reservedVersions?.[type];
+        const { pdfBuffer } = await this.previewStagePdf(
+          id,
+          type,
+          undefined,
+          expectedVersionId,
+        );
         const fieldKey = `generated-${type.toLowerCase()}`;
-        const fileName = `${type.toLowerCase()}-semana-${lesson.weekNumber}.pdf`;
+        const fileName = isSpecial
+          ? `${type.toLowerCase()}-licao-especial${weekSuffix}.pdf`
+          : `${type.toLowerCase()}-semana-${lesson.weekNumber}.pdf`;
         dto.documents.push({
           title: LESSON_PUBLICATION_TITLES[type],
           description: lesson.biblicalReference,
@@ -1918,23 +2340,40 @@ export class LessonDraftService implements OnApplicationBootstrap {
         if (!locked) throw new NotFoundException('Lição não encontrada.');
         locked.status = LessonStatus.PUBLISHED;
         locked.weekMaterialId = page.id;
+        locked.publicationLeaseOwner = null;
+        locked.publicationLeaseUntil = null;
+        locked.publicationReservedVersionsJson = null;
+        locked.publicationFailureMessage = null;
         await this.repo.saveLesson(locked, manager);
       });
       return { lesson: await this.getById(id), weekMaterialId: page.id };
     } catch (error: unknown) {
+      const failureMessage =
+        error instanceof Error ? error.message : String(error);
+      const recoveredPage = createdPageId
+        ? { id: createdPageId }
+        : await this.findExistingWeekMaterialPage(id);
       await this.repo
         .runInTransaction(async (manager) => {
           const locked = await this.repo.findLessonByIdForUpdate(id, manager);
           if (!locked) return;
-          if (createdPageId) {
+          if (recoveredPage) {
             locked.status = LessonStatus.PUBLISHED;
-            locked.weekMaterialId = createdPageId;
+            locked.weekMaterialId = recoveredPage.id;
+            locked.publicationLeaseOwner = null;
+            locked.publicationLeaseUntil = null;
+            locked.publicationReservedVersionsJson = null;
+            locked.publicationFailureMessage = null;
             await this.repo.saveLesson(locked, manager);
           } else if (
             locked.status === LessonStatus.PUBLISHING &&
             !locked.weekMaterialId
           ) {
             locked.status = LessonStatus.READY_FOR_PUBLICATION;
+            locked.publicationLeaseOwner = null;
+            locked.publicationLeaseUntil = null;
+            locked.publicationReservedVersionsJson = null;
+            locked.publicationFailureMessage = failureMessage;
             await this.repo.saveLesson(locked, manager);
           }
         })
@@ -1944,6 +2383,9 @@ export class LessonDraftService implements OnApplicationBootstrap {
           );
         });
       throw error;
+    } finally {
+      clearInterval(heartbeat);
+      this.activePublications.delete(id);
     }
   }
 
@@ -1972,14 +2414,15 @@ export class LessonDraftService implements OnApplicationBootstrap {
         );
       }
 
+      const bucketName = process.env.AWS_S3_BUCKET_NAME;
       for (const stage of lesson.stages || []) {
         for (const version of stage.versions || []) {
-          if (version.docxS3Key) s3Urls.add(version.docxS3Key);
-          if (version.pdfS3Key) s3Urls.add(version.pdfS3Key);
-          if (version.structuredDataJson) {
-            this.extractS3UrlsFromJson(version.structuredDataJson).forEach(
-              (url) => s3Urls.add(url),
-            );
+          for (const url of extractOwnedLessonVersionAssetUrls(
+            id,
+            version,
+            bucketName,
+          )) {
+            s3Urls.add(url);
           }
         }
       }
@@ -1987,7 +2430,15 @@ export class LessonDraftService implements OnApplicationBootstrap {
       await this.repo.removeLesson(lesson, manager);
     });
 
-    await Promise.all([...s3Urls].map((url) => this.s3.delete(url)));
+    await Promise.all(
+      [...s3Urls].map(async (url) => {
+        const referencedElsewhere =
+          await this.repo.isAssetReferencedElsewhere?.(id, url);
+        if (!referencedElsewhere) {
+          await this.s3.delete(url);
+        }
+      }),
+    );
 
     return {
       success: true,
@@ -1996,30 +2447,14 @@ export class LessonDraftService implements OnApplicationBootstrap {
     };
   }
 
-  private extractS3UrlsFromJson(obj: unknown): string[] {
-    const urls: string[] = [];
-    const findUrls = (val: unknown) => {
-      if (typeof val === 'string') {
-        if (val.includes('s3.amazonaws.com') || val.includes('.s3.')) {
-          urls.push(val);
-        }
-      } else if (Array.isArray(val)) {
-        val.forEach(findUrls);
-      } else if (val && typeof val === 'object') {
-        Object.values(val as Record<string, unknown>).forEach(findUrls);
-      }
-    };
-    findUrls(obj);
-    return urls;
-  }
-
   private checksum(value: JsonObject): string {
     return createHash('sha256').update(JSON.stringify(value)).digest('hex');
   }
   private toTiptap(
     value: JsonObject,
-    weekNumber?: number,
+    weekNumber?: number | null,
     stageType?: LessonStageType,
+    category?: LessonCategory | null,
   ): JsonObject {
     const nodes: JsonObject[] = [];
     const labels: Record<string, string> = {
@@ -2079,6 +2514,7 @@ export class LessonDraftService implements OnApplicationBootstrap {
       content: [paragraph(text)],
     });
     const append = (key: string, raw: unknown, depth = 2): void => {
+      if (key.startsWith('_')) return;
       if (key === 'closingPrayer' && !lessonString(raw).trim()) return;
       if (
         [
@@ -2097,7 +2533,7 @@ export class LessonDraftService implements OnApplicationBootstrap {
         if (titleText) {
           const lines =
             'story' in value || weekNumber !== undefined
-              ? lessonHeaderLines(titleText, weekNumber)
+              ? lessonHeaderLines(titleText, weekNumber, category)
               : [titleText];
           lines.forEach((text) =>
             nodes.push({

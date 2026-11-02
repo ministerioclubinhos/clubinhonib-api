@@ -119,6 +119,7 @@ export class WeekMaterialsPageCreateService {
         title: dto.pageTitle,
         subtitle: dto.pageSubtitle,
         description: dto.pageDescription,
+        sourceLessonId: dto.sourceLessonId ?? null,
         // Publishing is exclusive to POST /current-week/:id, which also clears
         // the previously published page; creating never sets the flag.
         currentWeek: false,

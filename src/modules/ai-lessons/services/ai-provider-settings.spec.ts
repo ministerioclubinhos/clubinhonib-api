@@ -3,12 +3,21 @@ import { validate } from 'class-validator';
 import { AiProviderSettingRepository } from '../repositories/ai-provider-setting.repository';
 import { GetAiProviderSettingsService } from './get-ai-provider-settings.service';
 import { UpdateAiProviderSettingsService } from './update-ai-provider-settings.service';
-import { AiProviderSettingsKey } from '../constants/ai-provider-settings.constants';
+import { AiProvidersConfigService } from './ai-providers-config.service';
+import {
+  AiModelCatalogSource,
+  AiProviderSettingsKey,
+} from '../constants/ai-provider-settings.constants';
 import { LessonLlmProvider } from '../providers/lesson-llm.types';
 import {
   SaveAiProviderSettingsDto,
   SaveGeminiSettingsDto,
+  SaveOpenAiSettingsDto,
 } from '../dto/ai-provider-settings.dto';
+import {
+  decryptProviderSecret,
+  encryptProviderSecret,
+} from '../aiProviderSettings.utils';
 
 describe('Configurações de IA salvas no banco', () => {
   const rows = new Map<AiProviderSettingsKey, Record<string, unknown>>();
@@ -222,5 +231,45 @@ describe('Configurações de IA salvas no banco', () => {
         }),
       ),
     ).not.toHaveLength(0);
+    expect(
+      await validate(
+        plainToInstance(SaveOpenAiSettingsDto, {
+          generalModel: null,
+          apiKey: null,
+        }),
+      ),
+    ).not.toHaveLength(0);
+    expect(
+      await validate(
+        plainToInstance(SaveOpenAiSettingsDto, {
+          generalModel: 'x'.repeat(121),
+        }),
+      ),
+    ).not.toHaveLength(0);
+  });
+
+  it('criptografa e descriptografa chaves de API com AES-256-GCM quando AI_PROVIDER_SETTINGS_ENCRYPTION_KEY está configurada', () => {
+    const encryptionKey = 'synthetic-test-master-key-for-aes-gcm';
+    const raw = 'sk-synthetic-secret-value-999';
+    const encrypted = encryptProviderSecret(raw, encryptionKey);
+    expect(encrypted).toMatch(/^enc:v1:/);
+    expect(encrypted).not.toContain(raw);
+    expect(decryptProviderSecret(encrypted, encryptionKey)).toBe(raw);
+    expect(decryptProviderSecret(encrypted, 'wrong-key')).toBe('');
+    // Backward compatibility with legacy plaintext
+    expect(decryptProviderSecret(raw, encryptionKey)).toBe(raw);
+  });
+
+  it('informa proveniência explícita (FALLBACK e STATIC) no catálogo de modelos quando não há consulta ao vivo', async () => {
+    const configService = new AiProvidersConfigService(getter, updater);
+    const openaiCatalog = await configService.getOpenAiModels();
+    expect(openaiCatalog.source).toBe(AiModelCatalogSource.FALLBACK);
+    expect(openaiCatalog.isLive).toBe(false);
+    expect(openaiCatalog.warning).toContain('contingência');
+
+    const geminiCatalog = await configService.getGeminiModels();
+    expect(geminiCatalog.source).toBe(AiModelCatalogSource.STATIC);
+    expect(geminiCatalog.isLive).toBe(false);
+    expect(geminiCatalog.warning).toContain('Catálogo estático');
   });
 });

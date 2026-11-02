@@ -9,6 +9,7 @@ import {
   GeminiSettingsResponseDto,
 } from '../dto/ai-provider-settings-response.dto';
 import {
+  AiModelCatalogSource,
   DEFAULT_OPENAI_GENERAL_MODELS,
   DEFAULT_OPENAI_IMAGE_MODELS,
   DEFAULT_GEMINI_GENERAL_MODELS,
@@ -29,11 +30,8 @@ export class AiProvidersConfigService {
   ) {}
 
   /** 1. Lista os modelos da OpenAI consultando a API da OpenAI em tempo real */
-  async getOpenAiModels(
-    apiKeyParam?: string,
-  ): Promise<AiProviderModelsResponseDto> {
-    const keyToUse =
-      apiKeyParam || (await this.get.getInternalOpenAiSettings()).apiKey;
+  async getOpenAiModels(): Promise<AiProviderModelsResponseDto> {
+    const keyToUse = (await this.get.getInternalOpenAiSettings()).apiKey;
 
     if (keyToUse) {
       try {
@@ -81,6 +79,9 @@ export class AiProvidersConfigService {
               new Set([...fetchedImage, ...DEFAULT_OPENAI_IMAGE_MODELS]),
             ),
           },
+          source: AiModelCatalogSource.LIVE,
+          isLive: true,
+          warning: null,
         };
       } catch {
         this.logger.warn('Não foi possível consultar os modelos da OpenAI.');
@@ -92,6 +93,11 @@ export class AiProvidersConfigService {
         general: DEFAULT_OPENAI_GENERAL_MODELS,
         image: DEFAULT_OPENAI_IMAGE_MODELS,
       },
+      source: AiModelCatalogSource.FALLBACK,
+      isLive: false,
+      warning: keyToUse
+        ? 'Não foi possível consultar o catálogo em tempo real da OpenAI; exibindo a lista padrão de contingência.'
+        : 'Nenhuma chave da OpenAI configurada; exibindo a lista padrão de contingência.',
     };
   }
 
@@ -113,6 +119,10 @@ export class AiProvidersConfigService {
         general: DEFAULT_GEMINI_GENERAL_MODELS,
         image: DEFAULT_GEMINI_IMAGE_MODELS,
       },
+      source: AiModelCatalogSource.STATIC,
+      isLive: false,
+      warning:
+        'Catálogo estático de modelos compatíveis com o Gemini no Studio Clubinho.',
     });
   }
 
