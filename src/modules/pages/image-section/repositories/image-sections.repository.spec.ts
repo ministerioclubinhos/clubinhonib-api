@@ -26,6 +26,8 @@ function fakeQueryBuilder(): {
   const self = (): Record<string, unknown> => chain;
 
   chain.leftJoinAndSelect = jest.fn(self);
+  chain.leftJoin = jest.fn(self);
+  chain.addSelect = jest.fn(self);
   chain.where = jest.fn((clause: string) => {
     calls.where.push(clause);
     return chain;
@@ -66,7 +68,10 @@ describe('ImageSectionsRepository', () => {
     await repo.findAllPaginated({ approved: true });
     await repo.findAllPaginated({ approved: false });
 
-    expect(calls.andWhere).toEqual(['page.id IS NOT NULL', 'page.id IS NULL']);
+    expect(calls.andWhere).toEqual([
+      'page.id IS NOT NULL AND section.public = true',
+      '(page.id IS NULL OR section.public = false)',
+    ]);
     expect(calls.andWhere.join(' ')).not.toContain('page_id');
   });
 
@@ -76,6 +81,8 @@ describe('ImageSectionsRepository', () => {
 
     await repo.countPending();
 
-    expect(calls.where).toEqual(['page.id IS NULL']);
+    expect(calls.where).toEqual([
+      '(page.id IS NULL OR section.public = false)',
+    ]);
   });
 });

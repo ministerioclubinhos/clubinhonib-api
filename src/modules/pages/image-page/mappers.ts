@@ -55,6 +55,7 @@ export function toSectionResponse(
   return {
     id: section.id,
     caption: section.caption,
+    author: section.author?.name ? { name: section.author.name } : null,
     description: section.description,
     public: section.public,
     createdAt: section.createdAt,

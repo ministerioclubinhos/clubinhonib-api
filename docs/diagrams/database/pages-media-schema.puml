@@ -31,9 +31,15 @@ entity "image_pages" as e_image_page {
   public : boolean
 }
 
+entity "users" as e_user {
+  * id : UUID <<PK>>
+  name : varchar
+}
+
 entity "image_sections" as e_image_section {
   * id : UUID <<PK>>
   --
+  authorId : UUID? <<FK>>
   pageId : UUID? <<FK>>
   public : boolean
 }
@@ -70,6 +76,7 @@ e_route "1" -- "0..1" e_video_page
 e_route "1" -- "0..1" e_week_page
 e_ideas_page "0..1" -- "0..*" e_ideas_section
 e_image_page "0..1" -- "0..*" e_image_section
+e_user "0..1" -- "0..*" e_image_section : author / ON DELETE SET NULL
 e_media ..> e_s3 : url when isLocalFile=true
 
 note bottom of e_media

@@ -799,3 +799,15 @@ Falhas ao carregar a lição, exportar ou converter o PDF durante a publicação
 AI lesson publication: a rendering failure in any of the eight stage PDFs creates no weekly page and restores READY_FOR_PUBLICATION, preserving approvals and the original error.
 
 Image generation retries a transient socket reset (ECONNRESET/EPIPE) or temporary DNS failure (EAI_AGAIN) exactly once after 1.5 seconds, recreating only the same image request. Text and previously completed artwork are not regenerated during that retry. Invalid requests, authorization/billing/429 errors, and ambiguous timeouts are not retried by this policy. Exhausted connection failures expose AI_CONNECTION_INTERRUPTED rather than AI_UNKNOWN_ERROR; the previous persisted version remains intact. Provider retries can incur additional image charges.
+
+
+## Clubinho media submissions
+
+`POST/PATCH /image-sections` validate the exclusive photo/video selection before
+writing files. `VALIDATION_ERROR` rejects empty, mixed, excessive or unsupported
+collections; `INVALID_INPUT` rejects foreign/repeated media IDs, media-type
+changes, unsafe photo links, or new video links; `INVALID_FILE` rejects
+MIME/extension/signature/size mismatches, duplicate file bindings and unmatched
+files. `MEDIA_FILE_NOT_FOUND` identifies an upload without its file. DTO
+validation rejects caller-provided authorship and visibility on create.
+Multer also bounds multipart file count (20) and per-file bytes (100 MB).

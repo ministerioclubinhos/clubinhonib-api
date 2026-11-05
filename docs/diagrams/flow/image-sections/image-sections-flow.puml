@@ -1,7 +1,7 @@
 @startuml Shared Images Flow - Clubinho NIB API
 !theme plain
 hide footbox
-title Shared club images — moderation queue
+title Clubinho photos or one video — moderation and authorship
 
 actor "Authenticated sender / Admin" as Client
 participant ImageSectionController as Controller
@@ -13,24 +13,29 @@ participant NotificationService as Notify
 
 alt Submit
   Client -> Controller : multipart POST /image-sections
-  Controller -> Service : caption + files + optional author
-  Service -> Repository : create public=false with no page
-  Service -> Media : persist uploaded images
-  Media -> S3 : upload supplied images
+  Controller -> Service : caption + files + authenticated user ID
+  Service -> Service : validate exclusive media type, count, size and file signatures
+  Service -> Repository : create public=false, no page, authorId from JWT
+  Service -> Media : persist photos or one video in the same transaction
+  Media -> S3 : upload validated media
   Service -> Notify : notify admins safely
   Service --> Client : pending ImageSectionResponseDto
 else Review and approve
   Client -> Controller : admin PATCH /image-sections/:id
   Controller -> Service : reviewed DTO
   Service -> Service : load configured FEED_CLUBINHO_PAGE_ID
-  Service -> Media : synchronize reviewed images
-  Media -> S3 : upload/replace/delete changed images
+  Service -> Media : validate ownership and prepare reviewed media
+  Media -> S3 : upload changed media
   Service -> Repository : attach to feed page and persist visibility
-  Service --> Client : approved DTO
+  Service -> S3 : clean unreferenced replaced files after commit
+  Service --> Client : approved DTO with author.name
 else Reject
   Service -> Media : remove media rows
   Media -> S3 : delete owned objects
   Service -> Repository : delete section
-  Service --> Client : 204
+  Service --> Client : success message
 end
+Client -> Controller : GET feed sections
+Controller -> Repository : load sections + author names + media
+Controller --> Client : photos or video, author.name (null for legacy)
 @enduml

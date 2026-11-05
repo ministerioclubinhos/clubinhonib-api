@@ -12,6 +12,10 @@ export class ImageSectionMediaResponseDto {
   size: number | null;
 }
 
+export class ImageSectionAuthorDto {
+  name: string;
+}
+
 /** Contrato de resposta de `/image-sections`. */
 export class ImageSectionResponseDto {
   id: string;
@@ -21,6 +25,7 @@ export class ImageSectionResponseDto {
   public: boolean;
   /** Página do feed onde entrou; `null` enquanto aguarda aprovação. */
   pageId: string | null;
+  author: ImageSectionAuthorDto | null;
   mediaItems: ImageSectionMediaResponseDto[];
   createdAt: string;
   updatedAt: string;

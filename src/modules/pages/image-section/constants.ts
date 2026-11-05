@@ -25,3 +25,26 @@ export const IMAGE_SECTION_SEARCH_MAX_LENGTH = 200;
  * mídia correspondente.
  */
 export const IMAGE_SECTION_PAYLOAD_FIELD = 'sectionData';
+
+export const CLUBINHO_MAX_PHOTOS = 20;
+export const CLUBINHO_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+export const CLUBINHO_MAX_VIDEO_BYTES = 100 * 1024 * 1024;
+export const CLUBINHO_UPLOAD_LIMITS = {
+  files: CLUBINHO_MAX_PHOTOS,
+  fileSize: CLUBINHO_MAX_VIDEO_BYTES,
+  fields: 1,
+};
+export const CLUBINHO_IMAGE_EXTENSIONS: Readonly<
+  Record<string, readonly string[]>
+> = {
+  'image/jpeg': ['jpg', 'jpeg'],
+  'image/png': ['png'],
+  'image/webp': ['webp'],
+  'image/gif': ['gif'],
+};
+export const CLUBINHO_VIDEO_EXTENSIONS: Readonly<
+  Record<string, readonly string[]>
+> = {
+  'video/mp4': ['mp4'],
+  'video/webm': ['webm'],
+};

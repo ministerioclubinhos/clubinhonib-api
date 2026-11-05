@@ -35,7 +35,12 @@ export class ImageSectionRepository extends Repository<ImageSectionEntity> {
   ): Promise<ImageSectionEntity> {
     const repo = manager.getRepository(ImageSectionEntity);
 
-    return repo.save(repo.create(data));
+    const saved = await repo.save(repo.create(data));
+    return repo.findOneOrFail({
+      where: { id: saved.id },
+      relations: { author: true },
+      select: { author: { id: true, name: true } },
+    });
   }
 
   /** Grava a seção como está. */
@@ -56,7 +61,11 @@ export class ImageSectionRepository extends Repository<ImageSectionEntity> {
 
   /** Uma seção pelo id, ou `null` quando não existe. */
   async findById(id: string): Promise<ImageSectionEntity | null> {
-    return this.findOneBy({ id });
+    return this.findOne({
+      where: { id },
+      relations: { author: true, page: true },
+      select: { author: { id: true, name: true } },
+    });
   }
 
   async findByPageId(pageId: string): Promise<ImageSectionEntity[]> {

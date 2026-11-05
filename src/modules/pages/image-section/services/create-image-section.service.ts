@@ -1,8 +1,8 @@
+import { validateClubinhoMedia } from '../media-validation';
 import { Injectable, Logger } from '@nestjs/common';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
-import { UploadType } from 'src/shared/media/media-item/media-item.entity';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
 import { ImageSectionRepository } from '../repository/image-section.repository';
 import { CreateImageSectionDto } from '../dto/create-image-section.dto';
@@ -10,12 +10,8 @@ import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 import { ImageSectionResponseDto } from '../dto/image-section-response.dto';
 import { toImageSectionResponse } from '../mappers';
 import { NotificationService } from 'src/shared/providers/notification/notification.service';
-import { UploadedFilesDict } from '../types';
-import {
-  AppInternalException,
-  AppValidationException,
-  ErrorCode,
-} from 'src/shared/exceptions';
+import { UploadedFilesDict, ImageSectionAuthorInput } from '../types';
+import { AppInternalException, ErrorCode } from 'src/shared/exceptions';
 
 @Injectable()
 export class ImageSectionCreateService {
@@ -37,7 +33,7 @@ export class ImageSectionCreateService {
   async createSection(
     dto: CreateImageSectionDto,
     filesDict: UploadedFilesDict,
-    author?: { email?: string },
+    author?: ImageSectionAuthorInput,
   ): Promise<ImageSectionResponseDto> {
     this.logger.log(
       '🚀 Iniciando criação de seção órfã (sem página associada)',
@@ -50,6 +46,11 @@ export class ImageSectionCreateService {
     );
 
     try {
+      validateClubinhoMedia(dto.mediaItems, filesDict);
+      const uploadedUrls = new Map<string, string>();
+      for (const file of Object.values(filesDict)) {
+        uploadedUrls.set(file.fieldname, await uploads.upload(file));
+      }
       // A transação é aberta pelo repositório; aqui só se decide o que entra
       // nela. O rollback acontece sozinho quando o bloco lança.
       const { savedSection, mediaItems } =
@@ -62,24 +63,31 @@ export class ImageSectionCreateService {
               // Nasce fora do ar; publicar é decisão da administração.
               public: false,
               page: null,
+              author: author?.userId ? { id: author.userId } : null,
             },
           );
 
-          this.validateFiles(dto, filesDict);
-
-          const preparedMediaItems = dto.mediaItems.map((item) => ({
-            ...item,
-            fileField: item.fieldKey,
-          }));
-
-          const media: MediaItemEntity[] =
-            await this.mediaItemProcessor.processMediaItemsPolymorphic(
-              preparedMediaItems,
+          const media: MediaItemEntity[] = [];
+          for (const item of dto.mediaItems) {
+            const prepared = this.mediaItemProcessor.buildBaseMediaItem(
+              item,
               section.id,
               MediaTargetType.ImagesPage,
-              filesDict,
-              uploads.upload,
             );
+            const file = item.fieldKey ? filesDict[item.fieldKey] : undefined;
+            if (file) {
+              prepared.url = uploadedUrls.get(file.fieldname)!;
+              prepared.originalName = file.originalname;
+              prepared.size = file.size;
+              prepared.isLocalFile = true;
+            }
+            media.push(
+              await this.mediaItemProcessor.saveMediaItemInTransaction(
+                manager,
+                prepared,
+              ),
+            );
+          }
 
           return { savedSection: section, mediaItems: media };
         });
@@ -112,28 +120,6 @@ export class ImageSectionCreateService {
         'Erro ao criar a seção',
         error as Error,
       );
-    }
-  }
-
-  private validateFiles(
-    dto: CreateImageSectionDto,
-    filesDict: Record<string, Express.Multer.File>,
-  ) {
-    for (const media of dto.mediaItems) {
-      if (media.uploadType === UploadType.UPLOAD && media.isLocalFile) {
-        if (!media.originalName) {
-          throw new AppValidationException(
-            ErrorCode.MEDIA_FIELD_MISSING,
-            'Campo originalName ausente',
-          );
-        }
-        if (!media.fieldKey || !filesDict[media.fieldKey]) {
-          throw new AppValidationException(
-            ErrorCode.MEDIA_FILE_NOT_FOUND,
-            `Arquivo não encontrado para fieldKey: ${media.fieldKey}`,
-          );
-        }
-      }
     }
   }
 }

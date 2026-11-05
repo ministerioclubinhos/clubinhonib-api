@@ -11,3 +11,8 @@ export type ImageSectionStatus = 'pending' | 'approved';
 
 /** Arquivos do multipart, endereçados pelo nome do campo. */
 export type UploadedFilesDict = Record<string, Express.Multer.File>;
+
+export interface ImageSectionAuthorInput {
+  userId?: string;
+  email?: string;
+}

@@ -31,7 +31,14 @@ const buildSection = (): ImageSectionEntity =>
 const dto: CreateImageSectionDto = {
   caption: 'Encontro de sábado',
   description: 'fotos',
-  mediaItems: [],
+  mediaItems: [
+    {
+      uploadType: UploadType.LINK,
+      mediaType: MediaType.IMAGE,
+      isLocalFile: false,
+      url: 'https://example.com/photo.jpg',
+    },
+  ],
 };
 
 describe('ImageSectionCreateService', () => {
@@ -45,7 +52,8 @@ describe('ImageSectionCreateService', () => {
     createInTransaction: jest.fn(),
   };
   const mediaItemProcessor = {
-    processMediaItemsPolymorphic: jest.fn(),
+    buildBaseMediaItem: jest.fn(),
+    saveMediaItemInTransaction: jest.fn(),
     discardUnreferencedUploads: jest.fn(),
   };
   const notificationService = { notifyNewImageShared: jest.fn() };
@@ -58,8 +66,12 @@ describe('ImageSectionCreateService', () => {
     imageSectionRepository.createInTransaction.mockResolvedValue(
       buildSection(),
     );
-    mediaItemProcessor.processMediaItemsPolymorphic.mockResolvedValue(
-      [] as MediaItemEntity[],
+    mediaItemProcessor.buildBaseMediaItem.mockReturnValue(
+      new MediaItemEntity(),
+    );
+    mediaItemProcessor.saveMediaItemInTransaction.mockImplementation(
+      (_manager: EntityManager, media: MediaItemEntity) =>
+        Promise.resolve(media),
     );
 
     const moduleRef = await Test.createTestingModule({
@@ -94,22 +106,27 @@ describe('ImageSectionCreateService', () => {
       {},
       {
         email: 'quem@enviou.com',
+        userId: 'sender-id',
       },
     );
 
     // Nascem sem página e fora do ar: publicar é decisão da administração.
     expect(imageSectionRepository.createInTransaction).toHaveBeenCalledWith(
       manager,
-      expect.objectContaining({ public: false, page: null }),
+      expect.objectContaining({
+        public: false,
+        page: null,
+        author: { id: 'sender-id' },
+      }),
     );
-    expect(
-      mediaItemProcessor.processMediaItemsPolymorphic,
-    ).toHaveBeenCalledWith(
-      [],
+    expect(mediaItemProcessor.buildBaseMediaItem).toHaveBeenCalledWith(
+      dto.mediaItems[0],
       'section-id',
       MediaTargetType.ImagesPage,
-      {},
-      expect.anything(),
+    );
+    expect(mediaItemProcessor.saveMediaItemInTransaction).toHaveBeenCalledWith(
+      manager,
+      expect.any(MediaItemEntity),
     );
     // O aviso sai só depois do commit: avisar antes anunciaria uma publicação
     // que o rollback pode desfazer.
@@ -152,5 +169,43 @@ describe('ImageSectionCreateService', () => {
       1,
     );
     expect(notificationService.notifyNewImageShared).not.toHaveBeenCalled();
+  });
+  it('uploads a video before the transaction and saves its actual file metadata', async () => {
+    const file = {
+      fieldname: 'clip',
+      originalname: 'clip.webm',
+      mimetype: 'video/webm',
+      size: 12,
+      buffer: Buffer.from([26, 69, 223, 163, 0, 0, 0, 0, 0, 0, 0, 0]),
+    } as Express.Multer.File;
+    awsS3Service.upload.mockResolvedValue('https://bucket/clip.webm');
+    const response = await service.createSection(
+      {
+        ...dto,
+        mediaItems: [
+          {
+            mediaType: MediaType.VIDEO,
+            uploadType: UploadType.UPLOAD,
+            isLocalFile: true,
+            fieldKey: 'clip',
+          },
+        ],
+      },
+      { clip: file },
+      { userId: 'teacher' },
+    );
+    expect(response.mediaItems[0]).toMatchObject({
+      url: 'https://bucket/clip.webm',
+      originalName: 'clip.webm',
+      size: 12,
+      isLocalFile: true,
+    });
+    expect(awsS3Service.upload.mock.invocationCallOrder[0]).toBeLessThan(
+      imageSectionRepository.createInTransaction.mock.invocationCallOrder[0],
+    );
+    expect(mediaItemProcessor.saveMediaItemInTransaction).toHaveBeenCalledWith(
+      manager,
+      expect.objectContaining({ url: 'https://bucket/clip.webm' }),
+    );
   });
 });

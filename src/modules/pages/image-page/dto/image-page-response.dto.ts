@@ -1,3 +1,4 @@
+import { ImageSectionAuthorDto } from '../../image-section/dto/image-section-response.dto';
 import { RouteType } from 'src/modules/routes/route-page.entity';
 import {
   MediaType,
@@ -32,6 +33,7 @@ export class GalleryMediaItemDto {
 }
 
 export class ImageSectionDto {
+  author: ImageSectionAuthorDto | null;
   id: string;
   caption: string;
   description: string;

@@ -1,7 +1,7 @@
+import { validateClubinhoMedia } from '../media-validation';
 import {
   AppNotFoundException,
   AppInternalException,
-  AppValidationException,
   ErrorCode,
 } from 'src/shared/exceptions';
 import { Injectable, Logger } from '@nestjs/common';
@@ -17,7 +17,6 @@ import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
 import { ImageSectionRepository } from '../repository/image-section.repository';
 import { ImagePageGetService } from 'src/modules/pages/image-page/services/get-image-page.service';
 import { UpdateImageSectionDto } from '../dto/update-image-section.dto';
-import { MediaItemDto } from 'src/shared/share-dto/media-item-dto';
 import { ImageSectionResponseDto } from '../dto/image-section-response.dto';
 import { toImageSectionResponse } from '../mappers';
 
@@ -80,22 +79,69 @@ export class ImageSectionUpdateService {
           MediaTargetType.ImagesPage,
         );
 
-      await this.deleteObsoleteMedia(existingMedia, dto.mediaItems);
-      const processedMedia = await this.processMedia(
-        dto.mediaItems,
-        section.id,
-        filesDict,
-        uploads,
+      validateClubinhoMedia(dto.mediaItems, filesDict, existingMedia);
+      const preparedMedia: MediaItemEntity[] = [];
+      for (const input of dto.mediaItems) {
+        const stored = existingMedia.find((media) => media.id === input.id);
+        const prepared = this.mediaItemProcessor.buildBaseMediaItem(
+          input,
+          section.id,
+          MediaTargetType.ImagesPage,
+        );
+        if (stored) prepared.id = stored.id;
+        const file = input.fieldKey ? filesDict[input.fieldKey] : undefined;
+        if (file) {
+          prepared.url = await uploads.upload(file);
+          prepared.isLocalFile = true;
+          prepared.originalName = file.originalname;
+          prepared.size = file.size;
+        } else if (input.uploadType === UploadType.UPLOAD && stored) {
+          prepared.url = stored.url;
+          prepared.isLocalFile = stored.isLocalFile;
+          prepared.originalName = stored.originalName;
+          prepared.size = stored.size;
+        }
+        preparedMedia.push(prepared);
+      }
+      const removed = existingMedia.filter(
+        (media) => !dto.mediaItems.some((input) => input.id === media.id),
       );
       section.caption = dto.caption;
       section.description = dto.description;
       section.public = dto.public || false;
-      section.page = page;
-
-      // A transação é aberta pelo repositório; aqui só se decide o que entra
-      // nela. O rollback acontece sozinho quando o bloco lança.
-      const savedSection = await this.sectionRepo.runInTransaction((manager) =>
-        this.sectionRepo.saveInTransaction(manager, section),
+      section.page = dto.public ? page : null;
+      const { savedSection, processedMedia } =
+        await this.sectionRepo.runInTransaction(async (manager) => {
+          const processedMedia: MediaItemEntity[] = [];
+          for (const media of preparedMedia) {
+            processedMedia.push(
+              await this.mediaItemProcessor.saveMediaItemInTransaction(
+                manager,
+                media,
+              ),
+            );
+          }
+          for (const media of removed)
+            await this.mediaItemProcessor.deleteMediaItemByIdInTransaction(
+              manager,
+              media.id,
+            );
+          const savedSection = await this.sectionRepo.saveInTransaction(
+            manager,
+            section,
+          );
+          return { savedSection, processedMedia };
+        });
+      // Delete replaced objects only after all rows have committed.
+      await this.mediaItemProcessor.discardUnreferencedUploads(
+        existingMedia
+          .filter(
+            (media) =>
+              media.isLocalFile &&
+              !processedMedia.some((saved) => saved.url === media.url),
+          )
+          .map((media) => media.url),
+        (url: string) => this.awsS3Service.delete(url),
       );
 
       return toImageSectionResponse(savedSection, processedMedia);
@@ -115,144 +161,5 @@ export class ImageSectionUpdateService {
         error as Error,
       );
     }
-  }
-
-  private async deleteObsoleteMedia(
-    existingMedia: MediaItemEntity[],
-    incomingMedia: MediaItemDto[],
-  ): Promise<void> {
-    const incomingIds = incomingMedia
-      .map((m) => m.id)
-      .filter((id): id is string => !!id);
-    const toRemove = existingMedia.filter((m) => !incomingIds.includes(m.id));
-
-    if (toRemove.length > 0) {
-      await this.mediaItemProcessor.deleteMediaItems(toRemove, async (url) => {
-        await this.awsS3Service.delete(url);
-      });
-    }
-  }
-
-  private async processMedia(
-    mediaItems: MediaItemDto[],
-    sectionId: string,
-    filesDict: Record<string, Express.Multer.File>,
-    uploads: S3UploadTracker,
-  ): Promise<MediaItemEntity[]> {
-    const processed: MediaItemEntity[] = [];
-
-    for (const mediaInput of mediaItems) {
-      if (mediaInput.id) {
-        const updated = await this.upsertMedia(
-          mediaInput,
-          sectionId,
-          filesDict,
-          uploads,
-        );
-        processed.push(updated);
-      } else {
-        const created = await this.addMedia(
-          mediaInput,
-          sectionId,
-          filesDict,
-          uploads,
-        );
-        processed.push(created);
-      }
-    }
-    return processed;
-  }
-
-  private async addMedia(
-    mediaInput: MediaItemDto,
-    sectionId: string,
-    filesDict: Record<string, Express.Multer.File>,
-    uploads: S3UploadTracker,
-  ): Promise<MediaItemEntity> {
-    const media = this.mediaItemProcessor.buildBaseMediaItem(
-      mediaInput,
-      sectionId,
-      MediaTargetType.ImagesPage,
-    );
-
-    if (mediaInput.uploadType === UploadType.UPLOAD && mediaInput.isLocalFile) {
-      const file = filesDict[mediaInput.fieldKey ?? ''];
-      if (!file) {
-        throw new AppValidationException(
-          ErrorCode.MEDIA_FILE_NOT_FOUND,
-          'Arquivo não encontrado para upload',
-        );
-      }
-      media.url = await uploads.upload(file);
-      media.isLocalFile = true;
-      media.originalName = file.originalname;
-      media.size = file.size;
-    } else {
-      media.url = mediaInput.url?.trim() || '';
-      media.isLocalFile = false;
-    }
-
-    return await this.mediaItemProcessor.saveMediaItem(media);
-  }
-
-  private async upsertMedia(
-    mediaInput: MediaItemDto,
-    sectionId: string,
-    filesDict: Record<string, Express.Multer.File>,
-    uploads: S3UploadTracker,
-  ): Promise<MediaItemEntity> {
-    // Quem conhece a persistência da mídia é o módulo de mídia; aqui só se
-    // pergunta por ela.
-    const existingMedia = await this.mediaItemProcessor.findMediaItemById(
-      mediaInput.id ?? '',
-    );
-    if (!existingMedia) {
-      throw new AppNotFoundException(
-        ErrorCode.RESOURCE_NOT_FOUND,
-        `Mídia com id=${mediaInput.id} não encontrada`,
-      );
-    }
-
-    const updatedMedia = this.mediaItemProcessor.buildBaseMediaItem(
-      mediaInput,
-      sectionId,
-      MediaTargetType.ImagesPage,
-    );
-    updatedMedia.id = existingMedia.id;
-
-    if (mediaInput.uploadType === UploadType.UPLOAD && mediaInput.isLocalFile) {
-      const file = filesDict[mediaInput.fieldKey ?? ''];
-      if (file) {
-        updatedMedia.url = await uploads.upload(file);
-        updatedMedia.isLocalFile = true;
-        updatedMedia.originalName = file.originalname;
-        updatedMedia.size = file.size;
-      } else {
-        updatedMedia.url = existingMedia.url;
-        updatedMedia.isLocalFile = existingMedia.isLocalFile;
-        updatedMedia.originalName = existingMedia.originalName;
-        updatedMedia.size = existingMedia.size;
-      }
-    } else {
-      updatedMedia.url = mediaInput.url?.trim() || existingMedia.url;
-      updatedMedia.isLocalFile = false;
-    }
-
-    const saved = await this.mediaItemProcessor.upsertMediaItem(
-      mediaInput.id,
-      updatedMedia,
-    );
-
-    // O arquivo antigo só sai depois que o registro aponta para o novo. Antes
-    // ele simplesmente ficava no bucket sem ninguém referenciando.
-    if (
-      existingMedia.isLocalFile &&
-      existingMedia.url &&
-      existingMedia.url !== saved.url
-    ) {
-      await this.awsS3Service.delete(existingMedia.url);
-    }
-
-    return saved;
   }
 }

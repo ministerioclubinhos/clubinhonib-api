@@ -800,3 +800,48 @@ Falhas ao carregar a lição, exportar ou converter o PDF durante a publicação
 Weekly material publication now renders the eight approved stages as eight independently named PDF documents, each with a unique upload field and filename. All PDFs must succeed before the weekly page is created. The page title includes the week number and theme, and its public route follows the existing weekly-material route generator (`materiais_semanal_` + normalized title). Consolidated PDF export remains available separately. Already published lessons retain their existing link and are not silently duplicated or rewritten.
 
 Image generation retries a transient socket reset (ECONNRESET/EPIPE) or temporary DNS failure (EAI_AGAIN) exactly once after 1.5 seconds, recreating only the same image request. Text and previously completed artwork are not regenerated during that retry. Invalid requests, authorization/billing/429 errors, and ambiguous timeouts are not retried by this policy. Exhausted connection failures expose AI_CONNECTION_INTERRUPTED rather than AI_UNKNOWN_ERROR; the previous persisted version remains intact. Provider retries can incur additional image charges.
+
+
+## Clubinho photos, videos and authorship
+
+`POST /image-sections` accepts 1–20 photos or exactly one uploaded video, never a
+mixed collection. Photo uploads allow JPG/PNG/WebP/GIF up to 10 MB each; videos
+allow MP4/WebM up to 100 MB. The server validates MIME/extension, initial file
+signature, size, count, multipart binding and existing-media ownership before
+storage changes. New video links are not accepted. Existing photo links remain
+supported. Caption and description are trimmed and required; caption is limited
+to 255 characters. Create payloads cannot include visibility or author fields.
+
+JWT `userId` is persisted as nullable `image_sections.authorId` (FK to users,
+ON DELETE SET NULL). The TypeORM-generated AddClubinhoMediaAuthor migration must
+run before deploying this code. Legacy posts retain a null author. Feed and
+moderation responses add `author: { name: string } | null`, with no email,
+password or other user fields. Review never replaces the submitting author.
+
+Create remains authenticated; list/detail/update/delete remain admin-only.
+New submissions are private and detached. Saving without publication detaches
+from the feed; approval attaches to FEED_CLUBINHO_PAGE_ID. Pending queries count
+private or detached sections. Media rows and section changes share a transaction.
+On replacement, old files are cleaned only after commit; failed writes discard
+unreferenced new uploads. Photo comments remain restricted to photos.
+
+Invalid selection or ownership uses VALIDATION_ERROR/INVALID_INPUT; invalid
+files use INVALID_FILE, and missing uploads use MEDIA_FILE_NOT_FOUND. The global
+error envelope is unchanged. No production migration was executed.
+
+
+### Production compatibility for existing photos
+
+Apply `AddClubinhoMediaAuthor1793841264523` before starting the new API. Its `up`
+only adds the nullable `authorId` column and an `ON DELETE SET NULL` FK: no photo,
+section, media URL or existing row is deleted or rewritten, and no authorship
+backfill is attempted. Old API versions ignore the additive column. Deploy the
+API before the updated frontend; `author` remains optional/null-safe in the UI.
+Old albums display `Autor não informado`; reviewing them does not attribute them
+to the administrator. Existing albums above the new 20-photo upload limit can
+still be reviewed while preserving or reducing their count. Their stored images
+are reused without upload or deletion when only text/approval changes.
+The local database had already auto-created the exact schema during hot reload;
+TypeORM's `migration:generate --check` verified equality before the local history
+was reconciled using `migration:run --fake`. **Do not use `--fake` for production**:
+run the generated migration normally against the existing production schema.

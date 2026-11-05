@@ -25,7 +25,9 @@ export class ImageSectionsRepository {
   private baseQB(): SelectQueryBuilder<ImageSectionEntity> {
     return this.repo
       .createQueryBuilder('section')
-      .leftJoinAndSelect('section.page', 'page');
+      .leftJoinAndSelect('section.page', 'page')
+      .leftJoin('section.author', 'author')
+      .addSelect(['author.id', 'author.name']);
   }
 
   /**
@@ -54,9 +56,9 @@ export class ImageSectionsRepository {
     // página juntada: a coluna da FK se chama `pageId`, e `section.page_id`
     // derrubava a consulta com erro interno.
     if (query.approved === true) {
-      qb.andWhere('page.id IS NOT NULL');
+      qb.andWhere('page.id IS NOT NULL AND section.public = true');
     } else if (query.approved === false) {
-      qb.andWhere('page.id IS NULL');
+      qb.andWhere('(page.id IS NULL OR section.public = false)');
     }
 
     if (query.hasMedia !== undefined) {
@@ -99,11 +101,17 @@ export class ImageSectionsRepository {
 
   /** Quantas fotos aguardam aprovação. */
   async countPending(): Promise<number> {
-    return this.baseQB().where('page.id IS NULL').getCount();
+    return this.baseQB()
+      .where('(page.id IS NULL OR section.public = false)')
+      .getCount();
   }
 
   /** Carrega a seção com a página vinculada, quando existe. */
   async findById(id: string): Promise<ImageSectionEntity | null> {
-    return this.repo.findOne({ where: { id }, relations: { page: true } });
+    return this.repo.findOne({
+      where: { id },
+      relations: { page: true, author: true },
+      select: { author: { id: true, name: true } },
+    });
   }
 }

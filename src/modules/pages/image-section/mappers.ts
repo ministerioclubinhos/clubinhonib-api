@@ -37,6 +37,7 @@ export function toImageSectionResponse(
   return {
     id: section.id,
     caption: section.caption,
+    author: section.author?.name ? { name: section.author.name } : null,
     description: section.description,
     public: section.public,
     // A foto só deixa de estar pendente quando entra na página do feed.

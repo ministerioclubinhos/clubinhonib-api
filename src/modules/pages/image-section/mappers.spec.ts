@@ -1,3 +1,5 @@
+import { UserEntity } from 'src/core/user/entities/user.entity';
+import { toSectionResponse } from '../image-page/mappers';
 import { ImageSectionEntity } from 'src/modules/pages/image-page/entity/Image-section.entity';
 import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 
@@ -22,6 +24,7 @@ describe('toImageSectionResponse (contrato de resposta)', () => {
   it('expõe exatamente os campos do contrato', () => {
     expect(Object.keys(toImageSectionResponse(section)).sort()).toEqual(
       [
+        'author',
         'caption',
         'createdAt',
         'description',
@@ -32,6 +35,26 @@ describe('toImageSectionResponse (contrato de resposta)', () => {
         'updatedAt',
       ].sort(),
     );
+  });
+
+  it('exposes only the sender name and handles legacy publications', () => {
+    const authored = {
+      ...section,
+      author: Object.assign(new UserEntity(), {
+        id: 'sender',
+        name: 'Ana Professora',
+        email: 'private@example.com',
+        password: 'secret',
+      }),
+    };
+    expect(toImageSectionResponse(authored).author).toEqual({
+      name: 'Ana Professora',
+    });
+    expect(toSectionResponse(authored).author).toEqual({
+      name: 'Ana Professora',
+    });
+    expect(toImageSectionResponse(section).author).toBeNull();
+    expect(toSectionResponse(section).author).toBeNull();
   });
 
   it('diz se a publicação já entrou no feed', () => {

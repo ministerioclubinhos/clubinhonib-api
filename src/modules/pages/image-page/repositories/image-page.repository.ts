@@ -158,7 +158,18 @@ export class ImagePageRepository {
   ): Promise<ImagePageEntity | null> {
     return this.scoped(manager).findOne({
       where: { id },
-      relations: [...IMAGE_PAGE_RELATIONS],
+      relations: [...IMAGE_PAGE_RELATIONS, 'sections.author'],
+      select: {
+        sections: {
+          id: true,
+          caption: true,
+          description: true,
+          public: true,
+          createdAt: true,
+          updatedAt: true,
+          author: { id: true, name: true },
+        },
+      },
     });
   }
 
@@ -220,6 +231,8 @@ export class ImagePageRepository {
 
     return this.sectionRepo.findAndCount({
       where,
+      relations: { author: true },
+      select: { author: { id: true, name: true } },
       order: { createdAt: 'DESC' },
       skip: offset,
       take: limit,

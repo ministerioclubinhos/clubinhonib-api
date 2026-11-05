@@ -1,3 +1,4 @@
+import { UserEntity } from 'src/core/user/entities/user.entity';
 import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { EntityManager } from 'typeorm';
@@ -42,13 +43,21 @@ const buildMedia = (id: string, url: string): MediaItemEntity =>
     isLocalFile: true,
     targetId: 'section-id',
     targetType: MediaTargetType.ImagesPage,
+    mediaType: MediaType.IMAGE,
   });
 
 const dto: UpdateImageSectionDto = {
   caption: 'depois',
   description: 'depois',
   public: true,
-  mediaItems: [],
+  mediaItems: [
+    {
+      uploadType: UploadType.LINK,
+      mediaType: MediaType.IMAGE,
+      isLocalFile: false,
+      url: 'https://example.com/photo.jpg',
+    },
+  ],
 };
 
 describe('ImageSectionUpdateService', () => {
@@ -67,6 +76,8 @@ describe('ImageSectionUpdateService', () => {
     findManyMediaItemsByTargets: jest.fn(),
     findMediaItemById: jest.fn(),
     buildBaseMediaItem: jest.fn(),
+    saveMediaItemInTransaction: jest.fn(),
+    deleteMediaItemByIdInTransaction: jest.fn(),
     saveMediaItem: jest.fn(),
     upsertMediaItem: jest.fn(),
     deleteMediaItems: jest.fn(),
@@ -86,6 +97,15 @@ describe('ImageSectionUpdateService', () => {
     );
     imagePageGetService.findEntity.mockResolvedValue(page);
     mediaItemProcessor.findManyMediaItemsByTargets.mockResolvedValue([]);
+    mediaItemProcessor.buildBaseMediaItem.mockReturnValue(
+      Object.assign(new MediaItemEntity(), {
+        url: 'https://example.com/photo.jpg',
+      }),
+    );
+    mediaItemProcessor.saveMediaItemInTransaction.mockImplementation(
+      (_manager: EntityManager, media: MediaItemEntity) =>
+        Promise.resolve(media),
+    );
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -125,8 +145,11 @@ describe('ImageSectionUpdateService', () => {
 
     await service.updateSection('section-id', dto, {});
 
-    expect(mediaItemProcessor.deleteMediaItems).toHaveBeenCalledWith(
-      [removida],
+    expect(
+      mediaItemProcessor.deleteMediaItemByIdInTransaction,
+    ).toHaveBeenCalledWith(manager, 'm1');
+    expect(mediaItemProcessor.discardUnreferencedUploads).toHaveBeenCalledWith(
+      [removida.url],
       expect.any(Function),
     );
   });
@@ -163,8 +186,10 @@ describe('ImageSectionUpdateService', () => {
       {},
     );
 
-    expect(mediaItemProcessor.findMediaItemById).toHaveBeenCalledWith('m1');
-    expect(mediaItemProcessor.upsertMediaItem).toHaveBeenCalled();
+    expect(mediaItemProcessor.saveMediaItemInTransaction).toHaveBeenCalledWith(
+      manager,
+      expect.objectContaining({ id: 'm1' }),
+    );
   });
 
   it('avisa quando a seção não existe', async () => {
@@ -196,6 +221,174 @@ describe('ImageSectionUpdateService', () => {
 
     expect(mediaItemProcessor.discardUnreferencedUploads).toHaveBeenCalledTimes(
       1,
+    );
+  });
+  it('preserves the original author and detaches a saved draft from the feed', async () => {
+    const original = buildSection();
+    original.author = Object.assign(new UserEntity(), {
+      id: 'teacher-id',
+      name: 'Professora Ana',
+    });
+    original.page = page;
+    sectionRepo.findById.mockResolvedValue(original);
+    const response = await service.updateSection(
+      'section-id',
+      { ...dto, public: false },
+      {},
+    );
+    expect(response.author).toEqual({ name: 'Professora Ana' });
+    expect(response.pageId).toBeNull();
+    expect(response.public).toBe(false);
+  });
+
+  it('rejects mixed media before any upload, save or removal', async () => {
+    await expect(
+      service.updateSection(
+        'section-id',
+        {
+          ...dto,
+          mediaItems: [
+            ...dto.mediaItems,
+            { ...dto.mediaItems[0], mediaType: MediaType.VIDEO },
+          ],
+        },
+        {},
+      ),
+    ).rejects.toThrow();
+    expect(sectionRepo.saveInTransaction).not.toHaveBeenCalled();
+    expect(
+      mediaItemProcessor.saveMediaItemInTransaction,
+    ).not.toHaveBeenCalled();
+    expect(
+      mediaItemProcessor.deleteMediaItemByIdInTransaction,
+    ).not.toHaveBeenCalled();
+    expect(awsS3Service.upload).not.toHaveBeenCalled();
+  });
+
+  it('does not delete old storage objects when the transaction fails', async () => {
+    mediaItemProcessor.findManyMediaItemsByTargets.mockResolvedValue([
+      buildMedia('old', 'https://bucket/old.jpg'),
+    ]);
+    sectionRepo.saveInTransaction.mockRejectedValue(
+      new Error('database failure'),
+    );
+    await expect(
+      service.updateSection('section-id', dto, {}),
+    ).rejects.toThrow();
+    expect(mediaItemProcessor.discardUnreferencedUploads).toHaveBeenCalledWith(
+      [],
+      expect.any(Function),
+    );
+    expect(awsS3Service.delete).not.toHaveBeenCalled();
+  });
+  it('preserves an existing uploaded video when editing only its text', async () => {
+    const stored = Object.assign(
+      buildMedia('video', 'https://bucket/clip.webm'),
+      { mediaType: MediaType.VIDEO, originalName: 'clip.webm', size: 12 },
+    );
+    mediaItemProcessor.findManyMediaItemsByTargets.mockResolvedValue([stored]);
+    const response = await service.updateSection(
+      'section-id',
+      {
+        ...dto,
+        mediaItems: [
+          {
+            id: 'video',
+            mediaType: MediaType.VIDEO,
+            uploadType: UploadType.UPLOAD,
+            isLocalFile: true,
+          },
+        ],
+      },
+      {},
+    );
+    expect(response.mediaItems[0]).toMatchObject({
+      id: 'video',
+      url: stored.url,
+      originalName: 'clip.webm',
+      size: 12,
+    });
+    expect(awsS3Service.upload).not.toHaveBeenCalled();
+    expect(mediaItemProcessor.discardUnreferencedUploads).toHaveBeenCalledWith(
+      [],
+      expect.any(Function),
+    );
+  });
+
+  it('replaces a video and cleans the old file only after committing', async () => {
+    const old = Object.assign(buildMedia('video', 'https://bucket/old.webm'), {
+      mediaType: MediaType.VIDEO,
+    });
+    mediaItemProcessor.findManyMediaItemsByTargets.mockResolvedValue([old]);
+    const file = {
+      fieldname: 'clip',
+      originalname: 'new.webm',
+      mimetype: 'video/webm',
+      size: 12,
+      buffer: Buffer.from([26, 69, 223, 163, 0, 0, 0, 0, 0, 0, 0, 0]),
+    } as Express.Multer.File;
+    awsS3Service.upload.mockResolvedValue('https://bucket/new.webm');
+    const response = await service.updateSection(
+      'section-id',
+      {
+        ...dto,
+        mediaItems: [
+          {
+            id: 'video',
+            mediaType: MediaType.VIDEO,
+            uploadType: UploadType.UPLOAD,
+            isLocalFile: true,
+            fieldKey: 'clip',
+          },
+        ],
+      },
+      { clip: file },
+    );
+    expect(response.mediaItems[0]).toMatchObject({
+      url: 'https://bucket/new.webm',
+      size: 12,
+    });
+    expect(mediaItemProcessor.discardUnreferencedUploads).toHaveBeenCalledWith(
+      [old.url],
+      expect.any(Function),
+    );
+    expect(
+      mediaItemProcessor.discardUnreferencedUploads.mock.invocationCallOrder[0],
+    ).toBeGreaterThan(
+      sectionRepo.saveInTransaction.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('reviews a legacy album without assigning the reviewer as author or changing stored files', async () => {
+    const legacy = buildSection();
+    legacy.author = null;
+    sectionRepo.findById.mockResolvedValue(legacy);
+    const stored = buildMedia('legacy-photo', 'https://bucket/legacy.jpg');
+    mediaItemProcessor.findManyMediaItemsByTargets.mockResolvedValue([stored]);
+    const result = await service.updateSection(
+      'section-id',
+      {
+        ...dto,
+        mediaItems: [
+          {
+            id: stored.id,
+            mediaType: MediaType.IMAGE,
+            uploadType: UploadType.UPLOAD,
+            isLocalFile: true,
+          },
+        ],
+      },
+      {},
+    );
+    expect(result.author).toBeNull();
+    expect(result.mediaItems[0].url).toBe(stored.url);
+    expect(awsS3Service.upload).not.toHaveBeenCalled();
+    expect(
+      mediaItemProcessor.deleteMediaItemByIdInTransaction,
+    ).not.toHaveBeenCalled();
+    expect(mediaItemProcessor.discardUnreferencedUploads).toHaveBeenCalledWith(
+      [],
+      expect.any(Function),
     );
   });
 });

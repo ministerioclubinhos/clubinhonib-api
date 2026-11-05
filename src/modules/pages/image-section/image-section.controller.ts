@@ -29,7 +29,10 @@ import { ImageSectionCreateService } from './services/create-image-section.servi
 import { GetImageSectionsService } from './services/get-image-sections.service';
 import { ImageSectionUpdateService } from './services/update-image-section.service';
 import { ImageSectionDeleteService } from './services/delete-image-section.service';
-import { IMAGE_SECTION_PAYLOAD_FIELD } from './constants';
+import {
+  IMAGE_SECTION_PAYLOAD_FIELD,
+  CLUBINHO_UPLOAD_LIMITS,
+} from './constants';
 import { parseSectionPayload, toFilesDict } from './utils';
 
 /**
@@ -51,7 +54,7 @@ export class ImageSectionController {
 
   @Post()
   @UseGuards(JwtAuthGuard)
-  @UseInterceptors(AnyFilesInterceptor())
+  @UseInterceptors(AnyFilesInterceptor({ limits: CLUBINHO_UPLOAD_LIMITS }))
   async create(
     @Request() req: AuthRequest,
     @UploadedFiles() files: Express.Multer.File[],
@@ -62,7 +65,8 @@ export class ImageSectionController {
     const dto = await parseSectionPayload(CreateImageSectionDto, raw);
 
     return this.createService.createSection(dto, toFilesDict(files), {
-      email: req.user?.email,
+      email: req.user.email,
+      userId: req.user.userId,
     });
   }
 
@@ -98,7 +102,7 @@ export class ImageSectionController {
    */
   @Patch(':id')
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
-  @UseInterceptors(AnyFilesInterceptor())
+  @UseInterceptors(AnyFilesInterceptor({ limits: CLUBINHO_UPLOAD_LIMITS }))
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @UploadedFiles() files: Express.Multer.File[],
