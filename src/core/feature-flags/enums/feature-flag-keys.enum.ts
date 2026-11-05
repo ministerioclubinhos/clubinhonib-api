@@ -13,6 +13,7 @@ export enum FeatureFlagKeys {
   IDEAS_SHARING = 'ideas_sharing',
   EVENTS_SECTION = 'events_section',
   CLUBINHO_FEED = 'clubinho_feed',
+  COMMENT_MODERATION = 'comment_moderation',
   STATISTICS = 'statistics',
   CLUB_CONTROL = 'club_control',
   /**
@@ -42,6 +43,7 @@ export enum FeatureFlagKeys {
   EMAIL_VERIFICATION = 'email_verification',
   EMAIL_CONTACT_NOTIFICATION = 'email_contact_notification',
   EMAIL_COMMENT_NOTIFICATION = 'email_comment_notification',
+  EMAIL_FEED_PHOTO_COMMENT_REJECTED = 'email_feed_photo_comment_rejected',
   EMAIL_SITE_FEEDBACK_NOTIFICATION = 'email_site_feedback_notification',
   EMAIL_IDEA_SHARED_NOTIFICATION = 'email_idea_shared_notification',
   EMAIL_IMAGE_SHARED_NOTIFICATION = 'email_image_shared_notification',

@@ -1,5 +1,19 @@
 # 📋 Compilation of Implemented Rules
 
+## Feed photo comments
+
+Active users can submit comments on individual feed photos. Every new comment
+is pending until an active admin approves it; only approved rows are public.
+Authors see their own statuses and private rejection reasons. Retries are
+idempotent, submissions are rate-limited, and moderation uses conditional version
+checks. See [the full rules and API contract](feed-photo-comments.md).
+
+Rejection requires a reason and atomically stores an owner-only notification
+snapshot. Concurrent/repeated decisions cannot duplicate notices. The author sees
+the reason in their comments and mobile/desktop bell; acknowledgment persists
+across sessions. Email alone uses `email_feed_photo_comment_rejected`, through
+shared dispatch, and cannot suppress the in-app notice if disabled or failing.
+
 > **Date**: Today
 > **Affected Modules**: Club Control and Statistics
 > **Version**: 1.8.2 (Control) | 2.8.0 (Statistics)

@@ -28,3 +28,5 @@ export { contactReceiptEmail } from './contact-receipt.template';
 export { missingPagelaReminderEmail } from './missing-pagela-reminder.template';
 export { coordinatorWeeklySummaryEmail } from './coordinator-weekly-summary.template';
 export { acceptedChristRegisteredEmail } from './accepted-christ-registered.template';
+
+export { feedPhotoCommentRejectedEmail } from './feed-photo-comment-rejected.template';

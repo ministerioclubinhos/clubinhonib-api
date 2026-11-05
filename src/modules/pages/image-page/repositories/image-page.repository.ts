@@ -1,3 +1,9 @@
+import {
+  MediaItemEntity,
+  MediaType,
+} from 'src/shared/media/media-item/media-item.entity';
+import { FeedPhotoContextDto } from '../dto/feed-photo-context.dto';
+import { IMAGE_PAGE_ENTITY_TYPE } from '../constants';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
@@ -30,6 +36,41 @@ export class ImagePageRepository {
     @InjectRepository(ImageSectionEntity)
     private readonly sectionRepo: Repository<ImageSectionEntity>,
   ) {}
+
+  async findFeedPhotoContext(
+    mediaId: string,
+    pageId: string,
+  ): Promise<FeedPhotoContextDto | null> {
+    const photo = await this.sectionRepo
+      .createQueryBuilder('section')
+      .innerJoin('section.page', 'page')
+      .innerJoin(
+        MediaItemEntity,
+        'media',
+        'media.targetId = section.id AND media.targetType = :targetType',
+        { targetType: IMAGE_PAGE_ENTITY_TYPE },
+      )
+      .select('media.id', 'mediaId')
+      .addSelect('media.url', 'photoUrl')
+      .addSelect('media.title', 'photoTitle')
+      .addSelect('section.id', 'sectionId')
+      .addSelect('section.caption', 'sectionCaption')
+      .addSelect('section.public', 'sectionPublic')
+      .addSelect('page.id', 'pageId')
+      .addSelect('page.public', 'pagePublic')
+      .where(
+        'media.id = :mediaId AND media.mediaType = :mediaType AND page.id = :pageId',
+        { mediaId, mediaType: MediaType.IMAGE, pageId },
+      )
+      .getRawOne<FeedPhotoContextDto>();
+    return photo
+      ? {
+          ...photo,
+          sectionPublic: Boolean(photo.sectionPublic),
+          pagePublic: Boolean(photo.pagePublic),
+        }
+      : null;
+  }
 
   /**
    * Roda um conjunto de escritas numa transação só.

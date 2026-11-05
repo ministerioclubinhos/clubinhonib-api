@@ -1,3 +1,4 @@
+import { FeedPhotoContextDto } from '../dto/feed-photo-context.dto';
 import { Injectable, Logger } from '@nestjs/common';
 import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
@@ -30,6 +31,13 @@ export class ImagePageGetService {
     private readonly imagePageRepository: ImagePageRepository,
     private readonly mediaItemProcessor: MediaItemProcessor,
   ) {}
+
+  async findFeedPhotoContext(
+    mediaId: string,
+    pageId: string,
+  ): Promise<FeedPhotoContextDto | null> {
+    return this.imagePageRepository.findFeedPhotoContext(mediaId, pageId);
+  }
 
   /** Carrega a galeria ou falha com o erro documentado. */
   async findEntityOrFail(id: string): Promise<ImagePageEntity> {

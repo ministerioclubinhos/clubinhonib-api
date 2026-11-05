@@ -321,6 +321,14 @@ export const DEFAULT_FEATURE_FLAGS = [
     targetRoles: [],
   },
   {
+    key: 'email_feed_photo_comment_rejected',
+    name: 'E-mail: Comentário de Foto Reprovado',
+    description:
+      'Avisa o autor sobre a reprovação de um comentário de foto do feed, com o motivo. Não controla o aviso no sininho.',
+    enabled: true,
+    targetRoles: [],
+  },
+  {
     key: 'email_comment_notification',
     name: 'E-mail: Aviso de Novo Comentário',
     description:

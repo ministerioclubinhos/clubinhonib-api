@@ -290,6 +290,7 @@ describe('EmailService', () => {
       sendPasswordChanged: 'destinatario',
       sendEmailVerification: 'destinatario',
       sendAccountApproved: 'destinatario',
+      sendFeedPhotoCommentRejected: 'destinatario',
       sendRoleChanged: 'destinatario',
       sendAccountDeactivated: 'destinatario',
       sendAccountCreatedByAdmin: 'destinatario',
@@ -360,6 +361,8 @@ describe('EmailService', () => {
       phone: '11999999999',
       subject: 'Assunto',
       comment: 'Comentário',
+      commentText: 'Comentário',
+      feedLink: 'https://clubinhonib.com/feed-clubinho',
       notes: 'Observações',
     };
 

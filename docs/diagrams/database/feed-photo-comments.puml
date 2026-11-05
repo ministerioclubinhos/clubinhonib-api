@@ -1,0 +1,69 @@
+@startuml
+title Moderated comments on feed photos
+hide circle
+skinparam linetype ortho
+entity "media_items" as media {
+  * id : UUID <<PK>>
+  --
+  mediaType : image
+  targetType : ImagesPage
+  targetId : section UUID
+}
+entity "image_sections" as sections {
+  * id : UUID <<PK>>
+  --
+  pageId : configured feed UUID
+  public : boolean
+}
+entity "users" as users {
+  * id : UUID <<PK>>
+  --
+  active : boolean
+  role : admin / coordinator / teacher
+}
+entity "feed_photo_comments" as comments {
+  * id : UUID <<PK>>
+  --
+  * mediaId : UUID <<FK, CASCADE>>
+  * authorId : UUID <<FK, CASCADE>>
+  * requestId : UUID
+  * text : varchar(1000)
+  * status : pending / approved / rejected
+  moderationReason : varchar(500)
+  moderatedById : UUID <<FK, SET NULL>>
+  reviewedAt : datetime
+  * version : integer
+  * createdAt : datetime
+  * updatedAt : datetime
+}
+entity "feed_photo_comment_notifications" as notices {
+  * id : UUID <<PK>>
+  --
+  * recipientId : UUID <<FK, CASCADE>>
+  * commentId : UUID <<FK, CASCADE>>
+  * commentVersion : integer
+  * commentText : varchar(1000)
+  * reason : varchar(500)
+  readAt : datetime
+  * createdAt : datetime
+  * updatedAt : datetime
+}
+comments ||--o{ notices : rejection snapshot
+users ||--o{ notices : recipient
+note bottom of notices
+  UNIQUE(commentId, commentVersion)
+  INDEX(recipientId, readAt, createdAt)
+  Saved atomically with the moderation decision.
+end note
+media ||--o{ comments : photo
+users ||--o{ comments : author
+users |o--o{ comments : latest moderator
+sections ||..o{ media : polymorphic target
+note bottom of comments
+  UNIQUE(authorId, requestId)
+  INDEX(mediaId, status, createdAt)
+  INDEX(status, createdAt)
+  INDEX(authorId, createdAt)
+  Submissions always start pending.
+end note
+@enduml

@@ -483,3 +483,13 @@ recusa cada envio com `EMAIL_SEND_ERROR` — em vez de fingir que enviou.
 
 Nenhum log traz endereço de e-mail: o envio é registrado pelo assunto e pela
 quantidade de destinatários.
+
+## Reprovação de comentários das fotos do feed
+
+`EmailNotification.FeedPhotoCommentRejected` usa exclusivamente a flag
+`email_feed_photo_comment_rejected` (“E-mail: Comentário de Foto Reprovado”).
+Nasce ligada, com `targetRoles: []`, e passa por `EmailService.dispatch`.
+Envia ao autor o texto e o motivo, depois de confirmar a transação de reprovação.
+O aviso no sininho é persistido nessa transação e independe da flag de e-mail e
+da disponibilidade do SMTP. Aplicam-se as regras comuns de conta ativa e
+descadastro dos avisos. A falha de e-mail é registrada, sem desfazer a revisão.

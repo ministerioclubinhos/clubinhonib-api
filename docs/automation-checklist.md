@@ -1,5 +1,18 @@
 # Automation Checklist (Creation + Listing/Fix) — Clubinho NIB API
 
+## Feed photo comment regression
+
+With both local applications running, execute
+`npx playwright test e2e/flows/feed-photo-comments.spec.ts --project=chromium`
+from `../clubinhonib-app`. It creates and cleans its own fixtures and exercises
+the API plus the actual author/admin interfaces. See
+[coverage and setup details](feed-photo-comments.md#schema-and-validation).
+
+The regression covers required rejection reasons, one notification per concurrent
+review, owner-only inbox/read endpoints, mobile bell details and persistent read
+state. Shared email tests verify the dedicated flag blocks SMTP and transport
+failure leaves the operation successful. The local E2E setup disables email flags.
+
 Raw Node.js scripts under `scripts/automations/` that populate a running API
 with realistic data and exercise every endpoint contract, including the role
 and scope rules. They are the executable counterpart of the API docs: when a

@@ -1,0 +1,62 @@
+@startuml
+title Photo comments and rejection notifications
+start
+:Active user opens a feed photo;
+:API verifies current account, feed flag
+and configured feed photo scope;
+:Validate text (1..1000 characters)
+and request UUID;
+:Transaction locks author row;
+if (Same request already stored?) then (yes)
+  :Return original result if payload matches;
+else (no)
+  :Enforce 5 submissions per 60 seconds;
+  :Store comment as pending;
+endif
+:Author sees neutral confirmation
+and own comment in "Meus comentários";
+:Active admin reviews a photo comment
+under /adm/comentarios;
+:API checks current admin role,
+comment_moderation flag and photo scope;
+if (Reject?) then (yes)
+  :Require nonblank reason (1..500);
+  :Refuse already rejected comment;
+endif
+:Begin transaction;
+if (Conditional update matches expected version?) then (yes)
+  :Store decision, moderator, review time
+and increment version;
+  if (Rejection?) then (yes)
+    :Store reason and private notification snapshot;
+  else (no)
+    :Clear rejection reason;
+  endif
+  :Commit;
+else (no)
+  :Rollback and return 409;
+  stop
+endif
+:Only approved comments appear publicly;
+if (Rejected?) then (yes)
+  :Request email after commit in background;
+  if (email_feed_photo_comment_rejected on?) then (yes)
+    :Shared EmailService sends reason to eligible author;
+  else (no)
+    :Skip email; keep in-app notification;
+  endif
+  :Author sees reason in own comment
+and bell (mobile and desktop);
+  :Author opens notice and selects "Entendi";
+  :Persist first read timestamp scoped to recipient;
+endif
+stop
+note right
+  Public reads obey photo/page visibility.
+  Private reasons never enter public DTOs.
+  Unique comment/version prevents duplicate notices.
+  Email failure never rolls back the decision or notice.
+  Pending/approved author UI has no moderation notices.
+  Deleting a photo cascades to comments and notices.
+end note
+@enduml

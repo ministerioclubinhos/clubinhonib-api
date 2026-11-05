@@ -26,6 +26,7 @@ import { WeekMaterialsPageModule } from './modules/pages/week-material-page/week
 import { ContactModule } from './modules/contacts/contact.module';
 import { EventModule } from './modules/pages/event-page/event.module';
 import { CommentModule } from './modules/comments/comment.module';
+import { FeedPhotoCommentsModule } from './modules/feed-photo-comments/feed-photo-comments.module';
 import { DocumentModule } from './modules/documents/documents.module';
 import { IdeasPageModule } from './modules/pages/ideas-page/ideas-page.module';
 import { InformativeModule } from './modules/informatives/informative.module';
@@ -75,6 +76,7 @@ import { AiLessonsModule } from './modules/ai-lessons/ai-lessons.module';
     ContactModule,
     EventModule,
     CommentModule,
+    FeedPhotoCommentsModule,
     DocumentModule,
     IdeasPageModule,
     InformativeModule,

@@ -4,6 +4,7 @@ import { SiteUrlService } from 'src/shared/site-url/site-url.service';
 import { GetFeatureFlagsService } from 'src/core/feature-flags/services/get-feature-flags.service';
 
 import {
+  FeedPhotoCommentRejectedEmailData,
   BulkEmailResult,
   EmailRecipient,
   ContactNotificationEmailData,
@@ -34,6 +35,7 @@ import {
   AcceptedChristRegisteredEmailData,
 } from './types';
 import {
+  feedPhotoCommentRejectedEmail,
   contactNotificationEmail,
   commentNotificationEmail,
   ideaSharedNotificationEmail,
@@ -537,6 +539,25 @@ export class EmailService {
       null,
       async () => {
         await this.send(previousEmail, emailAddressChangedEmail(data));
+      },
+    );
+  }
+
+  async sendFeedPhotoCommentRejected(
+    recipient: EmailRecipient,
+    data: FeedPhotoCommentRejectedEmailData,
+  ): Promise<void> {
+    await this.dispatch(
+      EmailNotification.FeedPhotoCommentRejected,
+      recipient,
+      async () => {
+        await this.send(
+          recipient.email,
+          feedPhotoCommentRejectedEmail({
+            ...data,
+            unsubscribeUrl: this.unsubscribeUrlFor(recipient),
+          }),
+        );
       },
     );
   }

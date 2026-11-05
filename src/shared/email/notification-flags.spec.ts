@@ -38,6 +38,16 @@ const DISPATCHERS: Record<
   EmailNotification,
   { method: string; call: (service: EmailService) => Promise<unknown> }
 > = {
+  [EmailNotification.FeedPhotoCommentRejected]: {
+    method: 'sendFeedPhotoCommentRejected',
+    call: (s) =>
+      s.sendFeedPhotoCommentRejected(recipient, {
+        recipientName: 'Ana',
+        commentText: 'Meu comentário',
+        reason: 'Dados pessoais',
+        feedLink: LINK,
+      }),
+  },
   [EmailNotification.PasswordRecovery]: {
     method: 'sendPasswordRecovery',
     call: (s) =>

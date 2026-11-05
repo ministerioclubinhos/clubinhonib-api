@@ -3,6 +3,14 @@
 This module covers the three inbound channels of the site: site feedback,
 public comments and the contact form.
 
+Photo comments in the Clubinho feed use a separate moderated API. See the
+[feed photo comment contract](feed-photo-comments.md) for its endpoints, DTOs,
+visibility, pagination and moderation decisions.
+
+The private inbox adds `GET /feed-photo-comments/notifications` (pagination and
+`unreadCount`) and `PATCH /feed-photo-comments/notifications/:id/read`
+(idempotent acknowledgment). Both are restricted to the active recipient.
+
 ## 📋 Index
 
 1. [What the three have in common](#what-the-three-have-in-common)

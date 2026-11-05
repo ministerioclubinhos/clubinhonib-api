@@ -65,6 +65,8 @@ export const EMAIL_BRAND = {
 
 /** Assunto de cada e-mail, em um lugar só. */
 export const EMAIL_SUBJECTS = {
+  feedPhotoCommentRejected:
+    'Seu comentário no feed foi reprovado - Clubinhos NIB',
   passwordRecovery: 'Recuperação de senha - Clubinhos NIB',
   passwordChanged: 'Senha alterada com sucesso - Clubinhos NIB',
   emailVerification: 'Confirme seu e-mail - Clubinhos NIB',
@@ -104,6 +106,8 @@ export const EMAIL_SUBJECTS = {
  * sem a flag correspondente não compila.
  */
 export const EMAIL_NOTIFICATION_FLAGS = {
+  [EmailNotification.FeedPhotoCommentRejected]:
+    FeatureFlagKeys.EMAIL_FEED_PHOTO_COMMENT_REJECTED,
   [EmailNotification.PasswordRecovery]: FeatureFlagKeys.EMAIL_PASSWORD_RECOVERY,
   [EmailNotification.PasswordChanged]: FeatureFlagKeys.EMAIL_PASSWORD_CHANGED,
   [EmailNotification.EmailVerification]: FeatureFlagKeys.EMAIL_VERIFICATION,

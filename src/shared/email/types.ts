@@ -10,6 +10,7 @@ export enum EmailNotification {
   EmailVerification = 'email-verification',
   ContactNotification = 'contact-notification',
   CommentNotification = 'comment-notification',
+  FeedPhotoCommentRejected = 'feed-photo-comment-rejected',
   SiteFeedbackNotification = 'site-feedback-notification',
   IdeaSharedNotification = 'idea-shared-notification',
   ImageSharedNotification = 'image-shared-notification',
@@ -348,5 +349,13 @@ export interface AcceptedChristRegisteredEmailData {
   decision: string;
   registeredAt: Date;
   panelLink?: string;
+  unsubscribeUrl?: string;
+}
+
+export interface FeedPhotoCommentRejectedEmailData {
+  recipientName: string;
+  commentText: string;
+  reason: string;
+  feedLink: string;
   unsubscribeUrl?: string;
 }

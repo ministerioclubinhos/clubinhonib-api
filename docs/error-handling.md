@@ -1,5 +1,15 @@
 # Error Handling System - Clubinhos NIB API
 
+Photo comment endpoints reuse the existing error catalog; their exact access,
+validation and conflict conditions are documented in
+[Feed photo comments — Errors](feed-photo-comments.md#errors).
+
+Rejection without a trimmed 1–500 character reason returns 400
+`VALIDATION_ERROR`; repeated/stale decisions return 409 `RESOURCE_CONFLICT`.
+Reading a missing or foreign notification returns 404 `RESOURCE_NOT_FOUND`.
+Inbox listing and acknowledgment enforce account activity and the feed flag.
+Email errors are logged without rolling back the decision or private notice.
+
 ## Overview
 
 The API uses a standardized error handling system with specific codes and a consistent response format.

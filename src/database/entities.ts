@@ -1,3 +1,5 @@
+import { FeedPhotoCommentEntity } from 'src/modules/feed-photo-comments/entities/feed-photo-comment.entity';
+import { PhotoCommentNotificationEntity } from 'src/modules/feed-photo-comments/entities/photo-comment-notification.entity';
 import { MeditationEntity } from 'src/modules/meditations/entities/meditation.entity';
 import { DayEntity } from 'src/modules/meditations/entities/day.entity';
 import { ImagePageEntity } from 'src/modules/pages/image-page/entity/Image-page.entity';
@@ -45,6 +47,8 @@ import { AdminLessonPromptEntity } from 'src/modules/ai-lessons/entities/admin-l
  * diferente do que a aplicação usa produziria um diff inventado.
  */
 export const DATABASE_ENTITIES = [
+  FeedPhotoCommentEntity,
+  PhotoCommentNotificationEntity,
   EventEntity,
   ImagePageEntity,
   ImageSectionEntity,
