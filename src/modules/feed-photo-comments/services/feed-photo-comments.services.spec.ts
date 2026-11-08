@@ -169,7 +169,7 @@ describe('Feed photo comments use cases', () => {
       create.create(photoId, { text: 'x', requestId }, actorId),
     ).rejects.toMatchObject({ code: ErrorCode.FEATURE_DISABLED });
   });
-  it('does not accept media outside the configured feed or non-images', async () => {
+  it('does not accept media outside the configured feed or unsupported media', async () => {
     images.findFeedPhotoContext.mockResolvedValue(null);
     await expect(
       create.create(photoId, { text: 'x', requestId }, actorId),

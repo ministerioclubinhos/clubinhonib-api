@@ -14,7 +14,7 @@ export function feedPhotoCommentRejectedEmail(
       recipientName: data.recipientName,
       body: composeBody([
         paragraph(
-          'Um comentário seu em uma foto do Feed Clubinho foi reprovado e não está publicado.',
+          'Um comentário seu no Feed Clubinho foi reprovado e não está publicado.',
         ),
         paragraph('Seu comentário:'),
         quoteBlock(data.commentText),
@@ -26,7 +26,7 @@ export function feedPhotoCommentRejectedEmail(
     }),
     text: joinTextLines([
       `Olá, ${data.recipientName}!`,
-      'Seu comentário em uma foto do Feed Clubinho foi reprovado e não está publicado.',
+      'Seu comentário no Feed Clubinho foi reprovado e não está publicado.',
       'Seu comentário:',
       data.commentText,
       'Motivo da reprovação:',

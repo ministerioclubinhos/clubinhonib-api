@@ -1,9 +1,9 @@
 @startuml
-title Photo comments and rejection notifications
+title Photo/video comments and rejection notifications
 start
-:Active user opens a feed photo;
+:Active user opens a feed photo or video;
 :API verifies current account, feed flag
-and configured feed photo scope;
+and configured feed scope (image or video);
 :Validate text (1..1000 characters)
 and request UUID;
 :Transaction locks author row;
@@ -15,10 +15,10 @@ else (no)
 endif
 :Author sees neutral confirmation
 and own comment in "Meus comentários";
-:Active admin reviews a photo comment
+:Active admin reviews a photo/video comment
 under /adm/comentarios;
 :API checks current admin role,
-comment_moderation flag and photo scope;
+comment_moderation flag and media scope;
 if (Reject?) then (yes)
   :Require nonblank reason (1..500);
   :Refuse already rejected comment;
@@ -52,11 +52,11 @@ and bell (mobile and desktop);
 endif
 stop
 note right
-  Public reads obey photo/page visibility.
+  Public reads obey media/page visibility.
   Private reasons never enter public DTOs.
   Unique comment/version prevents duplicate notices.
   Email failure never rolls back the decision or notice.
   Pending/approved author UI has no moderation notices.
-  Deleting a photo cascades to comments and notices.
+  Deleting a photo or video cascades to comments and notices.
 end note
 @enduml

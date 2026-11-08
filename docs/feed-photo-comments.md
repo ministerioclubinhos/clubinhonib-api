@@ -1,7 +1,7 @@
-# Moderated feed photo comments
+# Moderated feed photo and video comments
 
 `feed-photo-comments` is independent from homepage testimonials (`comments`). A
-comment belongs to one persisted image UUID in the configured
+comment belongs to one persisted photo or video UUID in the configured
 `FEED_CLUBINHO_PAGE_ID`, not to an album or an arbitrary media URL.
 
 ## Access and publication
@@ -13,15 +13,24 @@ comment belongs to one persisted image UUID in the configured
 - Public listing filters `approved` in SQL before pagination. Anonymous access
   additionally requires a public page and section. Active authenticated users
   can view team photos, matching the existing gallery policy.
-- Photo operations require `clubinho_feed`. Moderation also requires
+- Photo/video operations require `clubinho_feed`. Moderation also requires
   `comment_moderation`. The configured feed scope is verified server-side.
 - Authors can list and delete their own submissions. Administrators can delete
-  any comment in this feed. Deleting an image/author cascades to its comments;
+  any comment in this feed. Deleting a media item/author cascades to its comments;
   deleting a moderator preserves the comment and clears that reference.
 - Reasons for rejection are private to the author and administration. Public
   DTOs contain only `id`, `mediaId`, `text`, `authorName` and `createdAt`.
 - There is no comment editing or automatic publication. Text is displayed as
   plain text. Rejection email uses its own flag, independently from the in-app inbox.
+
+## Photo and video compatibility
+
+The existing routes and comment tables remain unchanged. `photos/:mediaId` accepts
+both IMAGE and VIDEO items from the configured feed; documents and unrelated
+media remain inaccessible. No migration or backfill is needed to enable video
+comments. Existing photo comments and private rejection notices are preserved.
+Moderation adds `mediaType` to its DTO so the client can play a video instead of
+rendering it as an image. Legacy `photoUrl` and related field names stay compatible.
 
 ## HTTP contract
 
@@ -69,7 +78,7 @@ All errors use the standard `{success: false, error: ...}` envelope.
 | 403 | `USER_INACTIVE` | Account deactivated, even if its JWT is still valid |
 | 403 | `ROLE_NOT_ALLOWED` | Non-admin moderation |
 | 403 | `FEATURE_DISABLED` | Feed/moderation flag unavailable for the actor |
-| 404 | `MEDIA_NOT_FOUND` | Non-image, photo outside the configured feed, missing photo or private anonymous access |
+| 404 | `MEDIA_NOT_FOUND` | Unsupported media type, media outside the configured feed, missing media or private anonymous access |
 | 404 | `COMMENT_NOT_FOUND` | Missing comment, concurrent deletion, or unauthorized ownership deletion |
 | 404 | `RESOURCE_NOT_FOUND` | Feed configuration unavailable or notification missing/not owned |
 | 409 | `RESOURCE_CONFLICT` | Stale moderation version, reused request with different payload, or submission rate limit |

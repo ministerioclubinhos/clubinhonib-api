@@ -23,26 +23,38 @@ describe('Feed photo context scope', () => {
     sectionRepo as unknown as Repository<ImageSectionEntity>,
   );
 
-  it('requires image type, exact configured page and polymorphic section target', async () => {
-    qb.getRawOne.mockResolvedValue({
-      mediaId: 'photo',
-      pageId: 'feed',
-      sectionPublic: 1,
-      pagePublic: 0,
-    });
-    const result = await repository.findFeedPhotoContext('photo', 'feed');
-    expect(qb.innerJoin).toHaveBeenCalledWith(
-      MediaItemEntity,
-      'media',
-      'media.targetId = section.id AND media.targetType = :targetType',
-      { targetType: IMAGE_PAGE_ENTITY_TYPE },
-    );
-    expect(qb.where).toHaveBeenCalledWith(
-      'media.id = :mediaId AND media.mediaType = :mediaType AND page.id = :pageId',
-      { mediaId: 'photo', mediaType: MediaType.IMAGE, pageId: 'feed' },
-    );
-    expect(result).toMatchObject({ sectionPublic: true, pagePublic: false });
-  });
+  it.each([MediaType.IMAGE, MediaType.VIDEO])(
+    'allows %s only in the configured feed and section target',
+    async (mediaType) => {
+      qb.getRawOne.mockResolvedValue({
+        mediaId: 'photo',
+        pageId: 'feed',
+        sectionPublic: 1,
+        pagePublic: 0,
+        mediaType,
+      });
+      const result = await repository.findFeedPhotoContext('photo', 'feed');
+      expect(qb.innerJoin).toHaveBeenCalledWith(
+        MediaItemEntity,
+        'media',
+        'media.targetId = section.id AND media.targetType = :targetType',
+        { targetType: IMAGE_PAGE_ENTITY_TYPE },
+      );
+      expect(qb.where).toHaveBeenCalledWith(
+        'media.id = :mediaId AND media.mediaType IN (:...mediaTypes) AND page.id = :pageId',
+        {
+          mediaId: 'photo',
+          mediaTypes: [MediaType.IMAGE, MediaType.VIDEO],
+          pageId: 'feed',
+        },
+      );
+      expect(result).toMatchObject({
+        sectionPublic: true,
+        pagePublic: false,
+        mediaType,
+      });
+    },
+  );
   it('normalizes both public flags from the database', async () => {
     qb.getRawOne.mockResolvedValue({ sectionPublic: 0, pagePublic: 1 });
     expect(

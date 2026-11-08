@@ -1,6 +1,7 @@
 import { PhotoCommentStatus } from '../types';
 import {
   PlatformType,
+  MediaType,
   UploadType,
 } from 'src/shared/media/media-item/media-item.entity';
 
@@ -19,6 +20,7 @@ export class OwnPhotoCommentResponseDto extends PhotoCommentResponseDto {
 }
 
 export class AdminPhotoCommentResponseDto extends OwnPhotoCommentResponseDto {
+  mediaType: MediaType;
   authorId: string;
   photoUrl: string;
   photoUploadType: UploadType;

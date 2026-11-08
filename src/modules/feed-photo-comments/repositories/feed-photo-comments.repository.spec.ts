@@ -9,6 +9,7 @@ import { PhotoCommentNotificationEntity } from '../entities/photo-comment-notifi
 import { UserEntity } from 'src/core/user/entities/user.entity';
 import { FeedPhotoCommentEntity } from '../entities/feed-photo-comment.entity';
 import { PhotoCommentStatus } from '../types';
+import { MediaType } from 'src/shared/media/media-item/media-item.entity';
 import { FeedPhotoCommentsRepository } from './feed-photo-comments.repository';
 
 describe('Feed photo comment persistence boundaries', () => {
@@ -229,8 +230,11 @@ describe('Feed photo comment persistence boundaries', () => {
       }),
     ).resolves.toEqual([[], 3]);
     expect(qb.where).toHaveBeenCalledWith(
-      expect.stringContaining('section.pageId = :pageId'),
-      expect.objectContaining({ pageId: 'feed' }),
+      'section.pageId = :pageId AND media.targetType = :targetType AND media.mediaType IN (:...mediaTypes)',
+      expect.objectContaining({
+        pageId: 'feed',
+        mediaTypes: [MediaType.IMAGE, MediaType.VIDEO],
+      }),
     );
     expect(qb.andWhere).toHaveBeenCalledWith('comment.status = :status', {
       status: PhotoCommentStatus.PENDING,
@@ -243,6 +247,7 @@ describe('Feed photo comment persistence boundaries', () => {
       search: "%' OR 1=1 --%",
     });
     expect(qb.offset).toHaveBeenCalledWith(10);
+    expect(qb.addSelect).toHaveBeenCalledWith('media.mediaType', 'mediaType');
     await repository.findModeration('feed', { page: 1, limit: 10 });
   });
   it('looks up and deletes only the requested ID', async () => {

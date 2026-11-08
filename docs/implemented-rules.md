@@ -2,7 +2,7 @@
 
 ## Feed photo comments
 
-Active users can submit comments on individual feed photos. Every new comment
+Active users can submit comments on individual feed photos and videos. Every new comment
 is pending until an active admin approves it; only approved rows are public.
 Authors see their own statuses and private rejection reasons. Retries are
 idempotent, submissions are rate-limited, and moderation uses conditional version
@@ -823,7 +823,7 @@ New submissions are private and detached. Saving without publication detaches
 from the feed; approval attaches to FEED_CLUBINHO_PAGE_ID. Pending queries count
 private or detached sections. Media rows and section changes share a transaction.
 On replacement, old files are cleaned only after commit; failed writes discard
-unreferenced new uploads. Photo comments remain restricted to photos.
+unreferenced new uploads. Photos and videos use the same moderated per-media comment flow; documents remain unsupported.
 
 Invalid selection or ownership uses VALIDATION_ERROR/INVALID_INPUT; invalid
 files use INVALID_FILE, and missing uploads use MEDIA_FILE_NOT_FOUND. The global

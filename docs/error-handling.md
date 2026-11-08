@@ -1,6 +1,6 @@
 # Error Handling System - Clubinhos NIB API
 
-Photo comment endpoints reuse the existing error catalog; their exact access,
+Photo/video comment endpoints reuse the existing error catalog; their exact access,
 validation and conflict conditions are documented in
 [Feed photo comments — Errors](feed-photo-comments.md#errors).
 
@@ -811,3 +811,7 @@ MIME/extension/signature/size mismatches, duplicate file bindings and unmatched
 files. `MEDIA_FILE_NOT_FOUND` identifies an upload without its file. DTO
 validation rejects caller-provided authorship and visibility on create.
 Multer also bounds multipart file count (20) and per-file bytes (100 MB).
+
+Video comments use the existing comment errors and moderation rules. MEDIA_NOT_FOUND
+still rejects unsupported media, media outside the configured feed and private
+anonymous access; VIDEO is now an allowed media type alongside IMAGE.

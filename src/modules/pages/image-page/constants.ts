@@ -1,4 +1,5 @@
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
+import { MediaType } from 'src/shared/media/media-item/media-item.entity';
 
 /** Prefixo aplicado ao path da rota pública de uma galeria. */
 export const IMAGE_PAGE_ROUTE_PATH_PREFIX = 'galeria_imagens_';
@@ -12,6 +13,12 @@ export const IMAGE_PAGE_ROUTE_IMAGE_URL =
 
 /** Tipo da entidade na rota e alvo polimórfico das mídias das seções. */
 export const IMAGE_PAGE_ENTITY_TYPE = MediaTargetType.ImagesPage;
+
+/** Photos and videos share the existing per-media feed comment contract. */
+export const FEED_COMMENT_MEDIA_TYPES = [
+  MediaType.IMAGE,
+  MediaType.VIDEO,
+] as const;
 
 /** Campo multipart que carrega o JSON das requisições. */
 export const IMAGE_PAGE_PAYLOAD_FIELD = 'imageData';

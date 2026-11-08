@@ -9,7 +9,10 @@ import {
 } from 'typeorm';
 import { UserEntity } from 'src/core/user/entities/user.entity';
 import { ImageSectionEntity } from 'src/modules/pages/image-page/entity/Image-section.entity';
-import { IMAGE_PAGE_ENTITY_TYPE } from 'src/modules/pages/image-page/constants';
+import {
+  IMAGE_PAGE_ENTITY_TYPE,
+  FEED_COMMENT_MEDIA_TYPES,
+} from 'src/modules/pages/image-page/constants';
 import { FeedPhotoCommentEntity } from '../entities/feed-photo-comment.entity';
 import {
   QueryPhotoCommentModerationDto,
@@ -136,10 +139,14 @@ export class FeedPhotoCommentsRepository {
       .innerJoin('comment.media', 'media')
       .innerJoin(ImageSectionEntity, 'section', 'section.id = media.targetId')
       .leftJoin('comment.moderatedBy', 'moderator')
-      .where('section.pageId = :pageId AND media.targetType = :targetType', {
-        pageId,
-        targetType: IMAGE_PAGE_ENTITY_TYPE,
-      });
+      .where(
+        'section.pageId = :pageId AND media.targetType = :targetType AND media.mediaType IN (:...mediaTypes)',
+        {
+          pageId,
+          targetType: IMAGE_PAGE_ENTITY_TYPE,
+          mediaTypes: FEED_COMMENT_MEDIA_TYPES,
+        },
+      );
     if (query.status)
       qb.andWhere('comment.status = :status', { status: query.status });
     if (query.searchString)
@@ -166,6 +173,7 @@ export class FeedPhotoCommentsRepository {
       .addSelect('comment.reviewedAt', 'reviewedAt')
       .addSelect('moderator.name', 'moderatedByName')
       .addSelect('media.url', 'photoUrl')
+      .addSelect('media.mediaType', 'mediaType')
       .addSelect('media.uploadType', 'photoUploadType')
       .addSelect('media.platformType', 'photoPlatformType')
       .addSelect('media.title', 'photoTitle')

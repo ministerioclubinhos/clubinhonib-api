@@ -92,7 +92,7 @@ export class GetFeedPhotoCommentsService {
     if (!photo || (!actor && (!photo.pagePublic || !photo.sectionPublic))) {
       throw new AppNotFoundException(
         ErrorCode.MEDIA_NOT_FOUND,
-        'Foto não encontrada.',
+        'Foto ou vídeo não encontrado.',
       );
     }
     return photo;

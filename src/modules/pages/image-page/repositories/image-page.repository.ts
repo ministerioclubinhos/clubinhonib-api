@@ -1,9 +1,6 @@
-import {
-  MediaItemEntity,
-  MediaType,
-} from 'src/shared/media/media-item/media-item.entity';
+import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 import { FeedPhotoContextDto } from '../dto/feed-photo-context.dto';
-import { IMAGE_PAGE_ENTITY_TYPE } from '../constants';
+import { IMAGE_PAGE_ENTITY_TYPE, FEED_COMMENT_MEDIA_TYPES } from '../constants';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
@@ -59,8 +56,8 @@ export class ImagePageRepository {
       .addSelect('page.id', 'pageId')
       .addSelect('page.public', 'pagePublic')
       .where(
-        'media.id = :mediaId AND media.mediaType = :mediaType AND page.id = :pageId',
-        { mediaId, mediaType: MediaType.IMAGE, pageId },
+        'media.id = :mediaId AND media.mediaType IN (:...mediaTypes) AND page.id = :pageId',
+        { mediaId, mediaTypes: FEED_COMMENT_MEDIA_TYPES, pageId },
       )
       .getRawOne<FeedPhotoContextDto>();
     return photo
