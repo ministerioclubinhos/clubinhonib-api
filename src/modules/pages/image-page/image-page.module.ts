@@ -7,6 +7,7 @@ import { AuthModule } from 'src/core/auth/auth.module';
 
 import { ImagePageEntity } from './entity/Image-page.entity';
 import { ImageSectionEntity } from './entity/Image-section.entity';
+import { ImageSectionCelebrationEntity } from './entity/Image-section-celebration.entity';
 import { ImageController } from './image-page.controller';
 import { ImagePageRepository } from './repositories/image-page.repository';
 import { ImagePageCreateService } from './services/create-image-page.service';
@@ -16,7 +17,7 @@ import { ImagePageDeleteService } from './services/delete-image-page.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([ImagePageEntity, ImageSectionEntity]),
+    TypeOrmModule.forFeature([ImagePageEntity, ImageSectionEntity, ImageSectionCelebrationEntity]),
     RouteModule,
     MediaModule,
     AuthModule,
@@ -24,6 +25,7 @@ import { ImagePageDeleteService } from './services/delete-image-page.service';
   controllers: [ImageController],
   providers: [
     ImagePageRepository,
+    ImagePageGetService,
     ImagePageCreateService,
     ImagePageGetService,
     ImagePageUpdateService,

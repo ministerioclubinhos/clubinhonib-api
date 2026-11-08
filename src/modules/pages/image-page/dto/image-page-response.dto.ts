@@ -33,6 +33,9 @@ export class GalleryMediaItemDto {
 }
 
 export class ImageSectionDto {
+  authorId: string | null;
+  celebrators: string[];
+  celebrationCount: number;
   author: ImageSectionAuthorDto | null;
   id: string;
   caption: string;

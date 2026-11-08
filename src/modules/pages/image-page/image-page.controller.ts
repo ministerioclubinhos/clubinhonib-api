@@ -35,6 +35,10 @@ import { ImagePageCreateService } from './services/create-image-page.service';
 import { ImagePageGetService } from './services/get-image-page.service';
 import { ImagePageUpdateService } from './services/update-image-page.service';
 import { ImagePageDeleteService } from './services/delete-image-page.service';
+import { InjectRepository } from '@nestjs/typeorm';
+import { ImageSectionEntity } from './entity/Image-section.entity';
+import { ImageSectionCelebrationEntity } from './entity/Image-section-celebration.entity';
+import { Repository } from 'typeorm';
 import { buildFilesDict, parseAndValidatePayload } from './utils';
 import { IMAGE_PAGE_PAYLOAD_FIELD } from './constants';
 
@@ -48,7 +52,24 @@ export class ImageController {
     private readonly getService: ImagePageGetService,
     private readonly updateService: ImagePageUpdateService,
     private readonly authContext: AuthContextService,
+    @InjectRepository(ImageSectionEntity) private readonly sectionRepo: Repository<ImageSectionEntity>,
+    @InjectRepository(ImageSectionCelebrationEntity) private readonly celebrationRepo: Repository<ImageSectionCelebrationEntity>,
   ) {}
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/sections/:sectionId/celebrations/toggle')
+  async toggleCelebration(@Param('sectionId', ParseUUIDPipe) sectionId: string, @Req() request: Request) {
+    const userId = await this.authContext.getUserId(request);
+    if (!userId) return { celebrated: false, celebrationCount: 0, celebrators: [] };
+    const section = await this.sectionRepo.findOne({ where: { id: sectionId }, relations: { author: true } });
+    if (!section) return { celebrated: false, celebrationCount: 0, celebrators: [] };
+    if (section.author?.id === userId) return { celebrated: false, celebrationCount: 0, celebrators: [], ownPublication: true };
+    const existing = await this.celebrationRepo.findOne({ where: { section: { id: sectionId }, user: { id: userId } } });
+    if (existing) await this.celebrationRepo.remove(existing);
+    else await this.celebrationRepo.save(this.celebrationRepo.create({ section: { id: sectionId } as ImageSectionEntity, user: { id: userId } as any }));
+    const rows = await this.celebrationRepo.find({ where: { section: { id: sectionId } }, relations: { user: true }, order: { createdAt: 'ASC' } });
+    return { celebrated: !existing, celebrationCount: rows.length, celebrators: rows.map((row) => row.user.name) };
+  }
 
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Post()

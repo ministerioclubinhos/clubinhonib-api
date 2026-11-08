@@ -54,6 +54,9 @@ export function toSectionResponse(
 ): ImageSectionDto {
   return {
     id: section.id,
+    authorId: section.author?.id ?? null,
+    celebrators: [],
+    celebrationCount: 0,
     caption: section.caption,
     author: section.author?.name ? { name: section.author.name } : null,
     description: section.description,

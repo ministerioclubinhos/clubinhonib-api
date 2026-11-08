@@ -4,6 +4,9 @@ import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { ImagePageRepository } from '../repositories/image-page.repository';
 import { ImagePageEntity } from '../entity/Image-page.entity';
+import { ImageSectionCelebrationEntity } from '../entity/Image-section-celebration.entity';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { Paginated } from 'src/shared/dto/paginated.dto';
 import { ImagePageResponseDto } from '../dto/image-page-response.dto';
 import { ImagePageSummaryDto } from '../dto/image-page-summary.dto';
@@ -30,6 +33,7 @@ export class ImagePageGetService {
   constructor(
     private readonly imagePageRepository: ImagePageRepository,
     private readonly mediaItemProcessor: MediaItemProcessor,
+    @InjectRepository(ImageSectionCelebrationEntity) private readonly celebrationRepo: Repository<ImageSectionCelebrationEntity>,
   ) {}
 
   async findFeedPhotoContext(
@@ -142,7 +146,24 @@ export class ImagePageGetService {
       sections.map((section) => section.id),
     );
 
-    return toPaginatedSectionsResponse(
+    const sectionIds = sections.map((section) => section.id);
+    const celebrationsBySection = new Map<string, string[]>();
+    if (sectionIds.length > 0) {
+      const rows = await this.celebrationRepo
+        .createQueryBuilder('c')
+        .innerJoin('c.user', 'user')
+        .select('c.sectionId', 'sectionId')
+        .addSelect('user.name', 'userName')
+        .where('c.sectionId IN (:...ids)', { ids: sectionIds })
+        .orderBy('c.createdAt', 'ASC')
+        .getRawMany<{ sectionId: string; userName: string }>();
+      for (const row of rows) {
+        const names = celebrationsBySection.get(row.sectionId) ?? [];
+        names.push(row.userName);
+        celebrationsBySection.set(row.sectionId, names);
+      }
+    }
+    const response = toPaginatedSectionsResponse(
       page,
       sections,
       mediaBySection,
@@ -150,5 +171,11 @@ export class ImagePageGetService {
       query.limit,
       total,
     );
+    for (const item of response.sections) {
+      const names = celebrationsBySection.get(item.id) ?? [];
+      item.celebrationCount = names.length;
+      item.celebrators = names;
+    }
+    return response;
   }
 }

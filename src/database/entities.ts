@@ -4,6 +4,7 @@ import { MeditationEntity } from 'src/modules/meditations/entities/meditation.en
 import { DayEntity } from 'src/modules/meditations/entities/day.entity';
 import { ImagePageEntity } from 'src/modules/pages/image-page/entity/Image-page.entity';
 import { ImageSectionEntity } from 'src/modules/pages/image-page/entity/Image-section.entity';
+import { ImageSectionCelebrationEntity } from 'src/modules/pages/image-page/entity/Image-section-celebration.entity';
 import { RouteEntity } from 'src/modules/routes/route-page.entity';
 import { UserEntity } from 'src/core/user/entities/user.entity';
 import { PasswordResetTokenEntity } from 'src/core/auth/entities/password-reset-token.entity';
@@ -52,6 +53,7 @@ export const DATABASE_ENTITIES = [
   EventEntity,
   ImagePageEntity,
   ImageSectionEntity,
+  ImageSectionCelebrationEntity,
   RouteEntity,
   UserEntity,
   PasswordResetTokenEntity,
