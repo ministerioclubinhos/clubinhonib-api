@@ -124,8 +124,9 @@ export class ImageController {
     // Ler a sessão é transporte; a regra de visibilidade fica no caso de uso,
     // que recebe apenas o booleano.
     const includePrivate = await this.authContext.isLoggedIn(request);
+    const currentUserId = await this.authContext.getUserId(request);
 
-    return this.getService.findSectionsPaginated(pageId, query, includePrivate);
+    return this.getService.findSectionsPaginated(pageId, query, includePrivate, currentUserId);
   }
 
   @Get(':id')

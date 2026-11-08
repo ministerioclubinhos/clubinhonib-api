@@ -123,6 +123,7 @@ export class ImagePageGetService {
     pageId: string,
     query: QueryImageSectionsDto,
     includePrivate: boolean,
+    currentUserId: string | null = null,
   ): Promise<PaginatedImageSectionResponseDto> {
     const page = await this.imagePageRepository.findById(pageId);
     if (!page) {
@@ -154,6 +155,7 @@ export class ImagePageGetService {
         .innerJoin('c.user', 'user')
         .select('c.sectionId', 'sectionId')
         .addSelect('user.name', 'userName')
+        .addSelect('c.userId', 'userId')
         .where('c.sectionId IN (:...ids)', { ids: sectionIds })
         .orderBy('c.createdAt', 'ASC')
         .getRawMany<{ sectionId: string; userName: string }>();
@@ -172,9 +174,14 @@ export class ImagePageGetService {
       total,
     );
     for (const item of response.sections) {
-      const names = celebrationsBySection.get(item.id) ?? [];
-      item.celebrationCount = names.length;
-      item.celebrators = names;
+      const sectionRows = sectionIds.includes(item.id) ? await this.celebrationRepo
+        .createQueryBuilder('c').innerJoin('c.user', 'user')
+        .select('c.sectionId', 'sectionId').addSelect('user.name', 'userName').addSelect('c.userId', 'userId')
+        .where('c.sectionId = :sectionId', { sectionId: item.id }).orderBy('c.createdAt', 'ASC')
+        .getRawMany<{ sectionId: string; userName: string; userId: string }>() : [];
+      item.celebrationCount = sectionRows.length;
+      item.celebrators = sectionRows.map((row) => row.userName);
+      item.celebratedByMe = Boolean(currentUserId && sectionRows.some((row) => row.userId === currentUserId));
     }
     return response;
   }

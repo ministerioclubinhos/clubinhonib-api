@@ -57,6 +57,7 @@ export function toSectionResponse(
     authorId: section.author?.id ?? null,
     celebrators: [],
     celebrationCount: 0,
+    celebratedByMe: false,
     caption: section.caption,
     author: section.author?.name ? { name: section.author.name } : null,
     description: section.description,

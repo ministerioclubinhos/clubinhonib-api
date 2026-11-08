@@ -36,6 +36,7 @@ export class ImageSectionDto {
   authorId: string | null;
   celebrators: string[];
   celebrationCount: number;
+  celebratedByMe: boolean;
   author: ImageSectionAuthorDto | null;
   id: string;
   caption: string;
