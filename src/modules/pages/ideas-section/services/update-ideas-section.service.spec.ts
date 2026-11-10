@@ -1,3 +1,4 @@
+import { UpdateIdeaAiPublicationService } from '../../ideas-section-ai/services/update-idea-ai-publication.service';
 import { Test } from '@nestjs/testing';
 import { EntityManager } from 'typeorm';
 
@@ -5,6 +6,7 @@ import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import {
   MediaItemEntity,
+  MediaType,
   UploadType,
 } from 'src/shared/media/media-item/media-item.entity';
 import { AppValidationException } from 'src/shared/exceptions';
@@ -68,6 +70,24 @@ describe('UpdateIdeasSectionService', () => {
 
     const moduleRef = await Test.createTestingModule({
       providers: [
+        {
+          provide: UpdateIdeaAiPublicationService,
+          useValue: {
+            prepare: jest.fn(
+              async (
+                id: string,
+                input: UpdateIdeasSectionDto,
+                m: EntityManager,
+              ) => ({
+                dto: input,
+                existingMedia: (await mediaService.findExisting(
+                  id,
+                  m,
+                )) as MediaItemEntity[],
+              }),
+            ),
+          },
+        },
         UpdateIdeasSectionService,
         { provide: IdeasSectionsRepository, useValue: sectionRepo },
         { provide: AwsS3Service, useValue: awsS3Service },
@@ -105,6 +125,8 @@ describe('UpdateIdeasSectionService', () => {
       {},
       manager,
       expect.anything(),
+      'Ideia editada',
+      'Ideia antiga',
     );
     expect(resposta.pageId).toBe('page-id');
   });
@@ -132,6 +154,15 @@ describe('UpdateIdeasSectionService', () => {
       url: 'https://s3/passo-a-passo.pdf',
       originalName: 'passo-a-passo.pdf',
     };
+    mediaService.findExisting.mockResolvedValue([
+      Object.assign(new MediaItemEntity(), {
+        id: 'media-id',
+        mediaType: MediaType.DOCUMENT,
+        uploadType: UploadType.UPLOAD,
+        isLocalFile: true,
+        url: 'https://s3/passo-a-passo.pdf',
+      }),
+    ]);
 
     // Antes, a checagem de arquivos exigia o upload de novo e recusava toda
     // edição de uma ideia que tivesse arquivo; quem reaproveita é o serviço
@@ -145,10 +176,12 @@ describe('UpdateIdeasSectionService', () => {
     expect(mediaService.processSectionMedia).toHaveBeenCalledWith(
       [reenviada],
       'section-id',
-      [],
+      expect.arrayContaining([expect.objectContaining({ id: 'media-id' })]),
       {},
       manager,
       expect.anything(),
+      'Ideia editada',
+      'Ideia antiga',
     );
   });
 

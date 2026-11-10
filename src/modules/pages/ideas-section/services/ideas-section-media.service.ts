@@ -15,6 +15,7 @@ import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
 import { IdeasSectionMediaType } from '../entities/ideas-section-media-type.enum';
 import { IdeasSectionMediaItemDto } from '../dto/ideas-section-media-item.dto';
 import { UploadedFilesDict } from '../types';
+import { applyAdminMediaMetadata } from '../utils';
 
 /**
  * Gravação das mídias de uma ideia compartilhada.
@@ -61,12 +62,6 @@ export class IdeasSectionMediaService {
         continue;
       }
 
-      if (media.isLocalFile && media.url) {
-        // A falha na remoção é registrada, não interrompe: abortar a edição
-        // por causa do S3 deixaria a seção pela metade.
-        await this.awsS3Service.delete(media.url);
-      }
-
       await this.mediaItemProcessor.deleteMediaItemByIdInTransaction(
         manager,
         media.id,
@@ -81,12 +76,19 @@ export class IdeasSectionMediaService {
     filesDict: UploadedFilesDict,
     manager: EntityManager,
     uploads: S3UploadTracker,
+    sectionTitle: string,
+    previousSectionTitle: string,
   ): Promise<MediaItemEntity[]> {
     const oldById = new Map(oldMedia.map((item) => [item.id, item]));
 
     const processedMedia: MediaItemEntity[] = [];
 
-    for (const mediaInput of mediaItems) {
+    const preparedMedia = applyAdminMediaMetadata(
+      mediaItems,
+      sectionTitle,
+      previousSectionTitle,
+    );
+    for (const mediaInput of preparedMedia) {
       if (mediaInput.id) {
         const savedMedia = await this.upsertMedia(
           mediaInput,
@@ -103,6 +105,7 @@ export class IdeasSectionMediaService {
           sectionId,
           filesDict,
           uploads,
+          manager,
         );
         processedMedia.push(savedMedia);
       }
@@ -115,6 +118,7 @@ export class IdeasSectionMediaService {
     targetId: string,
     filesDict: UploadedFilesDict,
     uploads: S3UploadTracker,
+    manager: EntityManager,
   ): Promise<MediaItemEntity> {
     const media = this.mediaItemProcessor.buildBaseMediaItem(
       {
@@ -133,7 +137,7 @@ export class IdeasSectionMediaService {
     ) {
       media.platformType = undefined;
       if (!mediaInput.fieldKey) {
-        this.logger.error(`FieldKey ausente para mídia "${mediaInput.title}"`);
+        this.logger.error('FieldKey ausente para nova mídia.');
         throw new AppValidationException(
           ErrorCode.MEDIA_FIELD_MISSING,
           `FieldKey ausente para mídia "${mediaInput.title}"`,
@@ -141,16 +145,14 @@ export class IdeasSectionMediaService {
       }
       const file = filesDict[mediaInput.fieldKey];
       if (!file) {
-        this.logger.error(
-          `Arquivo ausente para mídia "${mediaInput.title}" (fieldKey: ${mediaInput.fieldKey})`,
-        );
+        this.logger.error('Arquivo ausente para nova mídia.');
         throw new AppValidationException(
           ErrorCode.MEDIA_FILE_NOT_FOUND,
           `Arquivo ausente para mídia "${mediaInput.title}"`,
         );
       }
       media.url = await uploads.upload(file);
-      media.isLocalFile = mediaInput.isLocalFile;
+      media.isLocalFile = true;
       media.originalName = file.originalname;
       media.size = file.size;
     } else {
@@ -166,7 +168,10 @@ export class IdeasSectionMediaService {
       media.size = mediaInput.size || media.size;
     }
 
-    const savedMedia = await this.mediaItemProcessor.saveMediaItem(media);
+    const savedMedia = await this.mediaItemProcessor.saveMediaItemInTransaction(
+      manager,
+      media,
+    );
     return savedMedia;
   }
 
@@ -203,9 +208,7 @@ export class IdeasSectionMediaService {
       media.platformType = undefined;
     } else if (isUpload && !previous?.url) {
       // Upload sem arquivo e sem nada guardado para reaproveitar.
-      this.logger.error(
-        `Arquivo ausente para a mídia "${mediaInput.title ?? ''}"`,
-      );
+      this.logger.error('Arquivo ausente para mídia em atualização.');
       throw new AppValidationException(
         ErrorCode.MEDIA_FILE_NOT_FOUND,
         `Arquivo ausente para a mídia "${mediaInput.title ?? ''}"`,
@@ -230,14 +233,6 @@ export class IdeasSectionMediaService {
       manager,
       { ...media, id: mediaInput.id },
     );
-
-    if (
-      previous?.isLocalFile &&
-      previous.url &&
-      previous.url !== savedMedia.url
-    ) {
-      await this.awsS3Service.delete(previous.url);
-    }
 
     return savedMedia;
   }

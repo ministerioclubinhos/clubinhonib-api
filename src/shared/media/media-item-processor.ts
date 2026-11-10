@@ -166,16 +166,12 @@ export class MediaItemProcessor {
   ): Promise<MediaItemEntity> {
     if (id) {
       await this.mediaRepo.saveById(id, media);
-      this.logger.debug(
-        `✏️ Mídia atualizada: ID=${id}, título="${media.title}"`,
-      );
+      this.logger.debug(`Mídia atualizada: ID=${id}`);
       media.id = id;
       return media;
     } else {
       const created = await this.saveMediaItem(media);
-      this.logger.debug(
-        `🆕 Mídia criada: ID=${created.id}, título="${created.title}"`,
-      );
+      this.logger.debug(`Mídia criada: ID=${created.id}`);
       return created;
     }
   }
@@ -184,24 +180,20 @@ export class MediaItemProcessor {
     items: MediaItemEntity[],
     deleteFn: (url: string) => Promise<void>,
   ): Promise<void> {
-    for (const item of items) {
-      if (item.isLocalFile) {
-        this.logger.debug(`🗑️ Deletando do S3: ${item.url}`);
-        await deleteFn(item.url);
-      }
-    }
     await this.mediaRepo.removeMany(items);
+    await this.discardUnreferencedUploads(
+      items.filter((item) => item.isLocalFile).map((item) => item.url),
+      deleteFn,
+    );
   }
 
   async removeMediaItem(
     item: MediaItemEntity,
     deleteFn?: (url: string) => Promise<void>,
   ): Promise<void> {
-    if (item.isLocalFile && deleteFn) {
-      this.logger.debug(`🧹 Limpando do S3: ${item.url}`);
-      await deleteFn(item.url);
-    }
     await this.mediaRepo.removeOne(item);
+    if (item.isLocalFile && deleteFn)
+      await this.discardUnreferencedUploads([item.url], deleteFn);
   }
 
   async processMediaItemsPolymorphic(
@@ -210,6 +202,7 @@ export class MediaItemProcessor {
     targetType: string,
     filesDict: Record<string, Express.Multer.File>,
     uploadFn: (file: Express.Multer.File) => Promise<string>,
+    manager?: EntityManager,
   ): Promise<MediaItemEntity[]> {
     const results: MediaItemEntity[] = [];
 
@@ -224,7 +217,7 @@ export class MediaItemProcessor {
         const file = filesDict[item.fileField];
         if (!file) throw new Error(`Arquivo ausente para "${item.title}"`);
 
-        this.logger.debug(`⬆️ Upload: ${file.originalname}`);
+        this.logger.debug(`Upload de mídia: targetId=${targetId}`);
         media.url = await uploadFn(file);
         media.isLocalFile = true;
         media.originalName = file.originalname;
@@ -234,7 +227,9 @@ export class MediaItemProcessor {
         media.isLocalFile = false;
       }
 
-      const saved = await this.saveMediaItem(media);
+      const saved = manager
+        ? await this.saveMediaItemInTransaction(manager, media)
+        : await this.saveMediaItem(media);
       results.push(saved);
     }
 
@@ -258,7 +253,7 @@ export class MediaItemProcessor {
     const referenced = new Set(
       (await this.mediaRepo.findByUrls(urls)).map((item) => item.url),
     );
-    const orphans = urls.filter((url) => !referenced.has(url));
+    const orphans = [...new Set(urls)].filter((url) => !referenced.has(url));
 
     for (const url of orphans) {
       try {
@@ -328,7 +323,7 @@ export class MediaItemProcessor {
         const file = item.fileField ? filesDict[item.fileField] : undefined;
 
         if (file) {
-          logger.debug(`⬆️ Upload novo: ${file.originalname}`);
+          logger.debug(`Novo upload de mídia: targetId=${targetId}`);
           media.url = await uploadFn(file);
           media.isLocalFile = true;
           media.originalName = file.originalname;
@@ -375,16 +370,10 @@ export class MediaItemProcessor {
       (old) => old.isLocalFile && old.url && !keptUrls.has(old.url),
     );
 
-    for (const old of staleFiles) {
-      try {
-        await deleteFn(old.url);
-      } catch (error: unknown) {
-        logger.error(
-          `ÓRFÃO NO S3: falha ao remover ${old.url}`,
-          error instanceof Error ? error.stack : undefined,
-        );
-      }
-    }
+    await this.discardUnreferencedUploads(
+      staleFiles.map((item) => item.url),
+      deleteFn,
+    );
 
     return results;
   }

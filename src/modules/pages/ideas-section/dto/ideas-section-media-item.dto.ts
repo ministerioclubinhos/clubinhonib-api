@@ -4,6 +4,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  MaxLength,
 } from 'class-validator';
 import {
   PlatformType,
@@ -16,10 +17,12 @@ export class IdeasSectionMediaItemDto {
   @IsString({ message: 'O campo "id" da mídia deve ser uma string.' })
   id?: string;
 
+  /** Ignorado na submissão do professor; o servidor gera o título. */
   @IsOptional()
   @IsString({ message: 'O campo "title" da mídia deve ser uma string.' })
   title?: string;
 
+  /** Ignorada na submissão do professor; o servidor gera descrição vazia. */
   @IsOptional()
   @IsString({ message: 'O campo "description" da mídia deve ser uma string.' })
   description?: string;
@@ -39,6 +42,7 @@ export class IdeasSectionMediaItemDto {
 
   @IsOptional()
   @IsString({ message: 'O campo "url" deve ser uma string.' })
+  @MaxLength(2048, { message: 'A URL deve ter no máximo 2048 caracteres.' })
   url?: string;
 
   @IsOptional()

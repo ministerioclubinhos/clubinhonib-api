@@ -77,10 +77,17 @@ export class PdfLibreOfficeService {
   }
 
   async convertDocxToPdf(docxBuffer: Buffer): Promise<Buffer> {
+    return this.convertToPdf(docxBuffer, '.docx');
+  }
+
+  async convertToPdf(
+    docxBuffer: Buffer,
+    extension: '.doc' | '.docx',
+  ): Promise<Buffer> {
     await this.acquireSlot();
     const dir = await mkdtemp(join(tmpdir(), 'clubinho-pdf-'));
     const profile = join(dir, 'profile');
-    const source = join(dir, 'lesson.docx');
+    const source = join(dir, `lesson${extension}`);
     const output = join(dir, 'lesson.pdf');
     try {
       await writeFile(source, docxBuffer);

@@ -815,3 +815,16 @@ Multer also bounds multipart file count (20) and per-file bytes (100 MB).
 Video comments use the existing comment errors and moderation rules. MEDIA_NOT_FOUND
 still rejects unsupported media, media outside the configured feed and private
 anonymous access; VIDEO is now an allowed media type alongside IMAGE.
+
+## Shared idea media and AI review
+
+New shared-idea media validation returns `400` with the existing error envelope and `VALIDATION_ERROR`, `INVALID_INPUT`, `INVALID_FILE` or `MEDIA_FILE_NOT_FOUND`. Other modules keep their existing `AppValidationException` default (`422`). Multipart limits may fail earlier in Multer.
+
+| Code | HTTP | Meaning |
+| --- | --- | --- |
+| `IDEA_AI_8620` | 409 | An attempt is active; wait or explicitly publish the original |
+| `IDEA_AI_8621` | 409 | Three-attempt limit reached |
+| `IDEA_AI_8622` | 409 | Choices refer to an obsolete enhancement |
+| `VALIDATION_ERROR` | 422 | An AI publication choice has no available approved result |
+
+Worker errors are sanitized `errorCode` values on attempts, not failed submission responses: `PROVIDER_NOT_CONFIGURED`, `PROVIDER_REQUEST_FAILED`, `INVALID_PROVIDER_RESPONSE`, `GUARD_REJECTED`, `LIMIT_REACHED`, `CANCELLED`. The teacher's persisted submission and the previous successful result remain available. See [shared idea enhancement](api-ideas-enhancement.md).

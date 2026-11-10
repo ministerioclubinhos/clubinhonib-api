@@ -1,3 +1,4 @@
+import { DeleteIdeaAiAssetsService } from '../../ideas-section-ai/services/delete-idea-ai-assets.service';
 import { Injectable, Logger } from '@nestjs/common';
 import {
   AppNotFoundException,
@@ -16,6 +17,7 @@ export class DeleteIdeasSectionService {
   private readonly logger = new Logger(DeleteIdeasSectionService.name);
 
   constructor(
+    private readonly aiAssets: DeleteIdeaAiAssetsService,
     private readonly sectionRepo: IdeasSectionsRepository,
     private readonly mediaItemProcessor: MediaItemProcessor,
     private readonly awsS3Service: AwsS3Service,
@@ -49,6 +51,7 @@ export class DeleteIdeasSectionService {
             );
           }
 
+          const aiUrls = await this.aiAssets.remove(id, manager);
           const mediaItems =
             await this.mediaItemProcessor.findMediaItemsByTargetInTransaction(
               manager,
@@ -68,15 +71,19 @@ export class DeleteIdeasSectionService {
 
           // Os arquivos só saem depois do commit: apagá-los antes deixaria as
           // mídias apontando para objetos inexistentes se a transação falhasse.
-          return mediaItems
-            .filter((media) => media.isLocalFile && media.url)
-            .map((media) => media.url);
+          return [
+            ...aiUrls,
+            ...mediaItems
+              .filter((media) => media.isLocalFile && media.url)
+              .map((media) => media.url),
+          ];
         },
       );
 
-      for (const url of filesToDelete) {
-        await this.awsS3Service.delete(url);
-      }
+      await this.mediaItemProcessor.discardUnreferencedUploads(
+        filesToDelete,
+        (url) => this.awsS3Service.delete(url),
+      );
       this.logger.log(`Ideia compartilhada removida. ID=${id}`);
     } catch (error: unknown) {
       const errStack = error instanceof Error ? error.stack : undefined;

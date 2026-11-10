@@ -1,3 +1,4 @@
+import { UpdateIdeaAiPublicationService } from '../../ideas-section-ai/services/update-idea-ai-publication.service';
 import { Test } from '@nestjs/testing';
 import { EntityManager } from 'typeorm';
 
@@ -64,6 +65,24 @@ describe('AttachIdeasSectionService', () => {
 
     const moduleRef = await Test.createTestingModule({
       providers: [
+        {
+          provide: UpdateIdeaAiPublicationService,
+          useValue: {
+            prepare: jest.fn(
+              async (
+                id: string,
+                input: UpdateIdeasSectionDto,
+                m: EntityManager,
+              ) => ({
+                dto: input,
+                existingMedia: (await mediaService.findExisting(
+                  id,
+                  m,
+                )) as MediaItemEntity[],
+              }),
+            ),
+          },
+        },
         AttachIdeasSectionService,
         { provide: IdeasSectionsRepository, useValue: sectionRepo },
         { provide: AwsS3Service, useValue: awsS3Service },
@@ -112,11 +131,14 @@ describe('AttachIdeasSectionService', () => {
       {},
       manager,
       expect.anything(),
+      'Ideia publicada',
+      'Ideia antiga',
     );
     expect(resposta.pageId).toBe('page-id');
-    expect(
-      mediaItemProcessor.discardUnreferencedUploads,
-    ).not.toHaveBeenCalled();
+    expect(mediaItemProcessor.discardUnreferencedUploads).toHaveBeenCalledWith(
+      [],
+      expect.any(Function),
+    );
   });
 
   it('recusa a ideia que já está publicada, sem abrir transação', async () => {

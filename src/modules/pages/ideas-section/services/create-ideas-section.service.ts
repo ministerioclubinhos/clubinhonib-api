@@ -1,3 +1,6 @@
+import { CreateIdeaSnapshotService } from '../../ideas-section-ai/services/create-idea-snapshot.service';
+import { CreateIdeaAiEnhancementService } from '../../ideas-section-ai/services/create-idea-ai-enhancement.service';
+import { IdeaSubmissionSnapshotSource } from '../../ideas-section-ai/enums/ideas-section-ai.enums';
 import { Injectable, Logger } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 import { AppInternalException, ErrorCode } from 'src/shared/exceptions';
@@ -5,6 +8,7 @@ import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
 import { UploadType } from 'src/shared/media/media-item/media-item.entity';
+import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 import { IdeasSectionMediaType } from '../entities/ideas-section-media-type.enum';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
 import { NotificationService } from 'src/shared/providers/notification/notification.service';
@@ -13,7 +17,8 @@ import { IdeasSectionResponseDto } from '../dto/ideas-section-response.dto';
 import { IdeasSectionEntity } from 'src/modules/pages/ideas-page/entities/ideas-section.entity';
 import { IdeasSectionsRepository } from '../repositories/ideas-sections.repository';
 import { toIdeasSectionResponse } from '../mappers';
-import { assertUploadsHaveFiles } from '../utils';
+import { applyGeneratedMediaMetadata } from '../utils';
+import { validateIdeasShareMedia } from '../media-validation';
 import { UploadedFilesDict } from '../types';
 
 @Injectable()
@@ -21,6 +26,8 @@ export class CreateIdeasSectionService {
   private readonly logger = new Logger(CreateIdeasSectionService.name);
 
   constructor(
+    private readonly snapshots: CreateIdeaSnapshotService,
+    private readonly enhancements: CreateIdeaAiEnhancementService,
     private readonly sectionRepo: IdeasSectionsRepository,
     private readonly awsS3Service: AwsS3Service,
     private readonly mediaItemProcessor: MediaItemProcessor,
@@ -40,7 +47,11 @@ export class CreateIdeasSectionService {
   ): Promise<IdeasSectionResponseDto> {
     // Upload declarado sem arquivo vira mídia apontando para lugar nenhum; a
     // checagem existia e nunca era chamada.
-    assertUploadsHaveFiles(dto.medias, filesDict);
+    validateIdeasShareMedia(dto.medias, filesDict);
+    const normalizedDto: CreateIdeasSectionDto = {
+      ...dto,
+      medias: applyGeneratedMediaMetadata(dto.medias, dto.title),
+    };
 
     // Os arquivos sobem antes do commit e sobrevivem ao rollback: o rastreador
     // permite apagá-los do bucket quando a criação falha.
@@ -51,37 +62,55 @@ export class CreateIdeasSectionService {
     try {
       // A transação é aberta pelo repositório; aqui só se decide o que entra
       // nela. O rollback acontece sozinho quando o bloco lança.
-      const section = await this.sectionRepo.runInTransaction(
+      const { section, mediaItems } = await this.sectionRepo.runInTransaction(
         async (manager) => {
           const created = await this.persistOrphanSection(manager, dto);
-          await this.processOrphanSectionMedia(
+          const createdMedia = await this.processOrphanSectionMedia(
             created,
-            dto,
+            normalizedDto,
             filesDict,
             uploads,
+            manager,
           );
-
-          return created;
+          await this.snapshots.capture(
+            created,
+            createdMedia,
+            manager,
+            IdeaSubmissionSnapshotSource.SUBMISSION,
+          );
+          return { section: created, mediaItems: createdMedia };
         },
-      );
-
-      const mediaItems = await this.mediaItemProcessor.findMediaItemsByTarget(
-        section.id,
-        MediaTargetType.IdeasSection,
       );
 
       this.logger.log(`Ideia compartilhada criada. ID=${section.id}`);
 
       // O aviso nunca derruba o envio: a ideia já está na fila.
-      await this.notificationService.notifyNewIdeaShared(
-        {
-          title: section.title,
-          description: section.description,
-          createdAt: section.createdAt,
-        },
-        author,
-      );
+      void Promise.resolve()
+        .then(() =>
+          this.notificationService.notifyNewIdeaShared(
+            {
+              title: section.title,
+              description: section.description,
+              createdAt: section.createdAt,
+            },
+            author,
+          ),
+        )
+        .catch((error: unknown) => {
+          const message =
+            error instanceof Error ? error.message : 'unknown error';
+          this.logger.warn(
+            `Falha ao notificar sobre ideia ${section.id}: ${message}`,
+          );
+        });
 
+      void Promise.resolve()
+        .then(() => this.enhancements.enqueueAutomatic(section.id))
+        .catch(() =>
+          this.logger.warn(
+            `Falha ao enfileirar melhoria da ideia ${section.id}. Reprocessamento manual disponível.`,
+          ),
+        );
       return toIdeasSectionResponse(section, mediaItems);
     } catch (error: unknown) {
       await this.mediaItemProcessor.discardUnreferencedUploads(
@@ -119,11 +148,13 @@ export class CreateIdeasSectionService {
     dto: CreateIdeasSectionDto,
     filesDict: UploadedFilesDict,
     uploads: S3UploadTracker,
-  ): Promise<void> {
-    if (!dto.medias?.length) return;
+    manager: EntityManager,
+  ): Promise<MediaItemEntity[]> {
+    if (!dto.medias?.length) return [];
 
     const normalized = dto.medias.map((item) => ({
       ...item,
+      url: item.url?.trim(),
       mediaType:
         item.mediaType === IdeasSectionMediaType.VIDEO
           ? 'video'
@@ -137,12 +168,13 @@ export class CreateIdeasSectionService {
           : undefined,
     }));
 
-    await this.mediaItemProcessor.processMediaItemsPolymorphic(
+    return this.mediaItemProcessor.processMediaItemsPolymorphic(
       normalized,
       section.id,
       MediaTargetType.IdeasSection,
       filesDict,
       uploads.upload,
+      manager,
     );
   }
 }

@@ -1,3 +1,4 @@
+import { DeleteIdeaAiAssetsService } from '../../ideas-section-ai/services/delete-idea-ai-assets.service';
 import { Test } from '@nestjs/testing';
 import { EntityManager } from 'typeorm';
 import {
@@ -64,6 +65,9 @@ describe('IdeasPageDeleteService', () => {
   };
   const awsS3Service = { delete: jest.fn() };
   const mediaItemProcessor = {
+    discardUnreferencedUploads: jest.fn().mockResolvedValue(0),
+    findMediaItemsByTargetInTransaction: jest.fn(),
+    deleteMediaItemsByTargetInTransaction: jest.fn(),
     findManyMediaItemsByTargets: jest.fn(),
     deleteMediaItems: jest.fn(),
   };
@@ -72,11 +76,24 @@ describe('IdeasPageDeleteService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mediaItemProcessor.findMediaItemsByTargetInTransaction.mockImplementation(
+      (_m: EntityManager, id: string, type: string) =>
+        mediaItemProcessor.findManyMediaItemsByTargets([id], type) as Promise<
+          MediaItemEntity[]
+        >,
+    );
+    mediaItemProcessor.deleteMediaItemsByTargetInTransaction.mockResolvedValue(
+      undefined,
+    );
     getService.findEntityOrFail.mockResolvedValue(buildPage());
     mediaItemProcessor.findManyMediaItemsByTargets.mockResolvedValue([]);
 
     const moduleRef = await Test.createTestingModule({
       providers: [
+        {
+          provide: DeleteIdeaAiAssetsService,
+          useValue: { remove: jest.fn().mockResolvedValue([]) },
+        },
         IdeasPageDeleteService,
         { provide: IdeasPageRepository, useValue: ideasPageRepository },
         { provide: IdeasPageGetService, useValue: getService },
@@ -106,8 +123,11 @@ describe('IdeasPageDeleteService', () => {
       ['s1'],
       'IdeasSection',
     );
-    expect(mediaItemProcessor.deleteMediaItems).toHaveBeenCalledWith(
-      [media],
+    expect(
+      mediaItemProcessor.deleteMediaItemsByTargetInTransaction,
+    ).toHaveBeenCalledWith(manager, 's1', 'IdeasSection');
+    expect(mediaItemProcessor.discardUnreferencedUploads).toHaveBeenCalledWith(
+      ['https://s3/a.png'],
       expect.any(Function),
     );
     expect(ideasPageRepository.removePage).toHaveBeenCalledWith(

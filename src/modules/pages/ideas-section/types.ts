@@ -8,3 +8,5 @@ export type IdeasSectionSortOrder = 'ASC' | 'DESC';
 
 /** Arquivos do multipart, endereçados pelo nome do campo. */
 export type UploadedFilesDict = Record<string, Express.Multer.File>;
+
+export type IdeasFormatMap = Readonly<Record<string, readonly string[]>>;

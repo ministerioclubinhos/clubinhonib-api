@@ -146,6 +146,7 @@ describe('MediaItemProcessor.cleanAndReplaceMediaItems', () => {
       Object.assign(item, { id: item.id ?? 'nova' }),
     );
     mediaRepo.saveById.mockResolvedValue(undefined);
+    mediaRepo.findByUrls.mockResolvedValue([]);
 
     const moduleRef = await Test.createTestingModule({
       providers: [

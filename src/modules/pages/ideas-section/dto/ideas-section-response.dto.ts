@@ -1,3 +1,5 @@
+import { IdeaAiDetailDto } from '../../ideas-section-ai/dto/idea-ai-response.dto';
+import { IdeaAiEnhancementStatus } from '../../ideas-section-ai/enums/ideas-section-ai.enums';
 /** Uma mídia da ideia compartilhada, no recorte que a tela usa. */
 export class IdeasSectionMediaResponseDto {
   id: string;
@@ -14,6 +16,8 @@ export class IdeasSectionMediaResponseDto {
 
 /** Contrato de resposta de `/ideas-sections`. */
 export class IdeasSectionResponseDto {
+  aiEnhancement?: IdeaAiDetailDto;
+  aiStatus?: IdeaAiEnhancementStatus | null;
   id: string;
   title: string;
   description: string;

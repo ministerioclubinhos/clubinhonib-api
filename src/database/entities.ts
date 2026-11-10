@@ -39,6 +39,11 @@ import { LessonVersionEntity } from 'src/modules/ai-lessons/entities/lesson-vers
 import { LessonCommentEntity } from 'src/modules/ai-lessons/entities/lesson-comment.entity';
 import { AiProviderSettingEntity } from 'src/modules/ai-lessons/entities/ai-provider-setting.entity';
 import { AdminLessonPromptEntity } from 'src/modules/ai-lessons/entities/admin-lesson-prompt.entity';
+import { IdeasSectionSubmissionSnapshotEntity } from 'src/modules/pages/ideas-section-ai/entities/ideas-section-submission-snapshot.entity';
+import { IdeasSectionSubmissionSnapshotMediaEntity } from 'src/modules/pages/ideas-section-ai/entities/ideas-section-submission-snapshot-media.entity';
+import { IdeasSectionAiEnhancementEntity } from 'src/modules/pages/ideas-section-ai/entities/ideas-section-ai-enhancement.entity';
+import { IdeasSectionAiMediaEnhancementEntity } from 'src/modules/pages/ideas-section-ai/entities/ideas-section-ai-media-enhancement.entity';
+import { IdeasSectionAiPublicationChoiceEntity } from 'src/modules/pages/ideas-section-ai/entities/ideas-section-ai-publication-choice.entity';
 
 /**
  * Todas as entidades registradas na aplicação.
@@ -89,4 +94,9 @@ export const DATABASE_ENTITIES = [
   LessonCommentEntity,
   AdminLessonPromptEntity,
   AiProviderSettingEntity,
+  IdeasSectionSubmissionSnapshotEntity,
+  IdeasSectionSubmissionSnapshotMediaEntity,
+  IdeasSectionAiEnhancementEntity,
+  IdeasSectionAiMediaEnhancementEntity,
+  IdeasSectionAiPublicationChoiceEntity,
 ];

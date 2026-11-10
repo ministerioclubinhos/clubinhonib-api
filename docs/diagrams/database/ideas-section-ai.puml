@@ -1,0 +1,58 @@
+@startuml
+class "ideas_sections" as section
+class "media_items" as media
+class "ideas_section_submission_snapshots" as snapshot {
+  * section_id : UUID <<unique>>
+  submitted_title : varchar
+  submitted_description : text
+  source : SUBMISSION | LEGACY_CAPTURE
+}
+class "ideas_section_submission_snapshot_medias" as source {
+  * snapshot_id : UUID
+  * source_media_id : UUID <<RESTRICT>>
+  position : int
+  url : text
+}
+class "ideas_section_ai_enhancements" as attempt {
+  * section_id : UUID
+  * snapshot_id : UUID
+  attempt : int <<unique with section>>
+  active_section_id : UUID nullable <<unique>>
+  current_result_section_id : UUID nullable <<unique>>
+  status : enum
+  lease_owner : UUID
+  lease_expires_at : datetime
+  enhanced_title : varchar
+  enhanced_description : text
+}
+class "ideas_section_ai_media_enhancements" as result {
+  * enhancement_id : UUID
+  * source_media_id : UUID <<RESTRICT>>
+  enhanced_media_id : UUID <<RESTRICT>>
+  editable_media_id : UUID <<RESTRICT>>
+  status : enum
+  guard : json
+}
+class "ideas_section_ai_publication_choices" as choice {
+  * section_id : UUID
+  * choice_key : varchar <<unique with section>>
+  enhancement_id : UUID
+  source_media_id : UUID <<RESTRICT>>
+  decision : enum
+}
+section ||--o| snapshot : CASCADE
+snapshot ||--o{ source : CASCADE
+media ||--o{ source : protected source
+section ||--o{ attempt : CASCADE
+snapshot ||--o{ attempt : CASCADE
+attempt ||--o{ result : CASCADE
+media ||--o{ result : source / PDF / DOCX / image
+section ||--o{ choice : CASCADE
+attempt |o--o{ choice : SET NULL
+media |o--o{ choice
+note bottom of media
+Source and enhancement rows use separate target types.
+Publication rows reference the same S3 objects without moving them.
+Delete S3 only after commit and reference checks.
+end note
+@enduml

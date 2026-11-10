@@ -1,3 +1,4 @@
+import { UpdateIdeaAiPublicationService } from '../../ideas-section-ai/services/update-idea-ai-publication.service';
 import { Injectable, Logger } from '@nestjs/common';
 import {
   AppBusinessException,
@@ -16,6 +17,7 @@ import { UpdateIdeasSectionDto } from '../dto/update-ideas-section.dto';
 import { IdeasSectionResponseDto } from '../dto/ideas-section-response.dto';
 import { toIdeasSectionResponse } from '../mappers';
 import { assertUploadsHaveFiles } from '../utils';
+import { validateIdeasShareMedia } from '../media-validation';
 import { UploadedFilesDict } from '../types';
 import { GetIdeasSectionsService } from './get-ideas-sections.service';
 import { IdeasSectionMediaService } from './ideas-section-media.service';
@@ -31,6 +33,7 @@ export class AttachIdeasSectionService {
   private readonly logger = new Logger(AttachIdeasSectionService.name);
 
   constructor(
+    private readonly aiPublication: UpdateIdeaAiPublicationService,
     private readonly sectionRepo: IdeasSectionsRepository,
     private readonly awsS3Service: AwsS3Service,
     private readonly mediaItemProcessor: MediaItemProcessor,
@@ -64,6 +67,7 @@ export class AttachIdeasSectionService {
       this.awsS3Service.upload(file),
     );
 
+    const retiredUrls: string[] = [];
     try {
       // A transação é aberta pelo repositório; aqui só se decide o que entra
       // nela. O rollback acontece sozinho quando o bloco lança.
@@ -81,10 +85,20 @@ export class AttachIdeasSectionService {
             );
           }
 
-          const existingMedia = await this.mediaService.findExisting(
+          const prepared = await this.aiPublication.prepare(
             sectionId,
+            dto,
             manager,
+            true,
           );
+          const existingMedia = prepared.existingMedia;
+          dto = prepared.dto;
+          retiredUrls.push(
+            ...existingMedia
+              .filter((media) => media.isLocalFile)
+              .map((media) => media.url),
+          );
+          validateIdeasShareMedia(dto.medias, filesDict, existingMedia, false);
 
           // O `id` vai junto: sem ele o `save` criava uma seção nova ligada à
           // página e deixava a original parada na fila para sempre.
@@ -108,10 +122,17 @@ export class AttachIdeasSectionService {
             filesDict,
             manager,
             uploads,
+            dto.title,
+            existing.title,
           );
 
           return { saved: section, page: ideasPage, processedMedia: media };
         });
+
+      await this.mediaItemProcessor.discardUnreferencedUploads(
+        retiredUrls,
+        (url) => this.awsS3Service.delete(url),
+      );
 
       this.logger.log(
         `Ideia compartilhada publicada. ID=${sectionId} página=${pageId}`,

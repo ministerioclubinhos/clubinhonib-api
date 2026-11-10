@@ -10,6 +10,7 @@ export enum FeatureFlagKeys {
   WEEKLY_MATERIALS = 'weekly_materials',
   SITE_FEEDBACK = 'site_feedback',
   IDEA_SUBMISSION = 'idea_submission',
+  IDEA_AI_ENHANCEMENT = 'idea_ai_enhancement',
   IDEAS_SHARING = 'ideas_sharing',
   EVENTS_SECTION = 'events_section',
   CLUBINHO_FEED = 'clubinho_feed',

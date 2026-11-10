@@ -1,3 +1,4 @@
+import { DeleteIdeaAiAssetsService } from '../../ideas-section-ai/services/delete-idea-ai-assets.service';
 import { Injectable, Logger } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 import {
@@ -21,6 +22,7 @@ export class IdeasPageDeleteService {
   private readonly logger = new Logger(IdeasPageDeleteService.name);
 
   constructor(
+    private readonly aiAssets: DeleteIdeaAiAssetsService,
     private readonly ideasPageRepository: IdeasPageRepository,
     private readonly getService: IdeasPageGetService,
     private readonly deleteRouteService: DeleteRouteService,
@@ -34,30 +36,30 @@ export class IdeasPageDeleteService {
     try {
       const sectionIds = collectSectionIds([page]);
 
-      // As mídias pertencem às seções e não saem por cascata: os registros e os
-      // arquivos no S3 precisam ser removidos antes da página.
-      if (sectionIds.length > 0) {
-        const media = await this.mediaItemProcessor.findManyMediaItemsByTargets(
-          sectionIds,
-          IDEAS_SECTION_MEDIA_TARGET_TYPE,
-        );
-
-        if (media.length > 0) {
-          await this.mediaItemProcessor.deleteMediaItems(media, (url: string) =>
-            this.awsS3Service.delete(url),
-          );
-          this.logger.debug(
-            `${media.length} mídia(s) removida(s) da página de ideias ${id}`,
-          );
-        }
-      }
-
-      // A página sai antes da rota: com a página removida, a chave estrangeira
-      // deixa de apontar para a rota e a exclusão dela fica livre.
-      await this.ideasPageRepository.runInTransaction(
+      const urls = await this.ideasPageRepository.runInTransaction(
         async (manager: EntityManager) => {
+          const files: string[] = [];
+          for (const sectionId of sectionIds) {
+            files.push(...(await this.aiAssets.remove(sectionId, manager)));
+            const media =
+              await this.mediaItemProcessor.findMediaItemsByTargetInTransaction(
+                manager,
+                sectionId,
+                IDEAS_SECTION_MEDIA_TARGET_TYPE,
+              );
+            files.push(...media.filter((m) => m.isLocalFile).map((m) => m.url));
+            await this.mediaItemProcessor.deleteMediaItemsByTargetInTransaction(
+              manager,
+              sectionId,
+              IDEAS_SECTION_MEDIA_TARGET_TYPE,
+            );
+          }
           await this.ideasPageRepository.removePage(page, manager);
+          return files;
         },
+      );
+      await this.mediaItemProcessor.discardUnreferencedUploads(urls, (url) =>
+        this.awsS3Service.delete(url),
       );
 
       if (page.route?.id) {

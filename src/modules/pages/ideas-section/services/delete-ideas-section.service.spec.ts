@@ -1,3 +1,4 @@
+import { DeleteIdeaAiAssetsService } from '../../ideas-section-ai/services/delete-idea-ai-assets.service';
 import { Test } from '@nestjs/testing';
 import { EntityManager } from 'typeorm';
 
@@ -49,6 +50,12 @@ describe('DeleteIdeasSectionService', () => {
     deleteByIdInTransaction: jest.fn(),
   };
   const mediaItemProcessor = {
+    discardUnreferencedUploads: jest.fn(
+      async (urls: string[], remove: (url: string) => Promise<void>) => {
+        for (const url of urls) await remove(url);
+        return urls.length;
+      },
+    ),
     findMediaItemsByTargetInTransaction: jest.fn(),
     deleteMediaItemsByTargetInTransaction: jest.fn(),
   };
@@ -61,6 +68,10 @@ describe('DeleteIdeasSectionService', () => {
 
     const moduleRef = await Test.createTestingModule({
       providers: [
+        {
+          provide: DeleteIdeaAiAssetsService,
+          useValue: { remove: jest.fn().mockResolvedValue([]) },
+        },
         DeleteIdeasSectionService,
         { provide: IdeasSectionsRepository, useValue: sectionRepo },
         { provide: MediaItemProcessor, useValue: mediaItemProcessor },

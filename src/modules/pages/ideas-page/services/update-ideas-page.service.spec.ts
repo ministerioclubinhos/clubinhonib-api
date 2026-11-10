@@ -1,3 +1,4 @@
+import { DeleteIdeaAiAssetsService } from '../../ideas-section-ai/services/delete-idea-ai-assets.service';
 import { Test } from '@nestjs/testing';
 import { EntityManager } from 'typeorm';
 import {
@@ -105,6 +106,8 @@ describe('IdeasPageUpdateService', () => {
   const updateRouteService = rotaMockBase;
   const awsS3Service = { upload: jest.fn(), delete: jest.fn() };
   const mediaItemProcessor = {
+    findMediaItemsByTargetInTransaction: jest.fn(),
+    deleteMediaItemsByTargetInTransaction: jest.fn(),
     findManyMediaItemsByTargets: jest.fn(),
     findMediaItemsByTarget: jest.fn(),
     deleteMediaItems: jest.fn(),
@@ -119,6 +122,15 @@ describe('IdeasPageUpdateService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mediaItemProcessor.findMediaItemsByTargetInTransaction.mockImplementation(
+      (_m: EntityManager, id: string, type: string) =>
+        mediaItemProcessor.findManyMediaItemsByTargets([id], type) as Promise<
+          MediaItemEntity[]
+        >,
+    );
+    mediaItemProcessor.deleteMediaItemsByTargetInTransaction.mockResolvedValue(
+      undefined,
+    );
 
     getService.findEntityOrFail.mockResolvedValue(buildPage());
     getService.buildResponse.mockResolvedValue({ id: 'page-id' });
@@ -135,10 +147,19 @@ describe('IdeasPageUpdateService', () => {
       (id: string, media: MediaItemEntity) =>
         Object.assign(media, { id: id ?? 'nova' }),
     );
-    mediaItemProcessor.discardUnreferencedUploads.mockResolvedValue(0);
+    mediaItemProcessor.discardUnreferencedUploads.mockImplementation(
+      async (urls: string[], remove: (url: string) => Promise<void>) => {
+        for (const url of urls) await remove(url);
+        return urls.length;
+      },
+    );
 
     const moduleRef = await Test.createTestingModule({
       providers: [
+        {
+          provide: DeleteIdeaAiAssetsService,
+          useValue: { remove: jest.fn().mockResolvedValue([]) },
+        },
         IdeasPageUpdateService,
         { provide: IdeasPageRepository, useValue: ideasPageRepository },
         { provide: IdeasPageGetService, useValue: getService },
@@ -197,13 +218,17 @@ describe('IdeasPageUpdateService', () => {
 
     await service.updateIdeasPage('page-id', validDto({ sections: [] }), {});
 
-    expect(mediaItemProcessor.deleteMediaItems).toHaveBeenCalledWith(
-      [media],
+    expect(
+      mediaItemProcessor.deleteMediaItemsByTargetInTransaction,
+    ).toHaveBeenCalledWith(manager, 'dropped', 'IdeasSection');
+    expect(mediaItemProcessor.discardUnreferencedUploads).toHaveBeenCalledWith(
+      ['https://s3/a.png'],
       expect.any(Function),
     );
-    expect(ideasPageRepository.removeSectionsByIds).toHaveBeenCalledWith([
-      'dropped',
-    ]);
+    expect(ideasPageRepository.removeSectionsByIds).toHaveBeenCalledWith(
+      ['dropped'],
+      manager,
+    );
   });
 
   it('cria as seções que chegam sem id', async () => {

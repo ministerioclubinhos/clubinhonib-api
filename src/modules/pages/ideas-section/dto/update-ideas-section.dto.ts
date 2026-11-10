@@ -7,8 +7,17 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { IdeasSectionMediaItemDto } from './ideas-section-media-item.dto';
+import { IdeaAiDecisionsDto } from '../../ideas-section-ai/dto/idea-ai-decisions.dto';
 
 export class UpdateIdeasSectionDto {
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => IdeaAiDecisionsDto)
+  aiDecisions?: IdeaAiDecisionsDto;
+
+  @IsOptional()
+  @IsBoolean()
+  ignoreAiEnhancement?: boolean;
   @IsString({ message: 'O campo "title" deve ser uma string.' })
   title: string;
 

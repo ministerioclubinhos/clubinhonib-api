@@ -1,39 +1,51 @@
-@startuml Shared Ideas Flow - Clubinho NIB API
-!theme plain
+@startuml
 hide footbox
-title Shared ideas — moderation queue
-
-actor "Authenticated sender / Admin" as Client
-participant IdeasSectionController as Controller
-participant "IdeasSection operation service" as Service
-database "MySQL\nIdeas sections + media rows" as Repository
-participant MediaItemProcessor as Media
-participant "AWS S3" as S3
-participant NotificationService as Notify
-
-alt Submit
-  Client -> Controller : multipart POST /ideas-sections
-  Controller -> Service : text + files
-  Service -> Repository : create public=false with no page
-  Service -> Media : persist linked media
-  Media -> S3 : upload supplied files
-  Service -> Notify : notify admins safely
-  Service --> Client : pending IdeasSectionResponseDto
-else Review and publish
-  Client -> Controller : admin list/edit or attach/:pageId
-  Controller -> Service : reviewed DTO + target page
-  Service -> Repository : update same section and attach atomically
-  Service -> Media : synchronize reviewed media
-  Media -> S3 : upload/replace/delete changed files
-  Service --> Client : published DTO
-else Reject
-  Service -> Media : remove media rows
-  Media -> S3 : delete owned objects
-  Service -> Repository : delete pending section
-  Service --> Client : 204
+title Shared ideas — immutable submission, enhancement and review
+actor Teacher
+actor Admin
+participant "Ideas section services" as API
+database "MySQL: projection + snapshot\nattempts + choices" as DB
+participant "Lease worker" as Worker
+participant "Configured OpenAI / Gemini" as AI
+participant "Media service / S3" as S3
+Teacher -> API : POST title, description, typed uploads / YouTube
+API -> API : Validate MIME, extension, size, URL and ownership
+API -> S3 : Upload originals with rollback tracking
+API -> DB : Transaction: idea + media + immutable snapshot
+API --> Teacher : 201 persisted (immediate success)
+opt Automatic enhancement enabled
+ API -> DB : Detached enqueue PENDING (no wait for teacher)
 end
-
-note over Repository
-  A section already attached to a page cannot be attached again or deleted here.
+Admin -> API : POST /:id/ai-enhancement (independent of flag)
+API -> DB : Lock idea, reject active / attempt limit, enqueue original
+API --> Admin : 202
+Worker -> DB : Atomic claim with UUID lease; renew while processing
+Worker -> AI : Original text / documents / images only
+AI --> Worker : Structured result
+Worker -> Worker : Deterministic essence and structure/image guards
+Worker -> AI : Independent essence judge
+Worker -> S3 : Stage approved PDF + DOCX / images
+Worker -> DB : Lock idea; verify unexpired owner; save attempt
+note over Worker,DB
+ Failed retry preserves previous current result.
+ Videos are skipped; people get no generative edits.
+ Invalidated lease discards late output and staged uploads.
 end note
+Admin -> API : GET /:id
+API --> Admin : Original + active + current + history + published choices
+Admin -> API : Attach with version decisions
+alt Active attempt and explicit publish-original confirmation
+ API -> DB : Cancel lease; select complete original
+else Current approved result
+ API -> DB : Validate enhancementId and per-item choices
+end
+API -> DB : Save separate publication projection + choices atomically
+API -> S3 : Post-commit cleanup of unreferenced temporary assets
+note over DB,S3
+ Original sources and historical improvements remain referenced.
+ Only deletion of the idea/page removes their complete history.
+end note
+Admin -> API : Reject idea / delete page or section
+API -> DB : Transaction: lock, history, sources, artifacts, projection
+API -> S3 : Post-commit delete only unreferenced owned objects
 @enduml

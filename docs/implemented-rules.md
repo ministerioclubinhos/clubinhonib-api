@@ -804,6 +804,16 @@ Image generation retries a transient socket reset (ECONNRESET/EPIPE) or temporar
 
 ## Clubinho photos, videos and authorship
 
+Shared idea submissions require a title (up to 120 characters), description
+(up to 2000 characters), and 1–20 media items. Documents are PDF/DOC/DOCX up to
+20 MB; images are JPG/JPEG/PNG/WEBP/GIF up to 10 MB; videos are MP4/WEBM up to
+100 MB or valid YouTube links. MIME type, extension, actual byte size and
+multipart field binding are checked before S3 writes. Document/image links and
+non-YouTube video links are rejected. The API ignores per-media title and
+description on create, generating a type label and per-type sequence number
+followed by the idea title; media descriptions are empty. Admin flows retain
+unchanged legacy links and generate metadata for new media.
+
 `POST /image-sections` accepts 1–20 photos or exactly one uploaded video, never a
 mixed collection. Photo uploads allow JPG/PNG/WebP/GIF up to 10 MB each; videos
 allow MP4/WebM up to 100 MB. The server validates MIME/extension, initial file
@@ -845,3 +855,13 @@ The local database had already auto-created the exact schema during hot reload;
 TypeORM's `migration:generate --check` verified equality before the local history
 was reconciled using `migration:run --fake`. **Do not use `--fake` for production**:
 run the generated migration normally against the existing production schema.
+
+### Shared idea AI review
+
+- Original submissions are captured once; legacy capture is explicitly labelled. Every retry reads that snapshot.
+- Automatic enqueue is controlled only at submission. Manual admin enqueue ignores that flag and enforces one active job and three total attempts.
+- Failed retries retain the previous completed result. Every publication decision identifies the current attempt; removed materials stay removed from publication and preserved in the original.
+- Publishing during processing requires explicit original-only confirmation, invalidates the lease and prevents late application. No AI operation publishes automatically.
+- People receive no generative image edits; videos are skipped. Essential document visuals stay original. Guard failures are visible to administrators.
+- Original and historical artifacts survive edits and publication. Deleting the idea or its containing page cleans history transactionally, with reference-checked S3 cleanup after commit.
+- See [API, worker and rollout details](api-ideas-enhancement.md).

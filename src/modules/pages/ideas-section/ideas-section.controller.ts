@@ -30,7 +30,10 @@ import { GetIdeasSectionsService } from './services/get-ideas-sections.service';
 import { UpdateIdeasSectionService } from './services/update-ideas-section.service';
 import { AttachIdeasSectionService } from './services/attach-ideas-section.service';
 import { DeleteIdeasSectionService } from './services/delete-ideas-section.service';
-import { IDEAS_SECTION_PAYLOAD_FIELD } from './constants';
+import {
+  IDEAS_SECTION_PAYLOAD_FIELD,
+  IDEAS_SHARE_UPLOAD_LIMITS,
+} from './constants';
 import { parseSectionPayload, toFilesDict } from './utils';
 
 /**
@@ -53,7 +56,7 @@ export class IdeasSectionController {
 
   @Post()
   @UseGuards(JwtAuthGuard)
-  @UseInterceptors(AnyFilesInterceptor())
+  @UseInterceptors(AnyFilesInterceptor({ limits: IDEAS_SHARE_UPLOAD_LIMITS }))
   async create(
     @Request() req: AuthRequest,
     @UploadedFiles() files: Express.Multer.File[],
@@ -94,7 +97,7 @@ export class IdeasSectionController {
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
-  @UseInterceptors(AnyFilesInterceptor())
+  @UseInterceptors(AnyFilesInterceptor({ limits: IDEAS_SHARE_UPLOAD_LIMITS }))
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @UploadedFiles() files: Express.Multer.File[],
@@ -110,7 +113,7 @@ export class IdeasSectionController {
   /** Aceita a ideia e a publica na página escolhida. */
   @Patch(':id/attach/:pageId')
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
-  @UseInterceptors(AnyFilesInterceptor())
+  @UseInterceptors(AnyFilesInterceptor({ limits: IDEAS_SHARE_UPLOAD_LIMITS }))
   async attachToPage(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('pageId', ParseUUIDPipe) pageId: string,

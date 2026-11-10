@@ -1,3 +1,4 @@
+import { IdeasSectionAiModule } from '../ideas-section-ai/ideas-section-ai.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
@@ -16,6 +17,7 @@ import { IdeasPageDeleteService } from './services/delete-ideas-page.service';
 
 @Module({
   imports: [
+    IdeasSectionAiModule,
     TypeOrmModule.forFeature([IdeasPageEntity, IdeasSectionEntity]),
     RouteModule,
     AwsModule,

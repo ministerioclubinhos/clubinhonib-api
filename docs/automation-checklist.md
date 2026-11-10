@@ -143,7 +143,7 @@ file receives real objects.
 - [x] `src/modules/meditations/meditation.controller.ts` — Monday–Friday weeks with MP3 upload and link, overlap 409, weekday/days validations, list + `period` filter, this-week, PATCH (days and new audio), DELETE 204.
 - [x] `src/modules/pages/event-page/event.controller.ts` — JPG/PNG cover, link cover and no media, audience/type, anonymous vs logged listing, upcoming, PATCH with new cover, DELETE 204.
 - [x] `src/modules/pages/ideas-page/ideas-page.controller.ts` — sections with YouTube links, PDF and PNG uploads, list + filters, public detail, PATCH (keep by id / create with upload / remove), DELETE 204.
-- [x] `src/modules/pages/ideas-section/ideas-section.controller.ts` — ideas sent by teacher/coordinator (PDF + JPG + link), queue + pending-count, PATCH re-sending existing uploads by id, attach to a page (and 409 when repeated), DELETE.
+- [x] `src/modules/pages/ideas-section/ideas-section.controller.ts` — teacher submissions (PDF/DOC/DOCX, JPG/PNG/WEBP/GIF, MP4/WEBM and YouTube links), 20-item and per-file limits, queue + pending-count, PATCH preserving legacy media, attach to a page, DELETE.
 - [x] `src/modules/pages/image-page/image-page.controller.ts` — galleries with PNG/JPG uploads and links, list + filters, public detail, paginated sections (anonymous sees only public ones, limit cap), PATCH, DELETE 204.
 - [x] `src/modules/pages/image-section/image-section.controller.ts` — photos sent by teacher/coordinator, review queue (`approved`, `hasMedia`), pending-count, approval via PATCH, DELETE.
 - [x] `src/modules/pages/video-page/video-page.controller.ts` — YouTube links + MP4 upload, list + filters, public detail, PATCH (keep uploads by id, add MP4), DELETE 204.
@@ -153,3 +153,13 @@ file receives real objects.
 
 ---
 ⬅️ [Back to Documentation Hub](README.md)
+
+## Shared idea enhancement verification
+
+- Submit supported multipart media and verify `201` without waiting for provider/notification promises; reject mismatched MIME/extensions, forged YouTube hosts and foreign media IDs before upload.
+- With automatic flag off, manually `POST /ideas-sections/:id/ai-enhancement` as admin and expect `202`; a concurrent request and a fourth attempt return `409`.
+- Fetch detail and compare immutable snapshot, active/current/history and publication choices. Failed retries must keep the preceding current result.
+- Attach with current `aiDecisions`; verify mixed choices and removed materials in the public projection, with original sources retained.
+- Attach during processing: first expect `409`; then send explicit `ignoreAiEnhancement: true`, verify original publication and rejection of late worker artifacts.
+- Reject/remove the section or delete its page, and verify post-commit reference-checked cleanup. Provider and S3 unit tests remain mocked.
+- Complete the real-provider/human rollout checklist in [shared idea enhancement](api-ideas-enhancement.md) before enabling automatic processing.

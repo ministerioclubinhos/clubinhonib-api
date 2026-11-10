@@ -1,3 +1,4 @@
+import { DeleteIdeaAiAssetsService } from '../../ideas-section-ai/services/delete-idea-ai-assets.service';
 import { Injectable, Logger } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 import {
@@ -45,6 +46,7 @@ export class IdeasPageUpdateService {
   private readonly logger = new Logger(IdeasPageUpdateService.name);
 
   constructor(
+    private readonly aiAssets: DeleteIdeaAiAssetsService,
     private readonly ideasPageRepository: IdeasPageRepository,
     private readonly getService: IdeasPageGetService,
     private readonly getRouteService: GetRouteService,
@@ -205,19 +207,31 @@ export class IdeasPageUpdateService {
   private async removeSections(sectionIds: string[]): Promise<void> {
     if (sectionIds.length === 0) return;
 
-    const media = await this.mediaItemProcessor.findManyMediaItemsByTargets(
-      sectionIds,
-      IDEAS_SECTION_MEDIA_TARGET_TYPE,
+    const urls = await this.ideasPageRepository.runInTransaction(
+      async (manager) => {
+        const files: string[] = [];
+        for (const id of sectionIds) {
+          files.push(...(await this.aiAssets.remove(id, manager)));
+          const media =
+            await this.mediaItemProcessor.findMediaItemsByTargetInTransaction(
+              manager,
+              id,
+              IDEAS_SECTION_MEDIA_TARGET_TYPE,
+            );
+          files.push(...media.filter((m) => m.isLocalFile).map((m) => m.url));
+          await this.mediaItemProcessor.deleteMediaItemsByTargetInTransaction(
+            manager,
+            id,
+            IDEAS_SECTION_MEDIA_TARGET_TYPE,
+          );
+        }
+        await this.ideasPageRepository.removeSectionsByIds(sectionIds, manager);
+        return files;
+      },
     );
-
-    if (media.length > 0) {
-      await this.mediaItemProcessor.deleteMediaItems(media, (url: string) =>
-        this.awsS3Service.delete(url),
-      );
-    }
-
-    await this.ideasPageRepository.removeSectionsByIds(sectionIds);
-    this.logger.debug(`${sectionIds.length} seção(ões) removida(s)`);
+    await this.mediaItemProcessor.discardUnreferencedUploads(urls, (url) =>
+      this.awsS3Service.delete(url),
+    );
   }
 
   private async updateSection(
@@ -363,7 +377,10 @@ export class IdeasPageUpdateService {
     // O arquivo antigo só sai depois que o registro já aponta para o novo: na
     // ordem inversa, uma falha no upload deixaria a mídia sem arquivo nenhum.
     if (previous?.isLocalFile && previous.url && previous.url !== saved.url) {
-      await this.awsS3Service.delete(previous.url);
+      await this.mediaItemProcessor.discardUnreferencedUploads(
+        [previous.url],
+        (url) => this.awsS3Service.delete(url),
+      );
     }
 
     return saved;

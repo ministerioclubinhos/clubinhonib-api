@@ -1,3 +1,4 @@
+import { UpdateIdeaAiPublicationService } from '../../ideas-section-ai/services/update-idea-ai-publication.service';
 import { Injectable, Logger } from '@nestjs/common';
 import { AppInternalException, ErrorCode } from 'src/shared/exceptions';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
@@ -11,6 +12,7 @@ import { UpdateIdeasSectionDto } from '../dto/update-ideas-section.dto';
 import { IdeasSectionResponseDto } from '../dto/ideas-section-response.dto';
 import { toIdeasSectionResponse } from '../mappers';
 import { assertUploadsHaveFiles } from '../utils';
+import { validateIdeasShareMedia } from '../media-validation';
 import { UploadedFilesDict } from '../types';
 import { GetIdeasSectionsService } from './get-ideas-sections.service';
 import { IdeasSectionMediaService } from './ideas-section-media.service';
@@ -20,6 +22,7 @@ export class UpdateIdeasSectionService {
   private readonly logger = new Logger(UpdateIdeasSectionService.name);
 
   constructor(
+    private readonly aiPublication: UpdateIdeaAiPublicationService,
     private readonly sectionRepo: IdeasSectionsRepository,
     private readonly awsS3Service: AwsS3Service,
     private readonly mediaItemProcessor: MediaItemProcessor,
@@ -48,15 +51,26 @@ export class UpdateIdeasSectionService {
       this.awsS3Service.upload(file),
     );
 
+    const retiredUrls: string[] = [];
     try {
       // A transação é aberta pelo repositório; aqui só se decide o que entra
       // nela. O rollback acontece sozinho quando o bloco lança.
       const { saved, processedMedia } = await this.sectionRepo.runInTransaction(
         async (manager) => {
-          const existingMedia = await this.mediaService.findExisting(
+          const prepared = await this.aiPublication.prepare(
             id,
+            dto,
             manager,
+            false,
           );
+          const existingMedia = prepared.existingMedia;
+          dto = prepared.dto;
+          retiredUrls.push(
+            ...existingMedia
+              .filter((media) => media.isLocalFile)
+              .map((media) => media.url),
+          );
+          validateIdeasShareMedia(dto.medias, filesDict, existingMedia, false);
 
           // O `id` vai junto: sem ele o `save` inseria uma linha nova e
           // deixava a original intacta, duplicando a ideia a cada edição.
@@ -80,10 +94,17 @@ export class UpdateIdeasSectionService {
             filesDict,
             manager,
             uploads,
+            dto.title,
+            existing.title,
           );
 
           return { saved: section, processedMedia: media };
         },
+      );
+
+      await this.mediaItemProcessor.discardUnreferencedUploads(
+        retiredUrls,
+        (url) => this.awsS3Service.delete(url),
       );
 
       this.logger.log(`Ideia compartilhada atualizada. ID=${id}`);

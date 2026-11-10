@@ -4,6 +4,12 @@ import { UploadType } from 'src/shared/media/media-item/media-item.entity';
 import { CreateIdeasSectionDto } from './dto/create-ideas-section.dto';
 import { IdeasSectionMediaType } from './entities/ideas-section-media-type.enum';
 import {
+  applyAdminMediaMetadata,
+  applyGeneratedMediaMetadata,
+  buildIdeasMediaTitle,
+  isGeneratedMediaTitle,
+} from './utils';
+import {
   assertUploadsHaveFiles,
   parseSectionPayload,
   toFilesDict,
@@ -22,6 +28,67 @@ const midiaDeUpload = {
 };
 
 describe('ideas-section utils', () => {
+  it('generates media titles with per-type positions and empty descriptions', () => {
+    const generated = applyGeneratedMediaMetadata(
+      [
+        {
+          mediaType: IdeasSectionMediaType.DOCUMENT,
+          title: 'client value',
+          description: 'client value',
+        },
+        { mediaType: IdeasSectionMediaType.IMAGE },
+        { mediaType: IdeasSectionMediaType.DOCUMENT },
+      ],
+      '  Ideia  ',
+    );
+    expect(
+      generated.map(({ title, description }) => [title, description]),
+    ).toEqual([
+      ['Documento 1 — Ideia', ''],
+      ['Imagem 1 — Ideia', ''],
+      ['Documento 2 — Ideia', ''],
+    ]);
+  });
+
+  it('trims and truncates generated titles and recognizes their suffix', () => {
+    const title = buildIdeasMediaTitle(
+      'x'.repeat(300),
+      IdeasSectionMediaType.VIDEO,
+      1,
+    );
+    expect(title).toHaveLength(255);
+    expect(
+      isGeneratedMediaTitle('Documento 1 — Minha ideia', 'Minha ideia'),
+    ).toBe(true);
+  });
+
+  it('regenerates only server-generated titles when an admin changes the idea title', () => {
+    const medias = applyAdminMediaMetadata(
+      [
+        {
+          id: 'm1',
+          mediaType: IdeasSectionMediaType.IMAGE,
+          title: 'Imagem 1 — Título antigo',
+          description: '',
+        },
+        {
+          id: 'm2',
+          mediaType: IdeasSectionMediaType.IMAGE,
+          title: 'Legenda manual',
+          description: 'descrição',
+        },
+        { mediaType: IdeasSectionMediaType.DOCUMENT },
+      ],
+      'Título novo',
+      'Título antigo',
+    );
+    expect(medias.map((media) => media.title)).toEqual([
+      'Imagem 1 — Título novo',
+      'Legenda manual',
+      'Documento 1 — Título novo',
+    ]);
+  });
+
   describe('parseSectionPayload', () => {
     const valido = JSON.stringify({
       title: 'Brincadeira dos balões',

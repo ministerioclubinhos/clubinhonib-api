@@ -49,6 +49,8 @@ import { UpdateAiProviderSettingsService } from './services/update-ai-provider-s
     AdminLessonPromptService,
   ],
   exports: [
+    GetAiProviderSettingsService,
+    PdfLibreOfficeService,
     LessonDraftService,
     LESSON_LLM_PROVIDER,
     AiLessonsRepository,

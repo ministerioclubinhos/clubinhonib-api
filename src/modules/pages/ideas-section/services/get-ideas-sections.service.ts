@@ -1,3 +1,4 @@
+import { GetIdeaAiEnhancementService } from '../../ideas-section-ai/services/get-idea-ai-enhancement.service';
 import { Injectable } from '@nestjs/common';
 
 import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
@@ -19,6 +20,7 @@ import {
 @Injectable()
 export class GetIdeasSectionsService {
   constructor(
+    private readonly ai: GetIdeaAiEnhancementService,
     private readonly sectionsRepository: IdeasSectionsRepository,
     private readonly mediaItemProcessor: MediaItemProcessor,
   ) {}
@@ -53,9 +55,13 @@ export class GetIdeasSectionsService {
     );
     const porSecao = groupMediasBySection(medias);
 
-    const data = items.map((section) =>
-      toIdeasSectionResponse(section, porSecao.get(section.id) ?? []),
+    const statuses = await this.ai.summaries(
+      items.map((section) => section.id),
     );
+    const data = items.map((section) => ({
+      ...toIdeasSectionResponse(section, porSecao.get(section.id) ?? []),
+      aiStatus: statuses.get(section.id) ?? null,
+    }));
 
     return new Paginated(data, total, page, limit);
   }
@@ -68,7 +74,10 @@ export class GetIdeasSectionsService {
       MediaTargetType.IdeasSection,
     );
 
-    return toIdeasSectionResponse(section, medias);
+    return {
+      ...toIdeasSectionResponse(section, medias),
+      aiEnhancement: await this.ai.get(id),
+    };
   }
 
   /** Quantas ideias aguardam decisão, para o aviso do painel. */

@@ -1,3 +1,4 @@
+import { IdeasSectionAiModule } from '../ideas-section-ai/ideas-section-ai.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
@@ -17,6 +18,7 @@ import { IdeasSectionMediaService } from './services/ideas-section-media.service
 
 @Module({
   imports: [
+    IdeasSectionAiModule,
     TypeOrmModule.forFeature([IdeasSectionEntity, IdeasPageEntity]),
     AwsModule,
     MediaModule,

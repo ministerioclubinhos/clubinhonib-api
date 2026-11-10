@@ -51,6 +51,14 @@ export const RETIRED_FEATURE_FLAGS = [
 
 export const DEFAULT_FEATURE_FLAGS = [
   {
+    key: 'idea_ai_enhancement',
+    name: 'Melhoria automática das ideias por IA',
+    description:
+      'Inicia a melhoria após novos envios. A revisão e o reprocessamento manual continuam disponíveis quando desligada.',
+    enabled: false,
+    targetRoles: [],
+  },
+  {
     key: 'children_area',
     name: 'Área das Crianças',
     description:

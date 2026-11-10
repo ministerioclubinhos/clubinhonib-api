@@ -142,6 +142,15 @@ Responde o envelope compartilhado (`data`, `total`, `page`, `limit`,
 **Corpo multipart**: campo `sectionData` com o JSON, mais uma parte por arquivo,
 endereçada pelo `fieldKey` da mídia correspondente.
 
+No envio de professor, documentos e imagens aceitam somente upload; vídeos
+aceitam upload MP4/WEBM ou link válido do YouTube. Os limites por arquivo são
+20 MB para documentos, 10 MB para imagens e 100 MB para vídeos, com até 20
+mídias por ideia. Uploads também são verificados por MIME e extensão. Títulos e
+descrições individuais das mídias enviados por clientes antigos são ignorados:
+a API gera títulos como `Documento 1 — Brincadeira dos balões` e grava a
+descrição vazia. Os títulos e a descrição da ideia permanecem obrigatórios
+(máximo de 120 e 2000 caracteres, respectivamente).
+
 ```jsonc
 {
   "caption": "Páscoa no Clubinho 12",
@@ -622,3 +631,7 @@ Manages dynamic routing configuration for the frontend application.
 
 ---
 ⬅️ [Back to Documentation Hub](README.md)
+
+### Shared idea enhancement and immutable originals
+
+The full [shared idea AI contract](api-ideas-enhancement.md) covers the admin `POST /ideas-sections/:id/ai-enhancement` endpoint, `aiEnhancement` response, version decisions, publication cancellation, worker recovery and retention. The original snapshot is separate from the public projection. The automatic flag defaults off; manual processing and moderation remain available independently.

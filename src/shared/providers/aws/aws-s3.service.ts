@@ -5,6 +5,7 @@ import {
   S3Client,
   PutObjectCommand,
   DeleteObjectCommand,
+  GetObjectCommand,
 } from '@aws-sdk/client-s3';
 
 @Injectable()
@@ -117,5 +118,25 @@ export class AwsS3Service {
         `ÓRFÃO NO S3: falha ao remover a chave ${key} — ${error.message}`,
       );
     }
+  }
+
+  /** Downloads only objects owned by this bucket, with a hard byte ceiling. */
+  async downloadOwned(url: string, maxBytes: number): Promise<Buffer> {
+    const key = this.extractKey(url);
+    if (!key) throw new Error('Arquivo fora do bucket autorizado.');
+    const result = await this.s3Client.send(
+      new GetObjectCommand({ Bucket: this.bucketName, Key: key }),
+    );
+    if (!result.Body || (result.ContentLength ?? 0) > maxBytes)
+      throw new Error('Arquivo excede o limite de leitura.');
+    const chunks: Buffer[] = [];
+    let size = 0;
+    for await (const chunk of result.Body as AsyncIterable<Uint8Array>) {
+      size += chunk.length;
+      if (size > maxBytes)
+        throw new Error('Arquivo excede o limite de leitura.');
+      chunks.push(Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks);
   }
 }

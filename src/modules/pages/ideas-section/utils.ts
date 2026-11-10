@@ -6,6 +6,12 @@ import { UploadType } from 'src/shared/media/media-item/media-item.entity';
 
 import { IdeasSectionMediaItemDto } from './dto/ideas-section-media-item.dto';
 import { UploadedFilesDict } from './types';
+import { IdeasSectionMediaType } from './entities/ideas-section-media-type.enum';
+import {
+  IDEAS_MEDIA_TITLE_MAX_LENGTH,
+  IDEAS_MEDIA_TITLE_SEPARATOR,
+  IDEAS_MEDIA_TYPE_LABELS,
+} from './constants';
 
 /** Construtor de DTO, do jeito que `plainToInstance` espera. */
 type DtoClass<T> = new () => T;
@@ -81,23 +87,88 @@ export function assertUploadsHaveFiles(
   medias: IdeasSectionMediaItemDto[] | undefined,
   filesDict: UploadedFilesDict,
 ): void {
-  for (const media of medias ?? []) {
+  for (const [index, media] of (medias ?? []).entries()) {
     const isUpload =
       media.uploadType === UploadType.UPLOAD && media.isLocalFile;
     if (!isUpload) continue;
+    const label = media.originalName?.trim() || `arquivo ${index + 1}`;
 
     if (!media.originalName) {
       throw new AppValidationException(
         ErrorCode.MEDIA_FIELD_MISSING,
-        `A mídia "${media.title ?? 'sem título'}" está sem o nome do arquivo.`,
+        `A mídia ${index + 1} está sem o nome do arquivo.`,
       );
     }
 
     if (!media.fieldKey || !filesDict[media.fieldKey]) {
       throw new AppValidationException(
         ErrorCode.MEDIA_FILE_NOT_FOUND,
-        `O arquivo da mídia "${media.title ?? 'sem título'}" não veio na requisição.`,
+        `O arquivo "${label}" não veio na requisição.`,
       );
     }
   }
+}
+
+export function buildIdeasMediaTitle(
+  sectionTitle: string,
+  mediaType: IdeasSectionMediaType,
+  position: number,
+): string {
+  const label = IDEAS_MEDIA_TYPE_LABELS[mediaType];
+  const prefix = `${label} ${position}${IDEAS_MEDIA_TITLE_SEPARATOR}`;
+  const title = `${prefix}${sectionTitle.trim()}`.trim();
+  return title.length <= IDEAS_MEDIA_TITLE_MAX_LENGTH
+    ? title
+    : `${prefix}${sectionTitle.trim().slice(0, IDEAS_MEDIA_TITLE_MAX_LENGTH - prefix.length)}`;
+}
+
+export function applyGeneratedMediaMetadata<
+  T extends {
+    mediaType: IdeasSectionMediaType;
+    title?: string;
+    description?: string;
+  },
+>(medias: T[], sectionTitle: string): T[] {
+  const positions = new Map<IdeasSectionMediaType, number>();
+  return medias.map((media) => {
+    const position = (positions.get(media.mediaType) ?? 0) + 1;
+    positions.set(media.mediaType, position);
+    return {
+      ...media,
+      title: buildIdeasMediaTitle(sectionTitle, media.mediaType, position),
+      description: '',
+    };
+  });
+}
+
+export function isGeneratedMediaTitle(
+  title: string,
+  sectionTitle: string,
+): boolean {
+  return title.endsWith(`${IDEAS_MEDIA_TITLE_SEPARATOR}${sectionTitle.trim()}`);
+}
+
+export function applyAdminMediaMetadata<
+  T extends {
+    id?: string;
+    mediaType: IdeasSectionMediaType;
+    title?: string;
+    description?: string;
+  },
+>(medias: T[], sectionTitle: string, previousSectionTitle: string): T[] {
+  const positions = new Map<IdeasSectionMediaType, number>();
+  return medias.map((media) => {
+    const position = (positions.get(media.mediaType) ?? 0) + 1;
+    positions.set(media.mediaType, position);
+    const generated =
+      !media.title?.trim() ||
+      (!media.id && !media.title) ||
+      isGeneratedMediaTitle(media.title ?? '', previousSectionTitle);
+    if (!generated) return media;
+    return {
+      ...media,
+      title: buildIdeasMediaTitle(sectionTitle, media.mediaType, position),
+      description: media.id ? (media.description ?? '') : '',
+    };
+  });
 }
