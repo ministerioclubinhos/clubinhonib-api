@@ -87,7 +87,8 @@ Regras de boot (`parseLogStorageConfig`):
 
 ### 3.2 Registro técnico (`ObservabilityRecord`)
 
-`level` (`error`/`fatal` são os persistidos), `context` (classe do logger),
+`level` (`error`/`fatal`, e `warn` para respostas 4xx; ver 5.1), `occurrenceCount`
+(1 no registro normal; N no resumo de repetições), `context` (classe do logger),
 `moduleName` (pelo registry; `unknown-module` fora do grafo), `operation`,
 `message`, `errorName`, `errorCode` (catálogo `ErrorCode`; `INT_9001` para
 erro desconhecido), `errorMessage`, `stack` (sanitizada, caminhos relativos,
@@ -98,6 +99,8 @@ allowlisted).
 
 ### 3.3 Evento de auditoria (`AuditRecord`)
 
+`actorName` (nome de exibição de quem agiu) e `actorNameSearch` (o mesmo nome
+em minúsculas e sem acento, só para o filtro; não sai na API),
 `actionType` (`http_request`/`scheduled_job`/`system_operation`), `actionName`
 (`<Module>.<Controller>.<handler>` gerado; `http.unmatched.<METHOD> <rota>`
 para 404 sem handler), `moduleName`, `controllerName`, `handlerName`,
@@ -114,10 +117,18 @@ Um `audit_repeat` carrega os campos comuns mais `repeatsEventId`,
 
 Body, response, DTO, entidade ou `Error` brutos; authorization, cookies,
 senhas, tokens (Bearer e JWT são substituídos no texto), códigos de
-recuperação/verificação, e-mail, CPF, telefone, nomes, notas, conteúdo e nome
+recuperação/verificação, e-mail, CPF, telefone, nomes (com a exceção abaixo),
+notas, conteúdo e nome
 original de upload, query string de URL, caminho absoluto da máquina, IP e
 User-Agent. Denylist e limites em `src/core/observability/constants.ts`;
 testes em `redaction.utils.spec.ts` e no `audit.integration.spec.ts`.
+
+**Exceção (decisão do solicitante, 2026-11-11):** o evento de auditoria grava o
+nome de exibição do usuário que agiu (`actorName`, até 120 caracteres), para o
+administrador saber quem é sem procurar o UUID. O nome vem do token (campo
+`name`, incluído no login/refresh) ou do próprio caso de uso de login; tokens
+emitidos antes disso geram eventos com `actorName` nulo até a próxima
+renovação. O registro técnico (observabilidade) continua sem nome.
 
 ## 4. Storage
 
@@ -207,6 +218,36 @@ recursão.
   janela; os iguais dentro dela viram `audit_repeat` apontando para ele.
   Nenhuma ação deixa de ser registrada.
 
+### 5.1 Filtro de ruído (gravação)
+
+O que é erro vai para a observabilidade; o que é ação vai para a auditoria. O
+filtro decide, na gravação, o que não vale uma linha. As regras ficam em
+`src/core/observability/constants.ts` e `src/core/audit/constants.ts`.
+
+Observabilidade:
+
+- todo `Logger.error`/`fatal`, exceção 5xx, falha de job, de integração e de
+  processo entra como `error`/`fatal`;
+- toda resposta 4xx entra como `warn` (qualquer método, inclusive `GET`),
+  **menos** `401` (token ausente/expirado, senha errada) e `404` sem handler
+  (varredura de rota inexistente);
+- eco: se um serviço já registrou o erro da request, o registro genérico do
+  `GlobalExceptionFilter` para a mesma request não é gravado;
+- repetição: o primeiro registro de uma assinatura (nível, contexto, código,
+  fingerprint, rota, job e a mensagem sem ids/números) é gravado na hora; os
+  iguais nos 60 s seguintes são contados em memória e viram **um** resumo com
+  `occurrenceCount = N` e a mensagem prefixada por `[repetido Nx em 60s]`. O
+  resumo sai quando a janela fecha ou no encerramento. `fatal` nunca é
+  agregado. A contagem é por processo.
+
+Auditoria (só o **sucesso** é silenciado; falha, negação e rejeição das mesmas
+ações continuam gravadas):
+
+- leituras (`GET`) não são ações;
+- `scheduler-heartbeat` (batimento do agendador);
+- `AuthController.refresh` (renovação automática de token);
+- `FeedPhotoCommentsController.readNotification` (marcar notificação como lida).
+
 ## 6. API de consulta
 
 `GET /log-records/observability` e `GET /log-records/audit` — `JwtAuthGuard` +
@@ -232,8 +273,11 @@ Query comum: `from` e `to` (ISO-8601, obrigatórios, `from < to`, máximo de
 31 dias, senão `422 VAL_4005`), `page` (≥ 1, padrão 1), `limit` (1..100,
 padrão 25), `requestId` (UUID).
 
-Filtros específicos: observabilidade `level`, `errorCode`, `sourceType`;
-auditoria `actorId`, `actorRole`, `outcome`, `actionName`, `sourceType`.
+Filtros específicos: observabilidade `level`, `errorCode` (código do catálogo
+ou do driver, `^[A-Z][A-Z0-9_]*$`), `sourceType`; auditoria `actorId`,
+`actorName` (trecho do nome, 2 a 120 caracteres, sem diferenciar maiúsculas ou
+acentos), `actorRole`, `outcome`, `actionName` (trecho, diferencia maiúsculas),
+`sourceType`. Os dois filtros por trecho usam `contains` no DynamoDB.
 Campo fora da allowlist é recusado pelo `ValidationPipe` (`400`).
 
 Resposta:

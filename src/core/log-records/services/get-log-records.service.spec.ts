@@ -90,4 +90,32 @@ describe('GetLogRecordsService', () => {
     ).rejects.toBeInstanceOf(AppValidationException);
     expect(auditQuery).not.toHaveBeenCalled();
   });
+
+  it('auditoria: nome e ação casam por trecho; o nome vai sem acento nem maiúsculas', async () => {
+    auditQuery.mockClear();
+    await service.listAudit({
+      from: '2026-09-04T00:00:00Z',
+      to: '2026-09-05T00:00:00Z',
+      actorName: '  João  PAULO ',
+      actionName: 'ClubsController',
+      outcome: 'failed',
+    } as Parameters<typeof service.listAudit>[0]);
+    expect(auditQuery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filters: { outcome: 'failed' },
+        contains: {
+          actionName: 'ClubsController',
+          actorNameSearch: 'joao paulo',
+        },
+      }),
+    );
+    auditQuery.mockClear();
+    await service.listAudit({
+      from: '2026-09-04T00:00:00Z',
+      to: '2026-09-05T00:00:00Z',
+    });
+    expect(auditQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ filters: {}, contains: {} }),
+    );
+  });
 });

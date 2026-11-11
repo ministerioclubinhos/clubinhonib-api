@@ -433,6 +433,11 @@ export class DynamoDbLogStorage implements LogRecordStorage {
       values[`:f${index}`] = expected;
       clauses.push(`#f${index} = :f${index}`);
     });
+    Object.entries(query.contains ?? {}).forEach(([field, fragment], index) => {
+      names[`#c${index}`] = field;
+      values[`:c${index}`] = fragment;
+      clauses.push(`contains(#c${index}, :c${index})`);
+    });
     return {
       FilterExpression: clauses.join(' AND '),
       ExpressionAttributeNames: names,

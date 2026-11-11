@@ -22,6 +22,8 @@ export interface RequestExecutionContext {
   actorType: LogActorType;
   actorId: string | null;
   actorRole: UserRole | null;
+  /** Nome de exibição do ator; só a auditoria o persiste. */
+  actorName: string | null;
   resourceType: string | null;
   resourceId: string | null;
   jobName: string | null;
@@ -30,6 +32,8 @@ export interface RequestExecutionContext {
   errorCode: string | null;
   /** Impede que interceptor e filtro gravem a mesma ação duas vezes. */
   auditWritten: boolean;
+  /** Um registro técnico desta execução já foi gravado (evita o eco do filtro). */
+  technicalLogWritten: boolean;
 }
 
 /** Ação descoberta pelo guard global antes dos guards de autenticação. */
@@ -46,6 +50,7 @@ export interface ActionDescriptor {
 export interface ActorDescriptor {
   actorId: string;
   actorRole: UserRole | null;
+  actorName?: string | null;
 }
 
 /** Componente (controller ou provider) e o módulo que o declarou. */

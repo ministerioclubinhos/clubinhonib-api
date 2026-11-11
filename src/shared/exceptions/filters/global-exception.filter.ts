@@ -11,6 +11,7 @@ import {
 import { Request, Response } from 'express';
 
 import { WriteAuditEventService } from 'src/core/audit/services/write-audit-event.service';
+import { WriteTechnicalLogService } from 'src/core/observability/services/write-technical-log.service';
 import { RequestContextService } from 'src/core/request-context/request-context.service';
 import { actorFromRequestUser } from 'src/core/request-context/utils';
 
@@ -37,6 +38,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   constructor(
     @Optional() private readonly requestContext?: RequestContextService,
     @Optional() private readonly audit?: WriteAuditEventService,
+    @Optional() private readonly technicalLog?: WriteTechnicalLogService,
   ) {}
 
   catch(exception: unknown, host: ArgumentsHost): void {
@@ -59,6 +61,14 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       this.logger.warn(
         `[${errorResponse.error.code}] ${errorResponse.error.message} - ${request.method} ${request.url}`,
       );
+      // Erro do cliente também é erro: vai à observabilidade como `warn`,
+      // menos o ruído (401 e rota inexistente).
+      this.technicalLog?.reportClientError({
+        statusCode: status,
+        context: GlobalExceptionFilter.name,
+        message: `[${errorResponse.error.code}] ${errorResponse.error.message}`,
+        error: exception,
+      });
     }
 
     response.status(status).json(errorResponse);

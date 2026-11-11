@@ -86,6 +86,8 @@ export interface LogRecordQuery {
   limit: number;
   requestId: string | null;
   filters: LogRecordFilters;
+  /** Campos de texto que casam por trecho, com diferença de maiúsculas. */
+  contains?: LogRecordFilters;
 }
 
 /** Fluxo lógico consultável/apagável pela API administrativa. */

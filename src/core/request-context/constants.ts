@@ -9,3 +9,6 @@ export const UNMATCHED_ROUTE_ACTION_NAME = 'http.unmatched';
 
 /** Tamanho máximo aceito para um caminho sanitizado em nome de boundary. */
 export const ROUTE_PATH_MAX_LENGTH = 200;
+
+/** Limite do nome de exibição do ator gravado na auditoria. */
+export const ACTOR_NAME_MAX_LENGTH = 120;

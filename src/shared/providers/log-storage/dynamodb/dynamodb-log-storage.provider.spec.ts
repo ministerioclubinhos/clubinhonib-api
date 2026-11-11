@@ -255,6 +255,7 @@ describe('DynamoDbLogStorage', () => {
       limit: 2,
       requestId: null,
       filters: { outcome: 'failed' },
+      contains: { actorNameSearch: 'maria' },
     });
 
     expect(page).toMatchObject({ total: 5, page: 2, limit: 2 });
@@ -271,7 +272,7 @@ describe('DynamoDbLogStorage', () => {
     ).toEqual(['STREAM#audit#DAY#2026-09-05', 'STREAM#audit#DAY#2026-09-04']);
     expect(reads).toHaveLength(2);
     expect(counts[0].input).toMatchObject({
-      FilterExpression: '#ttl > :now AND #f0 = :f0',
+      FilterExpression: '#ttl > :now AND #f0 = :f0 AND contains(#c0, :c0)',
       ScanIndexForward: false,
     });
     expect(counts[0].input.ExpressionAttributeValues).toMatchObject({

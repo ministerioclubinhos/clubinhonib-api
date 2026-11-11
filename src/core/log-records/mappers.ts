@@ -56,6 +56,7 @@ export function toObservabilityResponse(
     durationMs: num(item.durationMs),
     providerName: str(item.providerName),
     jobName: str(item.jobName),
+    occurrenceCount: num(item.occurrenceCount) ?? 1,
   };
 }
 
@@ -73,6 +74,7 @@ export function toAuditResponse(record: LogRecord): AuditRecordResponseDto {
     actorType: record.actorType,
     actorId: record.actorId,
     actorRole: record.actorRole,
+    actorName: str(item.actorName),
     actionType: item.actionType as AuditRecord['actionType'],
     actionName: str(item.actionName) ?? '',
     moduleName: str(item.moduleName),

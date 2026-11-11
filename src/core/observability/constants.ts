@@ -106,3 +106,36 @@ export const LEADING_ERROR_CODE_PATTERN = /^\[([A-Z]+_\d{4})\]\s*/;
 export const OBSERVABILITY_QUEUE_NAME = 'observability';
 export const PROCESS_FLUSH_TIMEOUT_MS = 3000;
 export const BOOTSTRAP_FAILURE_CONTEXT = 'Bootstrap';
+
+/**
+ * Filtro de ruído da observabilidade.
+ *
+ * Todo erro entra: 5xx e `Logger.error` como `error`, e respostas 4xx como
+ * `warn`. Ficam de fora apenas os 4xx que não indicam problema:
+ * - 401: token ausente/expirado ou senha errada (a tentativa fica na auditoria);
+ * - 404 sem handler: varredura de rotas que não existem.
+ */
+export const CLIENT_ERROR_NOISE_STATUSES: ReadonlySet<number> = new Set([401]);
+export const UNMATCHED_ROUTE_STATUS = 404;
+export const CLIENT_ERROR_MIN_STATUS = 400;
+export const CLIENT_ERROR_MAX_STATUS = 499;
+/**
+ * Contextos que só repetem um erro já registrado mais perto da causa: o
+ * filtro global loga de novo a exceção que o serviço já logou.
+ */
+export const ECHO_LOG_CONTEXTS: ReadonlySet<string> = new Set([
+  'GlobalExceptionFilter',
+]);
+/**
+ * Janela de repetição: o primeiro registro de uma assinatura é gravado na
+ * hora; os iguais dentro da janela são contados e viram um único resumo.
+ */
+export const REPEAT_WINDOW_MS = 60_000;
+export const REPEAT_WINDOW_MAX_KEYS = 1000;
+export const REPEAT_SUMMARY_PREFIX = (count: number, seconds: number): string =>
+  `[repetido ${count}x em ${seconds}s] `;
+/** Partes variáveis de uma mensagem, trocadas para comparar a forma dela. */
+export const MESSAGE_SHAPE_PATTERNS: ReadonlyArray<[RegExp, string]> = [
+  [/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, ':id'],
+  [/\d+/g, ':n'],
+];

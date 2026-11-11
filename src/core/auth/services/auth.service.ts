@@ -23,6 +23,7 @@ import { EmailVerificationService } from './email-verification.service';
 import { UpdateTeacherProfilesService } from 'src/modules/teacher-profiles/services/update-teacher-profiles.service';
 import { NotificationService } from 'src/shared/providers/notification/notification.service';
 import { RequestContextService } from 'src/core/request-context/request-context.service';
+import { actorDisplayName } from 'src/core/request-context/utils';
 import { normalizeRole } from '../role.utils';
 import {
   AppUnauthorizedException,
@@ -67,19 +68,26 @@ export class AuthService {
    * Informa ao contexto quem acabou de ser identificado.
    *
    * Login, cadastro e refresh são as únicas ações em que o ator só é conhecido
-   * depois do boundary; sem isto a auditoria as gravaria como anônimas. Só o
-   * UUID e o papel saem daqui — nunca token, e-mail ou nome.
+   * depois do boundary; sem isto a auditoria as gravaria como anônimas. Saem
+   * daqui o UUID, o papel e o nome de exibição — nunca token ou e-mail.
    */
   private announceActor(user: UserEntity): void {
     this.requestContext?.assignActor({
       actorId: user.id,
       actorRole: normalizeRole(user.role) ?? null,
+      actorName: actorDisplayName(user.name),
     });
   }
 
   private generateTokens(user: UserEntity) {
     this.announceActor(user);
-    const payload = { sub: user.id, email: user.email, role: user.role };
+    // O nome vai no token para a auditoria mostrar quem agiu sem consultar o banco.
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      name: actorDisplayName(user.name) ?? undefined,
+    };
 
     const accessToken = this.jwtService.sign(payload);
     const refreshToken = this.jwtService.sign(payload, {

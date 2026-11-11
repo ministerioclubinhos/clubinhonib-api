@@ -111,8 +111,35 @@ SQL: a coluna é JSON e guarda listas fora de ordem e com grafias antigas.
 }
 ```
 
-A chave só aceita minúsculas, números, `_` e `-`, e não muda depois de criada:
-é por ela que a aplicação pergunta pela flag, e trocá-la criaria outra.
+A chave segue as regras descritas em "Chaves aposentadas": minúsculas, números
+e `_`, e pode ser renomeada.
+
+## Regra de perfil × feature flag
+
+São duas condições diferentes, e usar um recurso exige as duas:
+
+```
+pode usar = regra de perfil (código) E flag ligada para o perfil (painel)
+```
+
+- **Regra de perfil** é regra de negócio: quem o sistema permite usar o
+  recurso. Mora no código — guards de papel da API (`AdminRoleGuard`,
+  `AdminOrLeaderRoleGuard`) e `ProtectedRoute requiredRole` no front — e não
+  muda pelo painel.
+- **Feature flag** liga ou desliga o recurso sem deploy e, por `targetRoles`,
+  escolhe para quem dentro da regra ele está ligado.
+
+O público da flag só **restringe**: marcar "Para todos" na flag das
+Estatísticas não abre a tela para o professor, porque a rota e a API continuam
+exigindo administrador. Há recursos em que as duas condições se somam de
+propósito — o resumo semanal, por exemplo, é permitido a admin e coordenador
+pela regra, e a flag de fábrica o liga só para o coordenador.
+
+As flags de e-mail e `idea_ai_enhancement` são lidas pelo sistema, sem sessão
+(`isSwitchedOn`): nelas só `enabled` conta, e o público não tem efeito.
+
+O painel mostra a regra de perfil de cada flag ao lado do público e avisa
+quando o público escolhido inclui perfis que a regra não aceita.
 
 ## Decisões
 

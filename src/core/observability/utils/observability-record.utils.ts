@@ -91,5 +91,6 @@ export function buildObservabilityRecord(
     providerName: input.providerName ?? null,
     jobName: ctx?.jobName ?? null,
     metadata: redactMetadata(input.metadata),
+    occurrenceCount: 1,
   };
 }

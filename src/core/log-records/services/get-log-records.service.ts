@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
+import { actorNameSearchKey } from 'src/core/request-context/utils';
+
 import { LogStorageKind } from 'src/shared/providers/log-storage/enums';
 
 import { LogRecordType } from 'src/shared/providers/log-storage/enums';
@@ -11,6 +13,7 @@ import {
 import { Paginated } from 'src/shared/dto/paginated.dto';
 
 import {
+  AUDIT_CONTAINS_FIELDS,
   AUDIT_FILTER_FIELDS,
   LOG_RECORDS_DEFAULT_LIMIT,
   LOG_RECORDS_DEFAULT_PAGE,
@@ -72,6 +75,12 @@ export class GetLogRecordsService {
       limit: query.limit ?? LOG_RECORDS_DEFAULT_LIMIT,
       requestId: query.requestId ?? null,
       filters: pickFilters(query, AUDIT_FILTER_FIELDS),
+      contains: {
+        ...pickFilters(query, AUDIT_CONTAINS_FIELDS),
+        ...(query.actorName?.trim()
+          ? { actorNameSearch: actorNameSearchKey(query.actorName) }
+          : {}),
+      },
     });
     return new Paginated(
       page.items.map(toAuditResponse),

@@ -19,6 +19,8 @@ export class AuditRecordResponseDto {
   actorType!: LogActorType;
   actorId!: string | null;
   actorRole!: UserRole | null;
+  /** Nome de exibição do ator; `null` em eventos anônimos, de sistema ou antigos. */
+  actorName!: string | null;
   actionType!: AuditActionType;
   actionName!: string;
   moduleName!: string | null;

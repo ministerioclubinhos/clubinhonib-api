@@ -7,6 +7,7 @@ import {
 } from 'src/shared/providers/log-storage/enums';
 
 import {
+  ACTOR_NAME_MAX_LENGTH,
   ROUTE_PATH_MAX_LENGTH,
   UNMATCHED_ROUTE_ACTION_NAME,
 } from './constants';
@@ -33,12 +34,14 @@ export function createExecutionContext(
         : LogActorType.System,
     actorId: null,
     actorRole: null,
+    actorName: null,
     resourceType: null,
     resourceId: null,
     jobName: null,
     statusCode: null,
     errorCode: null,
     auditWritten: false,
+    technicalLogWritten: false,
   };
 }
 
@@ -48,6 +51,23 @@ export function createExecutionContext(
  * `userId` vindo de body, query ou param nunca chega aqui: identifica um
  * recurso, não prova quem executou a ação.
  */
+/** Nome de exibição limpo e limitado, ou `null` quando não há um. */
+export function actorDisplayName(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const name = value.replace(/\s+/g, ' ').trim();
+  return name ? name.slice(0, ACTOR_NAME_MAX_LENGTH) : null;
+}
+
+/** Forma de busca do nome: minúsculas e sem acento. */
+export function actorNameSearchKey(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
 export function actorFromRequestUser(user: unknown): ActorDescriptor | null {
   if (typeof user !== 'object' || user === null) return null;
   const userId = (user as { userId?: unknown }).userId;
@@ -56,6 +76,7 @@ export function actorFromRequestUser(user: unknown): ActorDescriptor | null {
   return {
     actorId: userId,
     actorRole: normalizeRole(typeof role === 'string' ? role : null) ?? null,
+    actorName: actorDisplayName((user as { name?: unknown }).name),
   };
 }
 

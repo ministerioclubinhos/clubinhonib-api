@@ -25,6 +25,8 @@ export interface ObservabilityRecord extends LogRecord {
   providerName: string | null;
   jobName: string | null;
   metadata: JsonObject | null;
+  /** 1 no registro normal; N no resumo de uma janela de repetição. */
+  occurrenceCount: number;
 }
 
 /** O que quem reporta um problema técnico informa. */
@@ -41,6 +43,21 @@ export interface TechnicalLogInput {
   metadata?: Record<string, unknown> | null;
   /** Fronteira, quando não há contexto de request para informar. */
   sourceType?: LogSourceType;
+}
+
+/** Resposta 4xx que o filtro global entrega à observabilidade. */
+export interface ClientErrorInput {
+  statusCode: number;
+  context: string;
+  message: string;
+  error: unknown;
+}
+
+/** Janela encerrada com repetições, pronta para virar um resumo. */
+export interface ClosedRepeatWindow {
+  first: ObservabilityRecord;
+  repeats: number;
+  lastOccurredAt: Date;
 }
 
 export interface NormalizedError {

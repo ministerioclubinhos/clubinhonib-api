@@ -56,6 +56,8 @@ export class RequestContextService {
     context.actorType = LogActorType.User;
     context.actorId = actor.actorId;
     context.actorRole = actor.actorRole;
+    // Token antigo não traz o nome: não apaga o que o login já informou.
+    if (actor.actorName) context.actorName = actor.actorName;
   }
 
   assignResourceId(resourceId: string | null): void {

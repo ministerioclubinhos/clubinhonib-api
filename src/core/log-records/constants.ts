@@ -25,6 +25,13 @@ export const AUDIT_FILTER_FIELDS = [
   'actorId',
   'actorRole',
   'outcome',
-  'actionName',
   'sourceType',
 ] as const;
+
+/** Código de erro aceito no filtro: catálogo da API ou código do driver. */
+export const LOG_RECORDS_ERROR_CODE_PATTERN = /^[A-Z][A-Z0-9_]*$/;
+export const LOG_RECORDS_ERROR_CODE_MAX_LENGTH = 64;
+/** Filtros de texto que casam por trecho (`contains`), não por igualdade. */
+export const AUDIT_CONTAINS_FIELDS = ['actionName'] as const;
+export const LOG_RECORDS_ACTOR_NAME_MIN_LENGTH = 2;
+export const LOG_RECORDS_ACTOR_NAME_MAX_LENGTH = 120;

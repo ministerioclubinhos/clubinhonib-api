@@ -41,4 +41,6 @@ export class ObservabilityRecordResponseDto {
   durationMs!: number | null;
   providerName!: string | null;
   jobName!: string | null;
+  /** 1 no registro normal; N no resumo de repetições de uma janela. */
+  occurrenceCount!: number;
 }
