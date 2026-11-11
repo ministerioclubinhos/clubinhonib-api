@@ -67,6 +67,7 @@ export function youngerMeditationFit(
   const headerHeight = Math.max(
     L.logoRowHeight,
     L.bannerHeight +
+      L.brandLineHeight +
       fieldHeight(sheet, 'title', sheet.title, titleSize, L.titleColumnWidth) +
       L.cellPadding +
       L.tableTerminator,
@@ -101,6 +102,7 @@ export function youngerMeditationFit(
     titleSize,
     verseSize,
     activityRowHeight: L.activityRowMinimum,
+    prayerHeight: L.prayerRowMinimum,
     fits: false,
   };
   for (const textSize of L.textSizes.filter((size) => size <= initialSize)) {
@@ -121,16 +123,20 @@ export function youngerMeditationFit(
       L.nameRowHeight -
       verseHeight -
       prayerHeight -
+      L.prayerFrame -
       L.tableTerminator;
     const textHeight = Math.max(
-      ...sheet.activities.map((activity, index) =>
-        fieldHeight(
-          sheet,
-          `activity${index + 1}`,
-          activity.instruction,
-          textSize,
-          activityWidth,
-        ),
+      ...sheet.activities.map(
+        (activity, index) =>
+          fieldHeight(
+            sheet,
+            `activity${index + 1}`,
+            activity.instruction,
+            textSize,
+            activityWidth,
+          ) +
+          // "Entendendo a lição:" heads the first activity.
+          (index === 0 ? textSize * L.lineHeight : 0),
       ),
       0,
     );
@@ -152,6 +158,7 @@ export function youngerMeditationFit(
       imageHeight,
       titleSize,
       verseSize,
+      prayerHeight: prayerHeight + L.prayerFrame,
       activityRowHeight: Math.max(
         L.activityRowMinimum,
         Math.min(L.activityRowHeight, activitySpace),

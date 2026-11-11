@@ -1,3 +1,7 @@
+/** The printed models for the younger children are always black line art to be coloured. */
+export const YOUNGER_MEDITATION_LINE_ART_RULE =
+  'Desenho em preto e branco para a criança pintar: somente contornos pretos nítidos sobre fundo branco puro, com interiores brancos. Sem cores, tons de cinza, sombreado, degradê ou preenchimentos. Desenhe grande, ocupando todo o quadro, com poucos elementos e traço grosso.';
+
 export const YOUNGER_MEDITATION_BASE_PROMPT = `Produza somente a MEDITAÇÃO PARA CRIANÇAS MENORES, seguindo os modelos reais do Clubinho Bíblico NIB: O Semeador, os poderes de Jesus sobre os demônios, as doenças, a natureza e a morte, e a multiplicação dos pães.
 
 PÚBLICO E FOLHA
@@ -21,7 +25,7 @@ ESTILO DAS ATIVIDADES — NÃO É UMA FOLHA DE COLORIR
 ELEMENTOS IMPRIMÍVEIS
 - De uma a duas artes funcionais, no máximo uma por atividade. A primeira atividade deve ter apoio visual executável. A segunda pode ser apenas texto com alternativas: nesse caso, não gere uma ilustração decorativa.
 - printableAssets.id deve ser literalmente "1" ou "2", correspondente ao número da atividade. Não associe uma arte ao desafio errado e não repita ids.
-- Use traço limpo, fundo branco, poucos elementos e boa legibilidade dentro de uma coluna de meia folha A4. Personagens e ambientes são apoio contextual, não substituem o desafio.
+- Toda arte é desenho em preto e branco para pintar: contornos pretos, interiores e fundo brancos, sem cores, cinza ou sombreado. Use traço limpo, poucos elementos, desenho grande e boa legibilidade dentro de uma coluna de meia folha A4. Personagens e ambientes são apoio contextual, não substituem o desafio.
 - O prompt de cada arte deve especificar início, destino, trajetos, símbolos, letras ou alternativas indispensáveis e a composição completa. Letras, números, nomes curtos e rótulos são permitidos quando necessários para resolver a atividade e devem estar em português, legíveis e sem erros.
 - Labirinto: descreva o percurso correto no gabarito, assegure saída alcançável e não marque o caminho solucionado na arte. Letras em percurso: o caminho correto precisa formar exatamente a resposta. Associação: inclua todos os elementos dos dois grupos. Áreas com pontos: defina as regiões marcadas e a figura revelada. Escolha visual: todas as alternativas precisam estar presentes e distinguíveis.
 - Não desenhe cabeçalho, logo, instrução completa, versículo, oração, número externo da atividade ou gabarito na arte; o renderer cuida desses elementos.

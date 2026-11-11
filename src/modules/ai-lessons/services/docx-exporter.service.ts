@@ -88,6 +88,7 @@ import {
   lessonString,
   lessonStoryHeading,
   normalizeLessonVerseReference,
+  unquoteLessonVerse,
   normalizeLessonDocumentHeader,
 } from '../utils';
 
@@ -1274,7 +1275,7 @@ export class DocxExporterService implements OnApplicationBootstrap {
     ]);
     return buildYoungerMeditationSheet({
       title: lessonString(data.title),
-      verse: `“${lessonString(data.verseText)}” (${normalizeLessonVerseReference(data.verseReference)})`,
+      verse: `“${unquoteLessonVerse(lessonString(data.verseText))}” (${normalizeLessonVerseReference(data.verseReference)})`,
       prayer: lessonString(data.prayer),
       logo,
       document: this.object(data.meditationDocument),
@@ -1296,7 +1297,7 @@ export class DocxExporterService implements OnApplicationBootstrap {
     ]);
     return buildOlderMeditationSheet({
       title: lessonString(data.title),
-      verse: `“${lessonString(data.verseText)}”\n${normalizeLessonVerseReference(data.verseReference)} — NVI`,
+      verse: `“${unquoteLessonVerse(lessonString(data.verseText))}”\n${normalizeLessonVerseReference(data.verseReference)} — NVI`,
       biblicalText: lessonString(data.biblicalText),
       introduction: lessonString(data.introduction),
       prayer: lessonString(data.prayer),
@@ -1326,7 +1327,7 @@ export class DocxExporterService implements OnApplicationBootstrap {
     return buildManualWorkSheet(
       image,
       logo,
-      `“${lessonString(data.verseText)}” (${lessonString(data.verseReference)} - NVI)`,
+      `“${unquoteLessonVerse(lessonString(data.verseText))}” (${lessonString(data.verseReference)} - NVI)`,
     );
   }
 

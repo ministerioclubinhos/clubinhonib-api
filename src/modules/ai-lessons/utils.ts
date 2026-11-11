@@ -252,3 +252,11 @@ export function normalizeLessonVerseReference(value: unknown): string {
     .replace(/(?:\s*(?:[—–-]\s*)?\(?NVI\)?)+$/i, '')
     .trim();
 }
+
+/** Verse text without the quotation marks it may already carry: the layouts add their own. */
+export function unquoteLessonVerse(value: string): string {
+  return value
+    .trim()
+    .replace(/^[“”"\s]+/, '')
+    .replace(/[“”"\s]+$/, '');
+}

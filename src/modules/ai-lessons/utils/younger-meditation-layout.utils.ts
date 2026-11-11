@@ -7,7 +7,6 @@ import {
   BorderStyle,
   HeightRule,
   Paragraph,
-  TableLayoutType,
   Table,
   TableCell,
   TableRow,
@@ -30,6 +29,10 @@ import {
   cell,
   table,
   imageParagraph,
+  meditationTitleBlocks,
+  prayerTable,
+  framedSheet,
+  verseLabelCell,
 } from './meditation-layout.utils';
 
 export function buildYoungerMeditationCopy(
@@ -40,19 +43,6 @@ export function buildYoungerMeditationCopy(
   const logoWidth = 2700;
   const headingWidth = innerWidth - logoWidth;
   const bannerWidth = 5400;
-  const title = sheet.title.toLocaleUpperCase('pt-BR');
-  const spaces = [...title.matchAll(/ /g)].map((match) => match.index);
-  const split = spaces.reduce(
-    (best, index) =>
-      Math.abs(index - title.length / 2) < Math.abs(best - title.length / 2)
-        ? index
-        : best,
-    spaces[0] ?? 0,
-  );
-  const titleLines =
-    title.length > 40 && split
-      ? [title.slice(0, split), title.slice(split + 1)]
-      : [title];
   const header = table(
     [
       new TableRow({
@@ -89,22 +79,11 @@ export function buildYoungerMeditationCopy(
                     cantSplit: true,
                     children: [
                       cell(
-                        meditationRichNodes(sheet.document, 'title').length
-                          ? meditationRichParagraphs(
-                              sheet.document,
-                              'title',
-                              sheet.title,
-                              fit.titleSize,
-                              true,
-                              '',
-                              true,
-                            )
-                          : titleLines.map((line) =>
-                              paragraph(
-                                [text(line, fit.titleSize, true)],
-                                true,
-                              ),
-                            ),
+                        meditationTitleBlocks(
+                          sheet.document,
+                          sheet.title,
+                          fit.titleSize,
+                        ),
                         bannerWidth,
                       ),
                     ],
@@ -125,25 +104,7 @@ export function buildYoungerMeditationCopy(
       new TableRow({
         cantSplit: true,
         children: [
-          cell(
-            [
-              table(
-                [
-                  new TableRow({
-                    children: [
-                      cell(
-                        [paragraph([text('Versículo para decorar', 24, true)])],
-                        3070,
-                        L.yellow,
-                      ),
-                    ],
-                  }),
-                ],
-                [3070],
-              ),
-            ],
-            3250,
-          ),
+          verseLabelCell(3250),
           cell([paragraph([text('❯', 46, true, 'ED1C24')], true)], 430),
           new TableCell({
             children: meditationRichNodes(sheet.document, 'verseText').length
@@ -206,6 +167,9 @@ export function buildYoungerMeditationCopy(
                     : {}),
                 },
                 children: [
+                  ...(index === 0
+                    ? [paragraph([text(L.lessonHeading, fit.textSize, true)])]
+                    : []),
                   ...meditationRichParagraphs(
                     sheet.document,
                     `activity${index + 1}`,
@@ -230,84 +194,54 @@ export function buildYoungerMeditationCopy(
     ],
     [activityWidth, activityWidth],
   );
-  const prayer = table(
-    [
-      new TableRow({
-        cantSplit: true,
-        children: [
-          cell(
-            [paragraph([text('FALANDO COM DEUS:', 19, true, 'FFFFFF')])],
-            2650,
-            L.prayerLabel,
-          ),
-          cell(
-            meditationRichParagraphs(
-              sheet.document,
-              'prayer',
-              sheet.prayer,
-              fit.textSize,
-            ),
-            innerWidth - 2650,
-            L.gray,
-          ),
-        ],
-      }),
-    ],
-    [2650, innerWidth - 2650],
+  const prayer = prayerTable(
+    meditationRichParagraphs(
+      sheet.document,
+      'prayer',
+      sheet.prayer,
+      fit.textSize,
+    ),
+    2650,
+    innerWidth,
+    L.yellow,
+    19,
   );
-  return new Table({
-    width: { size: L.width, type: WidthType.DXA },
-    columnWidths: [L.width],
-    layout: TableLayoutType.FIXED,
-    borders: noBorders,
-    rows: [
-      new TableRow({
-        cantSplit: true,
-        height: { value: L.halfHeight, rule: HeightRule.EXACT },
-        children: [
-          new TableCell({
-            margins: { top: 30, bottom: 30, left: 60, right: 60 },
-            borders: Object.fromEntries(
-              ['top', 'bottom', 'left', 'right'].map((side) => [
-                side,
-                { style: BorderStyle.SINGLE, size: 30, color: L.black },
-              ]),
-            ),
+  return framedSheet(
+    [
+      header,
+      table(
+        [
+          new TableRow({
             children: [
-              header,
-              table(
+              cell(
                 [
-                  new TableRow({
-                    children: [
-                      cell(
-                        [
-                          paragraph([
-                            text(
-                              'Nome: _________________________________________________________',
-                              20,
-                            ),
-                          ]),
-                        ],
-                        8200,
-                      ),
-                      cell(
-                        [paragraph([text('Data: ____/____/____', 20)])],
-                        innerWidth - 8200,
-                      ),
-                    ],
-                  }),
+                  paragraph([
+                    text(
+                      'Nome: _________________________________________________________',
+                      20,
+                    ),
+                  ]),
                 ],
-                [8200, innerWidth - 8200],
+                8200,
               ),
-              verse,
-              activities,
-              prayer,
+              cell(
+                [paragraph([text('Data: ____/____/____', 20)])],
+                innerWidth - 8200,
+              ),
             ],
           }),
         ],
-      }),
+        [8200, innerWidth - 8200],
+      ),
+      verse,
+      activities,
     ],
-  });
+    prayer,
+    L.width,
+    L.halfHeight - fit.prayerHeight,
+    true,
+    60,
+  );
 }
 
 export function buildYoungerMeditationSheet(

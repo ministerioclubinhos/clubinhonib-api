@@ -21,7 +21,7 @@ function wrappedLines(value: string, columns: number): number {
 export function fitOlderMeditationSheet(
   sheet: OlderMeditationSheet,
 ): OlderMeditationFit {
-  const width = L.width - 180;
+  const width = L.width - 2 * O.frameSideMargin - O.frameBorderAllowance;
   const length =
     sheet.introduction.length +
     sheet.activities.reduce((sum, item) => sum + item.instruction.length, 0);

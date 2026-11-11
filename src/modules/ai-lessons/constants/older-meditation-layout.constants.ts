@@ -1,7 +1,7 @@
 export const OLDER_MEDITATION_LAYOUT = {
   height: 15400,
   // Includes the nested table terminator paragraphs required by Word/Writer.
-  headerReserve: 4000,
+  headerReserve: 3700,
   footerReserve: 700,
   tableReserve: 200,
   titleColumns: 43,
@@ -17,7 +17,11 @@ export const OLDER_MEDITATION_LAYOUT = {
   wrapSafety: 0.9,
   activityMargins: 200,
   paragraphReserve: 240,
-  maximumRowExpansion: 1.18,
+  /** Share of the free space the activity rows take, so the prayer closes the sheet. */
+  activityFillShare: 0.97,
+  /** Frame cell side margins and the room its border takes, in twips. */
+  frameSideMargin: 160,
+  frameBorderAllowance: 60,
   inlineOptionsMaximumCharacters: 60,
   prayerColumns: 70,
   /** Lines of title, verse and prayer already covered by `headerReserve`. */

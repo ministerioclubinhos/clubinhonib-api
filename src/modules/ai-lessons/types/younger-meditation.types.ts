@@ -21,6 +21,8 @@ export interface YoungerMeditationFit {
   verseSize: number;
   /** Minimum height given to the activities row, in twips. */
   activityRowHeight: number;
+  /** Height reserved for the prayer strip that closes the half sheet, in twips. */
+  prayerHeight: number;
   /** False when the texts cannot fit one half sheet even at the smallest size. */
   fits: boolean;
 }

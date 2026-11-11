@@ -165,6 +165,26 @@ function upperCaseNode(node: MeditationJson): MeditationJson {
       : {}),
   };
 }
+/** Saved verses may carry the model's quotes inside the layout's own. */
+function singleQuotedNode(node: MeditationJson): MeditationJson {
+  return {
+    ...node,
+    ...(typeof node.text === 'string'
+      ? {
+          text: node.text
+            .replace(/[“"]{2,}/g, '“')
+            .replace(/[”"]{2,}/g, '”')
+            .replace(/“"/g, '“')
+            .replace(/"”/g, '”'),
+        }
+      : {}),
+    ...(Array.isArray(node.content)
+      ? {
+          content: node.content.map((value) => singleQuotedNode(object(value))),
+        }
+      : {}),
+  };
+}
 export function meditationRichParagraphs(
   document: MeditationJson | undefined,
   field: string,
@@ -301,7 +321,11 @@ export function meditationRichParagraphs(
           font: L.font,
         }),
         ...runs(
-          field === 'title' ? upperCaseNode(node) : node,
+          field === 'title'
+            ? upperCaseNode(node)
+            : field === 'verseText'
+              ? singleQuotedNode(node)
+              : node,
           actualSize,
           bold || Boolean(headingLevel),
         ),

@@ -148,14 +148,14 @@ describe('older meditation PDF layout', () => {
       Array.from(
         document.matchAll(/<w:trHeight w:val="(\d+)" w:hRule="atLeast"\/>/g),
       )
-        .filter((match) => Number(match[1]) !== 15400)
+        .filter((match) => Number(match[1]) !== 14700)
         .reduce((sum, match) => sum + Number(match[1]), 0);
     expect(activityHeight(long)).toBeGreaterThan(0);
     expect(activityHeight(long)).toBeLessThan(10000);
     expect(activityHeight(long)).toBeLessThanOrEqual(activityHeight(short));
     expect(long).toContain('FALANDO COM DEUS:');
     expect(long).toContain('FIM DA ORAÇÃO.');
-    expect(long).toContain('w:val="15400" w:hRule="atLeast"');
+    expect(long).toContain('w:val="14700" w:hRule="atLeast"');
   });
 });
 

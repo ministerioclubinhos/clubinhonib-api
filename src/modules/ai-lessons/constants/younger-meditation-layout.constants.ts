@@ -3,7 +3,7 @@ export const YOUNGER_MEDITATION_LAYOUT = {
   pageHeight: 16838,
   margin: 360,
   width: 11186,
-  halfHeight: 7300,
+  halfHeight: 7800,
   gap: 300,
   font: 'Arial',
   textSize: 20,
@@ -12,6 +12,10 @@ export const YOUNGER_MEDITATION_LAYOUT = {
   yellow: 'FFF200',
   gray: 'E5E5E5',
   prayerLabel: '686868',
+  olderPrayerLabel: 'C8C8C8',
+  brand: 'CLUBINHO BÍBLICO PARA CRIANÇAS',
+  lessonHeading: 'Entendendo a lição:',
+  brandLineHeight: 290,
   // Fit model, in twips unless noted. One half-point of font is 12 twips of line.
   frameMargins: 60,
   lineHeight: 12,
@@ -26,6 +30,8 @@ export const YOUNGER_MEDITATION_LAYOUT = {
   verseRowMinimum: 800,
   versePadding: 140,
   prayerRowMinimum: 320,
+  /** Padding and borders around the prayer strip. */
+  prayerFrame: 240,
   activityRowHeight: 4000,
   activityRowMinimum: 2200,
   activityPadding: 90,
@@ -34,9 +40,9 @@ export const YOUNGER_MEDITATION_LAYOUT = {
   verseColumnOffset: 3860,
   prayerColumnOffset: 2830,
   textSizes: [20, 18, 16, 14],
-  imageMaximumHeight: 160,
+  imageMaximumHeight: 230,
   imageMinimumHeight: 60,
-  imageMaximumWidth: 290,
+  imageMaximumWidth: 335,
   // Estimates are approximate; only a clear overflow rejects the sheet.
   overflowTolerance: 1.08,
 } as const;

@@ -6,6 +6,7 @@ import {
   lessonStoryHeading,
   lessonString,
   normalizeLessonVerseReference,
+  unquoteLessonVerse,
 } from '../utils';
 
 /** Builds the editable Tiptap document of a generated structured content. */
@@ -115,7 +116,7 @@ export function lessonContentToTiptap(
       const reference = normalizeLessonVerseReference(verseObj.reference);
       const version = lessonString(verseObj.version).trim();
       if (text) {
-        nodes.push(paragraph(`“${text}”`));
+        nodes.push(paragraph(`“${unquoteLessonVerse(text)}”`));
       }
       if (reference || version) {
         nodes.push(paragraph([reference, version].filter(Boolean).join(' — ')));
@@ -255,7 +256,8 @@ export function lessonContentToTiptap(
         attrs: { level: 2 },
         content: [{ type: 'text', text: 'VERSÍCULO PARA MEMORIZAR' }],
       });
-      if (verseText) nodes.push(paragraph(`“${verseText}”`));
+      if (verseText)
+        nodes.push(paragraph(`“${unquoteLessonVerse(verseText)}”`));
       if (verseReference || verseVersion)
         nodes.push(
           paragraph([verseReference, verseVersion].filter(Boolean).join(' — ')),

@@ -27,12 +27,17 @@ import {
   textLines,
   imageParagraph,
   noBorders,
+  meditationTitleBlocks,
+  prayerTable,
+  framedSheet,
+  verseLabelCell,
 } from './meditation-layout.utils';
 
 export function buildOlderMeditationSheet(
   sheet: OlderMeditationSheet,
 ): Array<Paragraph | Table> {
-  const width = L.width - 180;
+  // Everything sits inside the frame cell: wider content hides the right border.
+  const width = L.width - 2 * O.frameSideMargin - O.frameBorderAllowance;
   const { fontSize, imageHeight, weights, activitySpace, fits } =
     fitOlderMeditationSheet(sheet);
   if (!fits)
@@ -40,6 +45,7 @@ export function buildOlderMeditationSheet(
       'O conteúdo da meditação dos maiores não cabe em uma página legível. Reduza os textos ou as artes e visualize novamente.',
     );
   const totalWeight = weights.reduce((sum, weight) => sum + weight, 0) || 1;
+  const bannerWidth = Math.min(6500, width - 2700 - 180);
   const header = table(
     [
       new TableRow({
@@ -66,7 +72,7 @@ export function buildOlderMeditationSheet(
                             true,
                           ),
                         ],
-                        6500,
+                        bannerWidth,
                         L.black,
                       ),
                     ],
@@ -74,23 +80,13 @@ export function buildOlderMeditationSheet(
                   new TableRow({
                     children: [
                       cell(
-                        [
-                          ...meditationRichParagraphs(
-                            sheet.document,
-                            'title',
-                            sheet.title.toUpperCase(),
-                            24,
-                            true,
-                            '',
-                            true,
-                          ),
-                        ],
-                        6500,
+                        meditationTitleBlocks(sheet.document, sheet.title, 24),
+                        bannerWidth,
                       ),
                     ],
                   }),
                 ],
-                [6500],
+                [bannerWidth],
               ),
             ],
             width - 2700,
@@ -104,11 +100,7 @@ export function buildOlderMeditationSheet(
     [
       new TableRow({
         children: [
-          cell(
-            [paragraph([text('Versículo para decorar', 24, true)])],
-            3250,
-            L.yellow,
-          ),
+          verseLabelCell(3250),
           cell([paragraph([text('❯', 46, true, 'ED1C24')], true)], 430),
           new TableCell({
             children: meditationRichNodes(sheet.document, 'verseText').length
@@ -131,6 +123,7 @@ export function buildOlderMeditationSheet(
               : [paragraph(textLines(sheet.verse, 22), true)],
             width: { size: width - 3680, type: WidthType.DXA },
             margins: { top: 70, bottom: 70, left: 90, right: 90 },
+            verticalAlign: VerticalAlign.CENTER,
             borders: Object.fromEntries(
               ['top', 'bottom', 'left', 'right'].map((side) => [
                 side,
@@ -151,6 +144,7 @@ export function buildOlderMeditationSheet(
         22,
       ),
     ]),
+    new Paragraph({ spacing: { before: 0, after: 0, line: 100 } }),
     verse,
     ...meditationRichParagraphs(
       sheet.document,
@@ -176,9 +170,10 @@ export function buildOlderMeditationSheet(
             cantSplit: true,
             height: {
               value: Math.floor(
-                Math.min(
-                  (activitySpace * weights[index]) / totalWeight,
-                  weights[index] * O.maximumRowExpansion,
+                Math.max(
+                  weights[index],
+                  (activitySpace * O.activityFillShare * weights[index]) /
+                    totalWeight,
                 ),
               ),
               rule: HeightRule.ATLEAST,
@@ -186,7 +181,19 @@ export function buildOlderMeditationSheet(
             children: [
               new TableCell({
                 width: { size: width, type: WidthType.DXA },
-                borders: noBorders,
+                // A thin rule separates the blocks, as in the printed models.
+                borders: {
+                  ...noBorders,
+                  ...(index
+                    ? {
+                        top: {
+                          style: BorderStyle.SINGLE,
+                          size: 6,
+                          color: L.black,
+                        },
+                      }
+                    : {}),
+                },
                 verticalAlign: VerticalAlign.TOP,
                 margins: { top: 60, bottom: 60, left: 60, right: 60 },
                 children: activity.image
@@ -239,56 +246,25 @@ export function buildOlderMeditationSheet(
       [width],
     ),
   );
-  children.push(
-    table(
-      [
-        new TableRow({
-          children: [
-            cell(
-              [paragraph([text('FALANDO COM DEUS:', 20, true, 'FFFFFF')])],
-              2900,
-              L.prayerLabel,
-            ),
-            cell(
-              meditationRichParagraphs(
-                sheet.document,
-                'prayer',
-                sheet.prayer,
-                fontSize,
-              ),
-              width - 2900,
-              L.gray,
-            ),
-          ],
-        }),
-      ],
-      [2900, width - 2900],
-    ),
-  );
   return [
-    new Table({
-      width: { size: L.width, type: WidthType.DXA },
-      columnWidths: [L.width],
-      borders: noBorders,
-      rows: [
-        new TableRow({
-          cantSplit: true,
-          height: { value: O.height, rule: HeightRule.ATLEAST },
-          children: [
-            new TableCell({
-              margins: { top: 100, bottom: 100, left: 160, right: 160 },
-              verticalAlign: VerticalAlign.TOP,
-              borders: Object.fromEntries(
-                ['top', 'bottom', 'left', 'right'].map((side) => [
-                  side,
-                  { style: BorderStyle.SINGLE, size: 30, color: L.black },
-                ]),
-              ),
-              children,
-            }),
-          ],
-        }),
-      ],
-    }),
+    framedSheet(
+      children,
+      prayerTable(
+        meditationRichParagraphs(
+          sheet.document,
+          'prayer',
+          sheet.prayer,
+          fontSize,
+        ),
+        2900,
+        width,
+        L.olderPrayerLabel,
+        20,
+      ),
+      L.width,
+      O.height - O.footerReserve,
+      false,
+      O.frameSideMargin,
+    ),
   ];
 }
