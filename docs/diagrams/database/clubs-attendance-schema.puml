@@ -38,6 +38,7 @@ entity "children" as e_child {
   address_id : UUID? <<FK,UQ>>
   name : varchar(255)
   isActive : boolean
+  deactivatedAt : date?
 }
 
 entity "pagelas" as e_pagela {

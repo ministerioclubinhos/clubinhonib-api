@@ -35,6 +35,21 @@ shared dispatch, and cannot suppress the in-app notice if disabled or failing.
 
 ## 1. Children Rules (isActive and joinedAt)
 
+### 1.0. `deactivatedAt` and history (2026-11-11)
+
+**Rule**: deactivating a child must not erase her past. `children.deactivatedAt`
+(date, nullable) is stamped with today's date (America/Sao_Paulo) when the child
+is deactivated and cleared when she is reactivated. Historical statistics count
+a child in a period when she had already joined and had not yet been
+deactivated at that date; legacy inactive children without the stamp use the
+day of `updatedAt`. Section 1.1's "never appear" now applies to **current**
+totals only.
+
+- ✅ Inactive children do not receive pagelas or decisions (`409 CHILD_7003`)
+- ⚠️ The column exists locally through `DB_SYNCHRONIZE=true`; the versioned
+  migration still has to be generated (`migration:generate`) from a database
+  that does not have the column yet.
+
 ### 1.1. `isActive` Field in Child Entity
 
 **Rule**: All children must have an `isActive` field (boolean) indicating if the child is still active in the club.
@@ -363,6 +378,19 @@ If today were Sunday, 11/23/2025:
 
 - `year`: Academic Period Year
 - `week`: Academic Week (1-N)
+
+### 5.1.1. Pagelas Only Inside the Academic Period (2026-11-11)
+
+**Rule**: A pagela is only created or edited while **today** (America/Sao_Paulo) is inside an active academic period.
+
+**Implementation** (`PagelaLaunchWindowService`):
+
+- ✅ Outside the period (not registered, not started, ended): `400 VAL_4007`
+- ✅ Only weeks that already happened: `1 ≤ week ≤ current academic week`
+- ✅ `referenceDate` cannot be in the future nor outside the period
+- ✅ `GET /pagelas/launch-window` tells the app whether launching is open
+- ✅ Deleting a pagela is still allowed outside the period
+- ⚠️ Weekday exceptions do not block a pagela
 
 ### 5.2. Pagela Filtering by Period
 

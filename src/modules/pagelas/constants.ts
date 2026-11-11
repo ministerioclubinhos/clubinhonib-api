@@ -40,3 +40,30 @@ export const PAGELA_SEARCH_MAX_LENGTH = 200;
  * pode cair no ano anterior ou no seguinte ao do período cadastrado.
  */
 export const PAGELA_PERIOD_YEAR_OFFSETS = [0, -1, 1] as const;
+
+/**
+ * O que dizer quando o lançamento está fechado.
+ *
+ * `{start}` e `{end}` são trocados pelas datas do período em questão.
+ */
+export const PAGELA_LAUNCH_CLOSED_MESSAGES = {
+  NO_PERIOD:
+    'Não há período letivo cadastrado. Pagelas só podem ser lançadas dentro do período letivo.',
+  NOT_STARTED:
+    'O período letivo começa em {start}. Pagelas só podem ser lançadas a partir dessa data.',
+  ENDED:
+    'O período letivo terminou em {end}. Não é mais possível lançar pagelas.',
+} as const;
+
+/** Mensagens das recusas de data e semana dentro de um período aberto. */
+export const PAGELA_PERIOD_MESSAGES = {
+  FUTURE_DATE: 'A data da pagela não pode ser depois de hoje.',
+  DATE_OUTSIDE: 'A data da pagela está fora do período letivo.',
+  YEAR_OUTSIDE: 'O ano da pagela não é o do período letivo em andamento.',
+  WEEK_OUTSIDE:
+    'A semana da pagela precisa estar entre a 1 e a semana letiva atual ({current}).',
+} as const;
+
+/** Recusa de pagela para criança desativada. */
+export const PAGELA_INACTIVE_CHILD_MESSAGE =
+  'Esta criança está desativada. Reative-a para lançar ou editar pagelas.';

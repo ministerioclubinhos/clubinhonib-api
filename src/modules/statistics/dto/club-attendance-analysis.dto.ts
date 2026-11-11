@@ -44,7 +44,8 @@ export class AttendanceTimelineWeekDto {
   expectedChildren: number;
   /** Só vem quando a semana tem pagela. */
   totalPagelas?: number;
-  firstDate?: string | Date;
+  /** `YYYY-MM-DD`. */
+  firstDate?: string;
   presenceCount?: number;
 }
 
@@ -98,6 +99,9 @@ export class ClubAttendanceAnalysisDto {
 
   missingWeeks: MissingWeekDto[];
   missingWeeksPagination: AttendancePaginationDto;
+
+  /** Presente só quando o ano não tem período letivo: explica a resposta vazia. */
+  note?: string;
 }
 
 export class ClubsAttendanceResponseDto {
@@ -137,7 +141,9 @@ export type WeeklyClubStatus =
   | 'missing'
   | 'pending'
   | 'vacation'
-  | 'inactive';
+  | 'inactive'
+  /** O dia do clubinho nesta semana cai fora do período letivo: nada a cobrar. */
+  | 'out_of_period';
 
 export class WeeklyAttendanceClubDto {
   clubId: string;

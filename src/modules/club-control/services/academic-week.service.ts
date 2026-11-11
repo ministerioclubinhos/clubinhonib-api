@@ -5,7 +5,9 @@ import {
   formatDateOnly,
   getAcademicWeek,
   parseDateOnly,
+  referenceYearOf,
 } from 'src/shared/academic-week/academic-week.util';
+import { todayInAppTimezone } from 'src/shared/calendar-day/calendar-day.util';
 
 @Injectable()
 export class AcademicWeekService {
@@ -23,12 +25,30 @@ export class AcademicWeekService {
     periodStartDate: string | null;
     periodEndDate: string | null;
   } | null> {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    // A consulta vive no repositório: `findPeriodByYear` já traz só o período
-    // ativo do ano, que é exatamente o que esta conta precisa.
-    const period =
-      await this.clubControlRepository.findPeriodByYear(currentYear);
+    // "Hoje" no fuso do Clubinho. O relógio do processo (UTC no contêiner) já
+    // está no dia seguinte a partir das 21h, e `toISOString()` sobre uma
+    // meia-noite local devolvia a véspera em fuso positivo.
+    const today = todayInAppTimezone();
+    const currentYear = referenceYearOf(today);
+
+    // O período corrente é o que **contém** hoje, e não o que leva o número do
+    // ano civil: um período letivo pode atravessar a virada (o de 2026 indo
+    // até janeiro de 2027), e em janeiro a busca só por `year = 2027` dizia
+    // "fora do período" no meio das aulas. Olha-se o ano corrente e os dois
+    // vizinhos; `findPeriodByYear` já traz só o período ativo.
+    const [current, previous, next] = await Promise.all([
+      this.clubControlRepository.findPeriodByYear(currentYear),
+      this.clubControlRepository.findPeriodByYear(currentYear - 1),
+      this.clubControlRepository.findPeriodByYear(currentYear + 1),
+    ]);
+
+    const containing = [current, previous, next].find(
+      (candidate): candidate is ClubPeriodEntity =>
+        !!candidate && getAcademicWeek(today, candidate) !== null,
+    );
+    // Nenhum contém hoje: o do ano corrente ainda serve para informar as
+    // datas de quem está fora dele.
+    const period = containing ?? current;
 
     if (!period) {
       return {
@@ -40,22 +60,7 @@ export class AcademicWeekService {
       };
     }
 
-    const startDate = new Date(period.startDate + 'T00:00:00');
-    const endDate = new Date(period.endDate + 'T23:59:59');
-    const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const nowDateStr = nowDate.toISOString().split('T')[0];
-
-    if (nowDate < startDate || nowDate > endDate) {
-      return {
-        academicYear: period.year,
-        academicWeek: 0,
-        isWithinPeriod: false,
-        periodStartDate: period.startDate,
-        periodEndDate: period.endDate,
-      };
-    }
-
-    const weekData = getAcademicWeek(nowDateStr, period);
+    const weekData = getAcademicWeek(today, period);
 
     if (!weekData) {
       return {
@@ -236,9 +241,9 @@ export class AcademicWeekService {
       return true;
     }
 
-    const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
-    return todayStr > expectedDate;
+    // Hoje no fuso do Clubinho: `toISOString()` é UTC, e a partir das 21h no
+    // Brasil já devolvia o dia seguinte — o clubinho de hoje virava atrasado.
+    return todayInAppTimezone() > expectedDate;
   }
 
   getWeekStartDate(date: Date): Date {

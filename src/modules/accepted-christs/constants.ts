@@ -1,5 +1,7 @@
 import { UserRole } from 'src/core/auth/auth.types';
 
+import { DecisionType } from './enums/decision-type.enum';
+
 /**
  * Quem registra uma decisão.
  *
@@ -31,3 +33,26 @@ export const DECISION_UNSPECIFIED_LABEL = 'Decisão registrada';
 
 /** Tela do painel para onde o aviso da decisão aponta. */
 export const ACCEPTED_CHRIST_PANEL_PATH = 'adm/decisoes';
+
+/**
+ * Decisões que contam como "a criança já aceitou a Jesus".
+ *
+ * Registros antigos sem tipo não entram: não dizem qual foi a decisão.
+ */
+export const PRIOR_ACCEPTANCE_DECISIONS: readonly DecisionType[] = [
+  DecisionType.ACCEPTED,
+  DecisionType.RECONCILED,
+];
+
+/** Recusas das regras de decisão. */
+export const DECISION_RULE_MESSAGES = {
+  CHILD_INACTIVE:
+    'Esta criança está desativada. Reative-a para registrar uma decisão.',
+  ALREADY_ACCEPTED:
+    'Esta criança já tem a decisão de aceitar Jesus registrada. Registre uma reconciliação.',
+  RECONCILED_WITHOUT_ACCEPTANCE:
+    'Só é possível registrar reconciliação de quem já aceitou Jesus.',
+  ACCEPTANCE_HAS_RECONCILIATIONS:
+    'Exclua primeiro as reconciliações desta criança para então excluir a aceitação.',
+  NOT_FOUND: 'Decisão não encontrada ou sem acesso',
+} as const;

@@ -1,8 +1,11 @@
 import {
   Body,
   Controller,
+  Delete,
   HttpCode,
   HttpStatus,
+  Param,
+  ParseUUIDPipe,
   Post,
   Req,
   UseGuards,
@@ -16,6 +19,7 @@ import { AuthContextService } from 'src/core/auth/services/auth-context.service'
 import { AcceptedChristResponseDto } from '../dtos/accepted-christ-response.dto';
 import { CreateAcceptedChristDto } from '../dtos/create-accepted-christ.dto';
 import { CreateAcceptedChristService } from '../services/create-accepted-christ.service';
+import { DeleteAcceptedChristService } from '../services/delete-accepted-christ.service';
 
 /**
  * O registro de que uma criança aceitou ou se reconciliou com Jesus.
@@ -32,6 +36,7 @@ export class AcceptedChristController {
   constructor(
     private readonly authContext: AuthContextService,
     private readonly createAcceptedChristService: CreateAcceptedChristService,
+    private readonly deleteAcceptedChristService: DeleteAcceptedChristService,
   ) {}
 
   private contextOf(request: Request): Promise<AccessContext> {
@@ -47,6 +52,18 @@ export class AcceptedChristController {
     return this.createAcceptedChristService.create(
       await this.contextOf(request),
       dto,
+    );
+  }
+
+  /** Desfaz um registro lançado por engano. */
+  @Delete(':id')
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() request: Request,
+  ): Promise<{ message: string }> {
+    return this.deleteAcceptedChristService.remove(
+      await this.contextOf(request),
+      id,
     );
   }
 }

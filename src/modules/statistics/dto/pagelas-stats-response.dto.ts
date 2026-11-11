@@ -5,6 +5,9 @@ export class WeeklyPagelaStatsDto {
   presentCount: number;
   didMeditationCount: number;
   recitedVerseCount: number;
+  /** Presenças esperadas na semana: o denominador de `presenceRate`. */
+  expectedPresences: number;
+  /** Presentes ÷ esperados (não ÷ pagelas lançadas). */
   presenceRate: number;
   meditationRate: number;
   verseRecitationRate: number;
@@ -23,6 +26,9 @@ export class PagelasStatsResponseDto {
     totalPagelas: number;
     totalChildren: number;
     totalTeachers: number;
+    /** Presenças esperadas no recorte: o denominador de `averagePresenceRate`. */
+    expectedPresences: number;
+    /** Presentes ÷ esperados (não ÷ pagelas lançadas). */
     averagePresenceRate: number;
     averageMeditationRate: number;
     averageVerseRecitationRate: number;

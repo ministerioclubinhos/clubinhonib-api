@@ -1,5 +1,6 @@
 import {
   addDays,
+  formatDateOnlyPtBr,
   parseDateOnly,
   toDateOnly,
   todayAsLocalDate,
@@ -95,6 +96,15 @@ describe('statistics date utils', () => {
       const now = new Date();
 
       expect(toDateOnly(todayAsLocalDate())).toBe(toDateOnly(now));
+    });
+  });
+
+  describe('formatDateOnlyPtBr', () => {
+    it('reordena o texto sem passar por fuso', () => {
+      // `new Date('2026-03-02').toLocaleDateString('pt-BR')` dava 01/03 no
+      // Brasil.
+      expect(formatDateOnlyPtBr('2026-03-02')).toBe('02/03/2026');
+      expect(formatDateOnlyPtBr('2026-12-19')).toBe('19/12/2026');
     });
   });
 });

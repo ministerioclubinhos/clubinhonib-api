@@ -7,8 +7,8 @@ import { CreatePagelaDto } from '../dto/create-pagela.dto';
 import { PagelaResponseDto } from '../dto/pagela-response.dto';
 import { PagelaAccessContext } from '../types';
 import { toPagelaResponse } from '../mappers';
-import { assertCanAccessPagelas } from '../utils';
-import { ResolvePagelaWeekService } from './resolve-pagela-week.service';
+import { assertCanAccessPagelas, inactiveChildRefusal } from '../utils';
+import { PagelaLaunchWindowService } from './pagela-launch-window.service';
 
 @Injectable()
 export class CreatePagelasService {
@@ -16,7 +16,7 @@ export class CreatePagelasService {
 
   constructor(
     private readonly pagelasRepository: PagelasRepository,
-    private readonly weekService: ResolvePagelaWeekService,
+    private readonly launchWindow: PagelaLaunchWindowService,
   ) {}
 
   async create(
@@ -25,8 +25,14 @@ export class CreatePagelasService {
   ): Promise<PagelaResponseDto> {
     assertCanAccessPagelas(context);
     await this.assertChildIsWithinReach(dto.childId, context);
+    // Criança desativada saiu do clubinho: não recebe pagela.
+    if (!(await this.pagelasRepository.childIsActive(dto.childId))) {
+      throw inactiveChildRefusal();
+    }
 
-    const { year, week } = await this.resolveWeek(dto);
+    // Fora do período letivo não se lança pagela; dentro dele, só de semana que
+    // já aconteceu.
+    const { year, week } = await this.launchWindow.resolveForCreation(dto);
 
     const created = await this.pagelasRepository.createOne({
       childId: dto.childId,
@@ -46,28 +52,6 @@ export class CreatePagelasService {
     );
 
     return toPagelaResponse(created);
-  }
-
-  /**
-   * Semana e ano da pagela.
-   *
-   * O que vier no corpo manda; o que faltar sai do período letivo. Informar só
-   * a semana não pode deixar o ano em branco, então a conta roda sempre que
-   * algum dos dois estiver ausente.
-   */
-  private async resolveWeek(
-    dto: CreatePagelaDto,
-  ): Promise<{ year: number; week: number }> {
-    if (dto.year != null && dto.week != null) {
-      return { year: dto.year, week: dto.week };
-    }
-
-    const resolved = await this.weekService.resolve(dto.referenceDate, true);
-
-    return {
-      year: dto.year ?? resolved.year,
-      week: dto.week ?? resolved.week,
-    };
   }
 
   /** Coordenador e professor só registram pagela de criança do alcance deles. */

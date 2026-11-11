@@ -9,6 +9,8 @@ export interface PagelaAccessContext {
   userId?: string | null;
 }
 
+import { PagelaLaunchClosedReason } from './enums/pagela-launch-closed-reason.enum';
+
 export type {
   AcademicPeriod,
   AcademicWeek,
@@ -37,4 +39,40 @@ export interface PagelaUpdateData {
   recitedVerse?: boolean;
   notes?: string | null;
   teacherProfileId?: string | null;
+}
+
+/**
+ * A janela de lançamento de pagelas em um dia.
+ *
+ * Aberta, traz o período em andamento e a semana letiva de hoje. Fechada, traz
+ * o motivo e o período que explica a recusa (o próximo ou o último).
+ */
+export interface PagelaLaunchWindow {
+  open: boolean;
+  reason: PagelaLaunchClosedReason | null;
+  /** Hoje no fuso do Clubinho, em `YYYY-MM-DD`. */
+  today: string;
+  year: number | null;
+  currentWeek: number | null;
+  totalWeeks: number | null;
+  startDate: string | null;
+  endDate: string | null;
+}
+
+/** Janela aberta: os campos do período deixam de ser opcionais. */
+export interface OpenPagelaLaunchWindow extends PagelaLaunchWindow {
+  open: true;
+  reason: null;
+  year: number;
+  currentWeek: number;
+  totalWeeks: number;
+  startDate: string;
+  endDate: string;
+}
+
+/** O que a criação ou a edição quer gravar de data e semana. */
+export interface PagelaWeekRequest {
+  referenceDate?: string;
+  year?: number;
+  week?: number;
 }

@@ -10,7 +10,6 @@ import { TeacherProfileEntity } from '../../teacher-profiles/entities/teacher-pr
 import { ClubsStatsQueryDto } from '../dto/clubs-stats-query.dto';
 import { TeachersStatsQueryDto } from '../dto/teachers-stats-query.dto';
 import {
-  AcceptedChristsByClubRaw,
   ChildStatsRaw,
   ClubsWithStatsResult,
   PagelasByClubRaw,
@@ -18,7 +17,17 @@ import {
   TeacherStatsRaw,
   TeachersWithStatsResult,
 } from '../dto/statistics-raw-results.dto';
-import { toDateOnly } from '../utils/date.utils';
+import { todayInAppTimezone } from 'src/shared/calendar-day/calendar-day.util';
+import {
+  ACTIVITY_WINDOW_DAYS,
+  ENROLLED_AT_DECISION_DATE_SQL,
+  ENROLLED_AT_PAGELA_DATE_SQL,
+} from '../constants';
+import { ClubPerformance } from '../types';
+import { addDaysToDateOnly } from '../utils/enrollment.utils';
+import { clubPerformance, toCount } from '../utils/metrics.utils';
+import { AcceptedChristsStatisticsRepository } from './accepted-christs-statistics.repository';
+import { ExpectedChildrenRepository } from './expected-children.repository';
 
 /**
  * Consultas de clubinhos e professores.
@@ -39,6 +48,8 @@ export class ClubsTeachersStatisticsRepository {
     private readonly clubsRepository: Repository<ClubEntity>,
     @InjectRepository(TeacherProfileEntity)
     private readonly teachersRepository: Repository<TeacherProfileEntity>,
+    private readonly expectedChildrenRepository: ExpectedChildrenRepository,
+    private readonly decisionsRepository: AcceptedChristsStatisticsRepository,
   ) {}
 
   async getClubsWithStats(
@@ -92,8 +103,8 @@ export class ClubsTeachersStatisticsRepository {
         allChildrenResults: [],
         pagelasResults: [],
         allPagelasResults: [],
-        decisionsResults: [],
-        allDecisionsResults: [],
+        decisionsByClub: new Map(),
+        performanceByClub: new Map(),
         teachers: [],
         allTeachers: [],
         totalCount: 0,
@@ -128,7 +139,12 @@ export class ClubsTeachersStatisticsRepository {
       .leftJoin('child.club', 'club')
       .select('child.club.id', 'clubId')
       .addSelect('COUNT(pagela.id)', 'totalPagelas')
-      .addSelect('COUNT(DISTINCT child.id)', 'activeChildren')
+      // "Ativa" é a criança com presença no recorte, não a que só tem pagela
+      // de falta.
+      .addSelect(
+        'COUNT(DISTINCT CASE WHEN pagela.present = 1 THEN child.id END)',
+        'activeChildren',
+      )
       .addSelect('COUNT(DISTINCT pagela.teacher.id)', 'activeTeachers')
       .addSelect(
         'SUM(CASE WHEN pagela.present = 1 THEN 1 ELSE 0 END)',
@@ -145,7 +161,7 @@ export class ClubsTeachersStatisticsRepository {
       .addSelect('MAX(pagela.referenceDate)', 'lastActivity')
       .where('child.club.id IN (:...clubIds)', { clubIds })
       .andWhere('club.isActive = :clubActive', { clubActive: true })
-      .andWhere('child.isActive = :isActive', { isActive: true })
+      .andWhere(ENROLLED_AT_PAGELA_DATE_SQL)
       .groupBy('child.club.id');
 
     if (filters.year) {
@@ -157,42 +173,28 @@ export class ClubsTeachersStatisticsRepository {
       });
     }
     if (filters.endDate) {
-      const endDateExclusive = new Date(`${filters.endDate}T00:00:00Z`);
-      endDateExclusive.setUTCDate(endDateExclusive.getUTCDate() + 1);
+      // Dia seguinte calculado em texto: passar por UTC e formatar no fuso
+      // local devolvia o próprio dia, e o último dia do filtro ficava de fora.
+      const endDateExclusive = addDaysToDateOnly(filters.endDate, 1);
       pagelasQuery.andWhere('pagela.referenceDate < :endDateExclusive', {
-        endDateExclusive: toDateOnly(endDateExclusive),
+        endDateExclusive: endDateExclusive,
       });
     }
 
     const pagelasResults = await pagelasQuery.getRawMany<PagelasByClubRaw>();
 
-    const decisionsQuery = this.acceptedChristsRepository
-      .createQueryBuilder('ac')
-      .leftJoin('ac.child', 'child')
-      .leftJoin('child.club', 'club')
-      .select('child.club.id', 'clubId')
-      .addSelect('COUNT(ac.id)', 'totalDecisions')
-      .addSelect('COUNT(DISTINCT child.id)', 'childrenWithDecisions')
-      .where('child.club.id IN (:...clubIds)', { clubIds })
-      .andWhere('club.isActive = :clubActive', { clubActive: true })
-      .andWhere('child.isActive = :isActive', { isActive: true })
-      .groupBy('child.club.id');
-
-    if (filters.startDate) {
-      decisionsQuery.andWhere('ac.createdAt >= :decisionStartDate', {
-        decisionStartDate: filters.startDate,
-      });
-    }
-    if (filters.endDate) {
-      const decisionEndExclusive = new Date(`${filters.endDate}T00:00:00Z`);
-      decisionEndExclusive.setUTCDate(decisionEndExclusive.getUTCDate() + 1);
-      decisionsQuery.andWhere('ac.createdAt < :decisionEndExclusive', {
-        decisionEndExclusive: toDateOnly(decisionEndExclusive),
-      });
-    }
-
-    const decisionsResults =
-      await decisionsQuery.getRawMany<AcceptedChristsByClubRaw>();
+    const [decisionsByClub, expectedByClub] = await Promise.all([
+      this.decisionsRepository.getDecisionCountsByClub(clubIds, filters),
+      this.expectedChildrenRepository.summarize(
+        {
+          clubIds,
+          year: filters.year,
+          startDate: filters.startDate,
+          endDate: filters.endDate,
+        },
+        (child) => child.clubId,
+      ),
+    ]);
 
     const teachersQuery = this.teachersRepository
       .createQueryBuilder('teacher')
@@ -213,7 +215,6 @@ export class ClubsTeachersStatisticsRepository {
     });
 
     const pagelasMap = new Map(pagelasResults.map((p) => [p.clubId, p]));
-    const decisionsMap = new Map(decisionsResults.map((d) => [d.clubId, d]));
     const teachersMap = new Map<string, number>();
     teachers.forEach((t) => {
       if (t.club) {
@@ -223,49 +224,31 @@ export class ClubsTeachersStatisticsRepository {
       }
     });
 
+    // O índice é calculado uma vez aqui, por `clubPerformance`, e segue no
+    // resultado: os filtros e a ordenação abaixo e o número que o service
+    // mostra são o mesmo valor. Antes havia uma conta aqui e outra lá, e a
+    // lista saía ordenada por um índice diferente do que estava na tela.
+    const performanceByClub = new Map<string, ClubPerformance>();
+
     let clubsWithProcessedStats = clubs.map((club) => {
       const pagelaStats = pagelasMap.get(club.id);
-      const decisionStats = decisionsMap.get(club.id);
-
-      const totalPagelas = pagelaStats
-        ? parseInt(pagelaStats.totalPagelas || '0')
-        : 0;
-      const presenceCount = pagelaStats
-        ? parseInt(pagelaStats.presenceCount || '0')
-        : 0;
-      const meditationCount = pagelaStats
-        ? parseInt(pagelaStats.meditationCount || '0')
-        : 0;
-      const verseCount = pagelaStats
-        ? parseInt(pagelaStats.verseCount || '0')
-        : 0; // Fixed: was missing in original map logic
+      const decisionStats = decisionsByClub.get(club.id);
+      const expected = expectedByClub.get(club.id);
 
       const totalChildren = childrenMap.get(club.id) || 0;
-      const activeChildren = pagelaStats
-        ? parseInt(pagelaStats.activeChildren || '0')
-        : 0;
-
-      const totalDecisions = decisionStats
-        ? parseInt(decisionStats.totalDecisions || '0')
-        : 0;
+      const totalDecisions = decisionStats?.totalDecisions ?? 0;
       const totalTeachers = teachersMap.get(club.id) || 0;
 
-      const avgPresenceRate =
-        totalPagelas > 0 ? (presenceCount / totalPagelas) * 100 : 0;
-      const avgMeditationRate =
-        totalPagelas > 0 ? (meditationCount / totalPagelas) * 100 : 0;
-      const avgVerseRate =
-        totalPagelas > 0 ? (verseCount / totalPagelas) * 100 : 0;
-      const activityRate =
-        totalChildren > 0 ? (activeChildren / totalChildren) * 100 : 0;
-      const decisionRate =
-        activeChildren > 0 ? (totalDecisions / activeChildren) * 100 : 0;
-
-      const performanceScore =
-        avgPresenceRate * 0.3 +
-        avgMeditationRate * 0.3 +
-        activityRate * 0.2 +
-        decisionRate * 0.2;
+      const performance = clubPerformance({
+        presenceCount: toCount(pagelaStats?.presenceCount),
+        expectedPresences: expected?.slots ?? 0,
+        meditationCount: toCount(pagelaStats?.meditationCount),
+        totalPagelas: toCount(pagelaStats?.totalPagelas),
+        activeChildren: toCount(pagelaStats?.activeChildren),
+        expectedChildren: expected?.children ?? 0,
+        childrenWithDecisions: decisionStats?.childrenWithDecisions ?? 0,
+      });
+      performanceByClub.set(club.id, performance);
 
       return {
         ...club,
@@ -273,10 +256,8 @@ export class ClubsTeachersStatisticsRepository {
           totalChildren,
           totalTeachers,
           totalDecisions,
-          avgPresenceRate,
-          avgMeditationRate,
-          avgVerseRate,
-          performanceScore,
+          avgPresenceRate: performance.presenceRate,
+          performanceScore: performance.performanceScore,
         },
       };
     });
@@ -367,7 +348,8 @@ export class ClubsTeachersStatisticsRepository {
 
       if (valA < valB) return sortOrder === 'ASC' ? -1 : 1;
       if (valA > valB) return sortOrder === 'ASC' ? 1 : -1;
-      return 0;
+      // Desempate fixo: sem ele, clubinhos empatados trocavam de página.
+      return a.number - b.number;
     });
 
     const totalCount = clubsWithProcessedStats.length;
@@ -414,10 +396,8 @@ export class ClubsTeachersStatisticsRepository {
         paginatedClubIds.has(r.clubId),
       ),
       allPagelasResults: pagelasResults,
-      decisionsResults: decisionsResults.filter((r) =>
-        paginatedClubIds.has(r.clubId),
-      ),
-      allDecisionsResults: decisionsResults,
+      decisionsByClub,
+      performanceByClub,
       teachers: teachers.filter(
         (t) => t.club && paginatedClubIds.has(t.club.id),
       ),
@@ -525,6 +505,10 @@ export class ClubsTeachersStatisticsRepository {
         'verseCount',
       )
       .addSelect('MAX(pagela.referenceDate)', 'lastActivity')
+      .addSelect(
+        "DATE_FORMAT(MAX(pagela.referenceDate), '%Y-%m-%d')",
+        'lastActivityDay',
+      )
       .where('pagela.teacher.id IN (:...teacherIds)', { teacherIds })
       .groupBy('pagela.teacher.id');
 
@@ -537,10 +521,11 @@ export class ClubsTeachersStatisticsRepository {
       });
     }
     if (filters.endDate) {
-      const endDateExclusive = new Date(`${filters.endDate}T00:00:00Z`);
-      endDateExclusive.setUTCDate(endDateExclusive.getUTCDate() + 1);
+      // Dia seguinte calculado em texto: passar por UTC e formatar no fuso
+      // local devolvia o próprio dia, e o último dia do filtro ficava de fora.
+      const endDateExclusive = addDaysToDateOnly(filters.endDate, 1);
       pagelasQuery.andWhere('pagela.referenceDate < :endDateExclusive', {
-        endDateExclusive: toDateOnly(endDateExclusive),
+        endDateExclusive: endDateExclusive,
       });
     }
 
@@ -553,7 +538,10 @@ export class ClubsTeachersStatisticsRepository {
       .select('pagela.teacher.id', 'teacherId')
       .addSelect('COUNT(DISTINCT child.id)', 'childrenWithDecisions')
       .where('pagela.teacher.id IN (:...teacherIds)', { teacherIds })
-      .andWhere('child.isActive = :childActive', { childActive: true })
+      // Matriculada no dia da decisão (e não "ativa hoje"), e só decisão com
+      // tipo — o mesmo escopo das outras contagens de decisão.
+      .andWhere(ENROLLED_AT_DECISION_DATE_SQL)
+      .andWhere('ac.decision IS NOT NULL')
       .groupBy('pagela.teacher.id');
 
     if (filters.startDate) {
@@ -566,9 +554,10 @@ export class ClubsTeachersStatisticsRepository {
         });
     }
     if (filters.endDate) {
-      const decisionEndExclusive = new Date(`${filters.endDate}T00:00:00Z`);
-      decisionEndExclusive.setUTCDate(decisionEndExclusive.getUTCDate() + 1);
-      const endDateExclusive = toDateOnly(decisionEndExclusive);
+      // Dia seguinte calculado em texto: passar por UTC e formatar no fuso
+      // local devolvia o próprio dia, e o último dia do filtro ficava de fora.
+      const decisionEndExclusive = addDaysToDateOnly(filters.endDate, 1);
+      const endDateExclusive = decisionEndExclusive;
       decisionsQuery
         .andWhere('pagela.referenceDate < :decisionPagelaEndExclusive', {
           decisionPagelaEndExclusive: endDateExclusive,
@@ -584,9 +573,10 @@ export class ClubsTeachersStatisticsRepository {
     const pagelasMap = new Map(pagelasResults.map((p) => [p.teacherId, p]));
     const decisionsMap = new Map(decisionsResults.map((d) => [d.teacherId, d]));
 
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const thirtyDaysAgoStr = toDateOnly(thirtyDaysAgo);
+    const activeSince = addDaysToDateOnly(
+      todayInAppTimezone(),
+      -ACTIVITY_WINDOW_DAYS,
+    );
 
     let teachersWithProcessedStats = teachers.map((teacher) => {
       const pagelas = pagelasMap.get(teacher.id);
@@ -617,10 +607,8 @@ export class ClubsTeachersStatisticsRepository {
         avgVerseRate * 0.2 +
         decisionRate * 0.2;
 
-      const lastActivity = pagelas?.lastActivity;
-      const isActive = lastActivity
-        ? new Date(lastActivity) >= new Date(thirtyDaysAgoStr)
-        : false;
+      const lastActivityDay = pagelas?.lastActivityDay;
+      const isActive = !!lastActivityDay && lastActivityDay >= activeSince;
 
       return {
         ...teacher,

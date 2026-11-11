@@ -17,9 +17,11 @@ import { toChildResponseDto } from '../mappers/child.mapper';
 import { ClubEntity } from '../../clubs/entities/club.entity';
 import { AuthContextService } from 'src/core/auth/services/auth-context.service';
 import { UserRole } from 'src/core/auth/auth.types';
+import { todayInAppTimezone } from 'src/shared/calendar-day/calendar-day.util';
 import {
   assertCanChangeChildClub,
   assertCanUnlinkChildClub,
+  deactivationStamp,
   toDateOnly,
 } from '../utils';
 
@@ -56,7 +58,15 @@ export class UpdateChildrenService {
     if (dto.birthDate !== undefined)
       entity.birthDate = toDateOnly(dto.birthDate) ?? '';
     if (dto.joinedAt !== undefined) entity.joinedAt = toDateOnly(dto.joinedAt);
-    if (dto.isActive !== undefined) entity.isActive = dto.isActive;
+    if (dto.isActive !== undefined) {
+      entity.deactivatedAt = deactivationStamp({
+        wasActive: entity.isActive,
+        isActive: dto.isActive,
+        current: entity.deactivatedAt,
+        today: todayInAppTimezone(),
+      });
+      entity.isActive = dto.isActive;
+    }
 
     // O formulário reenvia o clubinho mesmo quando ninguém mexeu nele, então a
     // regra vale para a **mudança**, não para o campo estar presente: um
@@ -115,6 +125,12 @@ export class UpdateChildrenService {
       );
     }
 
+    entity.deactivatedAt = deactivationStamp({
+      wasActive: entity.isActive,
+      isActive: !entity.isActive,
+      current: entity.deactivatedAt,
+      today: todayInAppTimezone(),
+    });
     entity.isActive = !entity.isActive;
     await this.childrenRepo.save(entity);
 

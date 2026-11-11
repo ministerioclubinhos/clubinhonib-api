@@ -5,8 +5,9 @@ import { UpdatePagelaDto } from '../dto/update-pagela.dto';
 import { PagelaResponseDto } from '../dto/pagela-response.dto';
 import { PagelaAccessContext, PagelaUpdateData } from '../types';
 import { toPagelaResponse } from '../mappers';
+import { inactiveChildRefusal } from '../utils';
 import { GetPagelasService } from './get-pagelas.service';
-import { ResolvePagelaWeekService } from './resolve-pagela-week.service';
+import { PagelaLaunchWindowService } from './pagela-launch-window.service';
 
 @Injectable()
 export class UpdatePagelasService {
@@ -15,7 +16,7 @@ export class UpdatePagelasService {
   constructor(
     private readonly pagelasRepository: PagelasRepository,
     private readonly getService: GetPagelasService,
-    private readonly weekService: ResolvePagelaWeekService,
+    private readonly launchWindow: PagelaLaunchWindowService,
   ) {}
 
   async update(
@@ -24,47 +25,35 @@ export class UpdatePagelasService {
     context: PagelaAccessContext,
   ): Promise<PagelaResponseDto> {
     // Fora do alcance de quem pede, a pagela simplesmente não existe.
-    await this.getService.findEntityOrFail(id, context);
+    const stored = await this.getService.findEntityOrFail(id, context);
 
-    const data = await this.buildUpdateData(dto);
-    const updated = await this.pagelasRepository.updateOne(id, data);
+    // Criança desativada saiu do clubinho: a pagela dela não é mais editada.
+    if (!(await this.pagelasRepository.childIsActive(stored.child.id))) {
+      throw inactiveChildRefusal();
+    }
 
-    this.logger.log(`Pagela atualizada. ID=${id}`);
+    // Fora do período letivo nada se edita. Dentro dele, só o que a edição
+    // muda de data e semana é conferido.
+    const week = await this.launchWindow.resolveForUpdate(dto, {
+      year: stored.year,
+      week: stored.week,
+      referenceDate: stored.referenceDate,
+    });
 
-    return toPagelaResponse(updated);
-  }
-
-  /**
-   * Campos a gravar.
-   *
-   * Mudar a data de referência recalcula semana e ano, a menos que o cliente
-   * mande os dois. Se a nova data cair fora do período letivo, semana e ano
-   * ficam como estavam: a edição não é sobre eles.
-   */
-  private async buildUpdateData(
-    dto: UpdatePagelaDto,
-  ): Promise<PagelaUpdateData> {
     const data: PagelaUpdateData = {
       referenceDate: dto.referenceDate,
-      year: dto.year,
-      week: dto.week,
+      year: week?.year,
+      week: week?.week,
       present: dto.present,
       didMeditation: dto.didMeditation,
       recitedVerse: dto.recitedVerse,
       notes: dto.notes,
       teacherProfileId: dto.teacherProfileId,
     };
+    const updated = await this.pagelasRepository.updateOne(id, data);
 
-    const needsWeek = dto.week == null || dto.year == null;
-    if (!dto.referenceDate || !needsWeek) return data;
+    this.logger.log(`Pagela atualizada. ID=${id}`);
 
-    const resolved = await this.weekService.resolve(dto.referenceDate, false);
-    if (!resolved) return data;
-
-    return {
-      ...data,
-      year: dto.year ?? resolved.year,
-      week: dto.week ?? resolved.week,
-    };
+    return toPagelaResponse(updated);
   }
 }

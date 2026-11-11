@@ -37,6 +37,8 @@ export interface TeacherStatsRaw {
   meditationCount: string;
   verseCount: string;
   lastActivity?: string;
+  /** Dia da pagela mais recente, `YYYY-MM-DD`, para comparar sem fuso. */
+  lastActivityDay?: string | null;
 }
 
 export interface TeacherDecisionStatsRaw {
@@ -214,7 +216,10 @@ export interface ChildPagelaStatsRaw {
   presenceCount: string;
   meditationCount: string;
   verseCount: string;
+  /** Data da pagela mais recente, `YYYY-MM-DD`. */
   lastActivity: string;
+  /** Data da última pagela **com presença**, `YYYY-MM-DD`; `null` se nunca veio. */
+  lastPresence?: string | null;
   weekKeys?: string;
 }
 
@@ -251,6 +256,11 @@ export interface ChildrenWithStatsResult {
   allFilteredChildren: import('../../children/entities/child.entity').ChildEntity[];
   pagelasStats: Map<string, ChildPagelaStatsRaw>;
   decisionsMap: Map<string, ChildDecisionStatsRaw>;
+  /**
+   * Presenças esperadas de cada criança no recorte — o denominador da taxa de
+   * presença. `null` quando o recorte é por professor e não há "esperado".
+   */
+  expectedByChild: Map<string, number> | null;
   totalCount: number;
   filteredCount: number;
   page: number;
@@ -264,8 +274,15 @@ export interface ClubsWithStatsResult {
   allChildrenResults: ChildStatsRaw[];
   pagelasResults: PagelasByClubRaw[];
   allPagelasResults: PagelasByClubRaw[];
-  decisionsResults: AcceptedChristsByClubRaw[];
-  allDecisionsResults: AcceptedChristsByClubRaw[];
+  /** Decisões de cada clubinho no recorte, já no escopo comum de decisões. */
+  decisionsByClub: Map<string, import('../types').ClubDecisionCounts>;
+  /**
+   * Taxas e índice de desempenho de cada clubinho, calculados uma vez.
+   *
+   * O service mostra exatamente estes valores: são os mesmos que filtraram e
+   * ordenaram a lista.
+   */
+  performanceByClub: Map<string, import('../types').ClubPerformance>;
   teachers: import('../../teacher-profiles/entities/teacher-profile.entity/teacher-profile.entity').TeacherProfileEntity[];
   allTeachers: import('../../teacher-profiles/entities/teacher-profile.entity/teacher-profile.entity').TeacherProfileEntity[];
   totalCount: number;

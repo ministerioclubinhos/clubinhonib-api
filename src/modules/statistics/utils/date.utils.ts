@@ -37,3 +37,14 @@ export function parseDateOnly(value: string): Date {
 export function addDays(date: Date, days: number): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
 }
+
+/**
+ * `YYYY-MM-DD` como `DD/MM/AAAA`, para mensagens.
+ *
+ * Reordena o texto em vez de passar por `Date`: `new Date('2026-03-02')` é
+ * meia-noite UTC, e `toLocaleDateString` devolvia 01/03 no Brasil.
+ */
+export function formatDateOnlyPtBr(value: string): string {
+  const [year, month, day] = value.split('-');
+  return `${day}/${month}/${year}`;
+}

@@ -106,3 +106,48 @@ export function assertCanUnlinkChildClub(context: AccessContext): void {
       'Para movê-la, escolha o novo clubinho.',
   );
 }
+
+/**
+ * Trecho do telefone a procurar, só com os dígitos.
+ *
+ * O telefone é gravado sem máscara; quem busca digita `(92) 99999`. Sem
+ * dígito algum não há o que comparar com o telefone, e a busca fica só por
+ * nome.
+ */
+export function phoneSearchDigits(search: string): string | null {
+  const digits = search.replace(/\D/g, '');
+  return digits.length > 0 ? digits : null;
+}
+
+/**
+ * Sem clubinho, só o administrador cadastra.
+ *
+ * Uma criança sem clubinho aparece para todos os papéis; professor e
+ * coordenador cadastram sempre dentro de um clubinho que alcançam.
+ */
+export function assertCanCreateChildWithoutClub(context: AccessContext): void {
+  if (context.role === UserRole.ADMIN) return;
+
+  throw new AppForbiddenException(
+    ErrorCode.CHILD_ACCESS_DENIED,
+    'Informe o clubinho da criança. Apenas um administrador cadastra criança sem clubinho.',
+  );
+}
+
+/**
+ * Dia da desativação a gravar quando a situação da criança muda.
+ *
+ * Desativar carimba o dia de hoje; reativar limpa. Sem mudança de situação o
+ * carimbo fica como estava — reenviar `isActive: false` não empurra a data.
+ */
+export function deactivationStamp(input: {
+  wasActive: boolean;
+  isActive: boolean;
+  current: string | null | undefined;
+  today: string;
+}): string | null {
+  if (input.isActive) return null;
+  if (input.wasActive) return input.today;
+
+  return input.current ?? input.today;
+}

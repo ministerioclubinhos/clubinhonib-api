@@ -792,6 +792,14 @@ values exactly.
 
 ## Decisões (`/accepted-christs`)
 
+### `DELETE /accepted-christs/:id`
+
+Desfaz um registro lançado por engano. Mesmos papéis e mesmo recorte do
+registro: decisão de criança fora do alcance responde `404` `CHILD_7004`. A
+aceitação só sai depois das reconciliações da criança (`409` `CHILD_7005`),
+para não sobrar "reconciliada sem nunca ter aceitado". Resposta:
+`{ "message": "Decisão excluída com sucesso" }`.
+
 ### `POST /accepted-christs`
 
 Registra que uma criança aceitou ou se reconciliou com Jesus.
@@ -803,12 +811,18 @@ Registra que uma criança aceitou ou se reconciliou com Jesus.
   clubinhos que coordena. Criança fora do alcance responde `404`
   `CHILD_NOT_FOUND` com a mesma mensagem de "não existe": a resposta não conta
   em qual clubinho ela está.
+- **Regras de decisão** (2026-11-11), recusadas com `409`:
+  - aceitar é uma vez só: criança que já tem `ACCEPTED` ou `RECONCILED` não
+    recebe outro `ACCEPTED` (`CHILD_7005`);
+  - reconciliar exige ter aceitado; pode se repetir (`CHILD_7005`);
+  - criança desativada não recebe decisão (`CHILD_7003`);
+  - registro antigo sem tipo (`decision = null`) não conta como aceitação.
 - **Corpo** (`CreateAcceptedChristDto`):
 
   ```jsonc
   {
     "childId": "uuid-da-crianca",   // obrigatório
-    "decision": "ACCEPTED",         // 'ACCEPTED' | 'RECONCILED'; opcional
+    "decision": "ACCEPTED",         // 'ACCEPTED' | 'RECONCILED'; obrigatório
     "notes": "texto até 500 chars"  // opcional; vazio equivale a ausente
   }
   ```
@@ -834,3 +848,15 @@ Registra que uma criança aceitou ou se reconciliou com Jesus.
 > imprimia o corpo da requisição no log da aplicação. `src/app.module.spec.ts`
 > agora falha se um controller nascer sem `@UseGuards` fora da lista de
 > públicos deliberados.
+
+## Crianças — ajustes de 2026-11-11
+
+- **Busca por telefone**: `searchString` compara o telefone só pelos dígitos
+  (`phoneSearchDigits`). Antes `(92) 99999` não encontrava ninguém, porque o
+  telefone é gravado sem máscara. Sem dígito algum, a busca é só por nome.
+- **Cadastro sem clubinho**: só o administrador cria criança sem `clubId`;
+  professor e coordenador recebem `403 CHILD_7002`. Uma criança sem clubinho
+  aparece para todos os papéis.
+- **Recorte por papel**: contexto sem papel ou sem usuário não devolve criança
+  alguma (antes devolvia todas).
+- **Criança desativada**: não recebe pagela nem decisão (`409 CHILD_7003`).

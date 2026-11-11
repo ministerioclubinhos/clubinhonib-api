@@ -3,8 +3,11 @@ import { UserRole } from 'src/core/auth/auth.types';
 
 import {
   assertCanChangeChildClub,
+  assertCanCreateChildWithoutClub,
   assertCanDeleteChild,
   assertCanUnlinkChildClub,
+  deactivationStamp,
+  phoneSearchDigits,
   toDateOnly,
   toIsoDateTime,
 } from './utils';
@@ -139,5 +142,67 @@ describe('assertCanUnlinkChildClub', () => {
         'escolha o novo clubinho',
       );
     }
+  });
+});
+
+describe('busca por telefone', () => {
+  it('compara só os dígitos, com ou sem máscara', () => {
+    expect(phoneSearchDigits('(92) 99999-0000')).toBe('92999990000');
+    expect(phoneSearchDigits('9999')).toBe('9999');
+  });
+
+  it('sem dígito não há busca por telefone', () => {
+    expect(phoneSearchDigits('Ana Clara')).toBeNull();
+  });
+});
+
+describe('cadastro sem clubinho', () => {
+  it('só o administrador cadastra criança sem clubinho', () => {
+    expect(() =>
+      assertCanCreateChildWithoutClub({ role: UserRole.ADMIN, userId: 'a' }),
+    ).not.toThrow();
+    expect(() =>
+      assertCanCreateChildWithoutClub({ role: UserRole.TEACHER, userId: 't' }),
+    ).toThrow(AppForbiddenException);
+    expect(() =>
+      assertCanCreateChildWithoutClub({
+        role: UserRole.COORDINATOR,
+        userId: 'c',
+      }),
+    ).toThrow(AppForbiddenException);
+  });
+});
+
+describe('carimbo de desativação', () => {
+  const today = '2026-11-11';
+
+  it('desativar carimba hoje e reativar limpa', () => {
+    expect(
+      deactivationStamp({
+        wasActive: true,
+        isActive: false,
+        current: null,
+        today,
+      }),
+    ).toBe(today);
+    expect(
+      deactivationStamp({
+        wasActive: false,
+        isActive: true,
+        current: '2026-08-01',
+        today,
+      }),
+    ).toBeNull();
+  });
+
+  it('reenviar "desativada" não empurra a data', () => {
+    expect(
+      deactivationStamp({
+        wasActive: false,
+        isActive: false,
+        current: '2026-08-01',
+        today,
+      }),
+    ).toBe('2026-08-01');
   });
 });

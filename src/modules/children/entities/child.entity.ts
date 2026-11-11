@@ -35,6 +35,16 @@ export class ChildEntity extends BaseEntity {
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
 
+  /**
+   * Dia em que a criança foi desativada, em `YYYY-MM-DD`; `null` enquanto ativa.
+   *
+   * Existe para o histórico: quem saiu em novembro continua contando nas
+   * estatísticas de março a outubro. Só com `isActive` não dá para saber até
+   * quando a criança frequentou.
+   */
+  @Column({ type: 'date', nullable: true })
+  deactivatedAt?: string | null;
+
   @ManyToOne(() => ClubEntity, (club) => club.children, {
     nullable: true,
     onDelete: 'SET NULL',

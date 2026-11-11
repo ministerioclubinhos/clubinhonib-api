@@ -8,7 +8,6 @@ import { AcceptedChristsStatisticsRepository } from './repositories/accepted-chr
 import { StatisticsPeriodService } from './services/statistics-period.service';
 import { AcademicWeekService } from '../club-control/services/academic-week.service';
 import { PagelasStatsQueryDto } from './dto/pagelas-stats-query.dto';
-import { OVERVIEW_CACHE_TTL_MS } from './constants';
 import { AcceptedChristsStatsQueryDto } from './dto/accepted-christs-stats-query.dto';
 import { PagelasStatsResponseDto } from './dto/pagelas-stats-response.dto';
 import { AcceptedChristsStatsResponseDto } from './dto/accepted-christs-stats-response.dto';
@@ -22,7 +21,6 @@ import {
 import {
   TeacherDecisionStatsRaw,
   TeacherStatsRaw,
-  AcceptedChristsByClubRaw,
   PagelasByClubRaw,
 } from './dto/statistics-raw-results.dto';
 import { ChildrenStatsQueryDto } from './dto/children-stats-query.dto';
@@ -38,16 +36,21 @@ import {
   monthsParticipating as countMonthsParticipating,
   participationTimeRange as toParticipationTimeRange,
   average,
-  averageOf,
-  clubPerformanceScore as calcClubPerformanceScore,
+  averageOfMeasured,
   consecutiveAcademicWeeks,
   engagementScore as calcEngagementScore,
   growthRate,
   percentage,
+  presenceRateOrPerPagela,
   roundToOneDecimal,
   toCount,
 } from './utils/metrics.utils';
 import { toDateOnly } from './utils/date.utils';
+import { addDaysToDateOnly } from './utils/enrollment.utils';
+import { parseDateOnly } from 'src/shared/academic-week/academic-week.util';
+import { todayInAppTimezone } from 'src/shared/calendar-day/calendar-day.util';
+import { ACTIVITY_WINDOW_DAYS, OVERVIEW_CACHE_TTL_MS } from './constants';
+import { CurrentAcademicWeek } from './types';
 import { toAddressSummary } from './utils/address.utils';
 import {
   ClubAttendanceAnalysisDto,
@@ -173,6 +176,24 @@ export class StatisticsService {
   }
 
   /**
+   * A semana letiva corrente, ou `null` fora do período letivo.
+   *
+   * É a única fonte de "esta semana" das estatísticas: a mesma semana que a
+   * pagela grava em `year`/`week`. A semana do calendário civil não serve —
+   * o período letivo começa em março, e a semana 45 do ano é a 37 letiva.
+   */
+  private async getCurrentAcademicWeek(): Promise<CurrentAcademicWeek | null> {
+    const current =
+      await this.academicWeekService.calculateCurrentAcademicWeek();
+
+    return current?.isWithinPeriod &&
+      current.academicYear &&
+      current.academicWeek
+      ? { year: current.academicYear, week: current.academicWeek }
+      : null;
+  }
+
+  /**
    * O panorama, guardado por um minuto.
    *
    * A resposta não depende de quem pergunta nem de filtro nenhum — a rota é
@@ -190,20 +211,16 @@ export class StatisticsService {
       return cached.value;
     }
 
-    const now = new Date();
+    // "Hoje" é o dia no fuso do Clubinho, lido ao meio-dia: o relógio do
+    // processo (UTC no contêiner) já está no dia seguinte a partir das 21h.
+    const now = parseDateOnly(todayInAppTimezone());
     const currentYear = now.getFullYear();
 
-    const currentAcademicWeek =
-      await this.academicWeekService.calculateCurrentAcademicWeek();
-    const currentWeekFilters: PagelasStatsQueryDto =
-      currentAcademicWeek?.isWithinPeriod &&
-      currentAcademicWeek.academicYear &&
-      currentAcademicWeek.academicWeek
-        ? {
-            year: currentAcademicWeek.academicYear,
-            week: currentAcademicWeek.academicWeek,
-          }
-        : { startDate: '1970-01-01', endDate: '1970-01-01' };
+    const currentWeek = await this.getCurrentAcademicWeek();
+    const currentWeekFilters: PagelasStatsQueryDto = currentWeek ?? {
+      startDate: '1970-01-01',
+      endDate: '1970-01-01',
+    };
 
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfMonthStr = toDateOnly(startOfMonth);
@@ -229,6 +246,9 @@ export class StatisticsService {
     const sixMonthsGrowthStart = new Date(now);
     sixMonthsGrowthStart.setMonth(now.getMonth() - 6);
     const sixMonthsGrowthStartStr = toDateOnly(sixMonthsGrowthStart);
+    // As janelas de decisão são fechadas nas duas pontas: a anterior termina
+    // na véspera do início da atual, para nenhum dia contar duas vezes.
+    const previousGrowthEndStr = addDaysToDateOnly(threeMonthsAgoStr, -1);
 
     const sevenDaysAgo = new Date(now);
     sevenDaysAgo.setDate(now.getDate() - 6);
@@ -256,15 +276,19 @@ export class StatisticsService {
       acceptedChristsThisYear,
       acceptedChristsLastSixMonths,
       acceptedChristsLast3Months,
+      acceptedChristsPrevious3Months,
       topEngagedChildren,
       topPerformingClubs,
-      clubsPerformanceMetrics,
+      clubsWithLowAttendance,
+      currentWeekAttendance,
       childrenEngagementMetrics,
       genderDistribution,
       geographicDistribution,
+      childrenNow,
+      childrenThreeMonthsAgo,
     ] = await Promise.all([
       this.overviewRepository.getTotalCounts(),
-      this.overviewRepository.getActiveCountsThisMonth(),
+      this.overviewRepository.getActiveCounts(startOfMonthStr, todayStr),
       this.pagelasRepository.getPagelasOverallStats(currentWeekFilters),
       this.pagelasRepository.getPagelasOverallStats({
         startDate: thirtyDaysAgoStr,
@@ -303,6 +327,13 @@ export class StatisticsService {
         startDate: threeMonthsAgoStr,
         endDate: todayStr,
       }),
+      // A janela anterior passa pela mesma consulta da atual. Antes cada
+      // ponta tinha a sua, com filtros diferentes, e a diferença de critério
+      // saía na tela como crescimento.
+      this.acceptedChristsRepository.getAcceptedChristsOverallStats({
+        startDate: sixMonthsGrowthStartStr,
+        endDate: previousGrowthEndStr,
+      }),
       this.childrenRepository.getTopEngagedChildren(
         { startDate: startOfMonthStr, endDate: todayStr },
         5,
@@ -311,27 +342,35 @@ export class StatisticsService {
         startDate: startOfMonthStr,
         endDate: todayStr,
       }),
-      this.overviewRepository.getClubsPerformanceMetrics(),
-      this.overviewRepository.getChildrenEngagementMetrics(),
+      this.overviewRepository.countClubsWithLowAttendance(
+        startOfMonthStr,
+        todayStr,
+      ),
+      // Clubinhos sem pagela na semana letiva corrente saem da mesma análise
+      // da tela de frequência semanal: ela já sabe quem está de férias, quem
+      // ainda não teve o encontro e quem não tem criança esperada. Fora do
+      // período letivo não há semana, e portanto ninguém em falta.
+      currentWeek
+        ? this.attendanceRepository.analyzeWeeklyAttendance(
+            currentWeek.year,
+            currentWeek.week,
+          )
+        : Promise.resolve(null),
+      this.overviewRepository.getChildrenEngagementMetrics(
+        startOfMonthStr,
+        todayStr,
+      ),
       this.overviewRepository.getChildrenGenderDistribution(),
       this.overviewRepository.getGeographicDistribution(),
+      // As duas pontas do crescimento de crianças, pela mesma regra.
+      this.overviewRepository.getChildrenCountAt(todayStr),
+      this.overviewRepository.getChildrenCountAt(threeMonthsAgoStr),
     ]);
 
-    const threeMonthsAgoChildCount =
-      await this.overviewRepository.getChildrenCountAt(threeMonthsAgoStr);
-    const childrenGrowthRate = growthRate(
-      totalCounts.totalChildren,
-      threeMonthsAgoChildCount,
-    );
-
-    const threeMonthsAgoAcceptedChrists =
-      await this.overviewRepository.getAcceptedChristsCountBetween(
-        sixMonthsGrowthStartStr,
-        threeMonthsAgoStr,
-      );
+    const childrenGrowthRate = growthRate(childrenNow, childrenThreeMonthsAgo);
     const decisionsGrowthRate = growthRate(
       acceptedChristsLast3Months.totalDecisions,
-      threeMonthsAgoAcceptedChrists,
+      acceptedChristsPrevious3Months.totalDecisions,
     );
 
     const overview: OverviewStatsResponseDto = {
@@ -398,10 +437,11 @@ export class StatisticsService {
       },
 
       indicators: {
-        clubsWithLowAttendance: clubsPerformanceMetrics.clubsWithLowAttendance,
+        clubsWithLowAttendance,
         childrenWithLowEngagement:
           childrenEngagementMetrics.childrenWithLowEngagement,
-        clubsMissingPagelas: clubsPerformanceMetrics.clubsMissingPagelas,
+        clubsMissingPagelas: currentWeekAttendance?.summary.clubsMissing ?? 0,
+        currentAcademicWeek: currentWeek,
         growthRate: {
           children: roundToOneDecimal(childrenGrowthRate),
           decisions: roundToOneDecimal(decisionsGrowthRate),
@@ -478,15 +518,24 @@ export class StatisticsService {
     const page = childrenData.page;
     const limit = childrenData.limit;
 
+    const expectedByChild = childrenData.expectedByChild;
+    const currentWeek = await this.getCurrentAcademicWeek();
+
     let sumAge = 0;
     let sumEngagement = 0;
     let sumPresenceRate = 0;
+    // Só entra na média quem tem o que medir: engajamento exige pagela, e
+    // presença exige ter sido esperada. Criança sem nada no recorte não tem
+    // 0% — não tem taxa —, e somá-la puxava a média de todas para baixo.
+    let childrenWithEngagement = 0;
+    let childrenWithPresenceRate = 0;
     let childrenWithDecisions = 0;
     let activeChildren = 0;
 
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+    const activeSince = addDaysToDateOnly(
+      todayInAppTimezone(),
+      -ACTIVITY_WINDOW_DAYS,
+    );
 
     const allChildrenWithStats = children.map((child, index) => {
       const age = ageInYears(child.birthDate);
@@ -500,7 +549,16 @@ export class StatisticsService {
       const meditationCount = toCount(stats?.meditationCount);
       const verseCount = toCount(stats?.verseCount);
 
-      const presenceRate = percentage(presenceCount, totalPagelas);
+      // Presentes ÷ esperados. No recorte por professor não existe
+      // "esperado", e a taxa volta a ser sobre as pagelas lançadas.
+      const expectedPresences = expectedByChild
+        ? (expectedByChild.get(child.id) ?? 0)
+        : null;
+      const presenceRate = presenceRateOrPerPagela(
+        presenceCount,
+        totalPagelas,
+        expectedPresences,
+      );
       const meditationRate = percentage(meditationCount, totalPagelas);
       const verseRecitationRate = percentage(verseCount, totalPagelas);
 
@@ -516,15 +574,26 @@ export class StatisticsService {
       const totalDecisions = toCount(decision?.totalDecisions);
 
       const lastActivity = stats?.lastActivity || null;
-      const isActive = lastActivity
-        ? new Date(lastActivity) >= new Date(thirtyDaysAgoStr)
-        : false;
+      // Ativa é quem teve **presença** nos últimos dias, pela data da pagela.
+      const lastPresence = stats?.lastPresence || null;
+      const isActive = !!lastPresence && lastPresence >= activeSince;
 
-      const consecutiveWeeks = consecutiveAcademicWeeks(stats?.weekKeys);
+      const consecutiveWeeks = consecutiveAcademicWeeks(
+        stats?.weekKeys,
+        currentWeek,
+      );
 
       sumAge += age;
-      sumEngagement += engagementScore;
-      sumPresenceRate += presenceRate;
+      if (totalPagelas > 0) {
+        sumEngagement += engagementScore;
+        childrenWithEngagement++;
+      }
+      if (
+        expectedPresences === null ? totalPagelas > 0 : expectedPresences > 0
+      ) {
+        sumPresenceRate += presenceRate;
+        childrenWithPresenceRate++;
+      }
       if (hasDecision) childrenWithDecisions++;
       if (isActive) activeChildren++;
 
@@ -665,10 +734,10 @@ export class StatisticsService {
         filteredChildren: filteredCount,
         avgAge: filteredCount > 0 ? Math.round(sumAge / filteredCount) : 0,
         avgEngagementScore: roundToOneDecimal(
-          average(sumEngagement, filteredCount),
+          average(sumEngagement, childrenWithEngagement),
         ),
         avgPresenceRate: roundToOneDecimal(
-          average(sumPresenceRate, filteredCount),
+          average(sumPresenceRate, childrenWithPresenceRate),
         ),
         childrenWithDecisions,
         activeChildren,
@@ -711,7 +780,7 @@ export class StatisticsService {
     const clubs = clubsData.allFilteredClubs;
     const childrenResults = clubsData.allChildrenResults;
     const pagelasResults = clubsData.allPagelasResults;
-    const decisionsResults = clubsData.allDecisionsResults;
+    const { decisionsByClub, performanceByClub } = clubsData;
     const teachers = clubsData.allTeachers;
     const totalCount = clubsData.totalCount;
     const page = clubsData.page;
@@ -745,9 +814,6 @@ export class StatisticsService {
     const pagelasByClub = new Map<string, PagelasByClubRaw>(
       pagelasResults.map((p) => [p.clubId, p]),
     );
-    const decisionsByClub = new Map<string, AcceptedChristsByClubRaw>(
-      decisionsResults.map((d) => [d.clubId, d]),
-    );
     const teachersByClub = new Map<string, TeacherProfileEntity[]>();
 
     teachers.forEach((t) => {
@@ -771,27 +837,18 @@ export class StatisticsService {
       const clubTeachers = teachersByClub.get(club.id) || [];
 
       const totalPagelas = toCount(pagelas?.totalPagelas);
-      const presenceCount = toCount(pagelas?.presenceCount);
-      const meditationCount = toCount(pagelas?.meditationCount);
       const verseCount = toCount(pagelas?.verseCount);
-
-      const presenceRate = percentage(presenceCount, totalPagelas);
-      const meditationRate = percentage(meditationCount, totalPagelas);
       const verseRate = percentage(verseCount, totalPagelas);
 
+      // Crianças com presença no recorte.
       const activeChildren = toCount(pagelas?.activeChildren);
-      const activityRate = percentage(activeChildren, children.total);
-      const decisionRate = percentage(
-        toCount(decisions?.childrenWithDecisions),
-        activeChildren,
-      );
 
-      const performanceScore = calcClubPerformanceScore({
-        presenceRate,
-        meditationRate,
-        activityRate,
-        decisionRate,
-      });
+      // As taxas e o índice vêm prontos do repositório, que já os usou para
+      // filtrar e ordenar: o número da tela é o mesmo que ordenou a lista.
+      const performance = performanceByClub.get(club.id);
+      const presenceRate = performance?.presenceRate ?? 0;
+      const meditationRate = performance?.meditationRate ?? 0;
+      const performanceScore = performance?.performanceScore ?? 0;
 
       return {
         clubId: club.id,
@@ -815,7 +872,7 @@ export class StatisticsService {
             F: children.F,
           },
           avgAge: roundToOneDecimal(average(children.ageTotal, children.total)),
-          withDecisions: toCount(decisions?.childrenWithDecisions),
+          withDecisions: decisions?.childrenWithDecisions ?? 0,
         },
         teachers: {
           total: clubTeachers.length,
@@ -831,8 +888,9 @@ export class StatisticsService {
           meditationRate: roundToOneDecimal(meditationRate),
           verseRecitationRate: roundToOneDecimal(verseRate),
           performanceScore: roundToOneDecimal(performanceScore),
-          totalDecisions: toCount(decisions?.totalDecisions),
+          totalDecisions: decisions?.totalDecisions ?? 0,
         },
+        measured: performance?.measured ?? false,
         lastActivity: pagelas?.lastActivity
           ? {
               date: new Date(pagelas.lastActivity).toISOString(),
@@ -844,10 +902,13 @@ export class StatisticsService {
     });
 
     const pageStart = (page - 1) * limit;
-    const clubsWithStats = allClubsWithStats.slice(
-      pageStart,
-      pageStart + limit,
-    );
+    const clubsWithStats = allClubsWithStats
+      .slice(pageStart, pageStart + limit)
+      // `measured` é interno: serve só para as médias do resumo.
+      .map(({ measured, ...club }) => {
+        void measured;
+        return club;
+      });
 
     const byCity = new Map<string, { state: string; count: number }>();
     const byWeekday = new Map<string, number>();
@@ -906,12 +967,16 @@ export class StatisticsService {
         (sum, c) => sum + c.teachers.total,
         0,
       ),
-      avgPerformanceScore: averageOf(
+      // Clubinho sem criança esperada e sem pagela no recorte não tem taxa:
+      // contá-lo como 0% derrubava a média de todos.
+      avgPerformanceScore: averageOfMeasured(
         allClubsWithStats,
+        (c) => c.measured,
         (c) => c.performance.performanceScore,
       ),
-      avgPresenceRate: averageOf(
+      avgPresenceRate: averageOfMeasured(
         allClubsWithStats,
+        (c) => c.measured,
         (c) => c.performance.presenceRate,
       ),
       totalDecisions: allClubsWithStats.reduce(
@@ -987,9 +1052,10 @@ export class StatisticsService {
       decisionsResults.map((d) => [d.teacherId, d]),
     );
 
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+    const activeSince = addDaysToDateOnly(
+      todayInAppTimezone(),
+      -ACTIVITY_WINDOW_DAYS,
+    );
 
     const allTeachersWithStats = teachers.map((teacher, index) => {
       const pagelas = pagelasByTeacher.get(teacher.id);
@@ -1016,9 +1082,8 @@ export class StatisticsService {
         decisionRate * 0.2;
 
       const lastActivity = pagelas?.lastActivity;
-      const isActive = lastActivity
-        ? new Date(lastActivity) >= new Date(thirtyDaysAgoStr)
-        : false;
+      const lastActivityDay = pagelas?.lastActivityDay;
+      const isActive = !!lastActivityDay && lastActivityDay >= activeSince;
 
       return {
         teacherId: teacher.id,
@@ -1123,28 +1188,18 @@ export class StatisticsService {
         (sum, t) => sum + t.children.total,
         0,
       ),
-      avgEffectivenessScore:
-        totalFiltered > 0
-          ? Math.round(
-              (allTeachersWithStats.reduce(
-                (sum, t) => sum + t.performance.effectivenessScore,
-                0,
-              ) /
-                totalFiltered) *
-                10,
-            ) / 10
-          : 0,
-      avgPresenceRate:
-        totalFiltered > 0
-          ? Math.round(
-              (allTeachersWithStats.reduce(
-                (sum, t) => sum + t.performance.avgPresenceRate,
-                0,
-              ) /
-                totalFiltered) *
-                10,
-            ) / 10
-          : 0,
+      // Professor que não lançou pagela no recorte não tem taxa a entrar na
+      // média; antes ele contava como 0% e derrubava a de todos.
+      avgEffectivenessScore: averageOfMeasured(
+        allTeachersWithStats,
+        (t) => t.performance.totalPagelas > 0,
+        (t) => t.performance.effectivenessScore,
+      ),
+      avgPresenceRate: averageOfMeasured(
+        allTeachersWithStats,
+        (t) => t.performance.totalPagelas > 0,
+        (t) => t.performance.avgPresenceRate,
+      ),
     };
 
     return {

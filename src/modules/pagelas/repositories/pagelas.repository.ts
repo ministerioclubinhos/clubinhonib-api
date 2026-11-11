@@ -230,6 +230,14 @@ export class PagelasRepository {
     return (await qb.getCount()) > 0;
   }
 
+  /** A criança está ativa? Criança que não existe conta como inativa. */
+  async childIsActive(childId: string): Promise<boolean> {
+    return (
+      (await this.childRepo.count({ where: { id: childId, isActive: true } })) >
+      0
+    );
+  }
+
   async createOne(data: PagelaCreateData): Promise<PagelaEntity> {
     return this.dataSource.transaction(async (manager) => {
       const txPagela = manager.withRepository(this.pagelaRepo);

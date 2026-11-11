@@ -8,6 +8,7 @@ import { ClubsTeachersStatisticsRepository } from './repositories/clubs-teachers
 import { PagelasStatisticsRepository } from './repositories/pagelas-statistics.repository';
 import { OverviewStatisticsRepository } from './repositories/overview-statistics.repository';
 import { AcceptedChristsStatisticsRepository } from './repositories/accepted-christs-statistics.repository';
+import { ExpectedChildrenRepository } from './repositories/expected-children.repository';
 import { StatisticsFiltersService } from './services/statistics-filters.service';
 import { StatisticsPeriodService } from './services/statistics-period.service';
 import { ClubControlModule } from '../club-control/club-control.module';
@@ -44,6 +45,7 @@ import { ClubExceptionEntity } from '../club-control/entities/club-exception.ent
     PagelasStatisticsRepository,
     OverviewStatisticsRepository,
     AcceptedChristsStatisticsRepository,
+    ExpectedChildrenRepository,
     StatisticsFiltersService,
     StatisticsPeriodService,
   ],

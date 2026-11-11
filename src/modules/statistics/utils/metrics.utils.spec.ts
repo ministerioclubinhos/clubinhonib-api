@@ -5,6 +5,8 @@ import {
   ageInYears,
   average,
   averageOf,
+  averageOfMeasured,
+  clubPerformance,
   clubPerformanceScore,
   consecutiveAcademicWeeks,
   engagementScore,
@@ -12,6 +14,8 @@ import {
   monthsParticipating,
   participationTimeRange,
   percentage,
+  presenceRate,
+  presenceRateOrPerPagela,
   roundToOneDecimal,
   toCount,
 } from './metrics.utils';
@@ -208,6 +212,173 @@ describe('consecutiveAcademicWeeks', () => {
 
   it('ignora chave malformada em vez de contar NaN', () => {
     expect(consecutiveAcademicWeeks('lixo,mais-lixo')).toBe(0);
+  });
+});
+
+describe('consecutiveAcademicWeeks ancorada na semana corrente', () => {
+  const semana12 = { year: 2026, week: 12 };
+
+  it('sequência que chega até a semana corrente conta inteira', () => {
+    expect(
+      consecutiveAcademicWeeks('2026-012,2026-011,2026-010', semana12),
+    ).toBe(3);
+  });
+
+  it('a semana corrente pode ainda não ter acontecido: vale a anterior', () => {
+    // Clubinho de sábado, consulta na terça: a última pagela é da semana 11.
+    expect(consecutiveAcademicWeeks('2026-011,2026-010', semana12)).toBe(2);
+  });
+
+  it('sequência antiga não é sequência em curso', () => {
+    // Veio cinco semanas seguidas em março e sumiu: em novembro é zero, e não
+    // "5 semanas seguidas".
+    expect(
+      consecutiveAcademicWeeks('2026-005,2026-004,2026-003', {
+        year: 2026,
+        week: 37,
+      }),
+    ).toBe(0);
+  });
+
+  it('pagela lançada adiantado não entra na sequência', () => {
+    expect(
+      consecutiveAcademicWeeks('2026-014,2026-012,2026-011', semana12),
+    ).toBe(2);
+  });
+
+  it('fora do período letivo não há sequência em curso', () => {
+    expect(consecutiveAcademicWeeks('2026-012,2026-011', null)).toBe(0);
+  });
+
+  it('sequência de outro ano letivo não vale para o corrente', () => {
+    expect(
+      consecutiveAcademicWeeks('2025-042,2025-041', { year: 2026, week: 1 }),
+    ).toBe(0);
+  });
+});
+
+describe('presenceRate', () => {
+  it('divide os presentes pelos esperados, não pelas pagelas', () => {
+    // 6 presentes de 10 esperados: 60%, ainda que só 6 pagelas tenham sido
+    // lançadas (o que daria 100% na conta antiga).
+    expect(presenceRate(6, 10)).toBe(60);
+  });
+
+  it('sem ninguém esperado a taxa é 0', () => {
+    expect(presenceRate(0, 0)).toBe(0);
+    expect(presenceRate(3, 0)).toBe(0);
+  });
+
+  it('nunca passa de 100', () => {
+    // Pagela lançada num feriado: presença sem esperado correspondente.
+    expect(presenceRate(11, 10)).toBe(100);
+  });
+
+  it('sem conta de esperados cai na taxa por pagela', () => {
+    expect(presenceRateOrPerPagela(6, 8, null)).toBe(75);
+    expect(presenceRateOrPerPagela(6, 8, 10)).toBe(60);
+    expect(presenceRateOrPerPagela(0, 0, null)).toBe(0);
+  });
+});
+
+describe('averageOfMeasured', () => {
+  it('deixa de fora quem não tem o que medir', () => {
+    const clubes = [
+      { taxa: 80, medido: true },
+      { taxa: 60, medido: true },
+      // Sem pagela e sem criança esperada: não é 0%, é sem taxa.
+      { taxa: 0, medido: false },
+    ];
+
+    expect(
+      averageOfMeasured(
+        clubes,
+        (c) => c.medido,
+        (c) => c.taxa,
+      ),
+    ).toBe(70);
+  });
+
+  it('ninguém medido vale 0', () => {
+    expect(
+      averageOfMeasured(
+        [{ taxa: 0, medido: false }],
+        (c) => c.medido,
+        (c) => c.taxa,
+      ),
+    ).toBe(0);
+  });
+});
+
+describe('clubPerformance', () => {
+  it('fixture exata', () => {
+    // presença 40/50 = 80; meditação 24/40 = 60; atividade 5/10 = 50;
+    // decisão 1/5 = 20 → 80*0,3 + 60*0,3 + 50*0,2 + 20*0,2 = 56
+    const desempenho = clubPerformance({
+      presenceCount: 40,
+      expectedPresences: 50,
+      meditationCount: 24,
+      totalPagelas: 40,
+      activeChildren: 5,
+      expectedChildren: 10,
+      childrenWithDecisions: 1,
+    });
+
+    expect(desempenho.presenceRate).toBe(80);
+    expect(desempenho.meditationRate).toBe(60);
+    expect(desempenho.activityRate).toBe(50);
+    expect(desempenho.decisionRate).toBe(20);
+    expect(desempenho.performanceScore).toBeCloseTo(56, 10);
+    expect(desempenho.measured).toBe(true);
+  });
+
+  it('nenhuma taxa passa de 100, e o índice também não', () => {
+    // Era o caso real: decisões da vida inteira contra as crianças ativas do
+    // mês davam "300%" de decisão e índice acima de 100.
+    const desempenho = clubPerformance({
+      presenceCount: 12,
+      expectedPresences: 10,
+      meditationCount: 10,
+      totalPagelas: 10,
+      activeChildren: 4,
+      expectedChildren: 2,
+      childrenWithDecisions: 12,
+    });
+
+    expect(desempenho.presenceRate).toBe(100);
+    expect(desempenho.activityRate).toBe(100);
+    expect(desempenho.decisionRate).toBe(100);
+    expect(desempenho.performanceScore).toBe(100);
+  });
+
+  it('clubinho esperado que não lançou pagela tem 0% e entra nas médias', () => {
+    const desempenho = clubPerformance({
+      presenceCount: 0,
+      expectedPresences: 30,
+      meditationCount: 0,
+      totalPagelas: 0,
+      activeChildren: 0,
+      expectedChildren: 10,
+      childrenWithDecisions: 0,
+    });
+
+    expect(desempenho.presenceRate).toBe(0);
+    expect(desempenho.measured).toBe(true);
+  });
+
+  it('sem esperado e sem pagela não há o que medir', () => {
+    const desempenho = clubPerformance({
+      presenceCount: 0,
+      expectedPresences: 0,
+      meditationCount: 0,
+      totalPagelas: 0,
+      activeChildren: 0,
+      expectedChildren: 0,
+      childrenWithDecisions: 0,
+    });
+
+    expect(desempenho.performanceScore).toBe(0);
+    expect(desempenho.measured).toBe(false);
   });
 });
 

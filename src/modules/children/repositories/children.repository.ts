@@ -34,6 +34,8 @@ export interface SortedPaginatedRows<T> extends PaginatedRows<T> {
   order: SortOrder;
 }
 
+import { phoneSearchDigits } from '../utils';
+
 @Injectable()
 export class ChildrenRepository {
   constructor(
@@ -55,7 +57,13 @@ export class ChildrenRepository {
   ): void {
     const role = ctx?.role;
     const userId = ctx?.userId;
-    if (!role || role === UserRole.ADMIN || !userId) return;
+    if (!ctx || role === UserRole.ADMIN) return;
+    // Papel ou usuário ausentes não podem significar "sem recorte": antes a
+    // consulta devolvia todas as crianças nesse caso.
+    if (!role || !userId) {
+      qb.andWhere('1 = 0');
+      return;
+    }
 
     if (role === UserRole.COORDINATOR) {
       qb.leftJoin('club.coordinator', 'coord')
@@ -68,6 +76,32 @@ export class ChildrenRepository {
         .andWhere('(tuser.id = :uid OR c.club_id IS NULL)', { uid: userId })
         .distinct(true);
     }
+  }
+
+  /**
+   * Busca livre por nome, responsável ou telefone.
+   *
+   * O telefone é comparado só pelos dígitos: ele é gravado sem máscara, e quem
+   * digitava `(92) 99999` não encontrava ninguém.
+   */
+  private applySearch(
+    qb: SelectQueryBuilder<ChildEntity>,
+    searchString: string,
+  ): void {
+    const text = `%${searchString.trim().toLowerCase()}%`;
+    const digits = phoneSearchDigits(searchString);
+
+    if (digits) {
+      qb.andWhere(
+        '(LOWER(c.name) LIKE :s OR LOWER(c.guardianName) LIKE :s OR c.guardianPhone LIKE :phone)',
+        { s: text, phone: `%${digits}%` },
+      );
+      return;
+    }
+
+    qb.andWhere('(LOWER(c.name) LIKE :s OR LOWER(c.guardianName) LIKE :s)', {
+      s: text,
+    });
   }
 
   async findAllPaginated(
@@ -83,11 +117,7 @@ export class ChildrenRepository {
     const qb = this.baseQB();
 
     if (q.searchString) {
-      const s = `%${q.searchString.trim().toLowerCase()}%`;
-      qb.andWhere(
-        '(LOWER(c.name) LIKE :s OR LOWER(c.guardianName) LIKE :s OR c.guardianPhone LIKE :s)',
-        { s },
-      );
+      this.applySearch(qb, q.searchString);
     }
 
     if (q.clubNumber !== undefined) {
@@ -169,10 +199,9 @@ export class ChildrenRepository {
       ]);
 
     if (q.searchString) {
-      const s = `%${q.searchString.trim().toLowerCase()}%`;
-      qb.andWhere(
-        '(LOWER(c.name) LIKE :s OR LOWER(c.guardianName) LIKE :s OR c.guardianPhone LIKE :s)',
-        { s },
+      this.applySearch(
+        qb as unknown as SelectQueryBuilder<ChildEntity>,
+        q.searchString,
       );
     }
 

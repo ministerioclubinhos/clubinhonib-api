@@ -17,9 +17,15 @@ import {
   ParticipationTimeStats,
 } from '../dto/statistics-raw-results.dto';
 import {
+  ageGroup as toAgeGroup,
+  ageInYears,
   monthsParticipating as countMonthsParticipating,
   participationTimeRange as toParticipationTimeRange,
+  presenceRateOrPerPagela,
 } from '../utils/metrics.utils';
+import { ENROLLED_AT_PAGELA_DATE_SQL } from '../constants';
+import { ExpectedChildRow, ExpectedSummary, ExpectedWeek } from '../types';
+import { ExpectedChildrenRepository } from './expected-children.repository';
 
 /**
  * Consultas de pagelas.
@@ -41,6 +47,13 @@ const AGE_GROUP_SQL = `CASE
   ELSE '16+'
 END`;
 
+/** Cidade e estado numa chave só: há cidades homônimas em estados diferentes. */
+const cityKey = (city: string, state: string | null): string =>
+  `${city}|${state ?? ''}`;
+
+/** Chave única do agrupamento "tudo junto". */
+const OVERALL_KEY = 'all';
+
 /** Uma linha do agrupamento por faixa etária, como o driver a devolve. */
 interface AgeGroupRaw {
   ageGroup: string;
@@ -56,7 +69,44 @@ export class PagelasStatisticsRepository {
     @InjectRepository(PagelaEntity)
     private readonly pagelasRepository: Repository<PagelaEntity>,
     private readonly filtersService: StatisticsFiltersService,
+    private readonly expectedChildrenRepository: ExpectedChildrenRepository,
   ) {}
+
+  /** Presenças esperadas no recorte, por grupo — o denominador da presença. */
+  private expectedBy(
+    filters: PagelasStatsQueryDto,
+    keyOf: (child: ExpectedChildRow, week: ExpectedWeek) => string | null,
+  ): Promise<Map<string, ExpectedSummary> | null> {
+    return this.expectedChildrenRepository.summarizeForPagelas(filters, keyOf);
+  }
+
+  /**
+   * O denominador que a resposta expõe ao lado da taxa.
+   *
+   * Havendo conta de esperados, é ela — inclusive quando dá zero. Só no
+   * recorte por professor, em que a conta não existe, vale o total de pagelas.
+   */
+  private expectedPresencesOf(
+    totalPagelas: number,
+    expected: Map<string, ExpectedSummary> | null,
+    key: string,
+  ): number {
+    return expected ? (expected.get(key)?.slots ?? 0) : totalPagelas;
+  }
+
+  /** Presentes ÷ esperados; sem conta de esperados, presentes ÷ pagelas. */
+  private presenceRateOf(
+    present: number,
+    totalPagelas: number,
+    expected: Map<string, ExpectedSummary> | null,
+    key: string,
+  ): number {
+    return presenceRateOrPerPagela(
+      present,
+      totalPagelas,
+      expected ? (expected.get(key)?.slots ?? 0) : null,
+    );
+  }
 
   async getPagelasWeeklyStats(filters: PagelasStatsQueryDto) {
     const query = this.pagelasRepository
@@ -64,9 +114,10 @@ export class PagelasStatisticsRepository {
       .leftJoin('pagela.child', 'child')
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
+      .leftJoin('child.address', 'address')
       .leftJoin('pagela.teacher', 'teacher')
       .where('club.isActive = :clubActive', { clubActive: true })
-      .andWhere('child.isActive = :isActive', { isActive: true })
+      .andWhere(ENROLLED_AT_PAGELA_DATE_SQL)
       .select('pagela.year', 'year')
       .addSelect('pagela.week', 'week')
       .addSelect('COUNT(pagela.id)', 'totalPagelas')
@@ -91,9 +142,13 @@ export class PagelasStatisticsRepository {
 
     this.filtersService.applyPagelasFilters(query, filters);
 
-    const results = await query.getRawMany<PagelasWeeklyStatsRaw>();
+    const [results, expected] = await Promise.all([
+      query.getRawMany<PagelasWeeklyStatsRaw>(),
+      this.expectedBy(filters, (_child, week) => `${week.year}-${week.week}`),
+    ]);
 
     return results.map((row) => {
+      const weekKey = `${parseInt(row.year)}-${parseInt(row.week)}`;
       const totalPagelas = parseInt(row.totalPagelas);
       const presentCount = parseInt(row.presentCount);
       const didMeditationCount = parseInt(row.didMeditationCount);
@@ -108,8 +163,17 @@ export class PagelasStatisticsRepository {
         recitedVerseCount,
         uniqueChildren: parseInt(row.uniqueChildren),
         uniqueTeachers: parseInt(row.uniqueTeachers),
-        presenceRate:
-          totalPagelas > 0 ? (presentCount / totalPagelas) * 100 : 0,
+        expectedPresences: this.expectedPresencesOf(
+          totalPagelas,
+          expected,
+          weekKey,
+        ),
+        presenceRate: this.presenceRateOf(
+          presentCount,
+          totalPagelas,
+          expected,
+          weekKey,
+        ),
         meditationRate:
           totalPagelas > 0 ? (didMeditationCount / totalPagelas) * 100 : 0,
         verseRecitationRate:
@@ -124,9 +188,10 @@ export class PagelasStatisticsRepository {
       .leftJoin('pagela.child', 'child')
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
+      .leftJoin('child.address', 'address')
       .leftJoin('pagela.teacher', 'teacher')
       .where('club.isActive = :clubActive', { clubActive: true })
-      .andWhere('child.isActive = :isActive', { isActive: true })
+      .andWhere(ENROLLED_AT_PAGELA_DATE_SQL)
       .select('COUNT(pagela.id)', 'totalPagelas')
       .addSelect('COUNT(DISTINCT pagela.child.id)', 'totalChildren')
       .addSelect('COUNT(DISTINCT pagela.teacher.id)', 'totalTeachers')
@@ -145,7 +210,10 @@ export class PagelasStatisticsRepository {
 
     this.filtersService.applyPagelasFilters(query, filters);
 
-    const result = await query.getRawOne<PagelasOverallStatsRaw>();
+    const [result, expected] = await Promise.all([
+      query.getRawOne<PagelasOverallStatsRaw>(),
+      this.expectedBy(filters, () => OVERALL_KEY),
+    ]);
 
     const totalPagelas = parseInt(result?.totalPagelas || '0');
 
@@ -153,10 +221,17 @@ export class PagelasStatisticsRepository {
       totalPagelas,
       totalChildren: parseInt(result?.totalChildren || '0'),
       totalTeachers: parseInt(result?.totalTeachers || '0'),
-      averagePresenceRate:
-        totalPagelas > 0
-          ? (parseInt(result?.presentCount || '0') / totalPagelas) * 100
-          : 0,
+      expectedPresences: this.expectedPresencesOf(
+        totalPagelas,
+        expected,
+        OVERALL_KEY,
+      ),
+      averagePresenceRate: this.presenceRateOf(
+        parseInt(result?.presentCount || '0'),
+        totalPagelas,
+        expected,
+        OVERALL_KEY,
+      ),
       averageMeditationRate:
         totalPagelas > 0
           ? (parseInt(result?.didMeditationCount || '0') / totalPagelas) * 100
@@ -177,8 +252,9 @@ export class PagelasStatisticsRepository {
       .leftJoin('pagela.child', 'child')
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
+      .leftJoin('child.address', 'address')
       .where('club.isActive = :clubActive', { clubActive: true })
-      .andWhere('child.isActive = :isActive', { isActive: true })
+      .andWhere(ENROLLED_AT_PAGELA_DATE_SQL)
       .select('child.id', 'childId')
       .addSelect('child.name', 'childName')
       .addSelect(
@@ -220,7 +296,7 @@ export class PagelasStatisticsRepository {
       .leftJoin('club.coordinator', 'coordinator')
       .leftJoin('child.address', 'address')
       .where('club.isActive = :clubActive', { clubActive: true })
-      .andWhere('child.isActive = :isActive', { isActive: true })
+      .andWhere(ENROLLED_AT_PAGELA_DATE_SQL)
       .select('child.gender', 'gender')
       .addSelect('COUNT(pagela.id)', 'total')
       .addSelect(
@@ -239,15 +315,22 @@ export class PagelasStatisticsRepository {
 
     this.filtersService.applyPagelasFilters(query, filters);
 
-    const results = await query.getRawMany<PagelasDemographicsRaw>();
+    const [results, expected] = await Promise.all([
+      query.getRawMany<PagelasDemographicsRaw>(),
+      this.expectedBy(filters, (child) => child.gender),
+    ]);
 
     return results.map((row) => {
       const total = parseInt(row.total);
       return {
         gender: row.gender,
         total,
-        presenceRate:
-          total > 0 ? (parseInt(row.presentCount) / total) * 100 : 0,
+        presenceRate: this.presenceRateOf(
+          parseInt(row.presentCount),
+          total,
+          expected,
+          row.gender,
+        ),
         meditationRate:
           total > 0 ? (parseInt(row.meditationCount) / total) * 100 : 0,
         verseRecitationRate:
@@ -274,18 +357,23 @@ export class PagelasStatisticsRepository {
       .leftJoin('club.coordinator', 'coordinator')
       .leftJoin('child.address', 'address')
       .where('club.isActive = :clubActive', { clubActive: true })
-      .andWhere('child.isActive = :isActive', { isActive: true });
+      .andWhere(ENROLLED_AT_PAGELA_DATE_SQL);
 
     this.filtersService.applyPagelasFilters(query, filters);
 
-    const rows = await query
-      .select(AGE_GROUP_SQL, 'ageGroup')
-      .addSelect('COUNT(pagela.id)', 'total')
-      .addSelect('SUM(pagela.present)', 'presentCount')
-      .addSelect('SUM(pagela.didMeditation)', 'meditationCount')
-      .addSelect('SUM(pagela.recitedVerse)', 'verseCount')
-      .groupBy(AGE_GROUP_SQL)
-      .getRawMany<AgeGroupRaw>();
+    const [rows, expected] = await Promise.all([
+      query
+        .select(AGE_GROUP_SQL, 'ageGroup')
+        .addSelect('COUNT(pagela.id)', 'total')
+        .addSelect('SUM(pagela.present)', 'presentCount')
+        .addSelect('SUM(pagela.didMeditation)', 'meditationCount')
+        .addSelect('SUM(pagela.recitedVerse)', 'verseCount')
+        .groupBy(AGE_GROUP_SQL)
+        .getRawMany<AgeGroupRaw>(),
+      this.expectedBy(filters, (child) =>
+        toAgeGroup(ageInYears(child.birthDate)),
+      ),
+    ]);
 
     return rows.map((row) => {
       const total = Number(row.total);
@@ -296,7 +384,12 @@ export class PagelasStatisticsRepository {
       return {
         ageGroup: row.ageGroup,
         total,
-        presenceRate: rate(row.presentCount),
+        presenceRate: this.presenceRateOf(
+          Number(row.presentCount ?? 0),
+          total,
+          expected,
+          row.ageGroup,
+        ),
         meditationRate: rate(row.meditationCount),
         verseRecitationRate: rate(row.verseCount),
       };
@@ -312,7 +405,7 @@ export class PagelasStatisticsRepository {
       .leftJoin('child.address', 'address')
       .where('club.id IS NOT NULL')
       .andWhere('club.isActive = :clubActive', { clubActive: true })
-      .andWhere('child.isActive = :isActive', { isActive: true })
+      .andWhere(ENROLLED_AT_PAGELA_DATE_SQL)
       .select('club.id', 'clubId')
       .addSelect('club.number', 'clubNumber')
       .addSelect('COUNT(pagela.id)', 'total')
@@ -335,7 +428,10 @@ export class PagelasStatisticsRepository {
 
     this.filtersService.applyPagelasFilters(query, filters);
 
-    const results = await query.getRawMany<PagelasByClubRaw>();
+    const [results, expected] = await Promise.all([
+      query.getRawMany<PagelasByClubRaw>(),
+      this.expectedBy(filters, (child) => child.clubId),
+    ]);
 
     return results.map((row) => {
       const total = parseInt(row.total);
@@ -344,8 +440,12 @@ export class PagelasStatisticsRepository {
         clubNumber: parseInt(row.clubNumber),
         total,
         uniqueChildren: parseInt(row.uniqueChildren),
-        presenceRate:
-          total > 0 ? (parseInt(row.presentCount) / total) * 100 : 0,
+        presenceRate: this.presenceRateOf(
+          parseInt(row.presentCount),
+          total,
+          expected,
+          row.clubId,
+        ),
         meditationRate:
           total > 0 ? (parseInt(row.meditationCount) / total) * 100 : 0,
         verseRecitationRate:
@@ -365,7 +465,7 @@ export class PagelasStatisticsRepository {
       .leftJoin('child.address', 'address')
       .where('club.isActive = :clubActive', { clubActive: true })
       .andWhere('teacher.id IS NOT NULL')
-      .andWhere('child.isActive = :isActive', { isActive: true })
+      .andWhere(ENROLLED_AT_PAGELA_DATE_SQL)
       .select('teacher.id', 'teacherId')
       .addSelect('user.name', 'teacherName')
       .addSelect('COUNT(pagela.id)', 'total')
@@ -418,6 +518,7 @@ export class PagelasStatisticsRepository {
       .leftJoin('club.coordinator', 'coordinator')
       .leftJoin('child.address', 'address')
       .where('club.isActive = :clubActive', { clubActive: true })
+      .andWhere(ENROLLED_AT_PAGELA_DATE_SQL)
       .select(`${dateFormat.format}`, 'period')
       .addSelect('COUNT(pagela.id)', 'total')
       .addSelect(
@@ -457,7 +558,7 @@ export class PagelasStatisticsRepository {
       .leftJoin('child.address', 'address')
       .where('club.isActive = :clubActive', { clubActive: true })
       .andWhere('address.city IS NOT NULL')
-      .andWhere('child.isActive = :isActive', { isActive: true })
+      .andWhere(ENROLLED_AT_PAGELA_DATE_SQL)
       .select('address.city', 'city')
       .addSelect('address.state', 'state')
       .addSelect('COUNT(pagela.id)', 'total')
@@ -480,7 +581,12 @@ export class PagelasStatisticsRepository {
 
     this.filtersService.applyPagelasFilters(query, filters);
 
-    const results = await query.getRawMany<PagelasByCityRaw>();
+    const [results, expected] = await Promise.all([
+      query.getRawMany<PagelasByCityRaw>(),
+      this.expectedBy(filters, (child) =>
+        child.city ? cityKey(child.city, child.state) : null,
+      ),
+    ]);
 
     return results.map((row) => {
       const total = parseInt(row.total);
@@ -489,8 +595,12 @@ export class PagelasStatisticsRepository {
         state: row.state,
         total,
         uniqueChildren: parseInt(row.uniqueChildren),
-        presenceRate:
-          total > 0 ? (parseInt(row.presentCount) / total) * 100 : 0,
+        presenceRate: this.presenceRateOf(
+          parseInt(row.presentCount),
+          total,
+          expected,
+          cityKey(row.city, row.state),
+        ),
         meditationRate:
           total > 0 ? (parseInt(row.meditationCount) / total) * 100 : 0,
         verseRecitationRate:
@@ -507,11 +617,16 @@ export class PagelasStatisticsRepository {
       .leftJoin('club.coordinator', 'coordinator')
       .leftJoin('child.address', 'address')
       .where('club.isActive = :clubActive', { clubActive: true })
-      .andWhere('child.isActive = :isActive', { isActive: true });
+      .andWhere(ENROLLED_AT_PAGELA_DATE_SQL);
 
     this.filtersService.applyPagelasFilters(query, filters);
 
-    const pagelas = await query.getMany();
+    const [pagelas, expected] = await Promise.all([
+      query.getMany(),
+      this.expectedBy(filters, (child) =>
+        toParticipationTimeRange(countMonthsParticipating(child.joinedAt)),
+      ),
+    ]);
 
     const timeGroups = new Map<string, ParticipationTimeStats>();
 
@@ -564,8 +679,12 @@ export class PagelasStatisticsRepository {
           timeRange: group.timeRange,
           total: group.total,
           uniqueChildren: uniqueChildrenByRange.get(range)?.size || 0,
-          presenceRate:
-            group.total > 0 ? (group.presentCount / group.total) * 100 : 0,
+          presenceRate: this.presenceRateOf(
+            group.presentCount,
+            group.total,
+            expected,
+            range,
+          ),
           meditationRate:
             group.total > 0 ? (group.meditationCount / group.total) * 100 : 0,
           verseRecitationRate:

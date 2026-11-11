@@ -32,4 +32,27 @@ export class AcceptedChristRepository extends Repository<AcceptedChristEntity> {
 
     return this.save(entity);
   }
+
+  /** Tipos das decisões já registradas para a criança. */
+  async findDecisionsOfChild(
+    childId: string,
+  ): Promise<{ id: string; decision: DecisionType | null }[]> {
+    return this.find({
+      where: { child: { id: childId } },
+      select: { id: true, decision: true },
+    });
+  }
+
+  /** A decisão com o id da criança, para conferir o alcance de quem pede. */
+  async findByIdWithChild(id: string): Promise<AcceptedChristEntity | null> {
+    return this.findOne({
+      where: { id },
+      relations: { child: true },
+      select: { id: true, decision: true, child: { id: true } },
+    });
+  }
+
+  async deleteById(id: string): Promise<void> {
+    await this.delete(id);
+  }
 }

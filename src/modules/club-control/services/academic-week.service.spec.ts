@@ -146,6 +146,85 @@ describe('AcademicWeekService', () => {
     });
   });
 
+  describe('calculateCurrentAcademicWeek — período que contém hoje', () => {
+    const periodoPorAno = (periodos: ClubPeriodEntity[]) => (ano: number) =>
+      Promise.resolve(periodos.find((p) => p.year === ano) ?? null);
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('acha a semana letiva dentro do período do ano corrente', async () => {
+      // Quarta 11/11/2026, meio-dia em Brasília. O período começou em 02/03:
+      // 11/11 cai na semana 37.
+      jest.useFakeTimers().setSystemTime(new Date('2026-11-11T15:00:00Z'));
+      clubControlRepository.findPeriodByYear.mockImplementation(
+        periodoPorAno([periodo]),
+      );
+
+      await expect(service.calculateCurrentAcademicWeek()).resolves.toEqual({
+        academicYear: 2026,
+        academicWeek: 37,
+        isWithinPeriod: true,
+        periodStartDate: '2026-03-02',
+        periodEndDate: '2026-12-19',
+      });
+    });
+
+    it('período que atravessa a virada do ano continua valendo em janeiro', async () => {
+      // O período de 2026 vai até 30/01/2027. Em 15/01/2027 a busca só por
+      // `year = 2027` não achava nada e dizia "fora do período" em plena aula.
+      const atravessaOAno = Object.assign(new ClubPeriodEntity(), {
+        year: 2026,
+        startDate: '2026-03-02',
+        endDate: '2027-01-30',
+        isActive: true,
+      });
+      jest.useFakeTimers().setSystemTime(new Date('2027-01-15T15:00:00Z'));
+      clubControlRepository.findPeriodByYear.mockImplementation(
+        periodoPorAno([atravessaOAno]),
+      );
+
+      const atual = await service.calculateCurrentAcademicWeek();
+
+      expect(atual).toMatchObject({
+        academicYear: 2026,
+        isWithinPeriod: true,
+        periodEndDate: '2027-01-30',
+      });
+      expect(atual?.academicWeek).toBe(46);
+    });
+
+    it('o dia vem do fuso do Clubinho, não do relógio em UTC', async () => {
+      // 02:00 UTC do dia 20/12 ainda é 23:00 de 19/12 em Brasília — o último
+      // dia do período. Com `toISOString()` o serviço já via o dia 20 e
+      // declarava o período encerrado três horas antes da hora.
+      jest.useFakeTimers().setSystemTime(new Date('2026-12-20T02:00:00Z'));
+      clubControlRepository.findPeriodByYear.mockImplementation(
+        periodoPorAno([periodo]),
+      );
+
+      await expect(
+        service.calculateCurrentAcademicWeek(),
+      ).resolves.toMatchObject({ isWithinPeriod: true, academicWeek: 42 });
+    });
+
+    it('entre dois períodos, informa o do ano corrente e marca que está fora', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-01-10T15:00:00Z'));
+      clubControlRepository.findPeriodByYear.mockImplementation(
+        periodoPorAno([periodo]),
+      );
+
+      await expect(
+        service.calculateCurrentAcademicWeek(),
+      ).resolves.toMatchObject({
+        academicYear: 2026,
+        academicWeek: 0,
+        isWithinPeriod: false,
+      });
+    });
+  });
+
   describe('hasPassedClubDay', () => {
     it('semana futura nunca passou', () => {
       expect(service.hasPassedClubDay('2099-01-01', false, true)).toBe(false);
@@ -153,6 +232,16 @@ describe('AcademicWeekService', () => {
 
     it('semana passada já passou', () => {
       expect(service.hasPassedClubDay('2020-01-01', false, false)).toBe(true);
+    });
+
+    it('às 22h de Brasília o clubinho de hoje ainda não passou', () => {
+      // 01:00 UTC de 12/11 é 22:00 de 11/11 no Brasil.
+      jest.useFakeTimers().setSystemTime(new Date('2026-11-12T01:00:00Z'));
+
+      expect(service.hasPassedClubDay('2026-11-11', true, false)).toBe(false);
+      expect(service.hasPassedClubDay('2026-11-10', true, false)).toBe(true);
+
+      jest.useRealTimers();
     });
 
     it('na semana corrente, compara com a data de hoje', () => {

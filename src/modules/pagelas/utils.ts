@@ -1,6 +1,11 @@
-import { AppForbiddenException, ErrorCode } from 'src/shared/exceptions';
+import {
+  AppConflictException,
+  AppForbiddenException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 
 import {
+  PAGELA_INACTIVE_CHILD_MESSAGE,
   PAGELA_MAX_WEEK,
   PAGELA_MAX_YEAR,
   PAGELA_MIN_WEEK,
@@ -89,4 +94,12 @@ export function parseWeekSearch(searchString?: string): Partial<AcademicWeek> {
   if (isWeek(value)) return { week: value };
 
   return {};
+}
+
+/** Recusa de pagela para criança desativada: ela saiu do clubinho. */
+export function inactiveChildRefusal(): AppConflictException {
+  return new AppConflictException(
+    ErrorCode.CHILD_INACTIVE,
+    PAGELA_INACTIVE_CHILD_MESSAGE,
+  );
 }

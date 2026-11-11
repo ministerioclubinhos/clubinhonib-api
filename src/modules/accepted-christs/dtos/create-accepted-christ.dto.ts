@@ -12,9 +12,9 @@ import { ACCEPTED_CHRIST_NOTES_MAX_LENGTH } from '../constants';
 import { DecisionType } from '../enums/decision-type.enum';
 
 export class CreateAcceptedChristDto {
+  /** Obrigatória: sem o tipo não dá para aplicar as regras de decisão. */
   @IsEnum(DecisionType)
-  @IsOptional()
-  decision?: DecisionType;
+  decision: DecisionType;
 
   @IsUUID()
   @IsNotEmpty()

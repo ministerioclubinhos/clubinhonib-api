@@ -1,6 +1,8 @@
 import {
+  AppBusinessException,
   AppForbiddenException,
   AppNotFoundException,
+  ErrorCode,
 } from 'src/shared/exceptions';
 
 import { PagelasRepository } from '../repositories/pagelas.repository';
@@ -9,7 +11,7 @@ import { CreatePagelasService } from './create-pagelas.service';
 import { GetPagelasService } from './get-pagelas.service';
 import { UpdatePagelasService } from './update-pagelas.service';
 import { DeletePagelasService } from './delete-pagelas.service';
-import { ResolvePagelaWeekService } from './resolve-pagela-week.service';
+import { PagelaLaunchWindowService } from './pagela-launch-window.service';
 
 type RepoMock = jest.Mocked<
   Pick<
@@ -18,13 +20,16 @@ type RepoMock = jest.Mocked<
     | 'findAllPaginated'
     | 'findOneInScope'
     | 'childIsWithinReach'
+    | 'childIsActive'
     | 'createOne'
     | 'updateOne'
     | 'deleteById'
   >
 >;
 
-type WeekMock = jest.Mocked<Pick<ResolvePagelaWeekService, 'resolve'>>;
+type WeekMock = jest.Mocked<
+  Pick<PagelaLaunchWindowService, 'resolveForCreation' | 'resolveForUpdate'>
+>;
 
 const CREATED_AT = new Date('2026-01-01T00:00:00Z');
 const UPDATED_AT = new Date('2026-01-02T00:00:00Z');
@@ -74,24 +79,26 @@ describe('casos de uso de pagelas', () => {
         .mockResolvedValue({ items: [pagela()], total: 1 }),
       findOneInScope: jest.fn().mockResolvedValue(pagela()),
       childIsWithinReach: jest.fn().mockResolvedValue(true),
+      childIsActive: jest.fn().mockResolvedValue(true),
       createOne: jest.fn().mockResolvedValue(pagela()),
       updateOne: jest.fn().mockResolvedValue(pagela()),
       deleteById: jest.fn().mockResolvedValue(undefined),
     } as unknown as RepoMock;
 
     weekService = {
-      resolve: jest.fn().mockResolvedValue({ year: 2026, week: 5 }),
+      resolveForCreation: jest.fn().mockResolvedValue({ year: 2026, week: 5 }),
+      resolveForUpdate: jest.fn().mockResolvedValue(null),
     } as unknown as WeekMock;
 
     getService = new GetPagelasService(repo as unknown as PagelasRepository);
     createService = new CreatePagelasService(
       repo as unknown as PagelasRepository,
-      weekService as unknown as ResolvePagelaWeekService,
+      weekService as unknown as PagelaLaunchWindowService,
     );
     updateService = new UpdatePagelasService(
       repo as unknown as PagelasRepository,
       getService,
-      weekService as unknown as ResolvePagelaWeekService,
+      weekService as unknown as PagelaLaunchWindowService,
     );
     deleteService = new DeletePagelasService(
       repo as unknown as PagelasRepository,
@@ -132,30 +139,35 @@ describe('casos de uso de pagelas', () => {
   });
 
   describe('criação', () => {
-    it('deriva semana e ano do período letivo quando não vierem', async () => {
+    it('grava a semana e o ano que a janela de lançamento devolve', async () => {
       await createService.create(createDto, admin);
 
-      expect(weekService.resolve).toHaveBeenCalledWith('2026-03-07', true);
+      expect(weekService.resolveForCreation).toHaveBeenCalledWith(createDto);
       expect(repo.createOne).toHaveBeenCalledWith(
         expect.objectContaining({ year: 2026, week: 5 }),
       );
     });
 
-    it('respeita a semana e o ano informados, sem consultar o período', async () => {
-      await createService.create({ ...createDto, week: 9, year: 2025 }, admin);
-
-      expect(weekService.resolve).not.toHaveBeenCalled();
-      expect(repo.createOne).toHaveBeenCalledWith(
-        expect.objectContaining({ year: 2025, week: 9 }),
+    it('não grava nada quando o período letivo está fechado', async () => {
+      weekService.resolveForCreation.mockRejectedValue(
+        new AppBusinessException(ErrorCode.ACADEMIC_PERIOD_CLOSED, 'fechado'),
       );
+
+      await expect(
+        createService.create({ ...createDto, week: 9, year: 2026 }, admin),
+      ).rejects.toBeInstanceOf(AppBusinessException);
+
+      expect(repo.createOne).not.toHaveBeenCalled();
     });
 
-    it('completa o que faltar quando só um dos dois vier', async () => {
-      await createService.create({ ...createDto, week: 9 }, admin);
+    it('não lança pagela para criança desativada', async () => {
+      repo.childIsActive.mockResolvedValue(false);
 
-      expect(repo.createOne).toHaveBeenCalledWith(
-        expect.objectContaining({ year: 2026, week: 9 }),
-      );
+      await expect(
+        createService.create(createDto, admin),
+      ).rejects.toMatchObject({ code: ErrorCode.CHILD_INACTIVE });
+
+      expect(repo.createOne).not.toHaveBeenCalled();
     });
 
     it('barra criança fora do alcance de quem pede', async () => {
@@ -176,33 +188,54 @@ describe('casos de uso de pagelas', () => {
   });
 
   describe('edição', () => {
-    it('recalcula a semana ao mudar a data de referência', async () => {
+    it('grava a nova semana quando a janela aceita a mudança', async () => {
+      weekService.resolveForUpdate.mockResolvedValue({ year: 2026, week: 9 });
+
       await updateService.update(
         'pagela-1',
         { referenceDate: '2026-04-04' },
         admin,
       );
 
-      expect(weekService.resolve).toHaveBeenCalledWith('2026-04-04', false);
+      expect(weekService.resolveForUpdate).toHaveBeenCalledWith(
+        { referenceDate: '2026-04-04' },
+        { year: 2026, week: 5, referenceDate: '2026-03-07' },
+      );
       expect(repo.updateOne).toHaveBeenCalledWith(
         'pagela-1',
-        expect.objectContaining({ year: 2026, week: 5 }),
+        expect.objectContaining({ year: 2026, week: 9 }),
       );
     });
 
-    it('mantém semana e ano quando a nova data está fora do período', async () => {
-      weekService.resolve.mockResolvedValue(null);
-
-      await updateService.update(
-        'pagela-1',
-        { referenceDate: '2030-01-01' },
-        admin,
-      );
+    it('não mexe em semana e ano quando a edição não os muda', async () => {
+      await updateService.update('pagela-1', { present: false }, admin);
 
       expect(repo.updateOne).toHaveBeenCalledWith(
         'pagela-1',
         expect.objectContaining({ year: undefined, week: undefined }),
       );
+    });
+
+    it('não edita nada quando o período letivo está fechado', async () => {
+      weekService.resolveForUpdate.mockRejectedValue(
+        new AppBusinessException(ErrorCode.ACADEMIC_PERIOD_CLOSED, 'fechado'),
+      );
+
+      await expect(
+        updateService.update('pagela-1', { present: false }, admin),
+      ).rejects.toBeInstanceOf(AppBusinessException);
+
+      expect(repo.updateOne).not.toHaveBeenCalled();
+    });
+
+    it('não edita pagela de criança desativada', async () => {
+      repo.childIsActive.mockResolvedValue(false);
+
+      await expect(
+        updateService.update('pagela-1', { present: false }, admin),
+      ).rejects.toMatchObject({ code: ErrorCode.CHILD_INACTIVE });
+
+      expect(repo.updateOne).not.toHaveBeenCalled();
     });
 
     it('leva o nulo adiante para limpar a observação', async () => {

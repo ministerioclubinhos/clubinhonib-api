@@ -28,6 +28,11 @@ import { UpdatePagelasService } from './services/update-pagelas.service';
 import { DeletePagelasService } from './services/delete-pagelas.service';
 import { PagelaAccessContext } from './types';
 
+import { PagelaLaunchWindowDto } from './dto/pagela-launch-window.dto';
+import { PagelaLaunchWindowService } from './services/pagela-launch-window.service';
+import { launchClosedMessage } from './launch-window.utils';
+import { assertCanAccessPagelas } from './utils';
+
 @Controller('pagelas')
 @UseGuards(JwtAuthGuard)
 export class PagelasController {
@@ -38,6 +43,7 @@ export class PagelasController {
     private readonly getService: GetPagelasService,
     private readonly updateService: UpdatePagelasService,
     private readonly deleteService: DeletePagelasService,
+    private readonly launchWindow: PagelaLaunchWindowService,
     private readonly authContext: AuthContextService,
   ) {}
 
@@ -58,6 +64,25 @@ export class PagelasController {
   ): Promise<PagelaResponseDto> {
     this.logger.debug('POST /pagelas');
     return this.createService.create(dto, await this.contextOf(request));
+  }
+
+  /**
+   * Se hoje aceita lançamento de pagela, e de quais semanas.
+   *
+   * A tela pergunta antes de abrir o formulário: fora do período letivo ela
+   * mostra o motivo em vez de deixar o professor preencher e ser recusado.
+   */
+  @Get('launch-window')
+  async getLaunchWindow(
+    @Req() request: Request,
+  ): Promise<PagelaLaunchWindowDto> {
+    assertCanAccessPagelas(await this.contextOf(request));
+    const window = await this.launchWindow.current();
+
+    return {
+      ...window,
+      message: window.open ? null : launchClosedMessage(window),
+    };
   }
 
   @Get('paginated')

@@ -1,11 +1,11 @@
 @startuml Accepted Christs Flow - Clubinho NIB API
 !theme plain
 hide footbox
-title Accepted Christ — register a decision
+title Accepted Christ — register or remove a decision
 
 actor "Teacher / Coordinator / Admin" as Client
 participant AcceptedChristController as Controller
-participant CreateAcceptedChristService as Service
+participant "Create / Delete\nAcceptedChristService" as Service
 participant GetChildrenService as Children
 database "MySQL\nAcceptedChristRepository" as Repository
 participant NotifyAcceptedChristService as Notify
@@ -15,10 +15,27 @@ Controller -> Service : access context + validated DTO
 Service -> Service : assert role may register decisions
 Service -> Children : find child within caller scope
 Children --> Service : child or scoped not-found
-Service -> Repository : create decision for child
-Repository --> Service : saved decision
+Service -> Repository : decisions already stored for the child
+alt child inactive, second ACCEPTED, or RECONCILED without acceptance
+  Service --> Client : 409 CHILD_7003 / CHILD_7005
+else allowed
+  Service -> Repository : create decision for child
+  Repository --> Service : saved decision
+end
 Service -> Notify : notify club team in background
 Service --> Client : AcceptedChristResponseDto
+
+== DELETE /accepted-christs/:id ==
+Client -> Controller : DELETE /accepted-christs/:id
+Controller -> Service : access context + id
+Service -> Repository : decision with child id
+Service -> Children : child within caller scope (else 404)
+alt ACCEPTED while reconciliations remain
+  Service --> Client : 409 CHILD_7005
+else allowed
+  Service -> Repository : delete decision
+  Service --> Client : confirmation message
+end
 
 note over Service, Notify
   Notes are stored but never e-mailed or logged.

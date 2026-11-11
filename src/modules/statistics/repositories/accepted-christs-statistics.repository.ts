@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, SelectQueryBuilder } from 'typeorm';
 
 import { AcceptedChristEntity } from '../../accepted-christs/entities/accepted-christ.entity';
 import { DecisionType } from '../../accepted-christs/enums/decision-type.enum';
@@ -13,14 +13,20 @@ import {
   AcceptedChristsByPeriodRaw,
   AcceptedChristsOverallStatsRaw,
   AcceptedChristsTimeSeriesRaw,
-  AcceptedAgeGroupStats,
-  AcceptedParticipationTimeStats,
 } from '../dto/statistics-raw-results.dto';
+import {
+  DISTINCT_ACCEPTED_CHILDREN_SQL,
+  DISTINCT_RECONCILED_CHILDREN_SQL,
+  PARTICIPATION_TIME_RANGES,
+} from '../constants';
+import { ClubDecisionCounts } from '../types';
 import {
   ageGroup as toAgeGroup,
   ageInYears,
   monthsParticipating as countMonthsParticipating,
   participationTimeRange as toParticipationTimeRange,
+  averageOf,
+  toCount,
 } from '../utils/metrics.utils';
 
 /**
@@ -29,7 +35,32 @@ import {
  * Saiu de `statistics.repository.ts`, que reunia sete assuntos num arquivo só
  * de 3.400 linhas. O bloco alcança uma tabela e o serviço de filtros, e nada
  * mais — por isso sai inteiro.
+ *
+ * Três regras valem para todas as consultas daqui, e é por elas que os números
+ * desta aba batem com os do panorama e os da aba de clubinhos:
+ *
+ * - **escopo**: clubinho ativo e criança matriculada no dia da decisão
+ *   (`StatisticsFiltersService.applyDecisionBaseScope`);
+ * - **tipo**: decisão sem tipo (registro legado, `decision` nulo) fica fora de
+ *   todo total — `total` é sempre aceitou + reconciliou. Ela aparece à parte,
+ *   em `unspecifiedDecisions` e na lista de decisões recentes;
+ * - **contagem**: por criança distinta dentro de cada tipo, não por linha.
  */
+
+/** Crianças distintas de cada tipo dentro de um grupo montado em memória. */
+interface DecisionGroup {
+  accepted: Set<string>;
+  reconciled: Set<string>;
+  /** Meses de participação de cada criança do grupo. */
+  monthsByChild: Map<string, number>;
+}
+
+const emptyDecisionGroup = (): DecisionGroup => ({
+  accepted: new Set(),
+  reconciled: new Set(),
+  monthsByChild: new Map(),
+});
+
 @Injectable()
 export class AcceptedChristsStatisticsRepository {
   constructor(
@@ -38,102 +69,104 @@ export class AcceptedChristsStatisticsRepository {
     private readonly filtersService: StatisticsFiltersService,
   ) {}
 
-  async getAcceptedChristsOverallStats(filters: AcceptedChristsStatsQueryDto) {
+  /** Consulta-base: os apelidos e o escopo que todas as contagens usam. */
+  private baseQuery(
+    filters: AcceptedChristsStatsQueryDto,
+    options: { includeUnspecified?: boolean } = {},
+  ): SelectQueryBuilder<AcceptedChristEntity> {
     const query = this.acceptedChristsRepository
       .createQueryBuilder('ac')
       .leftJoin('ac.child', 'child')
       .leftJoin('child.club', 'club')
       .leftJoin('club.coordinator', 'coordinator')
-      .where('1=1')
-      .select('COUNT(ac.id)', 'totalDecisions')
-      .addSelect('COUNT(DISTINCT ac.child.id)', 'uniqueChildren')
-      .addSelect('ac.decision', 'decision');
+      // Sem este join, um filtro de cidade, estado ou bairro derrubava a rota
+      // com "unknown column address.city".
+      .leftJoin('child.address', 'address');
 
+    this.filtersService.applyDecisionBaseScope(query, options);
     this.filtersService.applyAcceptedChristsFilters(query, filters);
 
-    query.groupBy('ac.decision');
-
-    const results = await query.getRawMany<AcceptedChristsOverallStatsRaw>();
-
-    const byDecisionType: { [key: string]: number } = {};
-    let totalDecisions = 0;
-
-    results.forEach((row) => {
-      const count = parseInt(row.totalDecisions);
-      totalDecisions += count;
-      if (row.decision) {
-        byDecisionType[row.decision] = count;
-      }
-    });
-
-    const uniqueQuery = this.acceptedChristsRepository
-      .createQueryBuilder('ac')
-      .leftJoin('ac.child', 'child')
-      .leftJoin('child.club', 'club')
-      .leftJoin('club.coordinator', 'coordinator')
-      .where('1=1')
-      .select('COUNT(DISTINCT ac.child.id)', 'uniqueChildren');
-
-    this.filtersService.applyAcceptedChristsFilters(uniqueQuery, filters);
-
-    const uniqueResult = await uniqueQuery.getRawOne<{
-      uniqueChildren: string;
-    }>();
-
-    return {
-      totalDecisions,
-      uniqueChildren: parseInt(uniqueResult?.uniqueChildren || '0'),
-      byDecisionType,
-    };
+    return query;
   }
 
-  async getAcceptedChristsByPeriod(filters: AcceptedChristsStatsQueryDto) {
-    const groupBy = filters.groupBy || 'month';
-
-    let dateFormat: string;
-    let groupByClause: string;
-
+  /** Formato do rótulo de período em SQL, por granularidade. */
+  private periodFormat(
+    groupBy: AcceptedChristsStatsQueryDto['groupBy'],
+  ): string {
     switch (groupBy) {
       case 'day':
         // Texto, e não coluna de data: o driver devolveria um `Date`, que
         // vira "Mon Mar 02 2026 …" no rótulo do gráfico.
-        dateFormat = "DATE_FORMAT(ac.createdAt, '%Y-%m-%d')";
-        groupByClause = "DATE_FORMAT(ac.createdAt, '%Y-%m-%d')";
-        break;
+        return "DATE_FORMAT(ac.createdAt, '%Y-%m-%d')";
       case 'week':
-        dateFormat =
-          "CONCAT(YEAR(ac.createdAt), '-W', LPAD(WEEK(ac.createdAt, 3), 2, '0'))";
-        groupByClause =
-          "CONCAT(YEAR(ac.createdAt), '-W', LPAD(WEEK(ac.createdAt, 3), 2, '0'))";
-        break;
+        return "CONCAT(YEAR(ac.createdAt), '-W', LPAD(WEEK(ac.createdAt, 3), 2, '0'))";
       case 'year':
-        dateFormat = 'YEAR(ac.createdAt)';
-        groupByClause = 'YEAR(ac.createdAt)';
-        break;
+        return 'YEAR(ac.createdAt)';
       case 'month':
       default:
-        dateFormat = "DATE_FORMAT(ac.createdAt, '%Y-%m')";
-        groupByClause = "DATE_FORMAT(ac.createdAt, '%Y-%m')";
-        break;
+        return "DATE_FORMAT(ac.createdAt, '%Y-%m')";
     }
+  }
 
-    const query = this.acceptedChristsRepository
-      .createQueryBuilder('ac')
-      .leftJoin('ac.child', 'child')
-      .leftJoin('child.club', 'club')
-      .leftJoin('club.coordinator', 'coordinator')
-      .where('1=1')
-      .select(`${dateFormat}`, 'period')
-      .addSelect('COUNT(ac.id)', 'totalDecisions')
-      .addSelect('COUNT(DISTINCT ac.child.id)', 'uniqueChildren')
-      .addSelect('ac.decision', 'decision')
-      .groupBy(groupByClause)
-      .addGroupBy('ac.decision')
-      .orderBy('period', 'DESC');
+  async getAcceptedChristsOverallStats(filters: AcceptedChristsStatsQueryDto) {
+    const [byType, unique, unspecified] = await Promise.all([
+      this.baseQuery(filters)
+        .select('ac.decision', 'decision')
+        .addSelect('COUNT(DISTINCT child.id)', 'totalDecisions')
+        .groupBy('ac.decision')
+        .getRawMany<AcceptedChristsOverallStatsRaw>(),
+      this.baseQuery(filters)
+        .select('COUNT(DISTINCT child.id)', 'uniqueChildren')
+        .getRawOne<{ uniqueChildren: string }>(),
+      this.baseQuery(filters, { includeUnspecified: true })
+        .andWhere('ac.decision IS NULL')
+        .select('COUNT(ac.id)', 'total')
+        .getRawOne<{ total: string }>(),
+    ]);
 
-    this.filtersService.applyAcceptedChristsFilters(query, filters);
+    const byDecisionType: { [key: string]: number } = {};
+    let totalDecisions = 0;
 
-    const results = await query.getRawMany<AcceptedChristsByPeriodRaw>();
+    byType.forEach((row) => {
+      const count = toCount(row.totalDecisions);
+      totalDecisions += count;
+      byDecisionType[row.decision] = count;
+    });
+
+    return {
+      totalDecisions,
+      uniqueChildren: toCount(unique?.uniqueChildren),
+      byDecisionType,
+      unspecifiedDecisions: toCount(unspecified?.total),
+    };
+  }
+
+  async getAcceptedChristsByPeriod(filters: AcceptedChristsStatsQueryDto) {
+    const format = this.periodFormat(filters.groupBy || 'month');
+
+    // `uniqueChildren` tem consulta própria. Antes vinha da linha agrupada por
+    // período **e tipo**, e o valor que ficava era o do primeiro tipo lido —
+    // um mês com 3 aceitações e 2 reconciliações mostrava "3 crianças" ou "2",
+    // conforme a ordem em que o banco devolvesse as linhas.
+    const [byType, unique] = await Promise.all([
+      this.baseQuery(filters)
+        .select(format, 'period')
+        .addSelect('ac.decision', 'decision')
+        .addSelect('COUNT(DISTINCT child.id)', 'totalDecisions')
+        .groupBy(format)
+        .addGroupBy('ac.decision')
+        .orderBy('period', 'DESC')
+        .getRawMany<AcceptedChristsByPeriodRaw>(),
+      this.baseQuery(filters)
+        .select(format, 'period')
+        .addSelect('COUNT(DISTINCT child.id)', 'uniqueChildren')
+        .groupBy(format)
+        .getRawMany<{ period: string; uniqueChildren: string }>(),
+    ]);
+
+    const uniqueByPeriod = new Map(
+      unique.map((row) => [String(row.period), toCount(row.uniqueChildren)]),
+    );
 
     const periodMap = new Map<
       string,
@@ -145,46 +178,39 @@ export class AcceptedChristsStatisticsRepository {
       }
     >();
 
-    results.forEach((row) => {
-      const { period } = row;
-      if (!periodMap.has(period)) {
-        periodMap.set(period, {
-          period,
-          totalDecisions: 0,
-          byDecisionType: {},
-          uniqueChildren: parseInt(row.uniqueChildren),
-        });
-      }
+    byType.forEach((row) => {
+      const period = String(row.period);
+      const periodData = periodMap.get(period) ?? {
+        period,
+        totalDecisions: 0,
+        byDecisionType: {},
+        uniqueChildren: uniqueByPeriod.get(period) ?? 0,
+      };
 
-      const periodData = periodMap.get(period)!;
-      const count = parseInt(row.totalDecisions);
+      const count = toCount(row.totalDecisions);
       periodData.totalDecisions += count;
-
-      if (row.decision) {
-        periodData.byDecisionType[row.decision] =
-          (periodData.byDecisionType[row.decision] || 0) + count;
-      }
+      periodData.byDecisionType[row.decision] = count;
+      periodMap.set(period, periodData);
     });
 
     return Array.from(periodMap.values());
   }
 
+  /**
+   * As decisões mais recentes, uma por linha.
+   *
+   * É a única consulta que mostra decisão sem tipo: aqui não há total a
+   * distorcer, e esconder o registro impediria alguém de achá-lo para corrigir.
+   */
   async getRecentAcceptedChrists(
     filters: AcceptedChristsStatsQueryDto,
     limit: number = 10,
   ) {
-    const query = this.acceptedChristsRepository
-      .createQueryBuilder('ac')
-      .leftJoinAndSelect('ac.child', 'child')
-      .leftJoin('child.club', 'club')
-      .leftJoin('club.coordinator', 'coordinator')
-      .where('1=1')
+    const results = await this.baseQuery(filters, { includeUnspecified: true })
+      .addSelect('child')
       .orderBy('ac.createdAt', 'DESC')
-      .limit(limit);
-
-    this.filtersService.applyAcceptedChristsFilters(query, filters);
-
-    const results = await query.getMany();
+      .limit(limit)
+      .getMany();
 
     return results.map((ac) => ({
       id: ac.id,
@@ -197,280 +223,214 @@ export class AcceptedChristsStatisticsRepository {
   }
 
   async getAcceptedChristsByGender(filters: AcceptedChristsStatsQueryDto) {
-    const query = this.acceptedChristsRepository
-      .createQueryBuilder('ac')
-      .leftJoin('ac.child', 'child')
-      .leftJoin('child.club', 'club')
-      .leftJoin('club.coordinator', 'coordinator')
-      .leftJoin('child.address', 'address')
-      .where('1=1')
+    const results = await this.baseQuery(filters)
       .select('child.gender', 'gender')
-      .addSelect('COUNT(ac.id)', 'total')
-      .addSelect(
-        'SUM(CASE WHEN ac.decision = "ACCEPTED" THEN 1 ELSE 0 END)',
-        'accepted',
-      )
-      .addSelect(
-        'SUM(CASE WHEN ac.decision = "RECONCILED" THEN 1 ELSE 0 END)',
-        'reconciled',
-      )
-      .groupBy('child.gender');
+      .addSelect(DISTINCT_ACCEPTED_CHILDREN_SQL, 'accepted')
+      .addSelect(DISTINCT_RECONCILED_CHILDREN_SQL, 'reconciled')
+      .groupBy('child.gender')
+      .getRawMany<AcceptedChristsByGenderRaw>();
 
-    this.filtersService.applyAcceptedChristsFilters(query, filters);
+    return results.map((row) => {
+      const accepted = toCount(row.accepted);
+      const reconciled = toCount(row.reconciled);
 
-    const results = await query.getRawMany<AcceptedChristsByGenderRaw>();
+      return {
+        gender: row.gender,
+        total: accepted + reconciled,
+        accepted,
+        reconciled,
+      };
+    });
+  }
 
-    return results.map((row) => ({
-      gender: row.gender,
-      total: parseInt(row.total),
-      accepted: parseInt(row.accepted),
-      reconciled: parseInt(row.reconciled),
-    }));
+  /** Decisões no recorte com a criança carregada, para agrupar em memória. */
+  private async findDecisionsWithChild(
+    filters: AcceptedChristsStatsQueryDto,
+  ): Promise<AcceptedChristEntity[]> {
+    return this.baseQuery(filters).addSelect('child').getMany();
+  }
+
+  /** Agrupa as decisões pela chave da criança, uma criança por tipo. */
+  private groupDecisions(
+    decisions: readonly AcceptedChristEntity[],
+    keyOf: (decision: AcceptedChristEntity) => string,
+  ): Map<string, DecisionGroup> {
+    const groups = new Map<string, DecisionGroup>();
+
+    decisions.forEach((ac) => {
+      const key = keyOf(ac);
+      const group = groups.get(key) ?? emptyDecisionGroup();
+
+      if (ac.decision === DecisionType.ACCEPTED)
+        group.accepted.add(ac.child.id);
+      if (ac.decision === DecisionType.RECONCILED) {
+        group.reconciled.add(ac.child.id);
+      }
+      group.monthsByChild.set(
+        ac.child.id,
+        countMonthsParticipating(ac.child.joinedAt),
+      );
+      groups.set(key, group);
+    });
+
+    return groups;
   }
 
   async getAcceptedChristsByAgeGroup(filters: AcceptedChristsStatsQueryDto) {
-    const query = this.acceptedChristsRepository
-      .createQueryBuilder('ac')
-      .leftJoinAndSelect('ac.child', 'child')
-      .leftJoin('child.club', 'club')
-      .leftJoin('club.coordinator', 'coordinator')
-      .leftJoin('child.address', 'address')
-      .where('1=1');
+    const decisions = await this.findDecisionsWithChild(filters);
+    const groups = this.groupDecisions(decisions, (ac) =>
+      toAgeGroup(ageInYears(ac.child.birthDate)),
+    );
 
-    this.filtersService.applyAcceptedChristsFilters(query, filters);
-
-    const decisions = await query.getMany();
-
-    const ageGroups = new Map<string, AcceptedAgeGroupStats>();
-
-    decisions.forEach((ac) => {
-      const age = ageInYears(ac.child.birthDate);
-      const ageGroup = toAgeGroup(age);
-
-      if (!ageGroups.has(ageGroup)) {
-        ageGroups.set(ageGroup, {
-          ageGroup,
-          total: 0,
-          accepted: 0,
-          reconciled: 0,
-        });
-      }
-
-      const group = ageGroups.get(ageGroup)!;
-      group.total++;
-      if (ac.decision === DecisionType.ACCEPTED) group.accepted++;
-      if (ac.decision === DecisionType.RECONCILED) group.reconciled++;
-    });
-
-    return Array.from(ageGroups.values());
+    return Array.from(groups.entries()).map(([ageGroup, group]) => ({
+      ageGroup,
+      total: group.accepted.size + group.reconciled.size,
+      accepted: group.accepted.size,
+      reconciled: group.reconciled.size,
+    }));
   }
 
   async getAcceptedChristsByClub(filters: AcceptedChristsStatsQueryDto) {
-    const query = this.acceptedChristsRepository
-      .createQueryBuilder('ac')
-      .leftJoin('ac.child', 'child')
-      .leftJoin('child.club', 'club')
-      .leftJoin('club.coordinator', 'coordinator')
-      .leftJoin('child.address', 'address')
-      .where('club.id IS NOT NULL')
-
+    const results = await this.baseQuery(filters)
+      .andWhere('club.id IS NOT NULL')
       .select('club.id', 'clubId')
       .addSelect('club.number', 'clubNumber')
-      .addSelect('COUNT(ac.id)', 'total')
       .addSelect('COUNT(DISTINCT child.id)', 'uniqueChildren')
-      .addSelect(
-        'SUM(CASE WHEN ac.decision = "ACCEPTED" THEN 1 ELSE 0 END)',
-        'accepted',
-      )
-      .addSelect(
-        'SUM(CASE WHEN ac.decision = "RECONCILED" THEN 1 ELSE 0 END)',
-        'reconciled',
-      )
+      .addSelect(DISTINCT_ACCEPTED_CHILDREN_SQL, 'accepted')
+      .addSelect(DISTINCT_RECONCILED_CHILDREN_SQL, 'reconciled')
       .groupBy('club.id')
       .addGroupBy('club.number')
-      .orderBy('clubNumber', 'ASC');
+      .orderBy('clubNumber', 'ASC')
+      .getRawMany<AcceptedChristsByClubRaw>();
 
-    this.filtersService.applyAcceptedChristsFilters(query, filters);
+    return results.map((row) => {
+      const accepted = toCount(row.accepted);
+      const reconciled = toCount(row.reconciled);
 
-    const results = await query.getRawMany<AcceptedChristsByClubRaw>();
+      return {
+        clubId: row.clubId,
+        clubNumber: parseInt(row.clubNumber),
+        total: accepted + reconciled,
+        uniqueChildren: toCount(row.uniqueChildren),
+        accepted,
+        reconciled,
+      };
+    });
+  }
 
-    return results.map((row) => ({
-      clubId: row.clubId,
-      clubNumber: parseInt(row.clubNumber),
-      total: parseInt(row.total),
-      uniqueChildren: parseInt(row.uniqueChildren),
-      accepted: parseInt(row.accepted),
-      reconciled: parseInt(row.reconciled),
-    }));
+  /**
+   * Decisões por clubinho no recorte, para o índice de desempenho.
+   *
+   * Uma consulta só para o ranking e para a listagem de clubinhos: as duas
+   * telas mostravam "decisões" do mesmo clubinho com números diferentes porque
+   * cada uma tinha a sua, e uma delas ignorava o recorte de datas.
+   */
+  async getDecisionCountsByClub(
+    clubIds: readonly string[],
+    filters: Pick<AcceptedChristsStatsQueryDto, 'startDate' | 'endDate'>,
+  ): Promise<Map<string, ClubDecisionCounts>> {
+    if (clubIds.length === 0) return new Map();
+
+    const rows = await this.baseQuery({
+      startDate: filters.startDate,
+      endDate: filters.endDate,
+    })
+      .andWhere('club.id IN (:...decisionClubIds)', {
+        decisionClubIds: clubIds,
+      })
+      .select('club.id', 'clubId')
+      .addSelect('COUNT(DISTINCT child.id)', 'uniqueChildren')
+      .addSelect(DISTINCT_ACCEPTED_CHILDREN_SQL, 'accepted')
+      .addSelect(DISTINCT_RECONCILED_CHILDREN_SQL, 'reconciled')
+      .groupBy('club.id')
+      .getRawMany<AcceptedChristsByClubRaw>();
+
+    return new Map(
+      rows.map((row) => [
+        row.clubId,
+        {
+          totalDecisions: toCount(row.accepted) + toCount(row.reconciled),
+          childrenWithDecisions: toCount(row.uniqueChildren),
+        },
+      ]),
+    );
   }
 
   async getAcceptedChristsByCity(filters: AcceptedChristsStatsQueryDto) {
-    const query = this.acceptedChristsRepository
-      .createQueryBuilder('ac')
-      .leftJoin('ac.child', 'child')
-      .leftJoin('child.club', 'club')
-      .leftJoin('club.coordinator', 'coordinator')
-      .leftJoin('child.address', 'address')
-      .where('address.city IS NOT NULL')
+    const results = await this.baseQuery(filters)
+      .andWhere('address.city IS NOT NULL')
       .select('address.city', 'city')
       .addSelect('address.state', 'state')
-      .addSelect('COUNT(ac.id)', 'total')
       .addSelect('COUNT(DISTINCT child.id)', 'uniqueChildren')
-      .addSelect(
-        'SUM(CASE WHEN ac.decision = "ACCEPTED" THEN 1 ELSE 0 END)',
-        'accepted',
-      )
-      .addSelect(
-        'SUM(CASE WHEN ac.decision = "RECONCILED" THEN 1 ELSE 0 END)',
-        'reconciled',
-      )
+      .addSelect(DISTINCT_ACCEPTED_CHILDREN_SQL, 'accepted')
+      .addSelect(DISTINCT_RECONCILED_CHILDREN_SQL, 'reconciled')
       .groupBy('address.city')
       .addGroupBy('address.state')
-      .orderBy('total', 'DESC');
+      .getRawMany<AcceptedChristsByCityRaw>();
 
-    this.filtersService.applyAcceptedChristsFilters(query, filters);
+    return results
+      .map((row) => {
+        const accepted = toCount(row.accepted);
+        const reconciled = toCount(row.reconciled);
 
-    const results = await query.getRawMany<AcceptedChristsByCityRaw>();
-
-    return results.map((row) => ({
-      city: row.city,
-      state: row.state,
-      total: parseInt(row.total),
-      uniqueChildren: parseInt(row.uniqueChildren),
-      accepted: parseInt(row.accepted),
-      reconciled: parseInt(row.reconciled),
-    }));
+        return {
+          city: row.city,
+          state: row.state,
+          total: accepted + reconciled,
+          uniqueChildren: toCount(row.uniqueChildren),
+          accepted,
+          reconciled,
+        };
+      })
+      .sort((a, b) => b.total - a.total || a.city.localeCompare(b.city));
   }
 
   async getAcceptedChristsByParticipationTime(
     filters: AcceptedChristsStatsQueryDto,
   ) {
-    const query = this.acceptedChristsRepository
-      .createQueryBuilder('ac')
-      .leftJoinAndSelect('ac.child', 'child')
-      .leftJoin('child.club', 'club')
-      .leftJoin('club.coordinator', 'coordinator')
-      .leftJoin('child.address', 'address')
-      .where('1=1');
+    const decisions = await this.findDecisionsWithChild(filters);
+    const groups = this.groupDecisions(decisions, (ac) =>
+      toParticipationTimeRange(countMonthsParticipating(ac.child.joinedAt)),
+    );
 
-    this.filtersService.applyAcceptedChristsFilters(query, filters);
-
-    const decisions = await query.getMany();
-
-    const timeGroups = new Map<string, AcceptedParticipationTimeStats>();
-
-    decisions.forEach((ac) => {
-      const months = countMonthsParticipating(ac.child.joinedAt);
-      const timeRange = toParticipationTimeRange(months);
-
-      if (!timeGroups.has(timeRange)) {
-        timeGroups.set(timeRange, {
-          timeRange,
-          total: 0,
-          accepted: 0,
-          reconciled: 0,
-          childrenMonths: [],
-        });
-      }
-
-      const group = timeGroups.get(timeRange)!;
-      group.total++;
-      if (ac.decision === DecisionType.ACCEPTED) group.accepted++;
-      if (ac.decision === DecisionType.RECONCILED) group.reconciled++;
-      group.childrenMonths.push(months);
-    });
-
-    const uniqueChildrenByRange = new Map<string, Set<string>>();
-    decisions.forEach((ac) => {
-      const months = countMonthsParticipating(ac.child.joinedAt);
-      const timeRange = toParticipationTimeRange(months);
-      if (!uniqueChildrenByRange.has(timeRange)) {
-        uniqueChildrenByRange.set(timeRange, new Set());
-      }
-      uniqueChildrenByRange.get(timeRange)!.add(ac.child.id);
-    });
-
-    const orderedRanges = ['0-3 meses', '3-6 meses', '6-12 meses', '1+ ano'];
-
-    return orderedRanges
-      .filter((range) => timeGroups.has(range))
-      .map((range) => {
-        const group = timeGroups.get(range)!;
-        const avgMonths =
-          group.childrenMonths.length > 0
-            ? group.childrenMonths.reduce((a: number, b: number) => a + b, 0) /
-              group.childrenMonths.length
-            : 0;
+    return PARTICIPATION_TIME_RANGES.filter((range) => groups.has(range)).map(
+      (range) => {
+        const group = groups.get(range)!;
+        const months = Array.from(group.monthsByChild.values());
 
         return {
-          timeRange: group.timeRange,
-          total: group.total,
-          uniqueChildren: uniqueChildrenByRange.get(range)?.size || 0,
-          accepted: group.accepted,
-          reconciled: group.reconciled,
-          avgMonthsParticipating: Math.round(avgMonths * 10) / 10,
+          timeRange: range,
+          total: group.accepted.size + group.reconciled.size,
+          uniqueChildren: group.monthsByChild.size,
+          accepted: group.accepted.size,
+          reconciled: group.reconciled.size,
+          avgMonthsParticipating: averageOf(months, (value) => value),
         };
-      });
+      },
+    );
   }
 
   async getAcceptedChristsTimeSeries(filters: AcceptedChristsStatsQueryDto) {
-    const groupBy = filters.groupBy || 'month';
+    const format = this.periodFormat(filters.groupBy || 'month');
 
-    let dateFormat: string;
-    let groupByClause: string;
+    const results = await this.baseQuery(filters)
+      .select(format, 'period')
+      .addSelect(DISTINCT_ACCEPTED_CHILDREN_SQL, 'accepted')
+      .addSelect(DISTINCT_RECONCILED_CHILDREN_SQL, 'reconciled')
+      .groupBy(format)
+      .orderBy('period', 'ASC')
+      .getRawMany<AcceptedChristsTimeSeriesRaw>();
 
-    switch (groupBy) {
-      case 'day':
-        // Texto, e não coluna de data: o driver devolveria um `Date`, que
-        // vira "Mon Mar 02 2026 …" no rótulo do gráfico.
-        dateFormat = "DATE_FORMAT(ac.createdAt, '%Y-%m-%d')";
-        groupByClause = "DATE_FORMAT(ac.createdAt, '%Y-%m-%d')";
-        break;
-      case 'week':
-        dateFormat =
-          "CONCAT(YEAR(ac.createdAt), '-W', LPAD(WEEK(ac.createdAt, 3), 2, '0'))";
-        groupByClause =
-          "CONCAT(YEAR(ac.createdAt), '-W', LPAD(WEEK(ac.createdAt, 3), 2, '0'))";
-        break;
-      case 'year':
-        dateFormat = 'YEAR(ac.createdAt)';
-        groupByClause = 'YEAR(ac.createdAt)';
-        break;
-      case 'month':
-      default:
-        dateFormat = "DATE_FORMAT(ac.createdAt, '%Y-%m')";
-        groupByClause = "DATE_FORMAT(ac.createdAt, '%Y-%m')";
-        break;
-    }
+    return results.map((row) => {
+      const accepted = toCount(row.accepted);
+      const reconciled = toCount(row.reconciled);
 
-    const query = this.acceptedChristsRepository
-      .createQueryBuilder('ac')
-      .leftJoin('ac.child', 'child')
-      .leftJoin('child.club', 'club')
-      .leftJoin('club.coordinator', 'coordinator')
-      .where('1=1')
-      .select(`${dateFormat}`, 'period')
-      .addSelect('COUNT(ac.id)', 'total')
-      .addSelect(
-        'SUM(CASE WHEN ac.decision = "ACCEPTED" THEN 1 ELSE 0 END)',
-        'accepted',
-      )
-      .addSelect(
-        'SUM(CASE WHEN ac.decision = "RECONCILED" THEN 1 ELSE 0 END)',
-        'reconciled',
-      )
-      .groupBy(groupByClause)
-      .orderBy('period', 'ASC');
-
-    this.filtersService.applyAcceptedChristsFilters(query, filters);
-
-    const results = await query.getRawMany<AcceptedChristsTimeSeriesRaw>();
-
-    return results.map((row) => ({
-      date: row.period,
-      total: parseInt(row.total),
-      accepted: parseInt(row.accepted),
-      reconciled: parseInt(row.reconciled),
-    }));
+      return {
+        date: row.period,
+        total: accepted + reconciled,
+        accepted,
+        reconciled,
+      };
+    });
   }
 }

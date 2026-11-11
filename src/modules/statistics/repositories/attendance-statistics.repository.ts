@@ -1,21 +1,38 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder } from 'typeorm';
+import { Repository } from 'typeorm';
 
-import { getAcademicWeek } from 'src/shared/academic-week/academic-week.util';
+import { todayInAppTimezone } from 'src/shared/calendar-day/calendar-day.util';
+import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 
 import { PagelaEntity } from '../../pagelas/entities/pagela.entity';
-import { ChildEntity } from '../../children/entities/child.entity';
 import { ClubEntity } from '../../clubs/entities/club.entity';
 import { ClubPeriodEntity } from '../../club-control/entities/club-period.entity';
-import { ClubExceptionEntity } from '../../club-control/entities/club-exception.entity';
 import {
+  AttendancePaginationDto,
   ClubAttendanceAlertDto,
   ClubAttendanceAnalysisDto,
   WeeklyAttendanceDto,
   WeeklyClubStatus,
 } from '../dto/club-attendance-analysis.dto';
-import { addDays, toDateOnly } from '../utils/date.utils';
+import {
+  ATTENDANCE_DEFAULT_PAGE_SIZE as DEFAULT_PAGE_SIZE,
+  CRITICAL_MISSING_WEEKS,
+  ENROLLED_AT_PAGELA_DATE_SQL,
+  LOW_WEEKLY_ATTENDANCE_THRESHOLD,
+  MISSING_WEEKS_PAGE_SIZE,
+} from '../constants';
+import { formatDateOnlyPtBr } from '../utils/date.utils';
+import {
+  addDaysToDateOnly,
+  clubDayInWeek,
+  countEnrolledAt,
+  isExceptionDay,
+  listAcademicWeeks,
+  mondayOf,
+} from '../utils/enrollment.utils';
+import { percentage, roundToOneDecimal, toCount } from '../utils/metrics.utils';
+import { ExpectedChildrenRepository } from './expected-children.repository';
 
 /**
  * Uma semana da linha do tempo de frequência de um clubinho.
@@ -35,7 +52,7 @@ interface TimelineWeek {
   expectedChildren: number;
   /** Presentes vêm só quando a semana tem pagela. */
   totalPagelas?: number;
-  firstDate?: string | Date;
+  firstDate?: string;
   presenceCount?: number;
 }
 
@@ -64,9 +81,30 @@ interface PagelaAttendanceData {
   year: number;
   week: number;
   totalPagelas: number;
-  firstDate: string | Date;
+  firstDate: string;
   presenceCount: number;
 }
+
+/** Situações em que o clubinho devia ter lançado pagela na semana. */
+const EXPECTED_CLUB_STATUSES: readonly WeeklyClubStatus[] = [
+  'ok',
+  'partial',
+  'missing',
+];
+
+/**
+ * A semana conta para a frequência do clubinho?
+ *
+ * Fica de fora a semana de exceção, a que ainda não chegou e a que não tinha
+ * criança esperada — nesta não havia pagela a lançar. Antes ela entrava no
+ * denominador (`weeksExpected`) mas nunca na lista de faltas, e um clubinho
+ * que começou em agosto aparecia com frequência baixa por causa de março a
+ * julho sem que nenhuma semana constasse como faltando.
+ */
+const countsForAttendance = (week: TimelineWeek): boolean =>
+  !week.isException &&
+  !week.isPending &&
+  (week.expectedChildren > 0 || week.hasPagela);
 
 /**
  * Consultas de frequência de clubinho.
@@ -75,20 +113,21 @@ interface PagelaAttendanceData {
  * de 3.400 linhas. Este bloco não compartilhava nada com o resto — nem os três
  * auxiliares de semana, nem o serviço de filtros — então é a fatia que sai
  * inteira sem tocar em nenhuma outra.
+ *
+ * Toda data aqui é texto `YYYY-MM-DD`, comparado como texto. A versão anterior
+ * lia as datas com `new Date('YYYY-MM-DD')` — meia-noite UTC, que no Brasil é
+ * a véspera — e o dia do clubinho saía um dia antes.
  */
 @Injectable()
 export class AttendanceStatisticsRepository {
   constructor(
     @InjectRepository(PagelaEntity)
     private readonly pagelasRepository: Repository<PagelaEntity>,
-    @InjectRepository(ChildEntity)
-    private readonly childrenRepository: Repository<ChildEntity>,
     @InjectRepository(ClubEntity)
     private readonly clubsRepository: Repository<ClubEntity>,
     @InjectRepository(ClubPeriodEntity)
     private readonly periodsRepository: Repository<ClubPeriodEntity>,
-    @InjectRepository(ClubExceptionEntity)
-    private readonly exceptionsRepository: Repository<ClubExceptionEntity>,
+    private readonly expectedChildrenRepository: ExpectedChildrenRepository,
   ) {}
 
   async analyzeClubAttendance(
@@ -105,232 +144,157 @@ export class AttendanceStatisticsRepository {
     });
 
     if (!club) {
-      throw new Error('Clubinho not found');
+      throw new AppNotFoundException(
+        ErrorCode.CLUB_NOT_FOUND,
+        'Clubinho não encontrado',
+      );
     }
+
+    const pageNum = page || 1;
+    const limitNum = limit || DEFAULT_PAGE_SIZE;
 
     const academicPeriod = await this.periodsRepository.findOne({
       where: { year, isActive: true },
     });
 
-    const hasPeriod = !!academicPeriod;
+    // Sem período letivo não existe semana a cobrar. A resposta diz isso com
+    // todas as letras, em vez de devolver "0% de frequência" e um alerta
+    // crítico para um ano em que ninguém devia pagela nenhuma.
+    if (!academicPeriod) {
+      return {
+        clubId: club.id,
+        clubNumber: club.number,
+        weekday: club.weekday,
+        period: {
+          startDate: startDate || `${year}-01-01`,
+          endDate: endDate || `${year}-12-31`,
+          totalWeeks: 0,
+          activeWeeks: 0,
+          exceptionsCount: 0,
+          hasAcademicPeriod: false,
+        },
+        attendance: {
+          weeksWithPagela: 0,
+          weeksExpected: 0,
+          weeksMissing: 0,
+          attendanceRate: 0,
+          consecutiveWeeksPresent: 0,
+          consecutiveWeeksMissing: 0,
+        },
+        alerts: [],
+        timeline: [],
+        timelinePagination: this.paginate(0, pageNum, limitNum),
+        missingWeeks: [],
+        missingWeeksPagination: this.paginate(
+          0,
+          pageNum,
+          MISSING_WEEKS_PAGE_SIZE,
+        ),
+        note: `Período letivo de ${year} não cadastrado - não há semanas a analisar`,
+      };
+    }
 
-    const periodStart =
-      academicPeriod?.startDate || startDate || `${year}-01-01`;
-    const periodEnd = academicPeriod?.endDate || endDate || `${year}-12-31`;
+    const periodStart = academicPeriod.startDate;
+    const periodEnd = academicPeriod.endDate;
 
-    const exceptions = await this.exceptionsRepository.find({
-      where: { isActive: true },
-    });
-
-    const allChildren = await this.childrenRepository.find({
-      where: { club: { id: clubId } },
-    });
-
-    const activeChildren = allChildren.filter(
-      (child) => child.isActive === true,
-    );
-
-    const childIds = activeChildren.map((c) => c.id);
-
-    let pagelasQuery: SelectQueryBuilder<PagelaEntity> | null = null;
-    if (childIds.length > 0) {
-      pagelasQuery = this.pagelasRepository
+    const [children, exceptions, pagelas] = await Promise.all([
+      // Ativas e inativas: quem saiu em novembro era esperada em março.
+      this.expectedChildrenRepository.findChildren({ clubId }),
+      this.expectedChildrenRepository.findExceptions(),
+      this.pagelasRepository
         .createQueryBuilder('pagela')
         .leftJoin('pagela.child', 'child')
         .leftJoin('child.club', 'club')
         .where('club.id = :clubId', { clubId })
         .andWhere('club.isActive = :clubActive', { clubActive: true })
+        .andWhere(ENROLLED_AT_PAGELA_DATE_SQL)
+        .andWhere('pagela.year = :academicYear', {
+          academicYear: academicPeriod.year,
+        })
         .andWhere('pagela.referenceDate >= :startDate', {
           startDate: periodStart,
         })
         .andWhere('pagela.referenceDate <= :endDate', { endDate: periodEnd })
-        .andWhere('child.id IN (:...childIds)', { childIds })
-        .andWhere('child.isActive = :isActive', { isActive: true });
+        .select('pagela.year', 'year')
+        .addSelect('pagela.week', 'week')
+        .addSelect('COUNT(pagela.id)', 'totalPagelas')
+        .addSelect(
+          "DATE_FORMAT(MIN(pagela.referenceDate), '%Y-%m-%d')",
+          'firstDate',
+        )
+        .addSelect(
+          'SUM(CASE WHEN pagela.present = 1 THEN 1 ELSE 0 END)',
+          'presentCount',
+        )
+        .groupBy('pagela.year')
+        .addGroupBy('pagela.week')
+        .orderBy('pagela.year', 'ASC')
+        .addOrderBy('pagela.week', 'ASC')
+        .getRawMany<PagelaAttendanceRaw>(),
+    ]);
 
-      if (hasPeriod && academicPeriod) {
-        pagelasQuery = pagelasQuery.andWhere('pagela.year = :academicYear', {
-          academicYear: academicPeriod.year,
-        });
-      }
-    }
-
-    const pagelas =
-      childIds.length > 0 && pagelasQuery
-        ? await pagelasQuery
-            .select('pagela.year', 'year')
-            .addSelect('pagela.week', 'week')
-            .addSelect('COUNT(pagela.id)', 'totalPagelas')
-            .addSelect('MIN(pagela.referenceDate)', 'firstDate')
-            .addSelect(
-              'SUM(CASE WHEN pagela.present = 1 THEN 1 ELSE 0 END)',
-              'presentCount',
-            )
-            .groupBy('pagela.year')
-            .addGroupBy('pagela.week')
-            .orderBy('pagela.year', 'ASC')
-            .addOrderBy('pagela.week', 'ASC')
-            .getRawMany<PagelaAttendanceRaw>()
-        : [];
-
-    let maxAcademicWeek = 0;
-    if (hasPeriod && academicPeriod) {
-      const start = new Date(academicPeriod.startDate);
-      const end = new Date(academicPeriod.endDate);
-
-      const getWeekStartDate = (date: Date): Date => {
-        const d = new Date(date);
-        const day = d.getDay();
-        const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-        return new Date(d.setDate(diff));
-      };
-
-      const startWeekStart = getWeekStartDate(start);
-      const endWeekStart = getWeekStartDate(end);
-
-      const daysDiff = Math.floor(
-        (endWeekStart.getTime() - startWeekStart.getTime()) /
-          (1000 * 60 * 60 * 24),
-      );
-      maxAcademicWeek = Math.floor(daysDiff / 7) + 1;
-    }
-
-    const weeksWithPagela = new Map<string, PagelaAttendanceData>();
+    const weeksWithPagela = new Map<number, PagelaAttendanceData>();
     pagelas.forEach((p) => {
-      const pagelaYear = parseInt(p.year);
-      const pagelaWeek = parseInt(p.week);
-
-      if (hasPeriod && academicPeriod) {
-        if (pagelaYear !== academicPeriod.year) {
-          return;
-        }
-
-        if (maxAcademicWeek > 0 && pagelaWeek > maxAcademicWeek) {
-          return;
-        }
-      }
-
-      const key = `${pagelaYear}-W${pagelaWeek}`;
-      weeksWithPagela.set(key, {
-        year: pagelaYear,
-        week: pagelaWeek,
-        totalPagelas: parseInt(p.totalPagelas),
+      weeksWithPagela.set(parseInt(p.week), {
+        year: parseInt(p.year),
+        week: parseInt(p.week),
+        totalPagelas: toCount(p.totalPagelas),
         firstDate: p.firstDate,
-        presenceCount: parseInt(p.presentCount),
+        presenceCount: toCount(p.presentCount),
       });
     });
 
-    const start = new Date(periodStart);
-    const end = new Date(periodEnd);
-
+    const today = todayInAppTimezone();
     const allWeeks: TimelineWeek[] = [];
-    const missingWeeks: MissingWeek[] = [];
-    const firstWeekStart = this.getWeekStartDate(start);
-    const currentDate = new Date(
-      this.getExpectedDateForWeekday(firstWeekStart, club.weekday),
-    );
-    const today = new Date();
-    const todayStr = [
-      today.getFullYear(),
-      String(today.getMonth() + 1).padStart(2, '0'),
-      String(today.getDate()).padStart(2, '0'),
-    ].join('-');
 
-    while (currentDate <= end) {
-      const currentDateStr = toDateOnly(currentDate);
+    for (const week of listAcademicWeeks(academicPeriod)) {
+      const clubDay = clubDayInWeek(week.weekStart, club.weekday);
 
-      // Fora do período letivo não há semana a contar; o dia é pulado.
-      const weekData =
-        hasPeriod && academicPeriod
-          ? getAcademicWeek(currentDateStr, academicPeriod)
-          : this.getISOWeekYear(currentDateStr);
+      // O dia do clubinho cai fora do período (primeira ou última semana
+      // cortada): ali não há encontro, e a semana não entra na linha do tempo.
+      if (!clubDay || clubDay < periodStart || clubDay > periodEnd) continue;
 
-      if (!weekData) {
-        currentDate.setDate(currentDate.getDate() + 7);
-        continue;
-      }
-
-      const weekKey = `${weekData.year}-W${weekData.week}`;
-
-      const isException = exceptions.some(
-        (exception) =>
-          exception.exceptionDate === currentDateStr ||
-          (exception.isRecurrent &&
-            exception.exceptionDate.slice(5) === currentDateStr.slice(5)),
-      );
-      const isPending = currentDateStr >= todayStr;
-
-      const hasPagela = weeksWithPagela.has(weekKey);
-
-      const weekDate = new Date(currentDateStr);
-      const expectedChildren = activeChildren.filter((child) => {
-        if (!child.joinedAt) return true;
-
-        const joinedDate = new Date(child.joinedAt);
-        return joinedDate <= weekDate;
-      }).length;
-
-      if (hasPeriod && academicPeriod) {
-        if (maxAcademicWeek > 0 && weekData.week > maxAcademicWeek) {
-          currentDate.setDate(currentDate.getDate() + 7);
-          continue;
-        }
-
-        allWeeks.push({
-          year: weekData.year,
-          week: weekData.week,
-          date: currentDateStr,
-          hasPagela,
-          isException,
-          isPending,
-          expectedChildren,
-          ...weeksWithPagela.get(weekKey),
-        });
-
-        if (
-          !hasPagela &&
-          !isException &&
-          !isPending &&
-          expectedChildren > 0 &&
-          weekData.week <= maxAcademicWeek
-        ) {
-          missingWeeks.push({
-            year: weekData.year,
-            week: weekData.week,
-            expectedDate: currentDateStr,
-            expectedChildren,
-            weekRange: {
-              start: currentDateStr,
-              end: toDateOnly(addDays(currentDate, 6)),
-            },
-            reason: 'no_pagela',
-            severity: 'warning',
-          });
-        }
-      }
-
-      currentDate.setDate(currentDate.getDate() + 7);
+      allWeeks.push({
+        year: week.year,
+        week: week.week,
+        date: clubDay,
+        hasPagela: weeksWithPagela.has(week.week),
+        isException: isExceptionDay(clubDay, exceptions),
+        isPending: clubDay >= today,
+        expectedChildren: countEnrolledAt(children, clubDay),
+        ...weeksWithPagela.get(week.week),
+      });
     }
 
-    const weeksExpected = allWeeks.filter(
-      (week) => !week.isException && !week.isPending,
-    ).length;
-    const weeksWithPagelaCount = allWeeks.filter(
-      (week) => !week.isException && !week.isPending && week.hasPagela,
-    ).length;
+    const countedWeeks = allWeeks.filter(countsForAttendance);
+    const missingWeeks: MissingWeek[] = countedWeeks
+      .filter((week) => !week.hasPagela)
+      .map((week) => ({
+        year: week.year,
+        week: week.week,
+        expectedDate: week.date,
+        expectedChildren: week.expectedChildren,
+        weekRange: {
+          start: week.date,
+          end: addDaysToDateOnly(week.date, 6),
+        },
+        reason: 'no_pagela',
+        severity: 'warning',
+      }));
+
+    const weeksExpected = countedWeeks.length;
+    const weeksWithPagelaCount = weeksExpected - missingWeeks.length;
     const weeksMissingCount = missingWeeks.length;
-    const attendanceRate =
-      weeksExpected > 0 ? (weeksWithPagelaCount / weeksExpected) * 100 : 0;
+    const attendanceRate = percentage(weeksWithPagelaCount, weeksExpected);
 
     let consecutivePresent = 0;
     let consecutiveMissing = 0;
     let currentConsecutivePresent = 0;
     let currentConsecutiveMissing = 0;
 
-    allWeeks.forEach((week) => {
-      if (week.isException || week.isPending) {
-        return;
-      }
-
+    // A sequência anda só pelas semanas que contam: uma semana sem criança
+    // esperada não quebra nem alonga sequência nenhuma.
+    countedWeeks.forEach((week) => {
       if (week.hasPagela) {
         currentConsecutivePresent++;
         currentConsecutiveMissing = 0;
@@ -353,13 +317,16 @@ export class AttendanceStatisticsRepository {
     if (weeksMissingCount > 0) {
       alerts.push({
         type: 'missing_weeks',
-        severity: weeksMissingCount > 3 ? 'critical' : 'warning',
+        severity:
+          weeksMissingCount > CRITICAL_MISSING_WEEKS ? 'critical' : 'warning',
         message: `Clubinho tem ${weeksMissingCount} semana(s) sem pagela`,
         weeksMissing: weeksMissingCount,
       });
     }
 
-    if (attendanceRate < 50) {
+    // Só há taxa a criticar quando havia semana a cumprir: "0% de 0 semanas"
+    // não é frequência baixa, é ausência de cobrança.
+    if (weeksExpected > 0 && attendanceRate < LOW_WEEKLY_ATTENDANCE_THRESHOLD) {
       alerts.push({
         type: 'low_attendance',
         severity: 'critical',
@@ -367,7 +334,7 @@ export class AttendanceStatisticsRepository {
       });
     }
 
-    if (consecutiveMissing >= 3) {
+    if (consecutiveMissing >= CRITICAL_MISSING_WEEKS) {
       alerts.push({
         type: 'consecutive_missing',
         severity: 'critical',
@@ -381,10 +348,12 @@ export class AttendanceStatisticsRepository {
         type: 'info',
         severity: 'info',
         message: `Última pagela: ${lastPagela.firstDate}`,
-        // `MIN(date)` chega ora como texto, ora como `Date`.
-        lastPagelaDate: String(lastPagela.firstDate),
+        lastPagelaDate: lastPagela.firstDate,
       });
     }
+
+    const timelineSkip = (pageNum - 1) * limitNum;
+    const missingSkip = (pageNum - 1) * MISSING_WEEKS_PAGE_SIZE;
 
     return {
       clubId: club.id,
@@ -396,58 +365,29 @@ export class AttendanceStatisticsRepository {
         totalWeeks: allWeeks.length,
         activeWeeks: weeksExpected,
         exceptionsCount: allWeeks.filter((w) => w.isException).length,
-        hasAcademicPeriod: !!academicPeriod,
+        hasAcademicPeriod: true,
       },
       attendance: {
         weeksWithPagela: weeksWithPagelaCount,
         weeksExpected,
         weeksMissing: weeksMissingCount,
-        attendanceRate: Math.round(attendanceRate * 10) / 10,
+        attendanceRate: roundToOneDecimal(attendanceRate),
         consecutiveWeeksPresent: consecutivePresent,
         consecutiveWeeksMissing: consecutiveMissing,
       },
       alerts,
-      timeline: (() => {
-        const pageNum = page || 1;
-        const limitNum = limit || 50;
-        const skip = (pageNum - 1) * limitNum;
-        return allWeeks.slice(skip, skip + limitNum);
-      })(),
-      timelinePagination: {
-        page: page || 1,
-        limit: limit || 50,
-        total: allWeeks.length,
-        totalPages: Math.ceil(allWeeks.length / (limit || 50)),
-        hasNextPage: (page || 1) < Math.ceil(allWeeks.length / (limit || 50)),
-        hasPreviousPage: (page || 1) > 1,
-      },
-      missingWeeks: (() => {
-        const pageNum = page || 1;
-        const limitNum = 20;
-        const skip = (pageNum - 1) * limitNum;
-        return missingWeeks.slice(skip, skip + limitNum);
-      })(),
-      missingWeeksPagination: {
-        page: page || 1,
-        limit: 20,
-        total: missingWeeks.length,
-        totalPages: Math.ceil(missingWeeks.length / 20),
-        hasNextPage: (page || 1) < Math.ceil(missingWeeks.length / 20),
-        hasPreviousPage: (page || 1) > 1,
-      },
+      timeline: allWeeks.slice(timelineSkip, timelineSkip + limitNum),
+      timelinePagination: this.paginate(allWeeks.length, pageNum, limitNum),
+      missingWeeks: missingWeeks.slice(
+        missingSkip,
+        missingSkip + MISSING_WEEKS_PAGE_SIZE,
+      ),
+      missingWeeksPagination: this.paginate(
+        missingWeeks.length,
+        pageNum,
+        MISSING_WEEKS_PAGE_SIZE,
+      ),
     };
-  }
-
-  private getISOWeekYear(dateStr: string): { year: number; week: number } {
-    const date = new Date(dateStr + 'T00:00:00Z');
-    const d = new Date(
-      Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
-    );
-    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-    const year = d.getUTCFullYear();
-    const yearStart = new Date(Date.UTC(year, 0, 1));
-    const week = Math.ceil(((+d - +yearStart) / 86400000 + 1) / 7);
-    return { year, week };
   }
 
   async analyzeWeeklyAttendance(
@@ -456,6 +396,16 @@ export class AttendanceStatisticsRepository {
     page?: number,
     limit?: number,
   ): Promise<WeeklyAttendanceDto> {
+    const emptySummary = {
+      totalClubs: 0,
+      clubsActive: 0,
+      clubsWithPagela: 0,
+      clubsMissing: 0,
+      attendanceRate: 0,
+    };
+    const emptyPagination =
+      page && limit ? { pagination: this.paginate(0, page, limit) } : {};
+
     const academicPeriod = await this.periodsRepository.findOne({
       where: { year, isActive: true },
     });
@@ -464,170 +414,97 @@ export class AttendanceStatisticsRepository {
       return {
         year,
         week,
-        weekRange: {
-          start: null,
-          end: null,
-        },
+        weekRange: { start: null, end: null },
         clubs: [],
-        summary: {
-          totalClubs: 0,
-          clubsActive: 0,
-          clubsWithPagela: 0,
-          clubsMissing: 0,
-          attendanceRate: 0,
-        },
-        ...(page && limit
-          ? {
-              pagination: {
-                page,
-                limit,
-                total: 0,
-                totalPages: 0,
-                hasNextPage: false,
-                hasPreviousPage: false,
-              },
-            }
-          : {}),
+        summary: emptySummary,
+        ...emptyPagination,
         note: 'Período letivo não cadastrado - nenhum clube retornado',
       };
     }
 
-    const periodStartDate = new Date(academicPeriod.startDate + 'T00:00:00');
-    const startWeekStart = this.getWeekStartDate(periodStartDate);
-
-    const academicWeekStart = new Date(startWeekStart);
-    academicWeekStart.setDate(startWeekStart.getDate() + (week - 1) * 7);
-    const weekStart = academicWeekStart;
-    const weekEnd = new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000);
-
-    const end = new Date(academicPeriod.endDate);
-    const endWeekStart = this.getWeekStartDate(end);
-    const daysDiff = Math.floor(
-      (endWeekStart.getTime() - startWeekStart.getTime()) /
-        (1000 * 60 * 60 * 24),
+    const targetWeek = listAcademicWeeks(academicPeriod).find(
+      (candidate) => candidate.week === week,
     );
-    const maxAcademicWeek = Math.floor(daysDiff / 7) + 1;
+    const weekStart =
+      targetWeek?.weekStart ??
+      addDaysToDateOnly(mondayOf(academicPeriod.startDate), (week - 1) * 7);
+    const weekRange = {
+      start: weekStart,
+      end: addDaysToDateOnly(weekStart, 6),
+    };
 
-    const periodStart = new Date(academicPeriod.startDate);
-    const periodEnd = new Date(academicPeriod.endDate);
-
-    let isWeekWithinPeriod = false;
-
-    if (
-      (weekStart >= periodStart && weekStart <= periodEnd) ||
-      (weekEnd >= periodStart && weekEnd <= periodEnd) ||
-      (weekStart <= periodStart && weekEnd >= periodEnd)
-    ) {
-      isWeekWithinPeriod = true;
-    }
-
-    if (week > maxAcademicWeek) {
-      isWeekWithinPeriod = false;
-    }
-
-    if (!isWeekWithinPeriod) {
+    if (!targetWeek) {
       return {
         year,
         week,
-        weekRange: {
-          start: toDateOnly(weekStart),
-          end: toDateOnly(weekEnd),
-        },
+        weekRange,
         clubs: [],
-        summary: {
-          totalClubs: 0,
-          clubsActive: 0,
-          clubsWithPagela: 0,
-          clubsMissing: 0,
-          attendanceRate: 0,
-        },
-        ...(page && limit
-          ? {
-              pagination: {
-                page,
-                limit,
-                total: 0,
-                totalPages: 0,
-                hasNextPage: false,
-                hasPreviousPage: false,
-              },
-            }
-          : {}),
+        summary: emptySummary,
+        ...emptyPagination,
         period: {
           year: academicPeriod.year,
           startDate: academicPeriod.startDate,
           endDate: academicPeriod.endDate,
         },
-        note: `Semana fora do período letivo (${new Date(academicPeriod.startDate).toLocaleDateString('pt-BR')} a ${new Date(academicPeriod.endDate).toLocaleDateString('pt-BR')}) - nenhum clube retornado`,
+        note: `Semana fora do período letivo (${formatDateOnlyPtBr(academicPeriod.startDate)} a ${formatDateOnlyPtBr(academicPeriod.endDate)}) - nenhum clube retornado`,
       };
     }
 
-    const clubs = await this.clubsRepository
-      .createQueryBuilder('club')
-      .leftJoinAndSelect('club.address', 'address')
-      .where('club.isActive = :isActive', { isActive: true })
-      .getMany();
-
-    const pagelasInWeek = await this.pagelasRepository
-      .createQueryBuilder('pagela')
-      .leftJoin('pagela.child', 'child')
-      .leftJoin('child.club', 'club')
-      .where('pagela.year = :year', { year })
-      .andWhere('pagela.week = :week', { week })
-      .andWhere('club.isActive = :clubActive', { clubActive: true })
-      .andWhere('child.isActive = :childActive', { childActive: true })
-      .select('club.id', 'clubId')
-      .addSelect('COUNT(DISTINCT child.id)', 'totalPagelas')
-      .groupBy('club.id')
-      .getRawMany<{ clubId: string; totalPagelas: string }>();
-
-    const clubsWithPagela = new Map(
-      pagelasInWeek.map((p) => [p.clubId, parseInt(p.totalPagelas)]),
-    );
-
-    const [activeChildren, exceptions] = await Promise.all([
-      this.childrenRepository.find({
-        where: { isActive: true },
-        relations: ['club'],
-      }),
-      this.exceptionsRepository.find({ where: { isActive: true } }),
+    const [clubs, pagelasInWeek, children, exceptions] = await Promise.all([
+      this.clubsRepository
+        .createQueryBuilder('club')
+        .leftJoinAndSelect('club.address', 'address')
+        .where('club.isActive = :isActive', { isActive: true })
+        .orderBy('club.number', 'ASC')
+        .getMany(),
+      this.pagelasRepository
+        .createQueryBuilder('pagela')
+        .leftJoin('pagela.child', 'child')
+        .leftJoin('child.club', 'club')
+        .where('pagela.year = :year', { year })
+        .andWhere('pagela.week = :week', { week })
+        .andWhere('club.isActive = :clubActive', { clubActive: true })
+        .andWhere(ENROLLED_AT_PAGELA_DATE_SQL)
+        .select('club.id', 'clubId')
+        .addSelect('COUNT(DISTINCT child.id)', 'totalPagelas')
+        .groupBy('club.id')
+        .getRawMany<{ clubId: string; totalPagelas: string }>(),
+      // Ativas e inativas: a regra de matrícula na data decide quem conta.
+      this.expectedChildrenRepository.findChildren({}),
+      this.expectedChildrenRepository.findExceptions(),
     ]);
 
-    const today = new Date();
-    const todayStr = [
-      today.getFullYear(),
-      String(today.getMonth() + 1).padStart(2, '0'),
-      String(today.getDate()).padStart(2, '0'),
-    ].join('-');
+    const clubsWithPagela = new Map(
+      pagelasInWeek.map((p) => [p.clubId, toCount(p.totalPagelas)]),
+    );
+
+    const today = todayInAppTimezone();
 
     const clubsAnalysis = clubs.map((club) => {
       const totalPagelas = clubsWithPagela.get(club.id) || 0;
+      const expectedDate =
+        clubDayInWeek(targetWeek.weekStart, club.weekday) ??
+        targetWeek.weekStart;
+      const isOutOfPeriod =
+        expectedDate < academicPeriod.startDate ||
+        expectedDate > academicPeriod.endDate;
 
-      const expectedDate = this.getExpectedDateForWeekday(
-        weekStart,
-        club.weekday,
-      );
-
-      const expectedChildren = activeChildren.filter((child) => {
-        if (child.club?.id !== club.id) return false;
-        return (
-          !child.joinedAt ||
-          new Date(child.joinedAt) <= new Date(`${expectedDate}T23:59:59`)
-        );
-      }).length;
-      const exception = exceptions.find(
-        (item) =>
-          item.exceptionDate === expectedDate ||
-          (item.isRecurrent &&
-            item.exceptionDate.slice(5) === expectedDate.slice(5)),
-      );
+      const expectedChildren = isOutOfPeriod
+        ? 0
+        : countEnrolledAt(
+            children.filter((child) => child.clubId === club.id),
+            expectedDate,
+          );
       const hasPagela = totalPagelas > 0;
 
       // Declarado com o tipo do contrato: um estado novo aqui passa a exigir
       // que ele seja acrescentado à união que a tela recebe.
       let status: WeeklyClubStatus = 'missing';
-      if (exception) status = 'vacation';
-      else if (expectedDate >= todayStr) status = 'pending';
+      // O período abre ou fecha no meio da semana e o dia deste clubinho ficou
+      // de fora: não havia encontro, então não há pagela faltando.
+      if (isOutOfPeriod) status = 'out_of_period';
+      else if (isExceptionDay(expectedDate, exceptions)) status = 'vacation';
+      else if (expectedDate >= today) status = 'pending';
       else if (expectedChildren === 0) status = 'inactive';
       else if (totalPagelas >= expectedChildren) status = 'ok';
       else if (totalPagelas > 0) status = 'partial';
@@ -645,7 +522,7 @@ export class AttendanceStatisticsRepository {
     });
 
     const expectedClubs = clubsAnalysis.filter((club) =>
-      ['ok', 'partial', 'missing'].includes(club.status),
+      EXPECTED_CLUB_STATUSES.includes(club.status),
     );
     const clubsActive = expectedClubs.length;
     const clubsWithPagelaCount = expectedClubs.filter(
@@ -656,64 +533,40 @@ export class AttendanceStatisticsRepository {
     ).length;
 
     const pageNum = page || 1;
-    const limitNum = limit || 50;
+    const limitNum = limit || DEFAULT_PAGE_SIZE;
     const skip = (pageNum - 1) * limitNum;
-    const paginatedClubs = clubsAnalysis.slice(skip, skip + limitNum);
-    const totalPages = Math.ceil(clubsAnalysis.length / limitNum);
 
     return {
       year,
       week,
-      weekRange: {
-        start: toDateOnly(weekStart),
-        end: toDateOnly(weekEnd),
-      },
-      clubs: paginatedClubs,
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total: clubsAnalysis.length,
-        totalPages,
-        hasNextPage: pageNum < totalPages,
-        hasPreviousPage: pageNum > 1,
-      },
+      weekRange,
+      clubs: clubsAnalysis.slice(skip, skip + limitNum),
+      pagination: this.paginate(clubsAnalysis.length, pageNum, limitNum),
       summary: {
         totalClubs: clubsActive,
         clubsActive,
         clubsWithPagela: clubsWithPagelaCount,
         clubsMissing: clubsMissingCount,
-        attendanceRate:
-          clubsActive > 0 ? (clubsWithPagelaCount / clubsActive) * 100 : 0,
+        attendanceRate: percentage(clubsWithPagelaCount, clubsActive),
       },
     };
   }
 
-  private getWeekStartDate(date: Date): Date {
-    const d = new Date(date);
-    const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-    return new Date(d.setDate(diff));
-  }
+  /** Recorte de página no formato das rotas de frequência. */
+  private paginate(
+    total: number,
+    page: number,
+    limit: number,
+  ): AttendancePaginationDto {
+    const totalPages = Math.ceil(total / limit);
 
-  private getExpectedDateForWeekday(weekStart: Date, weekday: string): string {
-    const weekdayMap = {
-      monday: 1,
-      tuesday: 2,
-      wednesday: 3,
-      thursday: 4,
-      friday: 5,
-      saturday: 6,
-      sunday: 0,
+    return {
+      page,
+      limit,
+      total,
+      totalPages,
+      hasNextPage: page < totalPages,
+      hasPreviousPage: page > 1,
     };
-
-    const normalizedWeekday = weekday.toLowerCase() as keyof typeof weekdayMap;
-    const targetDay = weekdayMap[normalizedWeekday] ?? 1;
-    const currentDay = weekStart.getDay();
-    const daysToAdd = (targetDay - currentDay + 7) % 7;
-
-    const expectedDate = new Date(
-      weekStart.getTime() + daysToAdd * 24 * 60 * 60 * 1000,
-    );
-    return toDateOnly(expectedDate);
   }
 }

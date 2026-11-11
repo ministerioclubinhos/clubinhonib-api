@@ -15,11 +15,14 @@ export class AcceptedChristsStatsResponseDto {
     endDate?: string;
   };
   overall: {
+    /** Aceitaram + reconciliaram, uma criança por tipo. Não inclui as sem tipo. */
     totalDecisions: number;
     uniqueChildren: number;
     byDecisionType: {
       [key in DecisionType]?: number;
     };
+    /** Registros legados sem tipo de decisão; ficam fora de todo total. */
+    unspecifiedDecisions: number;
   };
   byPeriod?: AcceptedChristPeriodStatsDto[];
   recentDecisions?: {

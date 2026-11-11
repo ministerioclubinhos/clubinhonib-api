@@ -4,6 +4,7 @@ import { AccessContext, UserRole } from 'src/core/auth/auth.types';
 import { ChildEntity } from 'src/modules/children/entities/child.entity';
 import { GetChildrenService } from 'src/modules/children/services/get-children.service';
 import {
+  AppConflictException,
   AppForbiddenException,
   AppNotFoundException,
   ErrorCode,
@@ -15,7 +16,10 @@ import { CreateAcceptedChristService } from './create-accepted-christ.service';
 import { NotifyAcceptedChristService } from './notify-accepted-christ.service';
 
 describe('CreateAcceptedChristService', () => {
-  const acceptedChristRepository = { createForChild: jest.fn() };
+  const acceptedChristRepository = {
+    createForChild: jest.fn(),
+    findDecisionsOfChild: jest.fn(),
+  };
   /** O aviso ao clubinho sai sem `await`; aqui basta saber que foi disparado. */
   const notifyAcceptedChrist = { notifyInBackground: jest.fn() };
 
@@ -52,7 +56,9 @@ describe('CreateAcceptedChristService', () => {
     jest.clearAllMocks();
     getChildrenService.findEntityForContextOrFail.mockResolvedValue({
       id: 'child-1',
+      isActive: true,
     } as ChildEntity);
+    acceptedChristRepository.findDecisionsOfChild.mockResolvedValue([]);
     acceptedChristRepository.createForChild.mockResolvedValue({
       id: 'decision-1',
       decision: DecisionType.ACCEPTED,
@@ -119,23 +125,55 @@ describe('CreateAcceptedChristService', () => {
     expect(acceptedChristRepository.createForChild).not.toHaveBeenCalled();
   });
 
-  it('aceita decisão e observação ausentes', async () => {
-    acceptedChristRepository.createForChild.mockResolvedValue({
-      id: 'decision-2',
-      decision: null,
-      notes: null,
-      createdAt: new Date('2026-03-10T12:00:00Z'),
-      updatedAt: new Date('2026-03-10T12:00:00Z'),
-    });
+  it('recusa uma segunda aceitação da mesma criança', async () => {
+    acceptedChristRepository.findDecisionsOfChild.mockResolvedValue([
+      { id: 'decision-0', decision: DecisionType.ACCEPTED },
+    ]);
     const service = await buildService();
 
-    const result = await service.create(teacher, { childId: 'child-1' });
-
-    expect(acceptedChristRepository.createForChild).toHaveBeenCalledWith({
-      childId: 'child-1',
-      decision: null,
-      notes: null,
+    await expect(service.create(teacher, dto)).rejects.toMatchObject({
+      code: ErrorCode.DECISION_RULE_VIOLATION,
     });
-    expect(result.decision).toBeNull();
+    expect(acceptedChristRepository.createForChild).not.toHaveBeenCalled();
+    expect(notifyAcceptedChrist.notifyInBackground).not.toHaveBeenCalled();
+  });
+
+  it('recusa reconciliação de quem nunca aceitou', async () => {
+    const service = await buildService();
+
+    await expect(
+      service.create(teacher, { ...dto, decision: DecisionType.RECONCILED }),
+    ).rejects.toBeInstanceOf(AppConflictException);
+    expect(acceptedChristRepository.createForChild).not.toHaveBeenCalled();
+  });
+
+  it('aceita reconciliação de quem já aceitou, mais de uma vez', async () => {
+    acceptedChristRepository.findDecisionsOfChild.mockResolvedValue([
+      { id: 'decision-0', decision: DecisionType.ACCEPTED },
+      { id: 'decision-1', decision: DecisionType.RECONCILED },
+    ]);
+    const service = await buildService();
+
+    await service.create(teacher, {
+      ...dto,
+      decision: DecisionType.RECONCILED,
+    });
+
+    expect(acceptedChristRepository.createForChild).toHaveBeenCalledWith(
+      expect.objectContaining({ decision: DecisionType.RECONCILED }),
+    );
+  });
+
+  it('recusa decisão de criança desativada', async () => {
+    getChildrenService.findEntityForContextOrFail.mockResolvedValue({
+      id: 'child-1',
+      isActive: false,
+    } as ChildEntity);
+    const service = await buildService();
+
+    await expect(service.create(teacher, dto)).rejects.toMatchObject({
+      code: ErrorCode.CHILD_INACTIVE,
+    });
+    expect(acceptedChristRepository.createForChild).not.toHaveBeenCalled();
   });
 });

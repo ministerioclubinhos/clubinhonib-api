@@ -11,6 +11,7 @@ import { CreateAcceptedChristService } from './services/create-accepted-christ.s
 import { ClubsModule } from 'src/modules/clubs/clubs.module';
 import { EmailModule } from 'src/shared/email';
 import { SiteUrlModule } from 'src/shared/site-url';
+import { DeleteAcceptedChristService } from './services/delete-accepted-christ.service';
 import { NotifyAcceptedChristService } from './services/notify-accepted-christ.service';
 
 @Module({
@@ -29,6 +30,7 @@ import { NotifyAcceptedChristService } from './services/notify-accepted-christ.s
   controllers: [AcceptedChristController],
   providers: [
     CreateAcceptedChristService,
+    DeleteAcceptedChristService,
     NotifyAcceptedChristService,
     AcceptedChristRepository,
   ],

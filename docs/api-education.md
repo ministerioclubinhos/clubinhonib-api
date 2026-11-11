@@ -144,20 +144,60 @@ A pagela outside the caller's scope answers `404`, not `403`: it must not be
 possible to learn that someone else's record exists. Writing a pagela for a
 child outside the scope answers `403 CHILD_7002`.
 
+### Academic period lock (2026-11-11)
+
+**A pagela can only be created or edited while today is inside an active
+academic period.** "Today" is the server's day in `America/Sao_Paulo`, never a
+date sent by the client. Before this rule the period was only checked when the
+body omitted `week` or `year` — and the app always sent both, so nothing was
+ever refused.
+
+| Situation | Answer |
+|---|---|
+| No active period around today, period not started, or period ended | `400 VAL_4007` (`ACADEMIC_PERIOD_CLOSED`) with a message naming the date |
+| `referenceDate` after today, or outside the period in progress | `400 VAL_4005` |
+| `year` different from the period in progress | `400 VAL_4005` |
+| `week` below 1 or above the current academic week (future week) | `400 VAL_4005` |
+
+**Inactive children** (`isActive = false`) do not receive pagelas and their
+pagelas are not edited: `409 CHILD_7003`. Reactivate the child first.
+
+Deleting is not affected. Weekday exceptions (holidays, events) do not block a
+pagela: clubs meet on different weekdays and the pagela is a weekly record.
+
 ### Week and year
 
 `week` and `year` are the **academic** week, counted from the start of the
 registered period (`/club-control` periods), not the ISO week.
 
-- Send both and they are used as given.
-- Send neither, or only one, and the missing part is derived from the period
-  that covers `referenceDate`. The period may be registered under the previous
-  or the next year, so all three are consulted.
-- No period for that date: `404 RESOURCE_NOT_FOUND`.
-- Date outside the period: `422 VAL_4005` on create; on update, week and year
-  are simply left as they were.
+- On create, `week` is used as given when it has already happened (1 to the
+  current academic week) and `year` must be the year of the period in progress.
+  When absent, both are derived from `referenceDate`.
+- On update, only what the request **changes** is checked: a pagela from a
+  previous year can still have its flags and note corrected, but cannot be
+  moved to a future week or to a date outside the period. Changing only
+  `referenceDate` recalculates the week.
 
 ### Endpoints
+
+#### `GET /pagelas/launch-window`
+
+Tells the screen whether today accepts pagelas, so it can explain the refusal
+before the teacher fills the form. Roles: `admin`, `coordinator`, `teacher`.
+
+```typescript
+{
+  open: boolean;
+  reason: 'NO_PERIOD' | 'NOT_STARTED' | 'ENDED' | null;
+  message: string | null;      // ready-to-show explanation when closed
+  today: string;               // YYYY-MM-DD, America/Sao_Paulo
+  year: number | null;         // period in progress (or next/last when closed)
+  currentWeek: number | null;  // highest week that accepts a pagela
+  totalWeeks: number | null;
+  startDate: string | null;
+  endDate: string | null;
+}
+```
 
 #### `GET /pagelas/paginated`
 
@@ -201,8 +241,8 @@ One pagela, if it is within the caller's scope.
   present: boolean;             // required
   didMeditation: boolean;       // required
   recitedVerse: boolean;        // required
-  week?: number;                // 1–53; derived when absent
-  year?: number;                // 2000–9999; derived when absent
+  week?: number;                // 1 to the current academic week; derived when absent
+  year?: number;                // year of the period in progress; derived when absent
   teacherProfileId?: string;    // UUID
   notes?: string;               // max 500 chars
 }

@@ -9,6 +9,7 @@ import { ClubControlService } from 'src/modules/club-control/services/club-contr
 
 import { PAGELA_PERIOD_YEAR_OFFSETS } from '../constants';
 import { AcademicPeriod, AcademicWeek } from '../types';
+import { periodCovers } from '../launch-window.utils';
 import { getAcademicWeek, referenceYearOf } from '../utils';
 
 /**
@@ -72,20 +73,26 @@ export class ResolvePagelaWeekService {
     referenceDate: string,
   ): Promise<AcademicPeriod | null> {
     const year = referenceYearOf(referenceDate);
+    let fallback: AcademicPeriod | null = null;
 
     for (const offset of PAGELA_PERIOD_YEAR_OFFSETS) {
-      const period = await this.clubControlService.getPeriodByYear(
+      const found = await this.clubControlService.getPeriodByYear(
         year + offset,
       );
-      if (period) {
-        return {
-          year: period.year,
-          startDate: period.startDate,
-          endDate: period.endDate,
-        };
-      }
+      if (!found) continue;
+
+      const period: AcademicPeriod = {
+        year: found.year,
+        startDate: found.startDate,
+        endDate: found.endDate,
+      };
+      // O primeiro encontrado nem sempre é o que cobre a data: em janeiro, o
+      // período do ano novo pode existir e ainda não ter começado, enquanto o
+      // do ano anterior segue em andamento.
+      if (periodCovers(period, referenceDate)) return period;
+      fallback ??= period;
     }
 
-    return null;
+    return fallback;
   }
 }

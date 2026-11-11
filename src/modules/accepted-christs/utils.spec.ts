@@ -1,7 +1,14 @@
 import { UserRole } from 'src/core/auth/auth.types';
 import { AppForbiddenException } from 'src/shared/exceptions';
 
-import { assertCanRegisterDecision, canRegisterDecision } from './utils';
+import { DECISION_RULE_MESSAGES } from './constants';
+import { DecisionType } from './enums/decision-type.enum';
+import {
+  assertCanRegisterDecision,
+  canRegisterDecision,
+  decisionRefusal,
+  decisionRemovalRefusal,
+} from './utils';
 
 /**
  * A rota não tinha guard nenhum: qualquer pessoa na internet gravava que uma
@@ -32,5 +39,47 @@ describe('acesso ao registro de decisão', () => {
     expect(() => assertCanRegisterDecision(context)).toThrow(
       AppForbiddenException,
     );
+  });
+});
+
+describe('regras de decisão', () => {
+  const base = { childIsActive: true, existing: [] };
+
+  it('a primeira aceitação passa', () => {
+    expect(
+      decisionRefusal({ ...base, decision: DecisionType.ACCEPTED }),
+    ).toBeNull();
+  });
+
+  it('registro antigo sem tipo não conta como aceitação', () => {
+    expect(
+      decisionRefusal({
+        childIsActive: true,
+        existing: [null],
+        decision: DecisionType.RECONCILED,
+      }),
+    ).toBe(DECISION_RULE_MESSAGES.RECONCILED_WITHOUT_ACCEPTANCE);
+  });
+
+  it('criança desativada não recebe decisão alguma', () => {
+    expect(
+      decisionRefusal({
+        childIsActive: false,
+        existing: [DecisionType.ACCEPTED],
+        decision: DecisionType.RECONCILED,
+      }),
+    ).toBe(DECISION_RULE_MESSAGES.CHILD_INACTIVE);
+  });
+
+  it('a aceitação só sai depois das reconciliações', () => {
+    expect(
+      decisionRemovalRefusal({
+        decision: DecisionType.ACCEPTED,
+        others: [DecisionType.RECONCILED],
+      }),
+    ).toBe(DECISION_RULE_MESSAGES.ACCEPTANCE_HAS_RECONCILIATIONS);
+    expect(
+      decisionRemovalRefusal({ decision: DecisionType.ACCEPTED, others: [] }),
+    ).toBeNull();
   });
 });
