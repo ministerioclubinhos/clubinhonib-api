@@ -35,3 +35,28 @@ export const WEEK_MATERIAL_SORT_COLUMNS = {
 
 /** Tamanho máximo do texto de busca. */
 export const WEEK_MATERIAL_SEARCH_MAX_LENGTH = 200;
+
+/**
+ * Marca gravada na descrição das páginas de Material Especial. Um material
+ * especial é um material semanal com título e descrição próprios; o painel lê
+ * a marca para exibir o selo.
+ */
+export const WEEK_MATERIAL_SPECIAL_TAG = '[tipo:especial]';
+
+/**
+ * Marca legada de origem (lição do Estúdio) gravada na descrição. O vínculo
+ * vigente é a coluna `sourceLessonId`; a marca só sobrevive em páginas antigas.
+ */
+export const WEEK_MATERIAL_ORIGIN_MARKER_PREFIX = '[origem:licao:';
+
+/** Marcas internas que nunca devem aparecer para o público. */
+export const WEEK_MATERIAL_INTERNAL_MARKERS_PATTERN =
+  /\s*\[(?:tipo:especial|origem:licao:[^\]]*)\]/gi;
+
+/** Quantas páginas a busca de possíveis duplicatas examina e devolve. */
+export const WEEK_MATERIAL_DUPLICATE_SCAN_LIMIT = 50;
+export const WEEK_MATERIAL_DUPLICATE_RESULT_LIMIT = 5;
+/** Longest title words sent to the database when looking for a same-title page. */
+export const WEEK_MATERIAL_DUPLICATE_FRAGMENT_LIMIT = 3;
+/** Word that names the week in a weekly material title ("Semana 12"). */
+export const WEEK_MATERIAL_WEEK_WORD = 'semana';

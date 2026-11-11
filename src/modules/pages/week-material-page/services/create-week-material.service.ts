@@ -16,7 +16,7 @@ import { CreateWeekMaterialsPageDto } from '../dto/create-week-material.dto';
 import { WeekMaterialsPageResponseDTO } from '../dto/week-material-response.dto';
 import { WeekMaterialsPageEntity } from '../entities/week-material-page.entity';
 import { toWeekMaterialsPageResponse } from '../mappers';
-import { MulterFilesDict } from '../types';
+import { MulterFilesDict, WeekMaterialCreateOptions } from '../types';
 import {
   assertUploadFieldKeys,
   assertUploadFilesPresent,
@@ -43,6 +43,7 @@ export class WeekMaterialsPageCreateService {
   async createWeekMaterialsPage(
     dto: CreateWeekMaterialsPageDto,
     filesDict: MulterFilesDict,
+    options: WeekMaterialCreateOptions = {},
   ): Promise<WeekMaterialsPageResponseDTO> {
     const incomingMedia = normalizeIncomingMedia(dto);
     assertUploadFieldKeys(incomingMedia);
@@ -54,6 +55,9 @@ export class WeekMaterialsPageCreateService {
     // Fica fora do bloco porque o `catch` precisa do id para varrer a mídia
     // que tenha sobrado da tentativa.
     let savedPage: WeekMaterialsPageEntity | undefined;
+    // Depois do commit a página existe de verdade: nenhuma falha posterior
+    // pode apagar as mídias dela.
+    let committed = false;
 
     // Cada arquivo enviado fica registrado: se a criação falhar depois do
     // upload, o objeto é apagado do bucket em vez de ficar órfão.
@@ -66,7 +70,11 @@ export class WeekMaterialsPageCreateService {
       // nela. O rollback acontece sozinho quando o bloco lança.
       const { page, mediaItems } = await this.pageRepo.runInTransaction(
         async (manager) => {
-          const created = await this.persistPageWithRoute(dto, manager);
+          const created = await this.persistPageWithRoute(
+            dto,
+            manager,
+            options,
+          );
           savedPage = created;
 
           const media =
@@ -76,25 +84,39 @@ export class WeekMaterialsPageCreateService {
               WEEK_MATERIAL_ENTITY_TYPE,
               filesDict,
               uploads.upload,
+              // As linhas de mídia entram na mesma transação: um rollback
+              // não deixa mídia apontando para uma página que não existe.
+              manager,
             );
 
           return { page: created, mediaItems: media };
         },
       );
 
+      committed = true;
       this.logger.log(`Página de materiais criada. ID=${page.id}`);
 
       // O aviso sai depois do commit e fora da requisição: são muitos
       // destinatários, e uma falha no e-mail não pode desfazer a página.
-      this.announceService.announceInBackground(page);
+      try {
+        this.announceService.announceInBackground(page);
+      } catch (announceError: unknown) {
+        // A página já existe: o aviso nunca transforma a criação em falha.
+        this.logger.error(
+          `Falha ao agendar o aviso do material ${page.id}.`,
+          announceError instanceof Error ? announceError.stack : undefined,
+        );
+      }
 
       return toWeekMaterialsPageResponse(page, mediaItems);
     } catch (error: unknown) {
-      await this.discardOrphanMedia(savedPage?.id);
-      await this.mediaItemProcessor.discardUnreferencedUploads(
-        uploads.uploadedUrls,
-        (url: string) => this.s3.delete(url),
-      );
+      if (!committed) {
+        await this.discardOrphanMedia(savedPage?.id);
+        await this.mediaItemProcessor.discardUnreferencedUploads(
+          uploads.uploadedUrls,
+          (url: string) => this.s3.delete(url),
+        );
+      }
 
       this.logger.error(
         'Erro ao criar página de materiais. Rollback executado.',
@@ -113,6 +135,7 @@ export class WeekMaterialsPageCreateService {
   private async persistPageWithRoute(
     dto: CreateWeekMaterialsPageDto,
     manager: EntityManager,
+    options: WeekMaterialCreateOptions,
   ): Promise<WeekMaterialsPageEntity> {
     const page = await this.pageRepo.createPage(
       {
@@ -127,36 +150,47 @@ export class WeekMaterialsPageCreateService {
       manager,
     );
 
-    const path = await this.createRouteService.generateAvailablePath(
-      dto.pageTitle,
+    // A rota escolhe o próprio `path` e resiste a colisões: dois materiais
+    // com a mesma base (duas "Semana 12") recebem `..._semana_12` e
+    // `..._semana_12_1`.
+    page.route = await this.createRouteService.createRouteWithAvailablePath(
+      manager,
+      {
+        title: dto.pageTitle,
+        subtitle: dto.pageSubtitle,
+        description: dto.pageDescription,
+        type: RouteType.PAGE,
+        entityId: page.id,
+        idToFetch: page.id,
+        entityType: WEEK_MATERIAL_ENTITY_TYPE,
+        image: WEEK_MATERIAL_ROUTE_IMAGE_URL,
+        public: true,
+        current: false,
+      },
       WEEK_MATERIAL_ROUTE_PATH_PREFIX,
+      options.routePathSource,
     );
-
-    page.route = await this.createRouteService.createRouteWithManager(manager, {
-      title: dto.pageTitle,
-      subtitle: dto.pageSubtitle,
-      description: dto.pageDescription,
-      path,
-      type: RouteType.PAGE,
-      entityId: page.id,
-      idToFetch: page.id,
-      entityType: WEEK_MATERIAL_ENTITY_TYPE,
-      image: WEEK_MATERIAL_ROUTE_IMAGE_URL,
-      public: true,
-      current: false,
-    });
 
     return this.pageRepo.savePage(page, manager);
   }
 
   /**
-   * Media rows and S3 objects are written outside the page transaction, so a
-   * rollback must delete whatever was already persisted for the page.
+   * Backstop: media rows are written in the page transaction and roll back
+   * with it, but anything a failed attempt still left for the page is removed.
    */
   private async discardOrphanMedia(pageId?: string): Promise<void> {
     if (!pageId) return;
 
     try {
+      // Um commit pode ter chegado ao banco mesmo com a resposta perdida: se a
+      // página existe, as mídias são dela e nada é apagado.
+      if (await this.pageRepo.findOnePageById(pageId)) {
+        this.logger.warn(
+          `Página ${pageId} existe apesar da falha na criação; mídias preservadas.`,
+        );
+        return;
+      }
+
       const orphans = await this.mediaItemProcessor.findMediaItemsByTarget(
         pageId,
         WEEK_MATERIAL_ENTITY_TYPE,

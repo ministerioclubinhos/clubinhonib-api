@@ -11,6 +11,7 @@ import { DeleteLessonService } from '../services/delete-lesson.service';
 import { DocxExporterService } from '../services/docx-exporter.service';
 import { ExportLessonPdfService } from '../services/export-lesson-pdf.service';
 import { GetLessonService } from '../services/get-lesson.service';
+import { GetLessonPublicationService } from '../services/get-lesson-publication.service';
 import { LessonAssetGenerationService } from '../services/lesson-asset-generation.service';
 import { LessonDraftService } from '../services/lesson-draft.service';
 import { LessonGenerationService } from '../services/lesson-generation.service';
@@ -62,8 +63,13 @@ export function createLessonStudio(
     assets,
   );
   const content = new UpdateLessonContentService(repo, support, lessons);
-  const review = new UpdateLessonReviewService(repo, support, lessons);
   const pdfExport = new ExportLessonPdfService(docx, pdf, lessons);
+  const review = new UpdateLessonReviewService(
+    repo,
+    support,
+    lessons,
+    pdfExport,
+  );
   const publication = new PublishLessonService(
     repo,
     weekMaterials,
@@ -82,6 +88,7 @@ export function createLessonStudio(
     pdfExport,
     publication,
     deletion,
+    new GetLessonPublicationService(lessons, weekMaterialsGet),
   );
   return {
     service,

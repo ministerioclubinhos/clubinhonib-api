@@ -8,12 +8,14 @@ import { LessonStageType, LessonStatus } from '../enums/lesson.enums';
 import type {
   LessonDraftPage,
   LessonPdfFile,
+  LessonPublicationPreview,
   LessonPublicationResult,
 } from '../types/lesson-generation.types';
 import { CreateLessonService } from './create-lesson.service';
 import { DeleteLessonService } from './delete-lesson.service';
 import { ExportLessonPdfService } from './export-lesson-pdf.service';
 import { GetLessonService } from './get-lesson.service';
+import { GetLessonPublicationService } from './get-lesson-publication.service';
 import { LessonGenerationService } from './lesson-generation.service';
 import { PublishLessonService } from './publish-lesson.service';
 import { UpdateLessonContentService } from './update-lesson-content.service';
@@ -34,6 +36,7 @@ export class LessonDraftService {
     private readonly pdfExport: ExportLessonPdfService,
     private readonly publication: PublishLessonService,
     private readonly deletion: DeleteLessonService,
+    private readonly publicationPreview: GetLessonPublicationService,
   ) {}
 
   create(dto: GenerateLessonRequestDto, userId: string): Promise<LessonEntity> {
@@ -149,6 +152,10 @@ export class LessonDraftService {
     actorId?: string,
   ): Promise<LessonPublicationResult<LessonEntity>> {
     return this.publication.publishToWeekMaterial(id, actorId);
+  }
+
+  getPublicationPreview(id: string): Promise<LessonPublicationPreview> {
+    return this.publicationPreview.preview(id);
   }
 
   archive(id: string, actorId?: string): Promise<LessonEntity> {

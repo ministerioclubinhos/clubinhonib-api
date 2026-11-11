@@ -77,6 +77,7 @@ export const EMAIL_SUBJECTS = {
   imageSharedNotification: 'Novas imagens compartilhadas do Clubinho',
   newUserRegistrationNotification: 'Novo pré-cadastro de usuário no site',
   weekMaterialAnnouncement: 'Novo material da semana já disponível',
+  specialMaterialAnnouncement: 'Novo material especial já disponível',
   eventCreated: 'Novo evento na agenda do Clubinho',
   eventUpdated: 'Um evento da agenda mudou',
   eventCancelled: 'Um evento saiu da agenda',

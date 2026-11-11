@@ -33,6 +33,7 @@ describe('AiLessonsController', () => {
     exportPdf: jest.fn(),
     previewStagePdf: jest.fn(),
     publishToWeekMaterial: jest.fn(),
+    getPublicationPreview: jest.fn(),
     delete: jest.fn(),
     getEventDigest: jest.fn(),
     reopenStage: jest.fn(),
@@ -345,5 +346,29 @@ describe('AiLessonsController', () => {
     );
     await controller.delete('lesson-2', req);
     expect(lessonsService.delete).toHaveBeenCalledWith('lesson-2', 'admin-1');
+  });
+
+  it('devolve a prévia da publicação exatamente como o serviço a calcula', async () => {
+    const preview = {
+      title: 'Semana 27 — O Bom Pastor',
+      isSpecial: false,
+      documentCount: 8,
+      weekMaterial: null,
+      duplicates: [
+        {
+          id: 'page-1',
+          title: 'Semana 27',
+          routePath: 'materiais_semanal_semana_27',
+        },
+      ],
+    };
+    lessonsService.getPublicationPreview.mockResolvedValue(preview);
+
+    await expect(controller.publicationPreview('lesson-2')).resolves.toEqual(
+      preview,
+    );
+    expect(lessonsService.getPublicationPreview).toHaveBeenCalledWith(
+      'lesson-2',
+    );
   });
 });

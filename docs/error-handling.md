@@ -723,8 +723,9 @@ anteriores, exceto onde indicado em [api-ai-lessons.md](api-ai-lessons.md).
 | `LESSON_9309` | `LESSON_INVALID_REQUEST` | 400 | Pedido inválido (configuração visual, nota vazia) |
 | `LESSON_9310` | `LESSON_DEPENDENCY_INCOMPLETE` | 409 | Etapa anterior não concluída |
 | `LESSON_9311` | `LESSON_EVENT_STREAM_LIMIT` | 429 | Mais de 4 conexões SSE por usuário e lição |
-| `LESSON_9312` | `LESSON_PUBLISHED_PAGE_MISSING` | 409 | O material semanal vinculado não existe mais |
+| `LESSON_9312` | `LESSON_PUBLISHED_PAGE_MISSING` | 409 | Reservado; não é mais emitido (a publicação agora publica novamente quando o material vinculado foi apagado) |
 | `LESSON_9313` | `LESSON_PROVIDER_SNAPSHOT_UNAVAILABLE` | 503 | Não foi possível calcular o snapshot do provedor ao pedir a geração |
+| `LESSON_9314` | `LESSON_STAGE_PDF_UNAVAILABLE` | 422 / 503 | O PDF de um item não pôde ser gerado ao aprovar ou publicar. 422: o conteúdo não vira PDF; 503: conversor ocupado ou indisponível. A mensagem começa com o nome do item |
 
 Validações de DTO (`lockVersion` ausente, campos não declarados, limites)
 continuam respondendo 400 pelo `ValidationPipe` global. Folhas que não cabem na

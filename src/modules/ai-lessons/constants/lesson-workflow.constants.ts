@@ -25,8 +25,15 @@ export const LESSON_PUBLICATION = {
     'Não foi possível publicar o material semanal. Nenhum material foi criado; tente novamente.',
   INTERRUPTED_MESSAGE:
     'A publicação anterior foi interrompida antes da criação do material semanal. Você pode publicar novamente.',
-  ORIGIN_MARKER_PREFIX: '[origem:licao:',
   ORIGIN_MARKER_SEARCH_LIMIT: 5,
+  ARCHIVED_MESSAGE:
+    'Uma lição arquivada não pode ser publicada. Restaure a lição antes de publicar.',
+} as const;
+
+/** Item PDF that could not be produced, at approval or at publication. */
+export const LESSON_STAGE_PDF = {
+  UNAVAILABLE_MESSAGE:
+    'não foi possível gerar o PDF deste item no momento. Tente novamente em instantes.',
 } as const;
 
 /** Server-sent events stream of a lesson. */
@@ -102,6 +109,21 @@ export const LESSON_STAGE_OUTDATED_STATUSES: readonly LessonStageStatus[] = [
   LessonStageStatus.STALE,
   LessonStageStatus.FAILED,
 ];
+
+/**
+ * Stage statuses that put the package inside a review cycle: the item was
+ * submitted to, approved by or returned from the reviewer.
+ */
+export const LESSON_REVIEW_CYCLE_STAGE_STATUSES: readonly LessonStageStatus[] =
+  [
+    LessonStageStatus.IN_REVIEW,
+    LessonStageStatus.APPROVED,
+    LessonStageStatus.CHANGES_REQUESTED,
+  ];
+
+/** Stage statuses held by the reviewer: no new generation until returned or reopened. */
+export const LESSON_REGENERATION_LOCKED_STAGE_STATUSES: readonly LessonStageStatus[] =
+  [LessonStageStatus.IN_REVIEW, LessonStageStatus.APPROVED];
 
 /** Lesson statuses in which no stage may be (re)generated. */
 export const LESSON_GENERATION_BLOCKED_STATUSES: readonly LessonStatus[] = [

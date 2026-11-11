@@ -30,6 +30,7 @@ import {
   LESSON_GAME_STAGES,
   LESSON_GENERATION,
   LESSON_GENERATION_BLOCKED_STATUSES,
+  LESSON_REGENERATION_LOCKED_STAGE_STATUSES,
 } from '../constants/lesson-workflow.constants';
 import { GenerateStageRequestDto } from '../dto/generate-stage-request.dto';
 import { LessonEntity } from '../entities/lesson.entity';
@@ -328,6 +329,17 @@ export class LessonGenerationService
         throw new AppConflictException(
           ErrorCode.LESSON_INVALID_STATE,
           'A produção não pode ser regenerada durante ou depois da revisão final.',
+        );
+      // An item the reviewer holds or approved is shielded: it must be
+      // returned or reopened before a new generation replaces it.
+      if (
+        LESSON_REGENERATION_LOCKED_STAGE_STATUSES.includes(lockedStage.status)
+      )
+        throw new AppConflictException(
+          ErrorCode.LESSON_INVALID_STATE,
+          lockedStage.status === LessonStageStatus.APPROVED
+            ? 'Este item já foi aprovado e está protegido. Reabra o item na revisão antes de gerar novamente.'
+            : 'Este item está em revisão. Devolva o item com um pedido de ajustes antes de gerar novamente.',
         );
       assertPreviousStageCompleted(locked, type);
       const activeTemplate = getLessonTemplate(type, locked.category);
@@ -860,6 +872,8 @@ export class LessonGenerationService
           return;
         }
 
+        const previousStatus =
+          lockedStage.generationRequestJson?.previousState?.status;
         const version = await this.repo.saveVersion(entity, manager);
         lockedStage.currentVersionId = version.id;
         lockedStage.status = LessonStageStatus.DRAFT;
@@ -877,7 +891,12 @@ export class LessonGenerationService
           },
           manager,
         );
-        await this.support.invalidateDownstream(locked, type, manager);
+        await this.support.invalidateDownstream(
+          locked,
+          type,
+          manager,
+          previousStatus,
+        );
         outcome = 'COMMITTED';
       });
 

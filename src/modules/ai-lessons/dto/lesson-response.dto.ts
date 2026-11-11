@@ -77,6 +77,33 @@ export class LessonPublicationResponseDto {
   weekMaterialId: string;
 }
 
+export class LessonPublicationMaterialResponseDto {
+  id: string;
+  /** False when the page was deleted in Materiais Semanais. */
+  exists: boolean;
+  routePath: string | null;
+  currentWeek: boolean;
+}
+
+export class LessonPublicationDuplicateResponseDto {
+  id: string;
+  title: string;
+  routePath: string | null;
+}
+
+/** `GET /lessons/:id/publication-preview`. */
+export class LessonPublicationPreviewResponseDto {
+  /** Title the published page will receive. */
+  title: string;
+  isSpecial: boolean;
+  /** PDFs the publication creates (one per item). */
+  documentCount: number;
+  /** Page already linked to the lesson; null when it was never published. */
+  weekMaterial: LessonPublicationMaterialResponseDto | null;
+  /** Existing materials for the same week (or same title, when special). */
+  duplicates: LessonPublicationDuplicateResponseDto[];
+}
+
 export class LessonDeleteResponseDto {
   success: boolean;
   message: string;

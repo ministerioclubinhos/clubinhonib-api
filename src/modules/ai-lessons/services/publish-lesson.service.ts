@@ -19,7 +19,6 @@ import { LESSON_PUBLICATION } from '../constants/lesson-workflow.constants';
 import { LessonEntity } from '../entities/lesson.entity';
 import {
   getLessonStageOrder,
-  LessonCategory,
   LessonStageStatus,
   LessonStatus,
 } from '../enums/lesson.enums';
@@ -28,9 +27,13 @@ import { AiLessonsRepository } from '../repositories/ai-lessons.repository';
 import type { LessonPublicationResult } from '../types/lesson-generation.types';
 import {
   lessonPdfFileName,
-  lessonPublicationOriginMarker,
+  lessonPublicationDescription,
+  lessonPublicationRoutePathSource,
+  lessonPublicationTitle,
   publicPublicationFailureMessage,
+  stagePdfUnavailable,
 } from '../utils/lesson-workflow.utils';
+import { weekMaterialOriginMarker } from 'src/modules/pages/week-material-page/utils';
 import { GetLessonService } from './get-lesson.service';
 import { LessonStudioSupportService } from './lesson-studio-support.service';
 import { ExportLessonPdfService } from './export-lesson-pdf.service';
@@ -120,7 +123,7 @@ export class PublishLessonService {
     if (!allowMarkerFallback) return null;
     // Legacy pages predate `sourceLessonId`; the marker lives in an editable
     // description, so it is trusted only for an interrupted publication.
-    const marker = lessonPublicationOriginMarker(lessonId);
+    const marker = weekMaterialOriginMarker(lessonId);
     const result = await this.weekMaterialsGet.findAllPaginated({
       searchString: marker,
       limit: LESSON_PUBLICATION.ORIGIN_MARKER_SEARCH_LIMIT,
@@ -152,17 +155,17 @@ export class PublishLessonService {
     );
   }
 
-  private async assertPublishedPageExists(
-    weekMaterialId: string,
-  ): Promise<void> {
+  /**
+   * Whether the page linked to a published lesson still exists. Only "not
+   * found" means it is gone; any other lookup error propagates.
+   */
+  private async publishedPageExists(weekMaterialId: string): Promise<boolean> {
     try {
       await this.weekMaterialsGet.findOnePage(weekMaterialId);
+      return true;
     } catch (error: unknown) {
-      if (!(error instanceof AppNotFoundException)) throw error;
-      throw new AppConflictException(
-        ErrorCode.LESSON_PUBLISHED_PAGE_MISSING,
-        'O material semanal vinculado a esta lição não existe mais. Arquive a lição; ela não pode ser publicada novamente por aqui.',
-      );
+      if (error instanceof AppNotFoundException) return false;
+      throw error;
     }
   }
 
@@ -174,8 +177,22 @@ export class PublishLessonService {
     const reservation = await this.repo.runInTransaction(async (manager) => {
       const locked = await this.repo.findLessonByIdForUpdate(id, manager);
       if (!locked) throw lessonNotFound();
-      if (locked.status === LessonStatus.PUBLISHED && locked.weekMaterialId)
-        return { publishedId: locked.weekMaterialId, linkedNow: false };
+      if (locked.status === LessonStatus.ARCHIVED)
+        throw new AppConflictException(
+          ErrorCode.LESSON_INVALID_STATE,
+          LESSON_PUBLICATION.ARCHIVED_MESSAGE,
+        );
+      // A published lesson whose page was deleted in Materiais Semanais is
+      // published again: its items are still approved.
+      let republishing = false;
+      if (locked.status === LessonStatus.PUBLISHED) {
+        if (
+          locked.weekMaterialId &&
+          (await this.publishedPageExists(locked.weekMaterialId))
+        )
+          return { publishedId: locked.weekMaterialId };
+        republishing = true;
+      }
       const publishing = locked.status === LessonStatus.PUBLISHING;
       if (
         publishing &&
@@ -188,9 +205,11 @@ export class PublishLessonService {
         );
       const stageCount = getLessonStageOrder(locked.category).length;
       const publishable =
-        [LessonStatus.READY_FOR_PUBLICATION, LessonStatus.PUBLISHING].includes(
-          locked.status,
-        ) &&
+        (republishing ||
+          [
+            LessonStatus.READY_FOR_PUBLICATION,
+            LessonStatus.PUBLISHING,
+          ].includes(locked.status)) &&
         locked.stages.length === stageCount &&
         locked.stages.every(
           (stage) =>
@@ -206,7 +225,14 @@ export class PublishLessonService {
       const existing = await this.findExistingWeekMaterialPage(id, publishing);
       if (existing) {
         await this.markPublished(locked, existing.id, manager);
-        return { publishedId: existing.id, linkedNow: true };
+        return { publishedId: existing.id };
+      }
+      if (republishing) {
+        this.logger.warn(
+          `Lição ${id}: material ${locked.weekMaterialId ?? 'sem vínculo'} não existe mais; publicando novamente.`,
+        );
+        locked.weekMaterialId = null;
+        await this.repo.updateLesson(id, { weekMaterialId: null }, manager);
       }
       const reservedVersions: Record<string, string> = {};
       for (const stage of locked.stages)
@@ -221,8 +247,6 @@ export class PublishLessonService {
       return { publishedId: null, reservedVersions };
     });
     if (reservation.publishedId) {
-      if (!reservation.linkedNow)
-        await this.assertPublishedPageExists(reservation.publishedId);
       return {
         lesson: await this.lessons.getById(id),
         weekMaterialId: reservation.publishedId,
@@ -254,28 +278,28 @@ export class PublishLessonService {
       // One load serves the eight renders; versions are fenced by the reservation.
       const lesson = await this.lessons.getById(id);
       const dto = new CreateWeekMaterialsPageDto();
-      const isSpecial = lesson.category === LessonCategory.SPECIAL;
-      const marker = lessonPublicationOriginMarker(lesson.id);
-      dto.pageTitle = isSpecial
-        ? lesson.weekNumber
-          ? `Material Especial (Semana ${lesson.weekNumber}) — ${lesson.theme}`
-          : `Material Especial — ${lesson.theme}`
-        : `Semana ${lesson.weekNumber} — ${lesson.theme}`;
+      dto.pageTitle = lessonPublicationTitle(lesson);
       dto.pageSubtitle = lesson.biblicalReference;
-      dto.pageDescription = isSpecial
-        ? `Material Especial completo (Lição, Visuais da Lição e Visuais do Versículo)${lesson.weekNumber ? ` — Semana ${lesson.weekNumber}` : ''}, revisado e aprovado. [tipo:especial] ${marker}`
-        : `Material completo da semana ${lesson.weekNumber}, revisado e aprovado. ${marker}`;
+      dto.pageDescription = lessonPublicationDescription(lesson);
       dto.sourceLessonId = lesson.id;
       dto.documents = [];
       const files: Record<string, Express.Multer.File> = {};
       // Render every approved item before creating the page or uploading files.
       for (const type of getLessonStageOrder(lesson.category)) {
-        const { pdfBuffer } = await this.pdfExport.renderStagePdf(
-          lesson,
-          type,
-          undefined,
-          reservation.reservedVersions?.[type],
-        );
+        const { pdfBuffer } = await this.pdfExport
+          .renderStagePdf(
+            lesson,
+            type,
+            undefined,
+            reservation.reservedVersions?.[type],
+          )
+          .catch((renderError: unknown) => {
+            // The failure names the item, for the admin and for the log.
+            this.logger.error(
+              `PDF do item ${type} da lição ${id} falhou na publicação: ${renderError instanceof Error ? (renderError.stack ?? renderError.message) : String(renderError)}`,
+            );
+            throw stagePdfUnavailable(type, renderError);
+          });
         const fieldKey = `generated-${type.toLowerCase()}`;
         const fileName = lessonPdfFileName(lesson, `${type.toLowerCase()}-`);
         dto.documents.push({
@@ -310,9 +334,19 @@ export class PublishLessonService {
           ErrorCode.LESSON_PUBLICATION_IN_PROGRESS,
           'A publicação perdeu a reserva desta lição antes de criar o material. Tente novamente.',
         );
-      const page = await this.weekMaterials.createWeekMaterialsPage(dto, files);
+      const page = await this.weekMaterials.createWeekMaterialsPage(
+        dto,
+        files,
+        { routePathSource: lessonPublicationRoutePathSource(lesson) },
+      );
       createdPageId = page.id;
-      await this.confirmPublication(id, attemptToken, page.id);
+      await this.confirmPublication(
+        id,
+        attemptToken,
+        page.id,
+        reservation.reservedVersions ?? {},
+        actorId,
+      );
       this.support.audit(LessonWorkflowAction.PUBLISH, id, actorId, {
         weekMaterialId: page.id,
       });
@@ -329,6 +363,8 @@ export class PublishLessonService {
         attemptToken,
         createdPageId,
         error,
+        reservation.reservedVersions ?? {},
+        actorId,
       );
       // The material exists and the lesson is linked: that is a success.
       if (recoveredPageId)
@@ -345,37 +381,79 @@ export class PublishLessonService {
 
   /**
    * Links the created page. The page is the source of truth (one per lesson by
-   * unique index), so it is linked while the lesson is still in a publication
-   * state; any other state means the reservation was overridden meanwhile.
+   * unique index): once it exists the lesson is always linked and marked as
+   * published, even when the reservation was lost meanwhile.
    */
   private async confirmPublication(
     id: string,
     attemptToken: string,
     weekMaterialId: string,
+    reservedVersions: Record<string, string>,
+    actorId?: string,
   ): Promise<void> {
     await this.repo.runInTransaction(async (manager) => {
       const locked = await this.repo.findLessonByIdForUpdate(id, manager);
       if (!locked) throw lessonNotFound();
-      const ownsReservation =
-        locked.status === LessonStatus.PUBLISHING &&
-        locked.publicationLeaseOwner === attemptToken;
-      if (!ownsReservation) {
-        this.logger.warn(
-          `Confirmação de publicação da lição ${id} sem a posse da reserva (status ${locked.status}).`,
-        );
-        if (
-          ![
-            LessonStatus.PUBLISHING,
-            LessonStatus.READY_FOR_PUBLICATION,
-          ].includes(locked.status)
-        )
-          throw new AppConflictException(
-            ErrorCode.LESSON_INVALID_STATE,
-            'A lição mudou de estado durante a publicação. O material criado precisa de conferência manual.',
-          );
-      }
-      await this.markPublished(locked, weekMaterialId, manager);
+      await this.linkExistingPage(
+        locked,
+        attemptToken,
+        weekMaterialId,
+        reservedVersions,
+        manager,
+        actorId,
+      );
     });
+  }
+
+  /**
+   * Marks the lesson as published by a page that exists. When the reservation
+   * was overridden meanwhile (lease lost and an item reopened), the items that
+   * still point to the published version go back to approved; an item whose
+   * content changed keeps its status and is reported in the log.
+   */
+  private async linkExistingPage(
+    locked: LessonEntity,
+    attemptToken: string,
+    weekMaterialId: string,
+    reservedVersions: Record<string, string>,
+    manager: EntityManager,
+    actorId?: string,
+  ): Promise<void> {
+    const ownsReservation =
+      locked.status === LessonStatus.PUBLISHING &&
+      locked.publicationLeaseOwner === attemptToken;
+    if (!ownsReservation)
+      this.logger.warn(
+        `Lição ${locked.id} vinculada ao material ${weekMaterialId} sem a posse da reserva (status ${locked.status}).`,
+      );
+    const restored: string[] = [];
+    const diverged: string[] = [];
+    for (const stage of locked.stages) {
+      if (stage.status === LessonStageStatus.APPROVED) continue;
+      const reserved = reservedVersions[stage.type];
+      if (!reserved || stage.currentVersionId !== reserved) {
+        diverged.push(`${stage.type}=${stage.status}`);
+        continue;
+      }
+      stage.status = LessonStageStatus.APPROVED;
+      stage.approvedAt = new Date();
+      stage.approvedById = actorId ?? null;
+      await this.repo.updateStage(
+        stage.id,
+        {
+          status: LessonStageStatus.APPROVED,
+          approvedAt: stage.approvedAt,
+          approvedById: stage.approvedById,
+        },
+        manager,
+      );
+      restored.push(stage.type);
+    }
+    if (restored.length || diverged.length)
+      this.logger.warn(
+        `Lição ${locked.id} mudou durante a publicação do material ${weekMaterialId}: itens restaurados para aprovado [${restored.join(', ')}]; itens com conteúdo diferente do publicado [${diverged.join(', ')}].`,
+      );
+    await this.markPublished(locked, weekMaterialId, manager);
   }
 
   /** Returns the page id when the failed attempt still ended up published. */
@@ -384,6 +462,8 @@ export class PublishLessonService {
     attemptToken: string,
     createdPageId: string | null,
     error: unknown,
+    reservedVersions: Record<string, string>,
+    actorId?: string,
   ): Promise<string | null> {
     let recoveredPageId = createdPageId;
     if (!recoveredPageId) {
@@ -403,7 +483,14 @@ export class PublishLessonService {
         const locked = await this.repo.findLessonByIdForUpdate(id, manager);
         if (!locked) return null;
         if (recoveredPageId) {
-          await this.markPublished(locked, recoveredPageId, manager);
+          await this.linkExistingPage(
+            locked,
+            attemptToken,
+            recoveredPageId,
+            reservedVersions,
+            manager,
+            actorId,
+          );
           return recoveredPageId;
         }
         if (

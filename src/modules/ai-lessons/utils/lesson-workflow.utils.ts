@@ -1,6 +1,11 @@
 import { createHash } from 'node:crypto';
-import { HttpException } from '@nestjs/common';
-import { AppConflictException, ErrorCode } from 'src/shared/exceptions';
+import { HttpException, HttpStatus } from '@nestjs/common';
+import { WEEK_MATERIAL_SPECIAL_TAG } from 'src/modules/pages/week-material-page/constants';
+import {
+  AppConflictException,
+  AppException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 import { LessonEntity } from '../entities/lesson.entity';
 import { LessonStageEntity } from '../entities/lesson-stage.entity';
 import { LessonVersionEntity } from '../entities/lesson-version.entity';
@@ -14,7 +19,10 @@ import {
 import {
   LESSON_ASSET_LIST_KEYS,
   LESSON_PUBLICATION,
+  LESSON_REVIEW_CYCLE_STAGE_STATUSES,
   LESSON_STAGE_COMPLETED_STATUSES,
+  LESSON_STAGE_ITEM_NAMES,
+  LESSON_STAGE_PDF,
   LESSON_TERMINAL_STATUSES,
 } from '../constants/lesson-workflow.constants';
 import type { LessonJsonObject } from '../types/lesson-generation.types';
@@ -177,19 +185,98 @@ export function lessonContentAssetUrls(content: LessonJsonObject): string[] {
 }
 
 /**
- * Text safe to persist and show for a failed publication: client errors keep
- * their own message, everything else becomes a generic one.
+ * Text safe to persist and show for a failed publication: client errors and
+ * item-PDF failures keep their own message, everything else becomes generic.
  */
 export function publicPublicationFailureMessage(error: unknown): string {
-  const message =
-    error instanceof HttpException && error.getStatus() < 500
-      ? error.message
-      : LESSON_PUBLICATION.GENERIC_FAILURE_MESSAGE;
+  const isPublic =
+    error instanceof HttpException &&
+    (error.getStatus() < 500 ||
+      (error instanceof AppException &&
+        error.getCode() === ErrorCode.LESSON_STAGE_PDF_UNAVAILABLE));
+  const message = isPublic
+    ? error.message
+    : LESSON_PUBLICATION.GENERIC_FAILURE_MESSAGE;
   return message.slice(0, LESSON_PUBLICATION.FAILURE_MESSAGE_MAX_LENGTH);
 }
 
-export function lessonPublicationOriginMarker(lessonId: string): string {
-  return `${LESSON_PUBLICATION.ORIGIN_MARKER_PREFIX}${lessonId}]`;
+/**
+ * Failure to produce the PDF of one item, always naming the item. Content
+ * problems (4xx from the renderer) answer 422 with their own message; an
+ * unavailable or busy converter answers 503.
+ */
+export function stagePdfUnavailable(
+  type: LessonStageType,
+  error: unknown,
+): AppException {
+  const item = LESSON_STAGE_ITEM_NAMES[type];
+  if (error instanceof HttpException) {
+    const contentProblem = error.getStatus() < 500;
+    const serviceUnavailable =
+      error.getStatus() === Number(HttpStatus.SERVICE_UNAVAILABLE);
+    if (contentProblem || serviceUnavailable)
+      return new AppException(
+        ErrorCode.LESSON_STAGE_PDF_UNAVAILABLE,
+        `${item}: ${error.message}`,
+        contentProblem
+          ? HttpStatus.UNPROCESSABLE_ENTITY
+          : HttpStatus.SERVICE_UNAVAILABLE,
+      );
+  }
+  return new AppException(
+    ErrorCode.LESSON_STAGE_PDF_UNAVAILABLE,
+    `${item}: ${LESSON_STAGE_PDF.UNAVAILABLE_MESSAGE}`,
+    HttpStatus.SERVICE_UNAVAILABLE,
+  );
+}
+
+/** True once any item was submitted to, approved by or returned from the reviewer. */
+export function isLessonInReviewCycle(
+  statuses: ReadonlyArray<LessonStageStatus | undefined>,
+): boolean {
+  return statuses.some(
+    (status) =>
+      status !== undefined &&
+      LESSON_REVIEW_CYCLE_STAGE_STATUSES.includes(status),
+  );
+}
+
+/** Title of the weekly-material page a lesson is published as. */
+export function lessonPublicationTitle(
+  lesson: Pick<LessonEntity, 'category' | 'weekNumber' | 'theme'>,
+): string {
+  if (lesson.category !== LessonCategory.SPECIAL)
+    return `Semana ${lesson.weekNumber} — ${lesson.theme}`;
+  return lesson.weekNumber
+    ? `Material Especial (Semana ${lesson.weekNumber}) — ${lesson.theme}`
+    : `Material Especial — ${lesson.theme}`;
+}
+
+/**
+ * Description of the published page. A Material Especial is a weekly material
+ * with its own title and description, told apart by the special tag; the link
+ * to the lesson lives in `sourceLessonId`, never in the text.
+ */
+export function lessonPublicationDescription(
+  lesson: Pick<LessonEntity, 'category' | 'weekNumber'>,
+): string {
+  if (lesson.category !== LessonCategory.SPECIAL)
+    return `Material completo da semana ${lesson.weekNumber}, revisado e aprovado.`;
+  return `Material Especial completo (Lição, Visuais da Lição e Visuais do Versículo)${lesson.weekNumber ? ` — Semana ${lesson.weekNumber}` : ''}, revisado e aprovado. ${WEEK_MATERIAL_SPECIAL_TAG}`;
+}
+
+/**
+ * Text the route path of the published page is derived from. A weekly
+ * material is addressed by its week alone (`materiais_semanal_semana_27`,
+ * then `_1`, `_2` for another material of the same week); a special material
+ * keeps deriving the path from its title.
+ */
+export function lessonPublicationRoutePathSource(
+  lesson: Pick<LessonEntity, 'category' | 'weekNumber'>,
+): string | undefined {
+  return lesson.category !== LessonCategory.SPECIAL && lesson.weekNumber
+    ? `Semana ${lesson.weekNumber}`
+    : undefined;
 }
 
 export function lessonPdfFileName(

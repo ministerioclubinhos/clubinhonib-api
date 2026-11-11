@@ -1008,7 +1008,10 @@ describe('LessonDraftService workflow safety', () => {
       expect(exportPdf).toHaveBeenCalledTimes(3);
       expect(lesson.status).toBe(LessonStatus.READY_FOR_PUBLICATION);
       expect(repo.reservePublication).toHaveBeenCalledTimes(1);
-      expect(lesson.publicationFailureMessage).toBe('PDF sem espaço.');
+      // The failure names the item whose PDF could not be produced.
+      expect(lesson.publicationFailureMessage).toBe(
+        'Brincadeira: PDF sem espaço.',
+      );
       expect(lesson.publicationLeaseOwner).toBeNull();
       expect(weekMaterials.createWeekMaterialsPage).not.toHaveBeenCalled();
     } finally {
@@ -1652,6 +1655,9 @@ describe('LessonDraftService workflow safety', () => {
     expect(lesson.status).toBe(LessonStatus.CHANGES_REQUESTED);
 
     // 2. Aprovar etapa 1 enquanto lesson está em CHANGES_REQUESTED
+    const renderPdf = jest
+      .spyOn(studio.pdfExport, 'renderStagePdf')
+      .mockResolvedValue({ pdfBuffer: Buffer.from('pdf'), fileName: 'a.pdf' });
     await service.approveStage(
       'lesson-cycle',
       LessonStageType.LESSON,
@@ -1660,6 +1666,7 @@ describe('LessonDraftService workflow safety', () => {
     );
     expect(stage1.status).toBe(LessonStageStatus.APPROVED);
     expect(lesson.status).toBe(LessonStatus.CHANGES_REQUESTED);
+    renderPdf.mockRestore();
 
     // 3. Produtor edita etapa 8 via saveContent
     (stage8 as Record<string, unknown>).lockVersion = 1;

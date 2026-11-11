@@ -21,7 +21,7 @@ else Admin create or update
   Client -> Controller : multipart POST/PATCH
   Controller -> Service : validated page and media payload
   Service -> Repository : transaction: persist page
-  Service -> Content : create/upsert route and synchronize media
+  Service -> Content : create/upsert route and synchronize media\n(new page: free path base, base_1, base_2;\ninsert collision retries the next suffix in a savepoint)
   Content -> S3 : upload/replace/delete changed files
   Service -> Notify : announce newly created material after commit
   Service --> Client : WeekMaterialsPageResponseDTO
@@ -34,6 +34,10 @@ end
 
 note over Repository, S3
   Publishing is exclusive to /current-week/:id.
-  Failed writes clean persisted orphan media and uploads.
+  Page, route and media rows share one transaction.
+  A failure before the commit deletes the uploaded files;
+  after the commit nothing is compensated.
+  A Material Especial is a weekly page tagged in its description
+  and announced as "Novo material especial".
 end note
 @enduml

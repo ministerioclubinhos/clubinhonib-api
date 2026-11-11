@@ -3,6 +3,7 @@ import { EmailService } from 'src/shared/email';
 import { SiteUrlService } from 'src/shared/site-url';
 import { GetUsersService } from 'src/core/user/services/get-user.service';
 import { WeekMaterialsPageEntity } from '../entities/week-material-page.entity';
+import { isSpecialWeekMaterial, stripWeekMaterialMarkers } from '../utils';
 
 /**
  * Avisa os usuários já validados quando um material da semana entra no ar.
@@ -46,9 +47,11 @@ export class AnnounceWeekMaterialService {
     const recipients = await this.getUsersService.findActiveRecipients();
 
     await this.emailService.sendWeekMaterialAnnouncement(recipients, {
-      title: page.title,
-      subtitle: page.subtitle,
-      description: page.description,
+      // As marcas internas da descrição nunca vão para o destinatário.
+      title: stripWeekMaterialMarkers(page.title),
+      subtitle: stripWeekMaterialMarkers(page.subtitle),
+      description: stripWeekMaterialMarkers(page.description),
+      special: isSpecialWeekMaterial(page.description),
       materialLink: this.siteUrlService.buildUrl(path),
     });
   }

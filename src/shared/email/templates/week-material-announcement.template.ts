@@ -5,6 +5,7 @@ import { button, composeBody, linkFallback, note, paragraph } from './blocks';
 import { renderEmailLayout } from './layout';
 
 const TITLE = 'Novo material da semana';
+const SPECIAL_TITLE = 'Novo material especial';
 
 /**
  * Aviso de que uma página de material semanal foi publicada.
@@ -15,8 +16,9 @@ const TITLE = 'Novo material da semana';
 export function weekMaterialAnnouncementEmail(
   data: WeekMaterialAnnouncementEmailData,
 ): EmailContent {
+  const title = data.special ? SPECIAL_TITLE : TITLE;
   const html = renderEmailLayout({
-    title: TITLE,
+    title,
     body: composeBody([
       paragraph(`Já está no ar: ${data.title}`),
       data.subtitle ? paragraph(data.subtitle) : '',
@@ -29,7 +31,7 @@ export function weekMaterialAnnouncementEmail(
   });
 
   const text = joinTextLines([
-    'Novo material da semana',
+    title,
     '',
     `Já está no ar: ${data.title}`,
     data.subtitle ?? '',
@@ -42,5 +44,11 @@ export function weekMaterialAnnouncementEmail(
     ...unsubscribeTextLines(data.unsubscribeUrl),
   ]);
 
-  return { subject: EMAIL_SUBJECTS.weekMaterialAnnouncement, html, text };
+  return {
+    subject: data.special
+      ? EMAIL_SUBJECTS.specialMaterialAnnouncement
+      : EMAIL_SUBJECTS.weekMaterialAnnouncement,
+    html,
+    text,
+  };
 }

@@ -51,11 +51,11 @@ describe('WeekMaterialsPageCreateService', () => {
     ),
     createPage: jest.fn(),
     savePage: jest.fn(),
+    findOnePageById: jest.fn(),
   };
   const s3 = { upload: jest.fn(), delete: jest.fn() };
   const createRouteService = {
-    generateAvailablePath: jest.fn(),
-    createRouteWithManager: jest.fn(),
+    createRouteWithAvailablePath: jest.fn(),
   };
   const announceService = { announceInBackground: jest.fn() };
   const mediaItemProcessor = {
@@ -92,13 +92,13 @@ describe('WeekMaterialsPageCreateService', () => {
     jest.clearAllMocks();
 
     pageRepo.createPage.mockResolvedValue(savedPage());
+    pageRepo.findOnePageById.mockResolvedValue(null);
     pageRepo.savePage.mockImplementation(
       (page: WeekMaterialsPageEntity) => page,
     );
-    createRouteService.generateAvailablePath.mockResolvedValue(
-      'materiais_semanal_semana_1',
+    createRouteService.createRouteWithAvailablePath.mockResolvedValue(
+      savedRoute,
     );
-    createRouteService.createRouteWithManager.mockResolvedValue(savedRoute);
     mediaItemProcessor.processMediaItemsPolymorphic.mockResolvedValue([]);
 
     const moduleRef = await Test.createTestingModule({
@@ -134,10 +134,19 @@ describe('WeekMaterialsPageCreateService', () => {
 
     const result = await service.createWeekMaterialsPage(validDto(), {});
 
-    expect(createRouteService.generateAvailablePath).toHaveBeenCalledWith(
-      'Semana 1',
+    expect(
+      createRouteService.createRouteWithAvailablePath,
+    ).toHaveBeenCalledWith(
+      manager,
+      expect.objectContaining({ title: 'Semana 1', entityId: 'page-id' }),
       WEEK_MATERIAL_ROUTE_PATH_PREFIX,
+      // Manual creation: the path keeps deriving from the title.
+      undefined,
     );
+    // Media rows join the page transaction so a rollback leaves none behind.
+    const mediaCall = mediaItemProcessor.processMediaItemsPolymorphic.mock
+      .calls[0] as unknown[];
+    expect(mediaCall[5]).toBe(manager);
     expect(pageRepo.runInTransaction).toHaveBeenCalledTimes(1);
     expect(result.id).toBe('page-id');
     expect(result.videos.map((i) => i.id)).toEqual(['media-id']);
@@ -228,7 +237,40 @@ describe('WeekMaterialsPageCreateService', () => {
     );
   });
 
-  it('preserves an application error raised during creation', async () => {
+  it('derives the route path from the server-side source while keeping the title', async () => {
+    await service.createWeekMaterialsPage(
+      validDto({ pageTitle: 'Semana 27 — O Bom Pastor' }),
+      {},
+      { routePathSource: 'Semana 27' },
+    );
+
+    expect(
+      createRouteService.createRouteWithAvailablePath,
+    ).toHaveBeenCalledWith(
+      manager,
+      expect.objectContaining({ title: 'Semana 27 — O Bom Pastor' }),
+      WEEK_MATERIAL_ROUTE_PATH_PREFIX,
+      'Semana 27',
+    );
+  });
+
+  it('never deletes the media of a page that turned out to be committed', async () => {
+    // Ambiguous commit: the transaction reported a failure but the page is
+    // in the database, so its media rows and files belong to it.
+    mediaItemProcessor.processMediaItemsPolymorphic.mockRejectedValue(
+      new Error('connection lost'),
+    );
+    pageRepo.findOnePageById.mockResolvedValue(savedPage());
+
+    await expect(
+      service.createWeekMaterialsPage(validDto(), {}),
+    ).rejects.toBeInstanceOf(AppInternalException);
+
+    expect(mediaItemProcessor.findMediaItemsByTarget).not.toHaveBeenCalled();
+    expect(mediaItemProcessor.deleteMediaItems).not.toHaveBeenCalled();
+  });
+
+  it('preserves an application error raised during creatio', async () => {
     const appError = new AppValidationException(
       ErrorCode.MEDIA_FILE_NOT_FOUND,
       'Arquivo ausente',
@@ -252,5 +294,90 @@ describe('WeekMaterialsPageCreateService', () => {
     await expect(
       service.createWeekMaterialsPage(validDto(), {}),
     ).rejects.toBeInstanceOf(AppInternalException);
+  });
+
+  it('leaves nothing behind when the route cannot be created', async () => {
+    createRouteService.createRouteWithAvailablePath.mockRejectedValue(
+      new Error('routes unavailable'),
+    );
+    mediaItemProcessor.findMediaItemsByTarget.mockResolvedValue([]);
+
+    await expect(
+      service.createWeekMaterialsPage(validDto(), {}),
+    ).rejects.toBeInstanceOf(AppInternalException);
+
+    // The failure happens inside the transaction: page and route roll back
+    // together, no media was processed and no announcement goes out.
+    expect(pageRepo.savePage).not.toHaveBeenCalled();
+    expect(
+      mediaItemProcessor.processMediaItemsPolymorphic,
+    ).not.toHaveBeenCalled();
+    expect(announceService.announceInBackground).not.toHaveBeenCalled();
+  });
+
+  it('discards the uploaded files when the page cannot be saved after the uploads', async () => {
+    const file = {
+      fieldname: 'licao',
+      originalname: 'licao.pdf',
+      buffer: Buffer.from('pdf'),
+      size: 3,
+      mimetype: 'application/pdf',
+    } as Express.Multer.File;
+    s3.upload.mockResolvedValue('https://s3/uploaded.pdf');
+    mediaItemProcessor.processMediaItemsPolymorphic.mockImplementation(
+      async (
+        _items: unknown,
+        _id: string,
+        _type: string,
+        files: Record<string, Express.Multer.File>,
+        upload: (item: Express.Multer.File) => Promise<string>,
+      ) => {
+        await upload(files.licao);
+        throw new Error('db down after upload');
+      },
+    );
+    mediaItemProcessor.findMediaItemsByTarget.mockResolvedValue([]);
+
+    await expect(
+      service.createWeekMaterialsPage(
+        validDto({
+          videos: [],
+          documents: [
+            {
+              title: 'Lição',
+              description: 'Desc',
+              uploadType: UploadType.UPLOAD,
+              mediaType: MediaType.DOCUMENT,
+              isLocalFile: true,
+              fieldKey: 'licao',
+            },
+          ],
+        }),
+        { licao: file },
+      ),
+    ).rejects.toBeInstanceOf(AppInternalException);
+
+    expect(mediaItemProcessor.discardUnreferencedUploads).toHaveBeenCalledWith(
+      ['https://s3/uploaded.pdf'],
+      expect.any(Function),
+    );
+    expect(announceService.announceInBackground).not.toHaveBeenCalled();
+  });
+
+  it('keeps a committed page when the announcement hook fails', async () => {
+    // After the commit the page exists and owns its files: a failure in the
+    // announcement neither fails the creation nor runs the compensation.
+    announceService.announceInBackground.mockImplementation(() => {
+      throw new Error('unexpected');
+    });
+
+    const result = await service.createWeekMaterialsPage(validDto(), {});
+
+    expect(result.id).toBe('page-id');
+    expect(mediaItemProcessor.findMediaItemsByTarget).not.toHaveBeenCalled();
+    expect(mediaItemProcessor.deleteMediaItems).not.toHaveBeenCalled();
+    expect(
+      mediaItemProcessor.discardUnreferencedUploads,
+    ).not.toHaveBeenCalled();
   });
 });

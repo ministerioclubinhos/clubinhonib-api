@@ -89,6 +89,29 @@ export interface LessonPublicationResult<T> {
   weekMaterialId: string;
 }
 
+/** Weekly-material page linked to a lesson, as it is right now. */
+export interface LessonPublicationMaterial {
+  id: string;
+  /** False when the page was deleted in Materiais Semanais. */
+  exists: boolean;
+  routePath: string | null;
+  currentWeek: boolean;
+}
+
+export interface LessonPublicationDuplicate {
+  id: string;
+  title: string;
+  routePath: string | null;
+}
+
+export interface LessonPublicationPreview {
+  title: string;
+  isSpecial: boolean;
+  documentCount: number;
+  weekMaterial: LessonPublicationMaterial | null;
+  duplicates: LessonPublicationDuplicate[];
+}
+
 export interface LessonUploadImageMetadata {
   extension: 'jpg' | 'png';
   mimeType: 'image/jpeg' | 'image/png';

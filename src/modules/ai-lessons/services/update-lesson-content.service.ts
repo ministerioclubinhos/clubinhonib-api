@@ -99,6 +99,7 @@ export class UpdateLessonContentService {
       });
       const version = await this.repo.saveVersion(entity, manager);
       savedVersionId = version.id;
+      const previousStatus = stage.status;
       stage.currentVersionId = version.id;
       stage.status = LessonStageStatus.DRAFT;
       await this.repo.updateStage(
@@ -111,7 +112,12 @@ export class UpdateLessonContentService {
         },
         manager,
       );
-      await this.support.invalidateDownstream(lesson, dto.stage, manager);
+      await this.support.invalidateDownstream(
+        lesson,
+        dto.stage,
+        manager,
+        previousStatus,
+      );
     });
     if (savedVersionId)
       this.support.audit(LessonWorkflowAction.SAVE_CONTENT, id, userId, {

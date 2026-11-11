@@ -106,6 +106,22 @@ describe('templates de e-mail', () => {
     );
   });
 
+  it('avisa o Material Especial com título e assunto próprios, no mesmo e-mail', () => {
+    const special = weekMaterialAnnouncementEmail({
+      title: 'Material Especial — O Picolé Roubado',
+      description: 'Material Especial completo.',
+      materialLink: 'https://clubinhonib.com/materiais_semanal_especial',
+      special: true,
+    });
+
+    expect(special.subject).toBe(EMAIL_SUBJECTS.specialMaterialAnnouncement);
+    expect(special.html).toContain('Novo material especial');
+    expect(special.html).not.toContain('Novo material da semana');
+    expect(special.text.split('\n')[0]).toBe('Novo material especial');
+    // The weekly wording is untouched.
+    expect(allTemplates[3].content.html).toContain('Novo material da semana');
+  });
+
   describe('escape do conteúdo', () => {
     it('escapa o nome de quem recebe', () => {
       const { html } = passwordRecoveryEmail({

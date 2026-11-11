@@ -3,6 +3,8 @@ import { EntityManager } from 'typeorm';
 
 import { RouteRepository } from '../route-page.repository';
 import { RouteEntity, RouteType } from '../route-page.entity';
+import { ROUTE_PATH_INSERT_ATTEMPTS } from '../constants';
+import { isDuplicateRouteError } from '../utils';
 
 /** Dados de uma rota nova. */
 interface NovaRota {
@@ -82,5 +84,50 @@ export class CreateRouteService {
       public: data.public ?? true,
       image: data.image || '',
     });
+  }
+
+  /**
+   * Cria a rota de uma página nova escolhendo um `path` livre e resistindo a
+   * colisões na gravação.
+   *
+   * O desempate é sempre o sufixo numérico sequencial sobre a mesma base:
+   * `base`, `base_1`, `base_2`… Conferir a disponibilidade e gravar são dois
+   * passos: outra criação com a mesma base pode ocupar o `path` entre um e
+   * outro. Quando o banco recusa a gravação por unicidade, só a tentativa é
+   * desfeita (savepoint) e o próximo sufixo livre é consultado de novo. A
+   * consulta roda fora da transação de quem chamou de propósito: cada leitura
+   * enxerga as rotas já confirmadas por outras transações, inclusive a que
+   * acabou de vencer a disputa. Esgotadas as tentativas, o erro sobe e quem
+   * chamou desfaz a própria transação — nada fica para trás.
+   *
+   * `pathSource` é o texto de onde a base do `path` sai; sem ele, é o título.
+   */
+  async createRouteWithAvailablePath(
+    manager: EntityManager,
+    data: Omit<NovaRota, 'prefix' | 'path'>,
+    prefix: string,
+    pathSource?: string,
+  ): Promise<RouteEntity> {
+    const source = pathSource?.trim() || data.title;
+    for (let attempt = 1; ; attempt += 1) {
+      const path = await this.generateAvailablePath(source, prefix);
+      try {
+        return await this.routeRepo.createInSavepoint(manager, {
+          ...data,
+          path,
+          public: data.public ?? true,
+          image: data.image || '',
+        });
+      } catch (error: unknown) {
+        if (
+          attempt >= ROUTE_PATH_INSERT_ATTEMPTS ||
+          !isDuplicateRouteError(error)
+        )
+          throw error;
+        this.logger.warn(
+          `Caminho ${path} ocupado durante a gravação; nova tentativa (${attempt}/${ROUTE_PATH_INSERT_ATTEMPTS}).`,
+        );
+      }
+    }
   }
 }

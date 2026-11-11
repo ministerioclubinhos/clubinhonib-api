@@ -136,14 +136,56 @@ or `null` when no page is published.
 | `MEDIA_FILE_NOT_FOUND` | `fieldKey` declared but the file was not sent |
 | `PAGE_CREATE_ERROR` / `PAGE_UPDATE_ERROR` / `PAGE_DELETE_ERROR` | unexpected failure in the matching use case |
 
+## Route path
+
+The route `path` is `materiais_semanal_` plus the slug of the page title
+(lower case, accents and punctuation removed, spaces as `_`). The path is
+unique, so pages with the same base are told apart **only by a sequential
+numeric suffix**: `materiais_semanal_semana_27`, then
+`materiais_semanal_semana_27_1`, `materiais_semanal_semana_27_2`. There is no
+random suffix.
+
+- Availability is checked and the route is inserted in two steps. When a
+  concurrent creation takes the path in between, the unique violation
+  (`ER_DUP_ENTRY`) rolls back only that insert (savepoint) and the next free
+  suffix is looked up again, up to 5 attempts. The lookup runs outside the page
+  transaction, so each read sees routes already committed by others. When the
+  attempts are exhausted the creation fails and the whole transaction rolls
+  back.
+- A title with no usable character (emoji or punctuation only) yields
+  `materiais_semanal_pagina`; a very long title is cut so the path plus suffix
+  fits the 255-character column. Common titles produce the same path as before
+  and existing routes are never changed.
+- Server-side callers may give the text the path is derived from
+  (`WeekMaterialCreateOptions.routePathSource`). The Studio uses it for weekly
+  materials: the page title is `Semana 27 — tema` and the path is
+  `materiais_semanal_semana_27`. The option is not part of the HTTP payload;
+  the admin form always derives the path from the title.
+
+## Internal markers and duplicates
+
+A Material Especial is a weekly material with its own title and description;
+its description ends with `[tipo:especial]`, which the panel reads to show the
+badge. Pages published by the Studio before 2026-11-10 also carry
+`[origem:licao:<id>]`; the link in force is the `sourceLessonId` column. Both
+markers are stripped from the announcement e-mail, and a page with the special
+tag is announced as "Novo material especial" (same e-mail and feature flag).
+
+`WeekMaterialsPageGetService.findPossibleDuplicates` lists existing pages that
+are the same material (same week number for a weekly material, same normalized
+title for a special one). It only informs the Studio publication preview;
+creating a second page for the same week is allowed.
+
 ## Transactions and compensation
 
-Page and route writes run inside a transaction using the transactional
-`EntityManager`. Media rows and S3 objects are written through the shared
-`MediaItemProcessor`, which is not transaction-aware; on creation failure the
-service compensates by deleting the media already persisted for the page. Making
-media writes transactional requires changing the shared media module and is out
-of scope for this module.
+Page, route and media rows are written inside one transaction using the
+transactional `EntityManager`, so a rollback leaves no page without route, no
+route without page and no media row. S3 uploads happen during the transaction
+and are tracked: when the creation fails before the commit, the uploaded
+objects that no media row references are deleted. After the commit nothing is
+compensated — a failure to schedule the announcement never fails the creation
+nor deletes media. As a backstop for an ambiguous commit, the cleanup first
+checks whether the page exists and, if it does, preserves its media.
 
 ## Tests
 

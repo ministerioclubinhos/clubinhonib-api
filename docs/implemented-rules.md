@@ -608,9 +608,13 @@ estão resumidas na seção "Histórico" daquele documento.
 - Todas as rotas exigem JWT e papel de administrador; a API é a autoridade.
 - Material Semanal (`REGULAR`): oito itens. Material Especial (`SPECIAL`): três
   itens (lição, visuais da história, visuais do versículo), semana opcional.
-- Cada etapa tem versões imutáveis. Gerar ou salvar uma etapa marca as
-  posteriores já iniciadas como `STALE`; salvar conteúdo idêntico não cria
-  versão nem invalida nada.
+- Cada etapa tem versões imutáveis. Na produção inicial, gerar ou salvar uma
+  etapa marca as posteriores já iniciadas como `STALE`; salvar conteúdo
+  idêntico não cria versão nem invalida nada.
+- Em um ciclo de revisão (alguma etapa em revisão, aprovada ou devolvida),
+  corrigir um item não invalida nenhum outro.
+- Item aprovado é blindado: não é salvo, regenerado nem invalidado; só o
+  revisor o reabre. Item em revisão só é regenerado depois de devolvido.
 
 ### Fluxo e concorrência
 
@@ -623,8 +627,9 @@ estão resumidas na seção "Histórico" daquele documento.
 - Concluir exige a etapa anterior concluída e o conteúdo pronto. Item `STALE`
   ou `FAILED` produzido a partir de versões anteriores dos itens precedentes
   só é concluído com confirmação explícita (`acknowledgeStale`).
-- Aprovar valida a prontidão; devolver não, para que um item quebrado possa
-  ser devolvido. A nota de devolução/reabertura é obrigatória e vira
+- Aprovar valida a prontidão e gera o PDF do item antes de aprovar; se o PDF
+  não sai, a aprovação é recusada com o nome do item (422 ou 503). Devolver
+  não valida, para que um item quebrado possa ser devolvido. A nota de devolução/reabertura é obrigatória e vira
   observação, que pode ser marcada como resolvida.
 - Pacote pronto para publicação pode ter um item aprovado reaberto.
 - Lição publicada pode ser arquivada e restaurada; lição publicada ou
@@ -682,12 +687,24 @@ estão resumidas na seção "Histórico" daquele documento.
 ### Publicação e arquivos
 
 - A publicação reserva a lição com lease, renderiza um PDF por etapa aprovada
-  antes de criar o material e confirma o vínculo condicionado à posse da lease.
+  antes de criar o material e vincula a página criada.
 - `sourceLessonId` é único no material semanal; publicar duas vezes devolve o
   mesmo vínculo. Publicações interrompidas são reconciliadas a cada 5 s.
-- Falha antes de criar o material devolve a lição a `READY_FOR_PUBLICATION`.
-- Publicar cria o material e dispara o aviso por e-mail; não define a semana
-  atual.
+- Material apagado em Materiais Semanais: publicar de novo recria o material.
+  Lição arquivada não é publicada.
+- Falha antes de criar o material devolve a lição a `READY_FOR_PUBLICATION`;
+  falha de PDF informa o item que falhou.
+- Depois que a página existe, a lição é sempre marcada como publicada.
+- O Material Especial é um material semanal com título e descrição próprios
+  (marca `[tipo:especial]` na descrição); não existe coluna de tipo. A
+  descrição não leva marcador de origem.
+- O material semanal publicado pelo Estúdio é endereçado só pela semana
+  (`materiais_semanal_semana_27`); duplicatas recebem sufixo numérico
+  sequencial (`_1`, `_2`). O Material Especial deriva o endereço do título.
+- Antes de publicar, a prévia avisa sobre materiais existentes da mesma semana
+  (ou de mesmo título, no especial); o aviso nunca bloqueia.
+- Publicar cria o material e dispara o aviso por e-mail ("material da semana"
+  ou "material especial"); não define a semana atual.
 - Na exclusão, só objetos da própria lição e não referenciados em outro lugar
   são removidos do S3, depois do commit.
 - O auditor de órfãos é dry-run por padrão, ignora objetos recentes e nunca

@@ -17,6 +17,13 @@ import {
   parseAndValidatePayload,
   planMediaSync,
   resolveUploadedFile,
+  duplicateSearchFragments,
+  isDuplicateWeekMaterial,
+  isSpecialWeekMaterial,
+  normalizeWeekMaterialTitle,
+  stripWeekMaterialMarkers,
+  titleNamesWeek,
+  weekMaterialOriginMarker,
 } from './utils';
 
 const mediaDto = (overrides: Partial<MediaItemDto> = {}): MediaItemDto => ({
@@ -273,6 +280,123 @@ describe('week material utils', () => {
           CreateWeekMaterialsPageDto,
         ),
       ).rejects.toBeInstanceOf(AppValidationException);
+    });
+  });
+
+  describe('internal markers', () => {
+    it('detects the special tag', () => {
+      expect(isSpecialWeekMaterial('Texto. [tipo:especial]')).toBe(true);
+      expect(isSpecialWeekMaterial('Texto comum')).toBe(false);
+      expect(isSpecialWeekMaterial(null)).toBe(false);
+    });
+
+    it('strips the special tag and the legacy origin marker from public text', () => {
+      expect(
+        stripWeekMaterialMarkers(
+          'Material Especial completo. [tipo:especial] [origem:licao:2f6f0c1e-1111-4222-8333-444444444444]',
+        ),
+      ).toBe('Material Especial completo.');
+      expect(stripWeekMaterialMarkers('Sem marcas')).toBe('Sem marcas');
+      expect(stripWeekMaterialMarkers(undefined)).toBe('');
+    });
+
+    it('builds the legacy origin marker of a lesson', () => {
+      expect(weekMaterialOriginMarker('abc')).toBe('[origem:licao:abc]');
+    });
+  });
+
+  describe('duplicate detection', () => {
+    it('normalizes case, accents, punctuation and spacing of a title', () => {
+      expect(normalizeWeekMaterialTitle('  Semana 12 — O Bom  Pastor! ')).toBe(
+        'semana 12 o bom pastor',
+      );
+      expect(normalizeWeekMaterialTitle('Páscoa')).toBe('pascoa');
+    });
+
+    it('matches the week as a whole number', () => {
+      expect(titleNamesWeek('Semana 1 — Criação', 1)).toBe(true);
+      expect(titleNamesWeek('SEMANA 01', 1)).toBe(true);
+      expect(titleNamesWeek('Semana 12 — Davi', 1)).toBe(false);
+      expect(titleNamesWeek('Semana 21', 1)).toBe(false);
+      expect(titleNamesWeek('Material Especial (Semana 3) — Tema', 3)).toBe(
+        true,
+      );
+      expect(titleNamesWeek('Tema sem semana', 3)).toBe(false);
+    });
+
+    it('searches a weekly material by the week and a special one by its longest words', () => {
+      expect(
+        duplicateSearchFragments({
+          title: 'Semana 12 — Davi',
+          weekNumber: 12,
+          special: false,
+        }),
+      ).toEqual(['semana', '12']);
+      expect(
+        duplicateSearchFragments({
+          title: 'Material Especial — O Picolé Roubado',
+          special: true,
+        }),
+      ).toEqual(['material', 'especial', 'roubado']);
+      expect(
+        duplicateSearchFragments({
+          title: 'x',
+          weekNumber: null,
+          special: false,
+        }),
+      ).toEqual([]);
+      expect(duplicateSearchFragments({ title: '🎉', special: true })).toEqual(
+        [],
+      );
+    });
+
+    it('treats as duplicate the same week (weekly) or the same title (special)', () => {
+      const weekly = {
+        title: 'Semana 12 — Davi',
+        weekNumber: 12,
+        special: false,
+      };
+      expect(
+        isDuplicateWeekMaterial({ id: 'a', title: 'Semana 12' }, weekly),
+      ).toBe(true);
+      expect(
+        isDuplicateWeekMaterial({ id: 'a', title: 'Semana 120' }, weekly),
+      ).toBe(false);
+      // A special material that mentions the week is not the weekly material.
+      expect(
+        isDuplicateWeekMaterial(
+          {
+            id: 'a',
+            title: 'Material Especial (Semana 12) — X',
+            description: 'x [tipo:especial]',
+          },
+          weekly,
+        ),
+      ).toBe(false);
+      // The caller's own page is never reported.
+      expect(
+        isDuplicateWeekMaterial(
+          { id: 'own', title: 'Semana 12' },
+          { ...weekly, excludePageId: 'own' },
+        ),
+      ).toBe(false);
+
+      const special = {
+        title: 'Material Especial — O Picolé Roubado',
+        special: true,
+      };
+      expect(
+        isDuplicateWeekMaterial(
+          { id: 'a', title: 'material especial - o picole roubado' },
+          special,
+        ),
+      ).toBe(true);
+      expect(
+        isDuplicateWeekMaterial(
+          { id: 'a', title: 'Material Especial — Outro tema' },
+          special,
+        ),
+      ).toBe(false);
     });
   });
 });

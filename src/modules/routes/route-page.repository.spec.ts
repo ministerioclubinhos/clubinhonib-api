@@ -51,7 +51,45 @@ describe('RouteRepository.findAvailablePath', () => {
     ).resolves.toBe('materiais_semanal_semana_12_1');
   });
 
-  it('mantém o path quando ele já pertence à própria rota', async () => {
+  it('numera as duplicatas em sequência: base, base_1, base_2', async () => {
+    // Banco em memória: cada path devolvido é ocupado antes da próxima busca.
+    const taken = new Set<string>();
+    findByPath.mockImplementation((path: string) =>
+      Promise.resolve(taken.has(path) ? route(`id-${path}`, path) : null),
+    );
+    const created: string[] = [];
+    for (let index = 0; index < 4; index += 1) {
+      const path = await repo.findAvailablePath(
+        'Semana 27',
+        'materiais_semanal_',
+      );
+      taken.add(path);
+      created.push(path);
+    }
+
+    expect(created).toEqual([
+      'materiais_semanal_semana_27',
+      'materiais_semanal_semana_27_1',
+      'materiais_semanal_semana_27_2',
+      'materiais_semanal_semana_27_3',
+    ]);
+  });
+
+  it('não confunde a semana 27 com a 2 nem com a 270', async () => {
+    const taken = new Set([
+      'materiais_semanal_semana_2',
+      'materiais_semanal_semana_270',
+    ]);
+    findByPath.mockImplementation((path: string) =>
+      Promise.resolve(taken.has(path) ? route(`id-${path}`, path) : null),
+    );
+
+    await expect(
+      repo.findAvailablePath('Semana 27', 'materiais_semanal_'),
+    ).resolves.toBe('materiais_semanal_semana_27');
+  });
+
+  it('mantém o path quando ele já pertence à própria rot', async () => {
     // Sem isso, editar uma página sem trocar o título ganharia um sufixo a
     // cada gravação: a rota colidiria consigo mesma.
     findByPath.mockResolvedValue(

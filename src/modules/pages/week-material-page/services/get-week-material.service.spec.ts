@@ -49,6 +49,7 @@ describe('WeekMaterialsPageGetService', () => {
     findAllPaginated: jest.fn(),
     findOnePageById: jest.fn(),
     findCurrentWeek: jest.fn(),
+    findByTitleFragments: jest.fn(),
   };
   const mediaItemProcessor = {
     findMediaItemsByTarget: jest.fn(),
@@ -69,6 +70,72 @@ describe('WeekMaterialsPageGetService', () => {
     }).compile();
 
     service = moduleRef.get(WeekMaterialsPageGetService);
+  });
+
+  describe('findPossibleDuplicates', () => {
+    const titled = (id: string, title: string, description = 'Descrição') =>
+      Object.assign(buildPage(id), { title, description });
+
+    it('devolve só as páginas da mesma semana, com o endereço de cada uma', async () => {
+      pageRepo.findByTitleFragments.mockResolvedValue([
+        titled('a', 'Semana 12 — Davi'),
+        titled('b', 'Semana 120'),
+        titled('c', 'Material Especial (Semana 12)', 'x [tipo:especial]'),
+        titled('own', 'Semana 12'),
+      ]);
+
+      await expect(
+        service.findPossibleDuplicates({
+          title: 'Semana 12 — Golias',
+          weekNumber: 12,
+          special: false,
+          excludePageId: 'own',
+        }),
+      ).resolves.toEqual([
+        {
+          id: 'a',
+          title: 'Semana 12 — Davi',
+          routePath: 'materiais_semanal_a',
+        },
+      ]);
+      expect(pageRepo.findByTitleFragments).toHaveBeenCalledWith(
+        ['semana', '12'],
+        expect.any(Number),
+      );
+    });
+
+    it('compara o Material Especial pelo título e tolera página sem rota', async () => {
+      const semRota = titled('a', 'material especial: o picolé roubado');
+      (semRota as { route?: unknown }).route = undefined;
+      pageRepo.findByTitleFragments.mockResolvedValue([
+        semRota,
+        titled('b', 'Material Especial — Outro'),
+      ]);
+
+      await expect(
+        service.findPossibleDuplicates({
+          title: 'Material Especial — O Picolé Roubado',
+          special: true,
+        }),
+      ).resolves.toEqual([
+        {
+          id: 'a',
+          title: 'material especial: o picolé roubado',
+          routePath: null,
+        },
+      ]);
+    });
+
+    it('não consulta o banco sem semana nem título pesquisável', async () => {
+      await expect(
+        service.findPossibleDuplicates({
+          title: 'Semana',
+          weekNumber: null,
+          special: false,
+        }),
+      ).resolves.toEqual([]);
+      expect(pageRepo.findByTitleFragments).not.toHaveBeenCalled();
+    });
   });
 
   describe('findOnePage', () => {

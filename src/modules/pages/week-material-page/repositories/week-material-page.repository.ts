@@ -124,6 +124,26 @@ export class WeekMaterialsPageRepository {
     });
   }
 
+  /**
+   * Most recent pages whose title contains every fragment. The fragments come
+   * from a normalized title (letters and digits only), so they carry no LIKE
+   * wildcard; the caller applies the exact comparison in memory.
+   */
+  async findByTitleFragments(
+    fragments: readonly string[],
+    limit: number,
+  ): Promise<WeekMaterialsPageEntity[]> {
+    const qb = this.pageRepo
+      .createQueryBuilder('page')
+      .leftJoinAndSelect('page.route', 'route');
+    fragments.forEach((fragment, index) => {
+      qb.andWhere(`LOWER(page.title) LIKE :fragment${index}`, {
+        [`fragment${index}`]: `%${fragment.toLowerCase()}%`,
+      });
+    });
+    return qb.orderBy('page.createdAt', 'DESC').take(limit).getMany();
+  }
+
   async createPage(
     content: Pick<
       WeekMaterialPageContent,

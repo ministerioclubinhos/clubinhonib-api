@@ -60,7 +60,7 @@ loop cada etapa
 
   Administrador -> Frontend: edita e salva
   Frontend -> API: PATCH /stages/content (lockVersion)
-  API -> MySQL: reconcilia AST sobre o dado do servidor -> nova versão; posteriores STALE
+  API -> MySQL: reconcilia AST sobre o dado do servidor -> nova versão;\nposteriores STALE só fora de um ciclo de revisão
   Administrador -> Frontend: conclui
   Frontend -> API: POST /stages/complete-production (lockVersion, acknowledgeStale?)
   API -> MySQL: prontidão + etapa anterior concluída -> PRODUCER_APPROVED
@@ -73,7 +73,12 @@ loop cada item
   Frontend -> API: GET /stages/:stage/preview.pdf (lockVersion, versionId)
   alt aprovar
     Frontend -> API: POST /stages/approve (lockVersion)
-    API -> MySQL: versão lida sob lock + prontidão -> APPROVED
+    API -> API: gera o PDF do item (fora do lock; cache por versão)
+    alt PDF não sai
+      API --> Frontend: 422/503 LESSON_9314 com o nome do item
+    else PDF gerado
+      API -> MySQL: versão sob lock = versão renderizada + prontidão -> APPROVED
+    end
   else devolver
     Frontend -> API: POST /stages/request-changes (lockVersion, note)
     API -> MySQL: CHANGES_REQUESTED + observação aberta
@@ -83,26 +88,49 @@ opt erro notado após a última aprovação
   Frontend -> API: POST /stages/reopen (lockVersion, note)
   API -> MySQL: READY_FOR_PUBLICATION -> CHANGES_REQUESTED
 end
+opt correção de um item devolvido ou reaberto
+  Frontend -> API: PATCH /stages/content ou POST /stages/generate (só esse item)
+  API -> MySQL: item -> DRAFT; demais itens mantêm o status
+  Frontend -> API: complete-production + submit-review
+  API -> MySQL: só o item corrigido volta a IN_REVIEW
+end
+note right of API
+  Ciclo de revisão: alguma etapa IN_REVIEW, APPROVED ou CHANGES_REQUESTED.
+  Nele, salvar ou regenerar um item não invalida nenhum outro.
+  Item APPROVED ou IN_REVIEW não é regenerado (409): reabrir ou devolver antes.
+end note
 
 == Publicação ==
+Administrador -> Frontend: abre a confirmação
+Frontend -> API: GET /publication-preview
+API -> Week: página vinculada + materiais da mesma semana (ou mesmo título, no especial)
+API --> Frontend: título, quantidade de PDFs, material vinculado, duplicatas (aviso, não bloqueia)
 Administrador -> Frontend: publicar
 Frontend -> API: POST /publish-week-material
-API -> MySQL: lock; READY_FOR_PUBLICATION -> PUBLISHING + lease (60 s) + versões reservadas
-API -> Week: procura material por sourceLessonId
-alt material já existe (recuperação)
-  API -> MySQL: PUBLISHED + weekMaterialId existente
-else primeira publicação
-  API -> API: um PDF por etapa aprovada (DOCX -> LibreOffice, cache por versão)
-  API -> MySQL: confere posse da lease
-  API -> Week: cria página (semana + tema, documentos, sourceLessonId)
-  Week --> API: weekMaterialId (aviso por e-mail)
-  API -> MySQL: PUBLISHED + vínculo, condicionado à posse da lease
+API -> MySQL: lock da lição
+alt lição PUBLISHED com material existente
+  API --> Frontend: vínculo existente
+else READY_FOR_PUBLICATION, ou PUBLISHED com material apagado (republicar)
+  API -> MySQL: limpa vínculo antigo; PUBLISHING + lease (60 s) + versões reservadas
+  API -> Week: procura material por sourceLessonId
+  alt material já existe (recuperação)
+    API -> MySQL: PUBLISHED + weekMaterialId existente
+  else publicação
+    API -> API: um PDF por etapa aprovada (cache da aprovação);\nfalha -> LESSON_9314 com o nome do item
+    API -> MySQL: confere posse da lease
+    API -> Week: cria página (título, descrição, documentos, sourceLessonId,\nbase do path = "Semana N" no semanal)
+    Week -> Week: path livre: base, base_1, base_2 (colisão na gravação -> próximo sufixo)
+    Week --> API: weekMaterialId (aviso por e-mail: semana ou especial)
+    API -> MySQL: PUBLISHED + vínculo (a página criada é a fonte da verdade)
+  end
 end
 API --> Frontend: { lesson, weekMaterialId }
 note right of API
   Falha antes de criar o material -> READY_FOR_PUBLICATION
   Reconciliador a cada 5 s conclui ou libera publicações com lease vencida
-  Publicar de novo devolve o mesmo vínculo
+  Reserva perdida com página criada -> PUBLISHED; item reaberto na mesma
+  versão volta a APPROVED
+  Lição ARCHIVED não é publicada
 end note
 
 == Pós-publicação ==

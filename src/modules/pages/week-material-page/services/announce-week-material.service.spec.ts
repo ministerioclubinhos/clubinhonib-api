@@ -69,7 +69,43 @@ describe('AnnounceWeekMaterialService', () => {
     );
   });
 
-  it('pede ao serviço de usuários, não ao repositório de outro módulo', async () => {
+  it('nunca envia os marcadores internos da descrição', async () => {
+    await service.announce(
+      buildPage({
+        description:
+          'Material completo da semana 12, revisado e aprovado. [origem:licao:2f6f0c1e-0000-4000-8000-000000000000]',
+      }),
+    );
+
+    expect(emailService.sendWeekMaterialAnnouncement).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        description: 'Material completo da semana 12, revisado e aprovado.',
+        special: false,
+      }),
+    );
+  });
+
+  it('avisa o Material Especial como especial, sem a marca de tipo no texto', async () => {
+    await service.announce(
+      buildPage({
+        title: 'Material Especial — O Picolé Roubado',
+        description:
+          'Material Especial completo, revisado e aprovado. [tipo:especial] [origem:licao:abc]',
+      }),
+    );
+
+    expect(emailService.sendWeekMaterialAnnouncement).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        title: 'Material Especial — O Picolé Roubado',
+        description: 'Material Especial completo, revisado e aprovado.',
+        special: true,
+      }),
+    );
+  });
+
+  it('pede ao serviço de usuários, não ao repositório de outro módul', async () => {
     await service.announce(buildPage());
 
     expect(getUsersService.findActiveRecipients).toHaveBeenCalledTimes(1);

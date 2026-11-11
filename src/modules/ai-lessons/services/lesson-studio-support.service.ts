@@ -12,6 +12,7 @@ import {
 import { LessonWorkflowAction } from '../enums/lesson-failure-code.enum';
 import { AiLessonsRepository } from '../repositories/ai-lessons.repository';
 import {
+  isLessonInReviewCycle,
   recomputeLessonStatus,
   settleWithConcurrency,
 } from '../utils/lesson-workflow.utils';
@@ -40,18 +41,35 @@ export class LessonStudioSupportService {
     await this.repo.updateLesson(lesson.id, { status: lesson.status }, manager);
   }
 
+  /**
+   * Marks the items after `type` as outdated when `type` got new content.
+   *
+   * Inside a review cycle nothing is invalidated: a correction touches only
+   * its own item, and what the reviewer holds, approved or returned is never
+   * taken from them. `previousStatus` is the status the edited item had before
+   * the change (the caller already moved it to DRAFT), so a correction of the
+   * only returned item still counts as part of the cycle.
+   */
   async invalidateDownstream(
     lesson: LessonEntity,
     type: LessonStageType,
     manager?: EntityManager,
+    previousStatus?: LessonStageStatus,
   ): Promise<void> {
     const stageOrder = getLessonStageOrder(lesson.category);
     const index = stageOrder.indexOf(type);
-    for (const stage of lesson.stages.filter(
-      (item) =>
-        stageOrder.indexOf(item.type) > index &&
-        item.status !== LessonStageStatus.NOT_STARTED,
-    )) {
+    const reviewCycle = isLessonInReviewCycle([
+      previousStatus,
+      ...lesson.stages.map((item) => item.status),
+    ]);
+    const outdated = reviewCycle
+      ? []
+      : lesson.stages.filter(
+          (item) =>
+            stageOrder.indexOf(item.type) > index &&
+            item.status !== LessonStageStatus.NOT_STARTED,
+        );
+    for (const stage of outdated) {
       stage.status = LessonStageStatus.STALE;
       stage.approvedAt = null;
       stage.approvedById = null;

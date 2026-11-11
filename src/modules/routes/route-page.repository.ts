@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { RouteEntity } from './route-page.entity';
-import { toRoutePath } from './utils';
+import { toBoundedRoutePath } from './utils';
 
 @Injectable()
 export class RouteRepository extends Repository<RouteEntity> {
@@ -60,7 +60,7 @@ export class RouteRepository extends Repository<RouteEntity> {
     prefix: string,
     excludeRouteId?: string,
   ): Promise<string> {
-    const base = toRoutePath(baseName, prefix);
+    const base = toBoundedRoutePath(baseName, prefix);
     let candidato = base;
     let contador = 1;
 
@@ -79,6 +79,20 @@ export class RouteRepository extends Repository<RouteEntity> {
     data: Partial<RouteEntity>,
   ): Promise<RouteEntity> {
     return manager.save(manager.create(RouteEntity, data));
+  }
+
+  /**
+   * Cria a rota num savepoint da transação em curso: se a gravação falhar
+   * (por exemplo, `path` já usado), só esta tentativa é desfeita e quem chamou
+   * continua com a transação íntegra.
+   */
+  async createInSavepoint(
+    manager: EntityManager,
+    data: Partial<RouteEntity>,
+  ): Promise<RouteEntity> {
+    return manager.transaction((nested) =>
+      nested.save(nested.create(RouteEntity, data)),
+    );
   }
 
   async findByEntity(

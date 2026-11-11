@@ -170,6 +170,8 @@ export interface WeekMaterialAnnouncementEmailData {
   subtitle?: string;
   description?: string;
   materialLink: string;
+  /** Material Especial: muda só o título e o assunto do mesmo aviso. */
+  special?: boolean;
   /** Link do rodapé que cancela os avisos; some quando ausente. */
   unsubscribeUrl?: string;
 }

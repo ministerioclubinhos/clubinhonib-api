@@ -16,6 +16,7 @@ state "Lição" as Lesson {
   READY_FOR_PUBLICATION --> PUBLISHING : publicar (reserva com lease)
   PUBLISHING --> PUBLISHED : material criado e vínculo confirmado
   PUBLISHING --> READY_FOR_PUBLICATION : falha antes de criar o material
+  PUBLISHED --> PUBLISHING : publicar novamente (material apagado)
   PUBLISHED --> ARCHIVED : arquivar
   ARCHIVED --> PUBLISHED : restaurar
 }
@@ -59,15 +60,17 @@ state "Etapa" as Stage {
   S_IN_REVIEW --> S_APPROVED : aprovar
   S_IN_REVIEW --> S_CHANGES_REQUESTED : devolver
   S_APPROVED --> S_CHANGES_REQUESTED : reabrir
-  S_DRAFT --> S_STALE : etapa anterior salva ou regerada
-  S_PRODUCER_APPROVED --> S_STALE : etapa anterior salva ou regerada
-  S_IN_REVIEW --> S_STALE : etapa anterior salva ou regerada
-  S_APPROVED --> S_STALE : etapa anterior salva ou regerada
+  S_DRAFT --> S_STALE : etapa anterior salva ou regerada (fora da revisão)
+  S_PRODUCER_APPROVED --> S_STALE : etapa anterior salva ou regerada (fora da revisão)
 }
 
 note right of Stage
   Geração que falha restaura o status anterior da etapa
   e mantém failureCode/failureMessage.
   Concluir, aprovar, devolver e reabrir exigem lockVersion.
+  Aprovar gera o PDF do item antes (LESSON_9314 se não sai).
+  Em ciclo de revisão (alguma etapa IN_REVIEW, APPROVED ou
+  CHANGES_REQUESTED) nenhuma etapa vira STALE.
+  APPROVED e IN_REVIEW não são regerados: reabrir ou devolver antes.
 end note
 @enduml

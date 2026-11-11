@@ -8,7 +8,15 @@ import {
 import { MediaItemDto } from 'src/shared/share-dto/media-item-dto';
 import { AppValidationException, ErrorCode } from 'src/shared/exceptions';
 import {
+  WEEK_MATERIAL_DUPLICATE_FRAGMENT_LIMIT,
+  WEEK_MATERIAL_INTERNAL_MARKERS_PATTERN,
+  WEEK_MATERIAL_ORIGIN_MARKER_PREFIX,
+  WEEK_MATERIAL_SPECIAL_TAG,
+  WEEK_MATERIAL_WEEK_WORD,
+} from './constants';
+import {
   MulterFilesDict,
+  WeekMaterialDuplicateCriteria,
   WeekMaterialMediaGroups,
   WeekMaterialMediaInput,
   WeekMaterialMediaSyncPlan,
@@ -171,4 +179,84 @@ export function planMediaSync(
     toUpdate: incoming.filter((item) => Boolean(item.id)),
     toCreate: incoming.filter((item) => !item.id),
   };
+}
+
+/** True when the description carries the Material Especial tag. */
+export function isSpecialWeekMaterial(description?: string | null): boolean {
+  return Boolean(description?.includes(WEEK_MATERIAL_SPECIAL_TAG));
+}
+
+/** Removes the internal markers (special tag, legacy origin) from public text. */
+export function stripWeekMaterialMarkers(text?: string | null): string {
+  return (text ?? '')
+    .replace(WEEK_MATERIAL_INTERNAL_MARKERS_PATTERN, '')
+    .trim();
+}
+
+/** Legacy origin marker of a lesson published before `sourceLessonId` existed. */
+export function weekMaterialOriginMarker(lessonId: string): string {
+  return `${WEEK_MATERIAL_ORIGIN_MARKER_PREFIX}${lessonId}]`;
+}
+
+/** Case, accent, punctuation and spacing insensitive form of a page title. */
+export function normalizeWeekMaterialTitle(title?: string | null): string {
+  return (title ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+/**
+ * True when the title names exactly this week number: "Semana 1" must not
+ * match "Semana 12", and leading zeros are ignored.
+ */
+export function titleNamesWeek(
+  title: string | null | undefined,
+  weekNumber: number,
+): boolean {
+  const matches = normalizeWeekMaterialTitle(title).matchAll(
+    /(?:^| )semana 0*(\d+)(?= |$)/g,
+  );
+  for (const match of matches) {
+    if (Number(match[1]) === weekNumber) return true;
+  }
+  return false;
+}
+
+/**
+ * Title fragments the database can narrow the duplicate search by: the word
+ * "semana" plus the number for a weekly material, or the longest words of the
+ * title for a special one. Empty when the title has nothing to search for.
+ */
+export function duplicateSearchFragments(
+  criteria: WeekMaterialDuplicateCriteria,
+): string[] {
+  if (!criteria.special)
+    return criteria.weekNumber
+      ? [WEEK_MATERIAL_WEEK_WORD, String(criteria.weekNumber)]
+      : [];
+  return [...new Set(normalizeWeekMaterialTitle(criteria.title).split(' '))]
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length)
+    .slice(0, WEEK_MATERIAL_DUPLICATE_FRAGMENT_LIMIT);
+}
+
+/** True when an existing page is the same material the criteria describe. */
+export function isDuplicateWeekMaterial(
+  page: { id: string; title: string; description?: string | null },
+  criteria: WeekMaterialDuplicateCriteria,
+): boolean {
+  if (page.id === criteria.excludePageId) return false;
+  if (criteria.special)
+    return (
+      normalizeWeekMaterialTitle(page.title) ===
+      normalizeWeekMaterialTitle(criteria.title)
+    );
+  // A special material that mentions the week is not the weekly material.
+  if (isSpecialWeekMaterial(page.description)) return false;
+  return Boolean(
+    criteria.weekNumber && titleNamesWeek(page.title, criteria.weekNumber),
+  );
 }

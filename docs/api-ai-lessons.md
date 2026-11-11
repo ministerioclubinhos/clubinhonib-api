@@ -33,15 +33,16 @@ Prefixo `/api/v1/lessons`. Todas as rotas exigem JWT e papel de administrador. S
 | `POST /:id/unarchive` | — | `ARCHIVED` → `PUBLISHED`. |
 | `POST /:id/comments/:commentId/resolve` | — | Marca a observação como resolvida. 404 se não pertencer à lição. |
 | `POST /:id/stages/generate` | `stage`, `revisionInstructions?` (≤ 1.000), `visualType?`, `visualOrientation?`, `visualQuantity?` (4–10) | Persiste o pedido e responde sem aguardar a IA. Configuração visual inválida responde 400 na hora. Campos internos (`frozenProvider`, `frozenAdminPrompt`, `checkpointedAssetUrls`) são rejeitados com 400. |
-| `PATCH /:id/stages/content` | `stage`, `tiptapAstJson`, `structuredDataJson?`, `lockVersion`, `changeSummary?` (≤ 255) | Cria nova versão. Conteúdo idêntico ao atual não cria versão nem invalida etapas. |
+| `PATCH /:id/stages/content` | `stage`, `tiptapAstJson`, `structuredDataJson?`, `lockVersion`, `changeSummary?` (≤ 255) | Cria nova versão. Conteúdo idêntico ao atual não cria versão nem invalida etapas. Dentro de um ciclo de revisão não invalida nenhuma outra etapa ([seção 3.3](#33-invalidação-e-blindagem-na-revisão)). |
 | `POST /:id/stages/complete-production` | `stage`, `lockVersion`, `acknowledgeStale?` | Ver [seção 3.2](#32-regras-de-transição). |
 | `POST /:id/package/submit-review` | — | Exige lição `PACKAGE_READY`. |
-| `POST /:id/stages/approve` | `stage`, `lockVersion` | `note` não é aceito. |
+| `POST /:id/stages/approve` | `stage`, `lockVersion` | `note` não é aceito. Gera o PDF do item antes de aprovar e pode levar alguns segundos; se o PDF não sai, responde 422 ou 503 (`LESSON_9314`) com o nome do item. |
 | `POST /:id/stages/request-changes` | `stage`, `lockVersion`, `note` (1–1.000) | Cria uma observação aberta. |
 | `POST /:id/stages/reopen` | `stage`, `lockVersion`, `note` (1–1.000) | Reabre um item `APPROVED` de pacote `READY_FOR_PUBLICATION`. |
 | `GET /:id/stages/:stage/preview.pdf` | `lockVersion?`, `versionId?` (UUID) | PDF inline da versão atual; 409 se `lockVersion`/`versionId` divergirem. |
 | `POST /:id/export/pdf` | — | PDF consolidado (attachment); exige todos os itens `APPROVED` e prontos. |
-| `POST /:id/publish-week-material` | — | `{ lesson, weekMaterialId }`; ver [seção 7](#7-publicação). |
+| `GET /:id/publication-preview` | — | `LessonPublicationPreviewResponseDto`; ver [seção 7.1](#71-prévia-da-publicação). |
+| `POST /:id/publish-week-material` | — | `{ lesson, weekMaterialId }`; ver [seção 7](#7-publicação). Também publica novamente uma lição `PUBLISHED` cujo material foi apagado. |
 | `GET /prompt-preferences/me` | `category?` | Lista `{ stage, basePrompt, customPrompt, effectivePrompt, lockVersion }`. |
 | `PATCH /prompt-preferences/me` | `stage`, `category?`, `prompt` (10–12.000), `lockVersion?` | `lockVersion` é exigido quando a linha já existe (409 sem ele). |
 | `POST /prompt-preferences/me/reset` | `stage`, `category?`, `lockVersion?` | Mesma regra de `lockVersion`. |
@@ -93,15 +94,25 @@ Diagrama: [`diagrams/flow/ai-lessons/ai-lessons-states.puml`](diagrams/flow/ai-l
 ### 3.2 Regras de transição
 
 - **Bloqueio global:** enquanto a lição está em `PUBLISHING` ou qualquer etapa está em `GENERATING`, salvar, concluir, aprovar, devolver, reabrir e excluir respondem 409 (`LESSON_9305` / `LESSON_9304`).
-- **Gerar:** recusado com a lição em `IN_REVIEW`, `READY_FOR_PUBLICATION`, `PUBLISHING`, `PUBLISHED` ou `ARCHIVED`. Exige a etapa anterior concluída (`PRODUCER_APPROVED`, `IN_REVIEW` ou `APPROVED`). Se a geração falhar, uma etapa que já tinha versão volta ao status anterior ao pedido e mantém essa versão, com `failureCode`/`failureMessage` preenchidos mesmo sem estar em `FAILED`; uma etapa sem versão anterior vai a `FAILED`.
-- **Salvar:** permitido com a etapa em `DRAFT`, `PRODUCER_APPROVED`, `CHANGES_REQUESTED`, `STALE` ou `FAILED`. Invalida as etapas posteriores já iniciadas.
+- **Gerar:** recusado com a lição em `IN_REVIEW`, `READY_FOR_PUBLICATION`, `PUBLISHING`, `PUBLISHED` ou `ARCHIVED`, e com a própria etapa em `APPROVED` ou `IN_REVIEW` (409 `LESSON_9306`: o item precisa ser reaberto ou devolvido antes). Exige a etapa anterior concluída (`PRODUCER_APPROVED`, `IN_REVIEW` ou `APPROVED`). Se a geração falhar, uma etapa que já tinha versão volta ao status anterior ao pedido e mantém essa versão, com `failureCode`/`failureMessage` preenchidos mesmo sem estar em `FAILED`; uma etapa sem versão anterior vai a `FAILED`.
+- **Salvar:** permitido com a etapa em `DRAFT`, `PRODUCER_APPROVED`, `CHANGES_REQUESTED`, `STALE` ou `FAILED`. Fora de um ciclo de revisão, invalida as etapas posteriores já iniciadas; dentro dele, não invalida nada ([seção 3.3](#33-invalidação-e-blindagem-na-revisão)).
 - **Concluir:** mesmos status de etapa; exige a etapa anterior concluída e o conteúdo pronto ([seção 5](#5-conteúdo-editado-e-prontidão)). Uma etapa `STALE` ou `FAILED` cujos itens anteriores ganharam versão mais nova só é concluída com `acknowledgeStale: true`; sem ele responde 409 (`LESSON_9308`).
 - **Submeter:** exige `PACKAGE_READY` e todas as etapas com versão.
-- **Aprovar / devolver:** lição em `IN_REVIEW` ou `CHANGES_REQUESTED`, etapa em `IN_REVIEW`. A versão é lida sob o lock da lição. Aprovar valida a prontidão; devolver não valida, para que um item quebrado possa ser devolvido.
+- **Aprovar / devolver:** lição em `IN_REVIEW` ou `CHANGES_REQUESTED`, etapa em `IN_REVIEW`. A versão é lida sob o lock da lição. Aprovar valida a prontidão e **gera o PDF do item** (fora da transação, para o LibreOffice nunca rodar sob o lock); dentro da transação a API confere que a etapa ainda aponta para a versão renderizada (senão 409 `LESSON_9303`). Se o PDF não pode ser produzido, a aprovação é recusada com `LESSON_9314`: 422 quando o conteúdo não vira PDF (a mensagem do renderizador é mantida, prefixada com o nome do item, por exemplo `Meditação dos menores: …`) e 503 quando o conversor está ocupado ou indisponível. O PDF fica em cache por versão, então a publicação o reaproveita. Devolver não valida nada, para que um item quebrado possa ser devolvido.
 - **Reabrir:** lição em `READY_FOR_PUBLICATION`, etapa `APPROVED`. A etapa vai a `CHANGES_REQUESTED` com uma observação.
 - **Arquivar / restaurar:** `PUBLISHED` ↔ `ARCHIVED`. Não há exclusão de lição publicada ou arquivada.
 
 Não existe endpoint para editar tema, semana ou referência depois da criação.
+
+### 3.3 Invalidação e blindagem na revisão
+
+Um **ciclo de revisão** existe enquanto alguma etapa está em `IN_REVIEW`, `APPROVED` ou `CHANGES_REQUESTED` (o status da etapa editada é avaliado antes de ela mudar).
+
+- **Dentro do ciclo, corrigir um item não derruba os outros.** Salvar ou regenerar uma etapa não marca nenhuma outra como `STALE`. Etapas `APPROVED`, `IN_REVIEW` e `CHANGES_REQUESTED` nunca são invalidadas.
+- **Item aprovado é blindado.** Não pode ser salvo nem regenerado; para mexer nele o revisor reabre (`POST /stages/reopen`). Item em revisão também não é regenerado: precisa ser devolvido.
+- **Fora do ciclo** (produção inicial) vale a regra antiga: gerar ou salvar uma etapa marca as posteriores já iniciadas como `STALE`.
+- Ciclo típico: o revisor aprova sete itens e devolve um → o produtor edita ou regenera só esse item (`DRAFT`, lição `IN_PROGRESS`) → conclui (`PRODUCER_APPROVED`, lição `PACKAGE_READY`) → "Iniciar revisão" envia apenas esse item a `IN_REVIEW` → aprovado, a lição vai a `READY_FOR_PUBLICATION`. Os sete aprovados permanecem `APPROVED` o tempo todo.
+- Consequência aceita: um item aprovado pode ficar coerente com uma versão anterior de um item corrigido depois (por exemplo, o versículo). A API não bloqueia; o painel avisa comparando as datas das versões atuais.
 
 ## 4. Geração
 
@@ -208,15 +219,48 @@ O AST Tiptap editado é a fonte da prévia e da exportação. Ao salvar, o servi
 `POST /:id/publish-week-material`:
 
 1. Sob lock, reserva a lição (`READY_FOR_PUBLICATION` → `PUBLISHING`) com lease de 60 s renovada a cada 20 s.
-2. Renderiza um PDF por etapa aprovada (8 ou 3), todos antes de criar a página.
+2. Renderiza um PDF por etapa aprovada (8 ou 3), todos antes de criar a página. Os PDFs gerados na aprovação vêm do cache.
 3. Confere a posse da lease e cria a página de material semanal com `sourceLessonId` (único).
-4. Confirma `PUBLISHED` e o vínculo, novamente condicionado à posse da lease.
+4. Vincula a página e marca `PUBLISHED`.
 
-- Requisições concorrentes recebem 409. Lição já publicada devolve o vínculo existente; se o material vinculado não existe mais, responde 409 (`LESSON_9312`).
-- Falha antes de criar a página devolve a lição a `READY_FOR_PUBLICATION` com mensagem pública genérica (o detalhe fica no log).
-- Página criada com falha na confirmação: a requisição responde sucesso com o vínculo recuperado.
+- Requisições concorrentes recebem 409. Lição já publicada devolve o vínculo existente.
+- **Republicar:** se o material vinculado a uma lição `PUBLISHED` foi apagado em Materiais Semanais, a mesma rota limpa o vínculo sob o lock e publica de novo (os itens continuam aprovados). Só "não encontrado" conta como apagado; erro na consulta propaga. Lição `ARCHIVED` continua bloqueada (409 `LESSON_9306`). `LESSON_9312` não é mais emitido.
+- **Falha de PDF nomeia o item:** o erro e `publicationFailureMessage` começam com o nome do item (`Visuais da história: …`), com `LESSON_9314` e 422 (conteúdo) ou 503 (conversor).
+- Outras falhas antes de criar a página devolvem a lição a `READY_FOR_PUBLICATION` com mensagem pública genérica (o detalhe fica no log).
+- **Página criada é a fonte da verdade:** depois que a página existe, a lição é sempre vinculada e marcada `PUBLISHED`, mesmo com falha na confirmação ou reserva perdida. Se nesse intervalo um item foi reaberto, ele volta a `APPROVED` quando ainda aponta para a versão publicada; um item cujo conteúdo mudou mantém o status e é registrado em log.
 - Um reconciliador roda a cada 5 s: publicações com lease vencida são concluídas (se a página existe) ou liberadas (se não existe). Erro ao consultar o material não é tratado como "não existe".
-- O título inclui semana e tema; a rota pública segue o gerador de rotas de materiais semanais. Publicar cria o material e dispara o aviso por e-mail; **não** define a semana atual.
+- Publicar cria o material e dispara o aviso por e-mail; **não** define a semana atual.
+
+**Material Semanal × Material Especial.** O Material Especial é um material semanal com título e descrição próprios; não há coluna de tipo.
+
+| | Semanal (`REGULAR`) | Especial (`SPECIAL`) |
+| --- | --- | --- |
+| Título | `Semana N — tema` | `Material Especial (Semana N) — tema` ou `Material Especial — tema` |
+| Descrição | `Material completo da semana N, revisado e aprovado.` | termina com a marca `[tipo:especial]`, lida pelo painel para o selo |
+| Base do `path` | só a semana: `materiais_semanal_semana_N` | o título: `materiais_semanal_material_especial_…` |
+| E-mail | "Novo material da semana" | "Novo material especial" (mesmo e-mail e mesma flag) |
+
+A descrição não leva mais `[origem:licao:<id>]`: o vínculo é `sourceLessonId`. Páginas antigas ainda têm o marcador, usado apenas como contingência ao reconciliar uma publicação interrompida. Os marcadores internos nunca vão para o e-mail.
+
+**Rotas duplicadas.** Dois materiais com a mesma base recebem sufixo numérico sequencial: `materiais_semanal_semana_27`, `materiais_semanal_semana_27_1`, `materiais_semanal_semana_27_2`. Uma página manual "Semana 27" criada antes ocupa a base, e a publicação do Estúdio fica com `_1`. Não há sufixo aleatório. Ver [api-week-materials.md](api-week-materials.md#route-path).
+
+### 7.1 Prévia da publicação
+
+`GET /:id/publication-preview` é leitura pura e responde:
+
+```json
+{
+  "title": "Semana 27 — O Bom Pastor",
+  "isSpecial": false,
+  "documentCount": 8,
+  "weekMaterial": { "id": "…", "exists": true, "routePath": "materiais_semanal_semana_27", "currentWeek": false },
+  "duplicates": [{ "id": "…", "title": "Semana 27", "routePath": "materiais_semanal_semana_27" }]
+}
+```
+
+- `title`: o título que a publicação vai gravar (mesma função usada ao publicar).
+- `weekMaterial`: `null` se a lição nunca foi publicada; `exists: false` (com `routePath: null`, `currentWeek: false`) quando a página vinculada foi apagada.
+- `duplicates`: até 5 páginas existentes, exceto a da própria lição, que são o mesmo material — `REGULAR`: título com `Semana N` para o mesmo número inteiro (Semana 1 não casa com Semana 12; páginas com a marca de especial ficam fora); `SPECIAL`: mesmo título normalizado (sem acento, caixa e pontuação). É aviso: a publicação nunca é bloqueada por duplicata.
 
 ## 8. Arquivos, imagens e PDF
 
@@ -241,6 +285,7 @@ Os erros de negócio usam `AppException` com `ErrorCode` `LESSON_93xx`, e as fal
 - Não há endpoint para editar tema, semana ou referência da lição após a criação.
 - Trilha de auditoria: as ações são registradas em log estruturado; uma tabela `lesson_events` exige mudança de schema.
 - Schema: índice único duplicado em `week_material_pages.source_lesson_id` e `DB_SYNCHRONIZE` ligado por padrão em `database.module.ts`.
+- A busca de duplicatas examina as 50 páginas mais recentes que casam com os fragmentos do título.
 - A publicação dispara o e-mail de aviso imediatamente; falta um parâmetro `announce` no serviço de materiais semanais.
 - Gemini não envia `maxOutputTokens`.
 - Os nomes de modelo padrão (`gpt-6-luna`, `gpt-image-2` e as listas de contingência) não foram validados contra os catálogos reais.
@@ -258,6 +303,9 @@ Regras substituídas, mantidas aqui porque explicam conteúdos já salvos:
 - **Visuais da história por trecho literal (template 2.x):** as lições `REGULAR` usavam cenas com `sourceExcerpt`. Desde o template 3.0.0 (2026-11-02) usam o kit de recortes; lições antigas continuam legíveis.
 - **Item 7, contratos 1.x:** exigiam mínimos de palavras (200 por folha, 110 por bloco, seis subitens), correções focadas de bloco e artes apenas quando necessárias, com remoção da arte do caça-palavras reparado. O contrato 2.x eliminou os mínimos e passou a exigir sempre três imagens.
 - **Lição, template 4.4.0:** as regras de propósito, memorização, aplicação e integridade foram incorporadas ao 4.5.0.
+- **Sufixo aleatório de rota e marcador de origem:** publicações anteriores a 2026-11-10 gravavam `[origem:licao:<id>]` na descrição e derivavam o `path` do título completo (`…semana_27_tema`). Rotas existentes não foram alteradas.
+- **`LESSON_9312` (material vinculado ausente):** a publicação respondia 409; hoje publica novamente.
+- **Invalidação em cascata na revisão:** salvar ou regenerar um item derrubava todos os posteriores, inclusive aprovados.
 - **Reconciliação manual de publicação:** antes das leases de publicação, uma falha após criar a página exigia intervenção operacional.
 - **Lease `workerId:uuid`:** valores antigos de 73 caracteres não cabiam em `generation_lease_owner`; pedidos presos por eles são retomados pelo mecanismo atual.
 - **`apiKey` na query de modelos e chaves em DTOs públicos:** removidos.

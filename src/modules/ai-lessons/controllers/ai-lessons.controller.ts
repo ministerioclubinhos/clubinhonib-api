@@ -47,6 +47,7 @@ import {
   LessonDashboardResponseDto,
   LessonDeleteResponseDto,
   LessonListResponseDto,
+  LessonPublicationPreviewResponseDto,
   LessonPublicationResponseDto,
   LessonResponseDto,
   toLessonResponse,
@@ -270,6 +271,11 @@ export class AiLessonsController {
       disposition: `inline; filename="${result.fileName}"`,
       type: 'application/pdf',
     });
+  }
+  @Get(':id/publication-preview') publicationPreview(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<LessonPublicationPreviewResponseDto> {
+    return this.service.getPublicationPreview(id);
   }
   @Post(':id/publish-week-material') async publish(
     @Param('id', ParseUUIDPipe) id: string,

@@ -15,6 +15,7 @@ import { CreateLessonService } from './services/create-lesson.service';
 import { DeleteLessonService } from './services/delete-lesson.service';
 import { ExportLessonPdfService } from './services/export-lesson-pdf.service';
 import { GetLessonService } from './services/get-lesson.service';
+import { GetLessonPublicationService } from './services/get-lesson-publication.service';
 import { LessonAssetGenerationService } from './services/lesson-asset-generation.service';
 import { LessonGenerationService } from './services/lesson-generation.service';
 import { LessonStudioSupportService } from './services/lesson-studio-support.service';
@@ -53,6 +54,7 @@ import { LESSON_LLM_PROVIDER } from './providers/lesson-llm.constants';
     AiProvidersConfigService,
     { provide: LESSON_LLM_PROVIDER, useClass: ConfiguredLessonLlmProvider },
     GetLessonService,
+    GetLessonPublicationService,
     LessonStudioSupportService,
     LessonAssetGenerationService,
     CreateLessonService,

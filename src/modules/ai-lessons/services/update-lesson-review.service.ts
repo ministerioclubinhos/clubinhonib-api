@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 import {
   AppBusinessException,
@@ -27,7 +27,10 @@ import { assertStageReadyForCompletionOrPublication } from '../utils/lesson-cano
 import {
   assertLessonMutable,
   assertPreviousStageCompleted,
+  lessonCurrentVersion,
+  stagePdfUnavailable,
 } from '../utils/lesson-workflow.utils';
+import { ExportLessonPdfService } from './export-lesson-pdf.service';
 import { GetLessonService } from './get-lesson.service';
 import { LessonStudioSupportService } from './lesson-studio-support.service';
 import {
@@ -38,10 +41,13 @@ import {
 /** Production and review transitions of a stage: conclude, submit, approve, return, reopen and resolve comments. */
 @Injectable()
 export class UpdateLessonReviewService {
+  private readonly logger = new Logger(UpdateLessonReviewService.name);
+
   constructor(
     private readonly repo: AiLessonsRepository,
     private readonly support: LessonStudioSupportService,
     private readonly lessons: GetLessonService,
+    private readonly pdfExport: ExportLessonPdfService,
   ) {}
 
   async completeProductionStage(
@@ -219,35 +225,19 @@ export class UpdateLessonReviewService {
     lockVersion: number,
   ): Promise<LessonEntity> {
     let versionId: string | undefined;
+    const staleMessage =
+      'Este item foi atualizado em outra sessão. Recarregue antes de aprovar.';
+    // What is published is the PDF: it is rendered before the approval, and
+    // outside the transaction so LibreOffice never runs under the lesson lock.
+    const renderedVersionId = await this.renderApprovalPdf(
+      id,
+      type,
+      lockVersion,
+    );
     await this.repo.runInTransaction(async (manager) => {
       const lesson = await this.repo.findLessonByIdForUpdate(id, manager);
       if (!lesson) throw lessonNotFound();
-      assertLessonMutable(
-        lesson,
-        'Aguarde a geração ou publicação em andamento antes de revisar.',
-      );
-      if (!LESSON_REVIEW_STATUSES.includes(lesson.status))
-        throw new AppConflictException(
-          ErrorCode.LESSON_INVALID_STATE,
-          'Itens só podem ser aprovados durante a revisão final.',
-        );
-      const stage = lesson.stages.find((item) => item.type === type);
-      if (!stage) throw stageNotFound();
-      if (
-        !stage.currentVersionId ||
-        stage.status !== LessonStageStatus.IN_REVIEW
-      )
-        throw new AppConflictException(
-          ErrorCode.LESSON_INVALID_STATE,
-          'Este item não está disponível para aprovação.',
-        );
-      const staleMessage =
-        'Este item foi atualizado em outra sessão. Recarregue antes de aprovar.';
-      if (stage.lockVersion !== lockVersion)
-        throw new AppConflictException(
-          ErrorCode.LESSON_STAGE_LOCK_CONFLICT,
-          staleMessage,
-        );
+      const stage = this.assertStageApprovable(lesson, type, lockVersion);
       // Always validated against the version read under the lesson lock.
       const currentVersion = await this.requireCurrentVersion(
         stage,
@@ -259,6 +249,12 @@ export class UpdateLessonReviewService {
         currentVersion.structuredDataJson,
         currentVersion.tiptapAstJson,
       );
+      // The approved version must be exactly the one whose PDF was rendered.
+      if (currentVersion.id !== renderedVersionId)
+        throw new AppConflictException(
+          ErrorCode.LESSON_STAGE_LOCK_CONFLICT,
+          staleMessage,
+        );
       versionId = currentVersion.id;
       stage.status = LessonStageStatus.APPROVED;
       stage.approvedById = userId;
@@ -279,6 +275,70 @@ export class UpdateLessonReviewService {
       versionId,
     });
     return this.lessons.getById(id);
+  }
+
+  /** State checks of an approval; shared by the PDF pre-render and the locked write. */
+  private assertStageApprovable(
+    lesson: LessonEntity,
+    type: LessonStageType,
+    lockVersion: number,
+  ): LessonStageEntity {
+    assertLessonMutable(
+      lesson,
+      'Aguarde a geração ou publicação em andamento antes de revisar.',
+    );
+    if (!LESSON_REVIEW_STATUSES.includes(lesson.status))
+      throw new AppConflictException(
+        ErrorCode.LESSON_INVALID_STATE,
+        'Itens só podem ser aprovados durante a revisão final.',
+      );
+    const stage = lesson.stages.find((item) => item.type === type);
+    if (!stage) throw stageNotFound();
+    if (!stage.currentVersionId || stage.status !== LessonStageStatus.IN_REVIEW)
+      throw new AppConflictException(
+        ErrorCode.LESSON_INVALID_STATE,
+        'Este item não está disponível para aprovação.',
+      );
+    if (stage.lockVersion !== lockVersion)
+      throw new AppConflictException(
+        ErrorCode.LESSON_STAGE_LOCK_CONFLICT,
+        'Este item foi atualizado em outra sessão. Recarregue antes de aprovar.',
+      );
+    return stage;
+  }
+
+  /**
+   * Renders the PDF of the item about to be approved and returns the version
+   * it was rendered from. Workflow and readiness errors keep their own code;
+   * a PDF that cannot be produced refuses the approval naming the item.
+   */
+  private async renderApprovalPdf(
+    id: string,
+    type: LessonStageType,
+    lockVersion: number,
+  ): Promise<string> {
+    const lesson = await this.lessons.getById(id);
+    const stage = this.assertStageApprovable(lesson, type, lockVersion);
+    const version = lessonCurrentVersion(stage);
+    if (!version)
+      throw new AppConflictException(
+        ErrorCode.LESSON_STAGE_LOCK_CONFLICT,
+        'Este item foi atualizado em outra sessão. Recarregue antes de aprovar.',
+      );
+    assertStageReadyForCompletionOrPublication(
+      type,
+      version.structuredDataJson,
+      version.tiptapAstJson,
+    );
+    try {
+      await this.pdfExport.renderStagePdf(lesson, type, undefined, version.id);
+    } catch (error: unknown) {
+      this.logger.warn(
+        `Aprovação do item ${type} da lição ${id} recusada: PDF indisponível (${error instanceof Error ? error.message : String(error)}).`,
+      );
+      throw stagePdfUnavailable(type, error);
+    }
+    return version.id;
   }
 
   async requestChanges(

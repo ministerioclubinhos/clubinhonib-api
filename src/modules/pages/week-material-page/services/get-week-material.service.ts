@@ -9,7 +9,11 @@ import { WeekMaterialSummaryDTO } from '../dto/week-material-summary.dto';
 import { QueryWeekMaterialsDto } from '../dto/query-week-materials.dto';
 import { WeekMaterialsPageEntity } from '../entities/week-material-page.entity';
 import { toWeekMaterialSummary, toWeekMaterialsPageResponse } from '../mappers';
+import { WeekMaterialDuplicate, WeekMaterialDuplicateCriteria } from '../types';
+import { duplicateSearchFragments, isDuplicateWeekMaterial } from '../utils';
 import {
+  WEEK_MATERIAL_DUPLICATE_RESULT_LIMIT,
+  WEEK_MATERIAL_DUPLICATE_SCAN_LIMIT,
   WEEK_MATERIALS_DEFAULT_LIMIT,
   WEEK_MATERIALS_DEFAULT_PAGE,
   WEEK_MATERIAL_ENTITY_TYPE,
@@ -41,6 +45,30 @@ export class WeekMaterialsPageGetService {
     sourceLessonId: string,
   ): Promise<WeekMaterialsPageEntity | null> {
     return this.pageRepo.findOneBySourceLessonId(sourceLessonId);
+  }
+
+  /**
+   * Existing pages that look like the material about to be created: the same
+   * week for a weekly material, the same title for a special one. Informative
+   * only — two pages for the same week are allowed and get distinct routes.
+   */
+  async findPossibleDuplicates(
+    criteria: WeekMaterialDuplicateCriteria,
+  ): Promise<WeekMaterialDuplicate[]> {
+    const fragments = duplicateSearchFragments(criteria);
+    if (fragments.length === 0) return [];
+    const candidates = await this.pageRepo.findByTitleFragments(
+      fragments,
+      WEEK_MATERIAL_DUPLICATE_SCAN_LIMIT,
+    );
+    return candidates
+      .filter((page) => isDuplicateWeekMaterial(page, criteria))
+      .slice(0, WEEK_MATERIAL_DUPLICATE_RESULT_LIMIT)
+      .map((page) => ({
+        id: page.id,
+        title: page.title,
+        routePath: page.route?.path ?? null,
+      }));
   }
 
   /** Loads every media item attached to a page. */

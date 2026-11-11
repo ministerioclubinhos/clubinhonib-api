@@ -16,6 +16,7 @@ describe('WeekMaterialsPageRepository', () => {
     skip: jest.Mock;
     take: jest.Mock;
     getManyAndCount: jest.Mock;
+    getMany: jest.Mock;
   }
 
   const queryBuilder: QueryBuilderMock = {
@@ -25,6 +26,7 @@ describe('WeekMaterialsPageRepository', () => {
     skip: jest.fn(),
     take: jest.fn(),
     getManyAndCount: jest.fn(),
+    getMany: jest.fn(),
   };
 
   const resetQueryBuilder = (): void => {
@@ -34,6 +36,7 @@ describe('WeekMaterialsPageRepository', () => {
     queryBuilder.skip.mockReturnValue(queryBuilder);
     queryBuilder.take.mockReturnValue(queryBuilder);
     queryBuilder.getManyAndCount.mockResolvedValue([[], 0]);
+    queryBuilder.getMany.mockResolvedValue([]);
   };
 
   const defaultRepo = {
@@ -115,7 +118,22 @@ describe('WeekMaterialsPageRepository', () => {
     expect(params.search).toBe('%festa%');
   });
 
-  it('loads one page with its route', async () => {
+  it('busca páginas cujo título contém todos os fragmentos, das mais recentes', async () => {
+    await repository.findByTitleFragments(['semana', '12'], 50);
+
+    expect(queryBuilder.andWhere).toHaveBeenCalledWith(
+      'LOWER(page.title) LIKE :fragment0',
+      { fragment0: '%semana%' },
+    );
+    expect(queryBuilder.andWhere).toHaveBeenCalledWith(
+      'LOWER(page.title) LIKE :fragment1',
+      { fragment1: '%12%' },
+    );
+    expect(queryBuilder.orderBy).toHaveBeenCalledWith('page.createdAt', 'DESC');
+    expect(queryBuilder.take).toHaveBeenCalledWith(50);
+  });
+
+  it('loads one page with its rout', async () => {
     defaultRepo.findOne.mockResolvedValue(null);
 
     await repository.findOnePageById('page-id');

@@ -176,7 +176,7 @@ Regras que a casca garante:
 | Confirmação de e-mail                | registro, login de conta inativa, `POST /auth/resend-verification` | `email-verification.template.ts`                 |
 | Aviso de novo contato                | `POST /contact`                                                    | `contact-notification.template.ts`               |
 | Nova avaliação do site               | `POST /site-feedbacks`                                             | `site-feedback-notification.template.ts`         |
-| Novo material da semana              | `POST /week-material-pages`                                        | `week-material-announcement.template.ts`         |
+| Novo material da semana ou especial  | `POST /week-material-pages`, publicação do Estúdio                 | `week-material-announcement.template.ts`         |
 | Evento criado, alterado ou cancelado | `POST`, `PUT` e `DELETE` de `/events`                              | `event-announcement.template.ts`                 |
 | Aviso de novo comentário             | `POST /comments`                                                   | `comment-notification.template.ts`               |
 | Nova ideia compartilhada             | ideias do site                                                     | `idea-shared-notification.template.ts`           |
@@ -429,7 +429,10 @@ continua no painel.
 
 Dois fluxos avisam **todos os usuários já validados** (`active = true`):
 
-- **material da semana**: criar a página dispara o aviso, com o link dela;
+- **material da semana**: criar a página dispara o aviso, com o link dela. Um
+  Material Especial (descrição com a marca `[tipo:especial]`) usa o mesmo
+  e-mail e a mesma flag, com título e assunto "Novo material especial"; as
+  marcas internas da descrição nunca vão para o destinatário;
 - **agenda**: criar, editar e excluir um evento disparam avisos diferentes.
   Os encontros semanais de clubinho ficam de fora: são criados pela
   sincronização, não pelo formulário, e não disparam e-mail nenhum.
