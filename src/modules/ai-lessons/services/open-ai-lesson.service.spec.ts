@@ -1,13 +1,13 @@
+import { pngImageFixture } from '../fixtures/provider-image.fixture';
+import { createAiQueueMock } from 'src/shared/providers/ai-queue/testing/queue.mock';
 import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
+import { AxiosError } from 'axios';
 import { OpenAiLessonService, schemaFor } from './open-ai-lesson.service';
 import { LessonStageType } from '../enums/lesson.enums';
 import { LESSON_TEMPLATES } from '../templates/lesson-templates';
 import { LESSON_BASE_PROMPT } from '../constants/lesson-editorial.constants';
 
-jest.mock('axios');
-
-const mockedAxios = axios as jest.Mocked<typeof axios>;
+const queued = createAiQueueMock();
 
 describe('OpenAiLessonService image identity', () => {
   const config = {
@@ -20,12 +20,15 @@ describe('OpenAiLessonService image identity', () => {
       return values[key];
     }),
   };
-  const service = new OpenAiLessonService(config as unknown as ConfigService);
+  const service = new OpenAiLessonService(
+    config as unknown as ConfigService,
+    queued.service,
+  );
 
-  beforeEach(() => mockedAxios.post.mockReset());
+  beforeEach(() => queued.post.mockReset());
 
   it('reviews the real artwork with a separate schema and keeps administrator instructions out of the reviewer', async () => {
-    mockedAxios.post.mockResolvedValue({
+    queued.post.mockResolvedValue({
       data: { id: 'review-response', output_text: '{"issues":[]}' },
     });
     await service.generateStage({
@@ -46,7 +49,7 @@ describe('OpenAiLessonService image identity', () => {
         ],
       },
     });
-    const body = mockedAxios.post.mock.lastCall?.[1] as {
+    const body = queued.post.mock.lastCall?.[1] as {
       input: Array<{ content: unknown }>;
       text: { format: { schema: { required: string[] } } };
     };
@@ -62,15 +65,18 @@ describe('OpenAiLessonService image identity', () => {
   });
 
   it('limits older gpt-4o output reservation without changing other stage requests', async () => {
-    const instance = new OpenAiLessonService({
-      get: <T>(key: string) =>
-        (key === 'OPENAI_TEXT_MODEL'
-          ? 'gpt-4o'
-          : key === 'OPENAI_API_KEY'
-            ? 'test-key'
-            : undefined) as T | undefined,
-    });
-    mockedAxios.post.mockResolvedValue({
+    const instance = new OpenAiLessonService(
+      {
+        get: <T>(key: string) =>
+          (key === 'OPENAI_TEXT_MODEL'
+            ? 'gpt-4o'
+            : key === 'OPENAI_API_KEY'
+              ? 'test-key'
+              : undefined) as T | undefined,
+      },
+      queued.service,
+    );
+    queued.post.mockResolvedValue({
       data: { id: 'test-response', output_text: '{}' },
     });
     for (const stage of [
@@ -86,13 +92,11 @@ describe('OpenAiLessonService image identity', () => {
         approvedUpstream: null,
         adminPrompt: '',
       });
-      const payload = mockedAxios.post.mock.lastCall?.[1] as Record<
-        string,
-        unknown
-      >;
-      if (stage === LessonStageType.MEDITATION_OLDER)
-        expect(payload.max_output_tokens).toBe(4096);
-      else expect(payload).not.toHaveProperty('max_output_tokens');
+      const payload = queued.post.mock.lastCall?.[1] as Record<string, unknown>;
+      // Every stage is bounded on models without reasoning; item 7 keeps its own cap.
+      expect(payload.max_output_tokens).toBe(
+        stage === LessonStageType.MEDITATION_OLDER ? 4096 : 8000,
+      );
     }
   });
 
@@ -120,17 +124,20 @@ describe('OpenAiLessonService image identity', () => {
   ])(
     'respeita o suporte a raciocínio de %s com esforço %s',
     async (model, effort, supported) => {
-      const stageService = new OpenAiLessonService({
-        get: <T>(key: string): T | undefined => {
-          const values: Record<string, string | undefined> = {
-            OPENAI_API_KEY: 'test-key',
-            OPENAI_TEXT_MODEL: model,
-            OPENAI_REASONING_EFFORT: effort,
-          };
-          return values[key] as T | undefined;
+      const stageService = new OpenAiLessonService(
+        {
+          get: <T>(key: string): T | undefined => {
+            const values: Record<string, string | undefined> = {
+              OPENAI_API_KEY: 'test-key',
+              OPENAI_TEXT_MODEL: model,
+              OPENAI_REASONING_EFFORT: effort,
+            };
+            return values[key] as T | undefined;
+          },
         },
-      });
-      mockedAxios.post.mockResolvedValueOnce({
+        queued.service,
+      );
+      queued.post.mockResolvedValueOnce({
         data: { id: 'meditation-response', output_text: '{}' },
       });
 
@@ -144,14 +151,14 @@ describe('OpenAiLessonService image identity', () => {
         adminPrompt: 'Meditação para crianças menores',
       });
 
-      const body: unknown = mockedAxios.post.mock.lastCall?.[1];
+      const body: unknown = queued.post.mock.lastCall?.[1];
       expect(body).toMatchObject({ model, store: false });
       if (supported) {
         expect(body).toHaveProperty('reasoning', { effort });
       } else {
         expect(body).not.toHaveProperty('reasoning');
       }
-      expect(mockedAxios.post.mock.calls).toHaveLength(1);
+      expect(queued.post.mock.calls).toHaveLength(1);
     },
   );
 
@@ -165,7 +172,7 @@ describe('OpenAiLessonService image identity', () => {
       })),
       visualScenes: [{ id: 'scene-01', prompt: 'Cena separada.' }],
     };
-    mockedAxios.post.mockResolvedValueOnce({
+    queued.post.mockResolvedValueOnce({
       data: {
         id: 'editorial-response',
         output_text: JSON.stringify(generated),
@@ -181,7 +188,7 @@ describe('OpenAiLessonService image identity', () => {
       adminPrompt: LESSON_BASE_PROMPT,
     });
     expect(result.content).toEqual(generated);
-    const body = mockedAxios.post.mock.lastCall?.[1] as {
+    const body = queued.post.mock.lastCall?.[1] as {
       input: Array<{ role: string; content: string }>;
       text: { format: { schema: Record<string, unknown> } };
     };
@@ -200,26 +207,26 @@ describe('OpenAiLessonService image identity', () => {
 
   it('retries a reset image request without regenerating text', async () => {
     jest.useFakeTimers();
-    mockedAxios.post
+    queued.post
       .mockRejectedValueOnce(
         Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' }),
       )
       .mockResolvedValueOnce({
         data: {
-          data: [{ b64_json: Buffer.from('recovered').toString('base64') }],
+          data: [{ b64_json: pngImageFixture('recovered').toString('base64') }],
         },
       });
     try {
       const pending = service.generateImage('Desenho aprovado');
       await jest.runAllTimersAsync();
-      expect((await pending).toString()).toBe('recovered');
-      expect(mockedAxios.post.mock.calls).toHaveLength(2);
-      expect(mockedAxios.post.mock.calls.map((call) => call[0])).toEqual([
+      expect((await pending).equals(pngImageFixture('recovered'))).toBe(true);
+      expect(queued.post.mock.calls).toHaveLength(2);
+      expect(queued.post.mock.calls.map((call) => call[0])).toEqual([
         'https://api.openai.com/v1/images/generations',
         'https://api.openai.com/v1/images/generations',
       ]);
-      expect(mockedAxios.post.mock.calls[0][1]).toEqual(
-        mockedAxios.post.mock.calls[1][1],
+      expect(queued.post.mock.calls[0][1]).toEqual(
+        queued.post.mock.calls[1][1],
       );
     } finally {
       jest.useRealTimers();
@@ -227,9 +234,9 @@ describe('OpenAiLessonService image identity', () => {
   });
 
   it('usa edição com a imagem-mãe nas cenas seguintes', async () => {
-    mockedAxios.post.mockResolvedValueOnce({
+    queued.post.mockResolvedValueOnce({
       data: {
-        data: [{ b64_json: Buffer.from('next-scene').toString('base64') }],
+        data: [{ b64_json: pngImageFixture('next-scene').toString('base64') }],
       },
     });
 
@@ -243,12 +250,122 @@ describe('OpenAiLessonService image identity', () => {
       },
     );
 
-    expect(result.toString()).toBe('next-scene');
-    const call = mockedAxios.post.mock.lastCall;
+    expect(result.equals(pngImageFixture('next-scene'))).toBe(true);
+    const call = queued.post.mock.lastCall;
     expect(call?.[0]).toBe('https://api.openai.com/v1/images/edits');
     expect(call?.[1]).toBeInstanceOf(FormData);
     const form = call?.[1] as FormData;
     expect(form.get('prompt')).toContain('Cena seguinte');
     expect(form.get('image[]')).toBeInstanceOf(Blob);
+  });
+
+  const textService = (model: string, effort?: string) =>
+    new OpenAiLessonService(
+      {
+        get: <T>(key: string): T | undefined =>
+          ({
+            OPENAI_API_KEY: 'test-key',
+            OPENAI_TEXT_MODEL: model,
+            OPENAI_REASONING_EFFORT: effort,
+          })[key] as T | undefined,
+      },
+      queued.service,
+    );
+  const lessonInput = {
+    theme: 'Jesus vive',
+    biblicalReference: 'João 11',
+    weekNumber: 14,
+    stage: LessonStageType.LESSON,
+    template: LESSON_TEMPLATES[LessonStageType.LESSON],
+    approvedUpstream: null,
+    adminPrompt: '',
+  };
+
+  it('detects refusal blocks instead of reporting an empty answer', async () => {
+    queued.post.mockResolvedValue({
+      data: {
+        id: 'refused',
+        output: [{ content: [{ type: 'refusal', refusal: 'I cannot help.' }] }],
+      },
+    });
+    await expect(
+      textService('gpt-4o').generateStage(lessonInput),
+    ).rejects.toThrow('"code":"content_blocked"');
+  });
+
+  it('classifies timeouts and never forwards them as an unknown failure', async () => {
+    queued.post.mockRejectedValue(
+      new AxiosError('timeout of 120000ms exceeded', 'ECONNABORTED'),
+    );
+    await expect(
+      textService('gpt-4o').generateStage(lessonInput),
+    ).rejects.toThrow('"code":"deadline_exceeded"');
+  });
+
+  it('omits the `none` effort for o-series and bounds output only without reasoning', async () => {
+    queued.post.mockResolvedValue({
+      data: {
+        id: 'ok',
+        output_text: '{}',
+        usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 },
+      },
+    });
+    await expect(
+      textService('o3-mini', 'none').generateStage(lessonInput),
+    ).resolves.toMatchObject({
+      usage: { model: 'o3-mini', inputTokens: 10, outputTokens: 5 },
+    });
+    const reasoning = queued.post.mock.lastCall?.[1] as Record<string, unknown>;
+    expect(reasoning).not.toHaveProperty('reasoning');
+    expect(reasoning).not.toHaveProperty('max_output_tokens');
+
+    await textService('gpt-4o').generateStage(lessonInput);
+    expect(queued.post.mock.lastCall?.[1]).toMatchObject({
+      max_output_tokens: 12000,
+    });
+  });
+
+  it('retries a rate limit on every stage and rejects bytes that are not an image', async () => {
+    jest.useFakeTimers();
+    try {
+      queued.post
+        .mockRejectedValueOnce(
+          Object.assign(new AxiosError('rate limited'), {
+            response: {
+              status: 429,
+              headers: { 'retry-after': '1' },
+              data: { error: { code: 'rate_limit_exceeded' } },
+            },
+          }),
+        )
+        .mockResolvedValueOnce({ data: { id: 'ok', output_text: '{}' } });
+      const pending = textService('gpt-4o').generateStage(lessonInput);
+      await jest.runAllTimersAsync();
+      await expect(pending).resolves.toMatchObject({ responseId: 'ok' });
+      expect(queued.post.mock.calls).toHaveLength(2);
+    } finally {
+      jest.useRealTimers();
+    }
+    queued.post.mockResolvedValue({
+      data: {
+        data: [{ b64_json: Buffer.from('not an image').toString('base64') }],
+      },
+    });
+    await expect(service.generateImage('Desenho')).rejects.toThrow(
+      'não é uma imagem PNG ou JPEG válida',
+    );
+  });
+
+  it('bounds the number of game steps, one paid image each', () => {
+    for (const stage of [
+      LessonStageType.STANDARD_GAME,
+      LessonStageType.VERSE_FIXATION,
+    ]) {
+      const schema = schemaFor(stage) as {
+        properties: Record<string, { maxItems?: number }>;
+      };
+      expect(schema.properties.steps.maxItems).toBe(8);
+      expect(schema.properties.assets.maxItems).toBe(8);
+    }
   });
 });

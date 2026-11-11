@@ -19,9 +19,10 @@ describe('repair meditation word search', () => {
       meditationWordSearchIssue(activity.instruction as string),
     ).toBeNull();
     expect(activity.answer).toContain('RESSURREICAO');
-    expect(repaired.printableAssets).toEqual([]);
+    // Item 7 always keeps its three images; the support art is not removed.
+    expect(repaired.printableAssets).toEqual(content.printableAssets);
   });
-  it('rebuilds unequal rows with every complete word, exact positions and no duplicate image', () => {
+  it('rebuilds unequal rows with every complete word and exact positions, keeping the activity artwork', () => {
     const instruction =
       'Caça-palavras\nPIXVIÚVAJ\nQÁZARONES\nRESSUREIÇÃO\nPalavras: VIÚVA, LÁZARO, RESSURREIÇÃO';
     const original = {
@@ -51,7 +52,7 @@ describe('repair meditation word search', () => {
       'RESSURREICAO: linha 4, coluna 3 até coluna 14',
     );
     expect(activities[1]).toBe(original.activities[1]);
-    expect(repaired.printableAssets).toEqual([original.printableAssets[1]]);
+    expect(repaired.printableAssets).toEqual(original.printableAssets);
     expect(original.activities[0].instruction).toBe(instruction);
     expect(repairMeditationWordSearch(repaired)).toEqual(repaired);
   });
@@ -81,5 +82,38 @@ describe('repair meditation word search', () => {
       const content = { activities: [{ instruction, answer: 'Original' }] };
       expect(repairMeditationWordSearch(content)).toEqual(content);
     }
+  });
+
+  it('does not treat an uppercase sentence glued to the grid as a grid row', () => {
+    const instruction =
+      'Caça-palavras\nENCONTRE AS PALAVRAS\nJESUS\nABCDE\nFGHIJ\nPalavras: JESUS, VIDA';
+    const repaired = repairMeditationWordSearch({
+      activities: [{ instruction }],
+    });
+    const corrected = (repaired.activities as Array<{ instruction: string }>)[0]
+      .instruction;
+    expect(corrected).toContain('ENCONTRE AS PALAVRAS');
+    expect(meditationWordSearchIssue(corrected)).toBeNull();
+    // Without the fix the sentence counted as a row of a different length.
+    expect(meditationWordSearchIssue(instruction)).toContain('VIDA');
+  });
+
+  it('keeps numeric asset ids and multiplication signs out of the grid detection', () => {
+    const content = {
+      activities: [
+        {
+          number: 2,
+          instruction:
+            'Caça-palavras\nJESUS\nABCDE\nFGHIJ\nPalavras: JESUS, VIDA',
+        },
+      ],
+      printableAssets: [{ id: 2, url: 'support-art' }],
+    };
+    expect(repairMeditationWordSearch(content).printableAssets).toEqual(
+      content.printableAssets,
+    );
+    expect(
+      meditationWordSearchIssue('Caça-palavras\nA×BC\nD×EF\nG×HI'),
+    ).toBeNull();
   });
 });

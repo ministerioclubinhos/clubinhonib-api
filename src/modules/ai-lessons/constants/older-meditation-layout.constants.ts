@@ -19,4 +19,19 @@ export const OLDER_MEDITATION_LAYOUT = {
   paragraphReserve: 240,
   maximumRowExpansion: 1.18,
   inlineOptionsMaximumCharacters: 60,
+  prayerColumns: 70,
+  /** Lines of title, verse and prayer already covered by `headerReserve`. */
+  reservedHeaderLines: 2,
+  denseTextLength: 3000,
+  sparseTextLength: 2300,
+  denseFontSize: 20,
+  regularFontSize: 22,
+  sparseFontSize: 26,
+  denseImageMaximumHeight: 180,
+  /** Share of the row given to the text column when the activity has artwork. */
+  textColumnShare: 0.58,
+  imageColumnShare: 0.42,
+  twipsPerPixel: 15,
+  /** Average glyph advance, in twips per half-point of font size. */
+  twipsPerCharacterUnit: 5,
 } as const;

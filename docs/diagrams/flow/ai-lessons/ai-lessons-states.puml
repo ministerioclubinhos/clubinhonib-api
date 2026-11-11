@@ -1,0 +1,73 @@
+@startuml
+title Estúdio Clubinho — máquina de estados
+
+state "Lição" as Lesson {
+  [*] --> DRAFT
+  DRAFT --> IN_PROGRESS : primeira etapa gerada ou salva
+  IN_PROGRESS --> PACKAGE_READY : todas as etapas concluídas
+  PACKAGE_READY --> IN_PROGRESS : etapa salva, regerada ou desatualizada
+  PACKAGE_READY --> IN_REVIEW : submeter pacote
+  IN_REVIEW --> CHANGES_REQUESTED : devolver item
+  CHANGES_REQUESTED --> IN_PROGRESS : item devolvido é editado ou regerado
+  CHANGES_REQUESTED --> PACKAGE_READY : item devolvido é concluído
+  IN_REVIEW --> READY_FOR_PUBLICATION : todos os itens aprovados
+  CHANGES_REQUESTED --> READY_FOR_PUBLICATION : todos os itens aprovados
+  READY_FOR_PUBLICATION --> CHANGES_REQUESTED : reabrir item aprovado
+  READY_FOR_PUBLICATION --> PUBLISHING : publicar (reserva com lease)
+  PUBLISHING --> PUBLISHED : material criado e vínculo confirmado
+  PUBLISHING --> READY_FOR_PUBLICATION : falha antes de criar o material
+  PUBLISHED --> ARCHIVED : arquivar
+  ARCHIVED --> PUBLISHED : restaurar
+}
+
+note right of Lesson
+  DRAFT a READY_FOR_PUBLICATION são derivados das etapas
+  por recomputeLessonStatus.
+  PUBLISHING, PUBLISHED e ARCHIVED são transições explícitas.
+  Exclusão: recusada em PUBLISHING, PUBLISHED e ARCHIVED
+  e enquanto houver etapa em GENERATING.
+end note
+
+state "Etapa" as Stage {
+  state "NOT_STARTED" as S_NOT_STARTED
+  state "GENERATING" as S_GENERATING
+  state "DRAFT" as S_DRAFT
+  state "PRODUCER_APPROVED" as S_PRODUCER_APPROVED
+  state "IN_REVIEW" as S_IN_REVIEW
+  state "CHANGES_REQUESTED" as S_CHANGES_REQUESTED
+  state "APPROVED" as S_APPROVED
+  state "FAILED" as S_FAILED
+  state "STALE" as S_STALE
+
+  [*] --> S_NOT_STARTED
+  S_NOT_STARTED --> S_GENERATING : gerar
+  S_DRAFT --> S_GENERATING : regerar
+  S_PRODUCER_APPROVED --> S_GENERATING : regerar
+  S_CHANGES_REQUESTED --> S_GENERATING : regerar
+  S_STALE --> S_GENERATING : regerar
+  S_FAILED --> S_GENERATING : regerar
+  S_GENERATING --> S_DRAFT : versão gravada
+  S_GENERATING --> S_FAILED : falha sem status anterior a restaurar
+  S_GENERATING --> S_GENERATING : retomada (máx. 3 tentativas)
+  S_DRAFT --> S_PRODUCER_APPROVED : concluir
+  S_CHANGES_REQUESTED --> S_DRAFT : salvar edição
+  S_CHANGES_REQUESTED --> S_PRODUCER_APPROVED : concluir
+  S_STALE --> S_PRODUCER_APPROVED : concluir (acknowledgeStale se o upstream mudou)
+  S_FAILED --> S_PRODUCER_APPROVED : concluir versão anterior
+  S_PRODUCER_APPROVED --> S_DRAFT : salvar edição
+  S_PRODUCER_APPROVED --> S_IN_REVIEW : submeter pacote
+  S_IN_REVIEW --> S_APPROVED : aprovar
+  S_IN_REVIEW --> S_CHANGES_REQUESTED : devolver
+  S_APPROVED --> S_CHANGES_REQUESTED : reabrir
+  S_DRAFT --> S_STALE : etapa anterior salva ou regerada
+  S_PRODUCER_APPROVED --> S_STALE : etapa anterior salva ou regerada
+  S_IN_REVIEW --> S_STALE : etapa anterior salva ou regerada
+  S_APPROVED --> S_STALE : etapa anterior salva ou regerada
+}
+
+note right of Stage
+  Geração que falha restaura o status anterior da etapa
+  e mantém failureCode/failureMessage.
+  Concluir, aprovar, devolver e reabrir exigem lockVersion.
+end note
+@enduml

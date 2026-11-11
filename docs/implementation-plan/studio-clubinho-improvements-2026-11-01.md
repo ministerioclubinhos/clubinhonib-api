@@ -1,6 +1,6 @@
 # Studio Clubinho — backend implementation plan, 2026-11-01
 
-Status: analysis and planning delivered; no correction, schema change, data repair or deployment is performed by this document.
+Status: implementado (pacotes BE01–BE09) e complementado pelas correções de 2026-11-10. Este documento é histórico; a referência vigente é [api-ai-lessons.md](../api-ai-lessons.md).
 
 Baseline: API HEAD `4031642`, including existing local changes in `lesson-draft.service.ts`, its tests and related documentation/flow diagram. Frontend HEAD: `48016ec`. Preserve those local changes during implementation. The [October plan](estudio-clubinho-improvements-implementation-plan.md) is historical; its descriptions of missing public settings/filter contracts no longer represent the current code.
 

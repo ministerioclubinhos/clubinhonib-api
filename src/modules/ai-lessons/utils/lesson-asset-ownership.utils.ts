@@ -1,8 +1,17 @@
-import { assertSafeImageUrl } from './asset-url.utils';
+import {
+  LESSON_ASSET_LIST_FIELDS,
+  OWNED_ASSET_URLS_FIELD,
+  S3_UPLOAD_KEY_PREFIX_PATTERN,
+} from '../constants/lesson-asset.constants';
+import {
+  assertSafeImageUrl,
+  isPathStyleS3Host,
+  isVirtualHostedBucketHost,
+} from './asset-url.utils';
 
 type JsonObject = Record<string, unknown>;
 
-export const OWNED_ASSET_URLS_FIELD = '_ownedAssetUrls';
+export { OWNED_ASSET_URLS_FIELD } from '../constants/lesson-asset.constants';
 
 function asObject(value: unknown): JsonObject {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -22,11 +31,7 @@ function extractLessonS3Key(
   }
 
   const hostname = parsed.hostname.toLowerCase();
-  const isS3Host =
-    hostname.endsWith('.amazonaws.com') ||
-    hostname.includes('.s3.') ||
-    hostname.startsWith('s3.');
-  if (!isS3Host) return null;
+  if (!hostname.endsWith('.amazonaws.com')) return null;
 
   const decodedPath = decodeURIComponent(parsed.pathname).replace(/^\/+/, '');
   if (!decodedPath || decodedPath.includes('..')) return null;
@@ -35,13 +40,11 @@ function extractLessonS3Key(
     return decodedPath;
   }
 
-  const normalizedBucket = bucketName.toLowerCase();
-  const bucketPrefix = `${normalizedBucket}.s3`;
   const pathPrefix = `${bucketName}/`;
-  if (hostname.startsWith(bucketPrefix)) {
+  if (isVirtualHostedBucketHost(hostname, bucketName)) {
     return decodedPath;
   }
-  if (hostname.startsWith('s3.') && decodedPath.startsWith(pathPrefix)) {
+  if (isPathStyleS3Host(hostname) && decodedPath.startsWith(pathPrefix)) {
     return decodedPath.slice(pathPrefix.length);
   }
   return null;
@@ -72,11 +75,17 @@ export function attachOwnedAssetUrls(
   };
 }
 
+/**
+ * Studio uploads are named `<lessonId>-<STAGE>-<assetId>.<ext>` and stored by
+ * `AwsS3Service.upload` as `<env>/uploads/<timestamp>_<uuid8>_<that name>`.
+ * The bare `<lessonId>-...` basename is accepted for legacy objects.
+ */
 export function isLessonOwnedS3Key(lessonId: string, key: string): boolean {
   const normalizedLessonId = lessonId.trim();
   if (!normalizedLessonId) return false;
   const baseName = key.split('/').pop() ?? key;
-  return baseName.startsWith(`${normalizedLessonId}-`);
+  const originalName = baseName.replace(S3_UPLOAD_KEY_PREFIX_PATTERN, '');
+  return originalName.startsWith(`${normalizedLessonId}-`);
 }
 
 export function isLessonOwnedAssetUrl(
@@ -100,37 +109,33 @@ export function extractOwnedLessonVersionAssetUrls(
 ): string[] {
   const owned = new Set<string>();
 
-  const addIfAuthorizedOwned = (
-    candidate: unknown,
-    requireLessonPrefix: boolean,
-  ): void => {
+  // Every candidate, the DOCX/PDF pointers included, must carry this lesson's
+  // prefix: a URL of another object of the same bucket is never "owned".
+  const addIfAuthorizedOwned = (candidate: unknown): void => {
     if (typeof candidate !== 'string' || !candidate.trim()) return;
     const key = extractLessonS3Key(candidate, bucketName);
-    if (!key) return;
-    if (requireLessonPrefix && !isLessonOwnedS3Key(lessonId, key)) {
-      return;
-    }
+    if (!key || !isLessonOwnedS3Key(lessonId, key)) return;
     owned.add(candidate.trim());
   };
 
-  addIfAuthorizedOwned(version.docxS3Key, false);
-  addIfAuthorizedOwned(version.pdfS3Key, false);
+  addIfAuthorizedOwned(version.docxS3Key);
+  addIfAuthorizedOwned(version.pdfS3Key);
 
   const structured = asObject(version.structuredDataJson);
   const explicitOwned = Array.isArray(structured[OWNED_ASSET_URLS_FIELD])
     ? structured[OWNED_ASSET_URLS_FIELD]
     : [];
   for (const url of explicitOwned) {
-    addIfAuthorizedOwned(url, true);
+    addIfAuthorizedOwned(url);
   }
 
-  for (const listKey of ['assets', 'printableAssets'] as const) {
+  for (const listKey of LESSON_ASSET_LIST_FIELDS) {
     const items = Array.isArray(structured[listKey])
       ? (structured[listKey] as unknown[])
       : [];
     for (const item of items) {
       const asset = asObject(item);
-      addIfAuthorizedOwned(asset.url, true);
+      addIfAuthorizedOwned(asset.url);
     }
   }
 
@@ -152,7 +157,7 @@ export function preserveServerOwnedAssetsOnManualSave(
     delete next[OWNED_ASSET_URLS_FIELD];
   }
 
-  for (const listKey of ['assets', 'printableAssets'] as const) {
+  for (const listKey of LESSON_ASSET_LIST_FIELDS) {
     if (Array.isArray(previous[listKey])) {
       const prevAssets = (previous[listKey] as unknown[]).map(asObject);
       const candidateAssets = Array.isArray(next[listKey])

@@ -15,9 +15,11 @@ import { LessonLlmProvider } from '../providers/lesson-llm.types';
 import {
   AI_PROVIDER_MAX_API_KEY_LENGTH,
   AI_PROVIDER_MAX_MODEL_LENGTH,
-  AI_PROVIDER_MAX_OPTION_LENGTH,
   AI_PROVIDER_MAX_RETRIES,
   AI_PROVIDER_MAX_RETRY_DELAY_MS,
+  GeminiImageSize,
+  OpenAiImageQuality,
+  OpenAiReasoningEffort,
 } from '../constants/ai-provider-settings.constants';
 
 const trimIfString = ({ value }: { value: unknown }): unknown =>
@@ -40,17 +42,13 @@ export class SaveOpenAiSettingsDto {
 
   @ValidateIf((_object: unknown, value: unknown) => value !== undefined)
   @Transform(trimIfString)
-  @IsString()
-  @MinLength(1)
-  @MaxLength(AI_PROVIDER_MAX_OPTION_LENGTH)
-  imageQuality?: string;
+  @IsEnum(OpenAiImageQuality)
+  imageQuality?: OpenAiImageQuality;
 
   @ValidateIf((_object: unknown, value: unknown) => value !== undefined)
   @Transform(trimIfString)
-  @IsString()
-  @MinLength(1)
-  @MaxLength(AI_PROVIDER_MAX_OPTION_LENGTH)
-  reasoningEffort?: string;
+  @IsEnum(OpenAiReasoningEffort)
+  reasoningEffort?: OpenAiReasoningEffort;
 
   @ValidateIf((_object: unknown, value: unknown) => value !== undefined)
   @Transform(trimIfString)
@@ -83,10 +81,8 @@ export class SaveGeminiSettingsDto {
 
   @ValidateIf((_object: unknown, value: unknown) => value !== undefined)
   @Transform(trimIfString)
-  @IsString()
-  @MinLength(1)
-  @MaxLength(AI_PROVIDER_MAX_OPTION_LENGTH)
-  imageSize?: string;
+  @IsEnum(GeminiImageSize)
+  imageSize?: GeminiImageSize;
 
   @ValidateIf((_object: unknown, value: unknown) => value !== undefined)
   @Type(() => Number)

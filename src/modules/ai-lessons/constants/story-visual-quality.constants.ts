@@ -160,3 +160,12 @@ export function cutoutKitPromptRules(quantity: number): string {
     'Preencha coverageChecklist com as 6 categorias (CHARACTERS, ANIMALS, BUILDINGS, SCENERY, SKY_AND_NATURE, OBJECTS), marcando COVERED ou NOT_APPLICABLE com justificativa. Prompts de imagem não pedem legendas nem texto dentro da arte.',
   ].join(' ');
 }
+
+/** Relative sizes a cutout element may declare. */
+export const CUTOUT_ITEM_SIZES: readonly string[] = [
+  'LARGE',
+  'MEDIUM',
+  'SMALL',
+];
+export const CUTOUT_COVERAGE_COVERED = 'COVERED';
+export const CUTOUT_COVERAGE_NOT_APPLICABLE = 'NOT_APPLICABLE';

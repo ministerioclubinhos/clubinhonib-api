@@ -12,6 +12,12 @@ import {
   WidthType,
 } from 'docx';
 import { YOUNGER_MEDITATION_LAYOUT as L } from '../constants/younger-meditation-layout.constants';
+import {
+  DOCUMENT_DEFAULT_COLOR,
+  DOCUMENT_FALLBACK_IMAGE_RATIO,
+} from '../constants/lesson-document.constants';
+import { docxTextLines, sanitizeDocxText } from './docx-text.utils';
+import { fitImageInBox } from './image-dimensions.utils';
 const noBorder = { style: BorderStyle.NONE };
 export const noBorders = {
   top: noBorder,
@@ -26,13 +32,19 @@ export function text(
   text: string,
   size: number = L.textSize,
   bold = false,
-  color = '000000',
+  color: string = DOCUMENT_DEFAULT_COLOR,
 ): TextRun {
-  return new TextRun({ text, font: L.font, size, bold, color });
+  return new TextRun({
+    text: sanitizeDocxText(text),
+    font: L.font,
+    size,
+    bold,
+    color,
+  });
 }
 
 export function textLines(value: string, size: number): TextRun[] {
-  return value.split(/\r?\n/).map(
+  return docxTextLines(value).map(
     (line, index) =>
       new TextRun({
         text: line,
@@ -79,23 +91,20 @@ export function table(rows: TableRow[], widths: number[]): Table {
   });
 }
 
+/** Image scaled to fit the box with its real proportions and container type. */
 export function imageParagraph(
   data: Buffer,
   maxWidth: number,
   maxHeight: number,
 ): Paragraph {
-  const png = data.length >= 24 && data.subarray(1, 4).toString() === 'PNG';
-  const ratio = png ? data.readUInt32BE(16) / data.readUInt32BE(20) : 1.5;
-  const width = Math.min(maxWidth, maxHeight * ratio);
+  const { width, height, type } = fitImageInBox(
+    data,
+    { width: maxWidth, height: maxHeight },
+    DOCUMENT_FALLBACK_IMAGE_RATIO,
+  );
   return new Paragraph({
     alignment: AlignmentType.CENTER,
     spacing: { before: 20, after: 0 },
-    children: [
-      new ImageRun({
-        data,
-        type: 'png',
-        transformation: { width, height: width / ratio },
-      }),
-    ],
+    children: [new ImageRun({ data, type, transformation: { width, height } })],
   });
 }

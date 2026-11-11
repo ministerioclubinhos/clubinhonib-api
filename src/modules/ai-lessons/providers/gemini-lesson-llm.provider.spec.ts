@@ -1,23 +1,24 @@
+import { pngImageFixture } from '../fixtures/provider-image.fixture';
+import { createAiQueueMock } from 'src/shared/providers/ai-queue/testing/queue.mock';
+import { AiQueueFeature } from 'src/shared/providers/ai-queue/enums';
 import { ServiceUnavailableException } from '@nestjs/common';
 import { LESSON_BASE_PROMPT } from '../constants/lesson-editorial.constants';
 import { ConfigService } from '@nestjs/config';
-import axios, { AxiosError } from 'axios';
+import { AxiosError } from 'axios';
 import { LessonStageType } from '../enums/lesson.enums';
 import { LESSON_TEMPLATES } from '../templates/lesson-templates';
 import { GeminiLessonLlmProvider } from './gemini-lesson-llm.provider';
 
-jest.mock('axios');
-
-const mockedAxios = axios as jest.Mocked<typeof axios>;
+const queued = createAiQueueMock();
 
 type AxiosPostCall = [
   url: string,
   body: Record<string, unknown>,
-  options: { headers: Record<string, string>; timeout: number },
+  options: { feature: AiQueueFeature; timeout: number },
 ];
 
 function lastPostCall(): AxiosPostCall {
-  const call = mockedAxios.post.mock.lastCall;
+  const call = queued.post.mock.lastCall;
   if (!call) throw new Error('axios.post não foi chamado');
   return call as AxiosPostCall;
 }
@@ -37,10 +38,11 @@ describe('GeminiLessonLlmProvider', () => {
   };
   const provider = new GeminiLessonLlmProvider(
     config as unknown as ConfigService,
+    queued.service,
   );
 
   beforeEach(() => {
-    mockedAxios.post.mockReset();
+    queued.post.mockReset();
     config.get.mockClear();
     values.GEMINI_MAX_RETRIES = '0';
   });
@@ -59,7 +61,7 @@ describe('GeminiLessonLlmProvider', () => {
   }
 
   it('sends the actual numbered artwork to the independent review schema', async () => {
-    mockedAxios.post.mockResolvedValueOnce({
+    queued.post.mockResolvedValueOnce({
       data: {
         responseId: 'review',
         candidates: [
@@ -99,7 +101,7 @@ describe('GeminiLessonLlmProvider', () => {
   });
 
   it('gera conteúdo estruturado usando o schema da etapa', async () => {
-    mockedAxios.post.mockResolvedValueOnce({
+    queued.post.mockResolvedValueOnce({
       data: {
         responseId: 'gemini-response-1',
         candidates: [
@@ -136,6 +138,12 @@ describe('GeminiLessonLlmProvider', () => {
         biblicalReference: 'João 3:16',
       },
       responseId: 'gemini-response-1',
+      usage: {
+        model: 'gemini-text-test',
+        inputTokens: undefined,
+        outputTokens: undefined,
+        totalTokens: undefined,
+      },
     });
     const [url, body, options] = lastPostCall();
     expect(url).toContain('/models/gemini-text-test:generateContent');
@@ -156,13 +164,14 @@ describe('GeminiLessonLlmProvider', () => {
     expect(sent.adminPrompt).toContain(
       'Nunca copie essas descrições para story',
     );
-    expect(options.headers).toEqual({ 'x-goog-api-key': 'test-key' });
+    expect(options.feature).toBe(AiQueueFeature.LESSONS);
+    expect(options).not.toHaveProperty('headers');
   });
 
   it.each(['MAX_TOKENS', 'RECITATION', 'SAFETY'])(
     'rejeita texto com término %s mesmo quando o JSON é válido',
     async (finishReason) => {
-      mockedAxios.post.mockResolvedValue({
+      queued.post.mockResolvedValue({
         data: {
           candidates: [
             {
@@ -183,12 +192,15 @@ describe('GeminiLessonLlmProvider', () => {
           adminPrompt: LESSON_BASE_PROMPT,
         }),
       ).rejects.toThrow(finishReason);
-      expect(mockedAxios.post.mock.calls).toHaveLength(2);
+      // A safety block would repeat on the fallback model: it is not spent.
+      expect(queued.post.mock.calls).toHaveLength(
+        finishReason === 'SAFETY' ? 1 : 2,
+      );
     },
   );
 
   it('usa o fallback configurado quando a resposta principal foi interrompida', async () => {
-    mockedAxios.post.mockResolvedValueOnce({
+    queued.post.mockResolvedValueOnce({
       data: {
         candidates: [
           {
@@ -198,7 +210,7 @@ describe('GeminiLessonLlmProvider', () => {
         ],
       },
     });
-    mockedAxios.post.mockResolvedValueOnce({
+    queued.post.mockResolvedValueOnce({
       data: {
         responseId: 'complete',
         candidates: [
@@ -223,11 +235,11 @@ describe('GeminiLessonLlmProvider', () => {
   });
 
   it('gera imagem com formato controlado pela orientação', async () => {
-    mockedAxios.post.mockResolvedValueOnce({
+    queued.post.mockResolvedValueOnce({
       data: {
         id: 'image-1',
         outputImage: {
-          data: Buffer.from('jpeg-content').toString('base64'),
+          data: pngImageFixture('jpeg-content').toString('base64'),
           mimeType: 'image/jpeg',
         },
       },
@@ -239,7 +251,7 @@ describe('GeminiLessonLlmProvider', () => {
       'INTERACTIVE_COLORING',
     );
 
-    expect(result.toString()).toBe('jpeg-content');
+    expect(result.equals(pngImageFixture('jpeg-content'))).toBe(true);
     const [url, body, options] = lastPostCall();
     expect(url).toContain('/interactions');
     expect(body).toMatchObject({
@@ -250,14 +262,15 @@ describe('GeminiLessonLlmProvider', () => {
         image_size: '1K',
       },
     });
-    expect(options.headers).toEqual({ 'x-goog-api-key': 'test-key' });
+    expect(options.feature).toBe(AiQueueFeature.LESSONS);
+    expect(options).not.toHaveProperty('headers');
   });
 
   it('envia a imagem-mãe junto do prompt das cenas seguintes', async () => {
-    mockedAxios.post.mockResolvedValueOnce({
+    queued.post.mockResolvedValueOnce({
       data: {
         outputImage: {
-          data: Buffer.from('next-scene').toString('base64'),
+          data: pngImageFixture('next-scene').toString('base64'),
           mimeType: 'image/png',
         },
       },
@@ -286,7 +299,7 @@ describe('GeminiLessonLlmProvider', () => {
 
   it('repete a chamada quando o Gemini responde com erro transitório', async () => {
     values.GEMINI_MAX_RETRIES = '1';
-    mockedAxios.post
+    queued.post
       .mockRejectedValueOnce(unavailableError())
       .mockResolvedValueOnce({
         data: {
@@ -307,15 +320,15 @@ describe('GeminiLessonLlmProvider', () => {
     });
 
     expect(result.content).toEqual({ ok: true });
-    expect(mockedAxios.post.mock.calls).toHaveLength(2);
-    expect(mockedAxios.post.mock.calls[1][0]).toContain(
+    expect(queued.post.mock.calls).toHaveLength(2);
+    expect(queued.post.mock.calls[1][0]).toContain(
       '/models/gemini-text-test:generateContent',
     );
   });
 
   it('não repete quando o Free Tier possui cota diária zero', async () => {
     values.GEMINI_MAX_RETRIES = '3';
-    mockedAxios.post.mockRejectedValueOnce({
+    queued.post.mockRejectedValueOnce({
       message: 'Too many requests',
       response: {
         status: 429,
@@ -332,11 +345,11 @@ describe('GeminiLessonLlmProvider', () => {
     await expect(provider.generateImage('imagem')).rejects.toThrow(
       'Falha no Gemini durante a geração de imagem',
     );
-    expect(mockedAxios.post.mock.calls).toHaveLength(1);
+    expect(queued.post.mock.calls).toHaveLength(1);
   });
 
   it('usa o modelo fallback após esgotar o modelo principal', async () => {
-    mockedAxios.post
+    queued.post
       .mockRejectedValueOnce(unavailableError())
       .mockResolvedValueOnce({
         data: {
@@ -361,7 +374,7 @@ describe('GeminiLessonLlmProvider', () => {
     });
 
     expect(result.content).toEqual({ fallback: true });
-    expect(mockedAxios.post.mock.calls[1][0]).toContain(
+    expect(queued.post.mock.calls[1][0]).toContain(
       '/models/gemini-text-fallback-test:generateContent',
     );
   });
@@ -370,11 +383,122 @@ describe('GeminiLessonLlmProvider', () => {
     const missingConfig = {
       get: jest.fn().mockReturnValue(undefined),
     } as unknown as ConfigService;
-    const missingProvider = new GeminiLessonLlmProvider(missingConfig);
+    const missingProvider = new GeminiLessonLlmProvider(
+      missingConfig,
+      queued.service,
+    );
 
     await expect(
       missingProvider.generateImage('imagem'),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
-    expect(mockedAxios.post.mock.calls).toHaveLength(0);
+    expect(queued.post.mock.calls).toHaveLength(0);
+  });
+
+  const lessonInput = {
+    theme: 'Teste',
+    biblicalReference: 'João 3:16',
+    weekNumber: 1,
+    stage: LessonStageType.LESSON,
+    template: LESSON_TEMPLATES[LessonStageType.LESSON],
+    approvedUpstream: null,
+    adminPrompt: '',
+  };
+  const httpError = (
+    status: number,
+    providerStatus: string,
+    headers: Record<string, string> = {},
+    code?: string,
+  ): AxiosError =>
+    Object.assign(new AxiosError('O provedor não concluiu.', code), {
+      response: {
+        status,
+        statusText: '',
+        headers,
+        config: { headers: {} } as never,
+        data: {
+          error: { status: providerStatus, message: 'raw private text' },
+        },
+      },
+    }) as AxiosError;
+
+  it('não repete imagem em 5xx ambíguo para não cobrar duas vezes', async () => {
+    values.GEMINI_MAX_RETRIES = '3';
+    queued.post.mockRejectedValue(httpError(500, 'INTERNAL'));
+    await expect(provider.generateImage('imagem')).rejects.toThrow(
+      '"code":"api_error"',
+    );
+    expect(queued.post.mock.calls).toHaveLength(1);
+  });
+
+  it('não dorme além do teto quando o servidor pede uma espera longa', async () => {
+    values.GEMINI_MAX_RETRIES = '3';
+    queued.post.mockRejectedValue(
+      httpError(429, 'RESOURCE_EXHAUSTED', { 'retry-after': '3600' }),
+    );
+    await expect(provider.generateImage('imagem')).rejects.toThrow(
+      '"code":"RESOURCE_EXHAUSTED"',
+    );
+    expect(queued.post.mock.calls).toHaveLength(1);
+  });
+
+  it.each([
+    [401, 'UNAUTHENTICATED', undefined, 'authentication'],
+    [503, 'UNAVAILABLE', undefined, 'service_unavailable'],
+    [400, 'INVALID_ARGUMENT', undefined, 'invalid_request'],
+    [403, 'PERMISSION_DENIED', undefined, 'PERMISSION_DENIED'],
+    [504, 'DEADLINE_EXCEEDED', 'ETIMEDOUT', 'deadline_exceeded'],
+  ])(
+    'classifica HTTP %s %s sem repassar o texto do provedor',
+    async (status, providerStatus, code, expected) => {
+      queued.post.mockRejectedValue(
+        httpError(status, providerStatus, {}, code),
+      );
+      const failure: unknown = await provider
+        .generateStage(lessonInput)
+        .catch((error: unknown) => error);
+      const message = failure instanceof Error ? failure.message : '';
+      expect(message).toContain(`"code":"${expected}"`);
+      expect(message).not.toContain('raw private text');
+    },
+  );
+
+  it('informa o consumo de tokens e o modelo realmente usado', async () => {
+    queued.post
+      .mockRejectedValueOnce(httpError(503, 'UNAVAILABLE'))
+      .mockResolvedValueOnce({
+        data: {
+          candidates: [{ content: { parts: [{ text: '{"ok":true}' }] } }],
+          usageMetadata: {
+            promptTokenCount: 120,
+            candidatesTokenCount: 30,
+            totalTokenCount: 150,
+          },
+        },
+      });
+    await expect(provider.generateStage(lessonInput)).resolves.toMatchObject({
+      usage: {
+        model: 'gemini-text-fallback-test',
+        inputTokens: 120,
+        outputTokens: 30,
+        totalTokens: 150,
+      },
+    });
+  });
+
+  it('rejeita JSON malformado e bytes que não são imagem', async () => {
+    queued.post.mockResolvedValue({
+      data: { candidates: [{ content: { parts: [{ text: '{"cut":' }] } }] },
+    });
+    await expect(provider.generateStage(lessonInput)).rejects.toThrow(
+      'JSON malformado',
+    );
+    queued.post.mockResolvedValue({
+      data: {
+        outputImage: { data: Buffer.from('<html>').toString('base64') },
+      },
+    });
+    await expect(provider.generateImage('imagem')).rejects.toThrow(
+      'não é uma imagem PNG ou JPEG válida',
+    );
   });
 });

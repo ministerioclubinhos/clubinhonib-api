@@ -1,4 +1,4 @@
-import { Document, Packer } from 'docx';
+import { Document, Packer, Table } from 'docx';
 import * as JSZip from 'jszip';
 import { buildOlderMeditationSheet } from './older-meditation-layout.utils';
 import { olderMeditationActivityBlocks } from './older-meditation-activity.utils';
@@ -193,25 +193,37 @@ describe('older meditation edited formatting', () => {
       ],
     };
     expect(fitOlderMeditationSheet(sheet).fits).toBe(true);
-    expect(
-      fitOlderMeditationSheet({
-        ...sheet,
-        document: {
-          content: [
-            {
-              type: 'paragraph',
-              attrs: { meditationField: 'firstActivity' },
-              content: [
-                {
-                  type: 'text',
-                  text: 'Questão curta.',
-                  marks: [{ type: 'textStyle', attrs: { fontSize: '300pt' } }],
-                },
-              ],
-            },
-          ],
-        },
-      }).fits,
-    ).toBe(false);
+    const withFontSize = (fontSize: string) => ({
+      ...sheet,
+      document: {
+        content: [
+          {
+            type: 'paragraph',
+            attrs: { meditationField: 'firstActivity' },
+            content: [
+              {
+                type: 'text',
+                text: 'Questão com fonte ampliada no editor. '.repeat(12),
+                marks: [{ type: 'textStyle', attrs: { fontSize } }],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(fitOlderMeditationSheet(withFontSize('96pt')).fits).toBe(false);
+    // Sizes the exporter refuses to render (above 96 pt) are measured as the
+    // default size too, so measurement and PDF never disagree.
+    expect(fitOlderMeditationSheet(withFontSize('300pt')).fits).toBe(true);
+  });
+
+  it('does not turn three identical answer-blank lines into a puzzle grid', () => {
+    const blocks = olderMeditationActivityBlocks(
+      undefined,
+      0,
+      'Caça-palavras: escreva o que encontrou.\n______\n______\n______',
+      22,
+    );
+    expect(blocks.some((block) => block instanceof Table)).toBe(false);
   });
 });

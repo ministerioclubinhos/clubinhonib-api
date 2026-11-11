@@ -704,102 +704,71 @@ export enum ErrorCode {
 ---
 Back to [Documentation Hub](README.md)
 
-## Falhas de geração de lição
+## Estúdio Clubinho (LESSON_93xx)
 
-O erro externo OpenAI billing_not_active é traduzido em AI_BILLING_INACTIVE
-na etapa, com orientação para revisar o faturamento ou selecionar outro
-provedor na página de configurações. Erros de validação e persistência das
-configurações continuam usando o envelope global, sem simular salvamento.
+As regras de negócio do Estúdio usam `AppException` com os códigos abaixo. Os
+textos das mensagens e os status HTTP foram preservados em relação às exceções
+anteriores, exceto onde indicado em [api-ai-lessons.md](api-ai-lessons.md).
 
-A ausência de chave salva é traduzida em `AI_CONFIGURATION_MISSING`, com
-orientação para salvar a chave na página de configurações e gerar o item
-novamente. A identificação do provedor ignora maiúsculas e minúsculas,
-incluindo mensagens como `GEMINI_API_KEY não configurada`. Falhas sem
-identificação de provedor não são atribuídas automaticamente ao OpenAI.
+| Código | Nome | HTTP | Quando |
+| --- | --- | --- | --- |
+| `LESSON_9301` | `LESSON_NOT_FOUND` | 404 | Lição inexistente |
+| `LESSON_9302` | `LESSON_STAGE_NOT_FOUND` | 404 | Etapa inexistente na lição |
+| `LESSON_9303` | `LESSON_STAGE_LOCK_CONFLICT` | 409 | `lockVersion`/`versionId` divergente: a etapa mudou em outra sessão |
+| `LESSON_9304` | `LESSON_GENERATION_IN_PROGRESS` | 409 | Alguma etapa da lição está em `GENERATING` |
+| `LESSON_9305` | `LESSON_PUBLICATION_IN_PROGRESS` | 409 | Lição em `PUBLISHING` |
+| `LESSON_9306` | `LESSON_INVALID_STATE` | 409 | Transição não permitida no estado atual |
+| `LESSON_9307` | `LESSON_STAGE_NOT_READY` | 400 | Etapa sem conteúdo para a ação pedida |
+| `LESSON_9308` | `LESSON_STAGE_STALE_UPSTREAM` | 409 | Item desatualizado concluído sem `acknowledgeStale` |
+| `LESSON_9309` | `LESSON_INVALID_REQUEST` | 400 | Pedido inválido (configuração visual, nota vazia) |
+| `LESSON_9310` | `LESSON_DEPENDENCY_INCOMPLETE` | 409 | Etapa anterior não concluída |
+| `LESSON_9311` | `LESSON_EVENT_STREAM_LIMIT` | 429 | Mais de 4 conexões SSE por usuário e lição |
+| `LESSON_9312` | `LESSON_PUBLISHED_PAGE_MISSING` | 409 | O material semanal vinculado não existe mais |
+| `LESSON_9313` | `LESSON_PROVIDER_SNAPSHOT_UNAVAILABLE` | 503 | Não foi possível calcular o snapshot do provedor ao pedir a geração |
 
-## Estúdio: upstream changes during generation
+Validações de DTO (`lockVersion` ausente, campos não declarados, limites)
+continuam respondendo 400 pelo `ValidationPipe` global. Folhas que não cabem na
+página (meditações, trabalho manual), imagens em formato não suportado e assets
+obrigatórios sem URL respondem 422 na prévia, exportação e publicação. A fila de
+conversão PDF cheia responde 503.
 
-`UPSTREAM_CHANGED` means the completed upstream content differs between generation
-start and the transactional commit check. The commit reloads versions after
-locking the lesson and orders dependencies canonically, so unloaded relations or
-query ordering do not trigger this error. A real conflict preserves the previous
-version, removes uncommitted uploads and requires generating the item again.
+### Falhas de geração (`failureCode` da etapa)
 
-## Estúdio: resposta incompleta
+A geração roda em segundo plano; a falha não é uma resposta HTTP. Ela fica em
+`failureCode`/`failureMessage` da etapa. Uma etapa que já tinha versão a
+preserva e volta ao status anterior ao pedido; sem versão anterior, vai a `FAILED`.
 
-`AI_CONTENT_INVALID` identifies local content validation failures during stage
-generation. The stage preserves the validation reason instead of reporting an
-unknown provider error. Older meditation accepts text-only activities without
-printable images; other derived stages retain their asset requirements.
+| `failureCode` | Significado |
+| --- | --- |
+| `GENERATION_REQUEST_MISSING` | Geração interrompida sem dados para retomada |
+| `GENERATION_ATTEMPTS_EXHAUSTED` | As 3 tentativas do pedido foram consumidas |
+| `UPSTREAM_CHANGED` | O conteúdo dos itens anteriores mudou durante a geração; uploads não confirmados são removidos |
+| `AI_INCOMPLETE_RESPONSE` | Resposta cortada (OpenAI `incomplete_details`, Gemini `MAX_TOKENS`) ou narrativa com sinais formais de corte |
+| `AI_CONTENT_INVALID` | Conteúdo reprovado na validação local ou na revisão, após as correções permitidas |
+| `AI_IMAGE_INVALID` | Imagem do provedor fora de PNG/JPEG ou acima de 15 MiB |
+| `AI_CONFIGURATION_MISSING` | Chave de API ausente ou ilegível para o provedor selecionado |
+| `AI_CONNECTION_INTERRUPTED` | Queda de conexão persistente ao gerar imagem |
+| `AI_QUEUE_UNAVAILABLE` | Fila de IA indisponível, cancelada ou interrompida |
+| `AI_QUEUE_TIMEOUT` | Tempo de espera da fila de IA excedido |
+| `AI_BILLING_INACTIVE` | Faturamento inativo no provedor |
+| `AI_CREDITS_EXHAUSTED` | Créditos esgotados |
+| `AI_USAGE_LIMIT_EXCEEDED` | Limite de gasto/uso da organização ou projeto |
+| `AI_QUOTA_UNAVAILABLE` | Cota insuficiente |
+| `AI_RATE_LIMITED` | Limite de requisições (429) |
+| `AI_AUTHENTICATION_FAILED` | Chave de API recusada |
+| `AI_PERMISSION_DENIED` | Chave sem permissão para o recurso |
+| `AI_MODEL_NOT_FOUND` | Modelo configurado inexistente ou inacessível |
+| `AI_TIMEOUT` | Tempo limite da chamada ao provedor |
+| `AI_CONTENT_BLOCKED` | Bloqueio de segurança, recitação ou recusa do provedor |
+| `AI_PROVIDER_UNAVAILABLE` | Provedor sobrecarregado ou indisponível |
+| `AI_INVALID_REQUEST` | Requisição rejeitada pelo provedor |
+| `AI_UNKNOWN_ERROR` | Erro não classificado; consultar os logs da fila pelo job |
 
-`AI_INCOMPLETE_RESPONSE` é o diagnóstico da etapa para OpenAI com
-`incomplete_details`, Gemini com `MAX_TOKENS` ou narrativa com sinais formais
-de corte. A interface recebe failureMessage orientando uma nova geração;
-a versão anterior não é substituída. Outros términos de bloqueio, como
-RECITATION e SAFETY, continuam classificados como AI_CONTENT_BLOCKED.
-Não se tenta salvar conteúdo parcial nem completar frases automaticamente.
-
-Story visual generation validates literal coverage of the complete approved narrative,
-sequential IDs and the requested asset count before creating images. Invalid output
-receives up to two targeted corrections using the approved story and previous JSON.
-Valid output makes no extra text calls. Persistent content failures retain
-AI_CONTENT_INVALID; provider errors are propagated without content correction retries.
-
-Older meditation rebuilds invalid recognizable text word-search grids locally
-from their listed words before validation and after each text correction. The
-rectangular grid includes every listed word, with a regenerated coordinate answer
-and no duplicate image for the repaired activity. Ambiguous lists still follow
-the bounded correction path and retain AI_CONTENT_INVALID on persistent failure.
-
-Older meditation exports also repair saved text puzzles after applying editor
-edits, synchronize the corrected activity in the renderable AST and retain
-formatting in unaffected fields. The word list is matched on its own line,
-so the heading "Caça-palavras:" cannot be mistaken for the list. Puzzle letters
-render in equal native DOCX cells; activity numbers are not duplicated and
-extra generic answer lines are omitted. Sparse text uses a larger readable font.
-If two full-sheet corrections still leave fewer than 200 words and an approved
-narrative exists, generation makes at most three focused block corrections.
-Each requests six complete subitems and six paired answers with at least 110
-words, merges only the corrected block and removes its obsolete artwork.
-Malformed or insufficient block output is not merged; persistent invalid content
-still fails with AI_CONTENT_INVALID. This applies to both configured providers.
-
-The older sheet fits font and image size against estimated wrapped prose,
-native grid row height and reserved prayer space. Grid letters never count as
-prose words for density validation, even when they are separated by spaces.
-
-### Estúdio: meditação dos maiores
-
-Rejeição do conteúdo ou das artes após as tentativas de correção mantém a versão
-anterior e registra `AI_CONTENT_INVALID` na etapa. Revisão ausente ou malformada
-não equivale a aprovação. A exportação que exceda uma página legível lança
-`UnprocessableEntityException` (HTTP 422) pelo envelope global, orientando a
-redução de textos, artes ou formatação.
-
-A fundamentação (`sourceExcerpt`) do item 7 aceita trechos e paráfrases fiéis. A validação local exige evidência preenchida; a revisão semântica obrigatória confronta evidência e exercícios com a lição aprovada. Diferenças literais não provocam rejeição automática; fatos sem apoio continuam sujeitos a correção e falha após o limite de tentativas.
-
-O item 7 aceita de 1 a 6 subitens completos por bloco para todas as mecânicas. Não há mínimo fixo de quatro perguntas para narrativa ou compreensão. A revisão obrigatória avalia substância e cobertura da lição; blocos vazios, incompletos ou excessivos continuam rejeitados.
-
-Diagnóstico do item 7: logs `[meditation-older]` identificam fase, tentativa, responseId, contagens de palavras/subitens e motivos de rejeição, sem imprimir a folha ou os prompts. Introduções não vazias de até 45 palavras não exigem mínimo de 15 palavras. Correções que repetem a mesma falha local com as mesmas contagens são interrompidas antes de nova chamada paga; a mensagem explica a ausência de progresso.
-
-O encaixe estimado do item 7 é diagnóstico de diagramação, não motivo para regenerar texto via IA. Após aprovação semântica, a versão é salva para edição mesmo com overflow estimado; o log `phase=layout` informa alturas disponível/necessária, alturas por bloco e fonte. Editor sinaliza excesso e exportação continua bloqueando cortes. Alternativas curtas são impressas juntas na mesma linha, preservando ordem, numeração e gabarito.
-
-Regra vigente do item 7: sempre três imagens, IDs 1, 2 e 3, uma por questão como anexo ou apoio visual. A exigência inclui questões textuais e substitui a antiga regra de imagens opcionais. Caça-palavras mantém grade nativa e recebe ilustração de apoio sem duplicar a grade. Revisão aceita apoio contextual relacionado à questão, preservando proibição de respostas expostas, enunciados duplicados e jogos não solicitados.
-
-Revisão do item 7 declara `reviewPhase` TEXT (antes da geração de artes) ou IMAGES (após). Issues possuem severity BLOCKER/SUGGESTION e code categorizado. Sugestões editoriais não causam regeneração; ausência de imagem pronta não bloqueia TEXT. IMAGES avalia somente defeitos das artes relacionadas ao texto aprovado, sem reabrir redação/aplicação. Gabarito incorreto, fatos sem apoio e exercícios incompletos continuam bloqueantes na fase textual. Logs distinguem advisory e outside-phase sem uma chamada adicional de classificação.
-
-SEQUENCE no item 7 usa `sequenceEvents` com relato (`story`), acontecimento (`text`) e posição cronológica dentro do relato (`order`). O servidor separa relatos, embaralha sem entregar a ordem resolvida, atribui `displayedId` e calcula o gabarito a partir desses identificadores. Posições faltantes/repetidas, grupos unitários e eventos duplicados são rejeitados localmente. A revisão semântica confere acontecimentos na fonte; uma inversão precisa identificar os fatos concretos envolvidos, nunca presumir que o gabarito de uma lista embaralhada seja 1,2,3. O servidor ignora apontamentos ANSWER_KEY somente quando lista e gabarito da sequência correspondem exatamente ao cálculo local; cronologia semanticamente errada permanece bloqueante como SOURCE_FACT. Gabaritos alterados ou listas divergentes não recebem essa exceção. A mesma instrução montada alimenta edição e PDF.
-
-Item 8 (Trabalho manual): a geração de arte aplica finalidade MANUAL_COLORING e um prompt obrigatório de contornos pretos, fundo e interiores brancos, sem cores, cinza, sombras ou preenchimentos. Essa regra é aplicada após a composição proposta, inclusive se o texto gerado sugerir uma paleta colorida. Gera uma única arte para pintar; o exportador monta as duas cópias de impressão.
-
-O PDF do item 8 usa A4 retrato explícito e duas cópias idênticas empilhadas numa única linha de tabela não divisível. O dimensionamento reserva cabeçalho e versículo antes da imagem, preserva proporções e inclui separador para recorte. Texto excepcionalmente longo que elimina o espaço mínimo da arte é rejeitado antes da conversão, sem reduzir a legibilidade nem separar cópias em páginas distintas.
-
-Falhas ao carregar a lição, exportar ou converter o PDF durante a publicação também restauram READY_FOR_PUBLICATION quando nenhum material foi criado; não deixam a lição presa em PUBLISHING. A meditação dos maiores reduz os limites de altura das três imagens gradualmente (até 140px) antes de rejeitar encaixe, preservando fontes de pelo menos 10pt e todos os textos/imagens.
-
-AI lesson publication: a rendering failure in any of the eight stage PDFs creates no weekly page and restores READY_FOR_PUBLICATION, preserving approvals and the original error.
-
-Image generation retries a transient socket reset (ECONNRESET/EPIPE) or temporary DNS failure (EAI_AGAIN) exactly once after 1.5 seconds, recreating only the same image request. Text and previously completed artwork are not regenerated during that retry. Invalid requests, authorization/billing/429 errors, and ambiguous timeouts are not retried by this policy. Exhausted connection failures expose AI_CONNECTION_INTERRUPTED rather than AI_UNKNOWN_ERROR; the previous persisted version remains intact. Provider retries can incur additional image charges.
-
+O provedor citado na mensagem vem do snapshot da tentativa, não do texto do
+erro. Não se salva conteúdo parcial nem se completam frases automaticamente.
+Revisão ausente ou malformada do item 7 não equivale a aprovação. Uma falha de
+renderização em qualquer PDF durante a publicação não cria material e devolve a
+lição a `READY_FOR_PUBLICATION`.
 
 ## Clubinho media submissions
 
@@ -828,3 +797,25 @@ New shared-idea media validation returns `400` with the existing error envelope 
 | `VALIDATION_ERROR` | 422 | An AI publication choice has no available approved result |
 
 Worker errors are sanitized `errorCode` values on attempts, not failed submission responses: `PROVIDER_NOT_CONFIGURED`, `PROVIDER_REQUEST_FAILED`, `INVALID_PROVIDER_RESPONSE`, `GUARD_REJECTED`, `LIMIT_REACHED`, `CANCELLED`. The teacher's persisted submission and the previous successful result remain available. See [shared idea enhancement](api-ideas-enhancement.md).
+
+## Fila de requisições de IA (AI_QUEUE_92xx)
+
+`AI_QUEUE_9201` (`AI_QUEUE_UNAVAILABLE`) representa falhas da própria fila ou do
+transporte, nunca uma resposta do provedor. O status é 503, ou 400 para um
+pedido interno inválido. `details.reason` traz um dos identificadores abaixo;
+URLs do Redis, credenciais e mensagens brutas do provedor nunca são devolvidos.
+
+| `details.reason` | Significado |
+| --- | --- |
+| `AI_QUEUE_UNAVAILABLE` | Redis ou fila indisponível |
+| `AI_QUEUE_EXPIRED` | Prazo do pedido vencido antes de chegar ao provedor |
+| `AI_QUEUE_CANCELLED` | Pedido cancelado pelo produtor |
+| `AI_QUEUE_INVALID_REQUEST` | Destino ou formato não permitido (400) |
+| `AI_QUEUE_RESULT_EXPIRED` | Resultado expirou antes de ser consumido |
+| `AI_QUEUE_ORPHANED` | O processo que enfileirou o pedido não existe mais |
+| `AI_QUEUE_CREDENTIAL_MISSING` | Provedor sem chave de API legível |
+
+No Estúdio, essas falhas viram `AI_QUEUE_UNAVAILABLE`, `AI_QUEUE_TIMEOUT` ou
+`AI_CONFIGURATION_MISSING` na etapa. Os jobs de ideias compartilhadas mantêm o
+contrato de tentativa com falha; o catálogo de modelos mantém a lista de
+contingência. Ver [comportamento da fila](ai-request-queue.md).

@@ -1,3 +1,6 @@
+import { AiQueueException } from 'src/shared/providers/ai-queue/ai-queue.exception';
+import { AiQueueFailure } from 'src/shared/providers/ai-queue/enums';
+import { createAiQueueMock } from 'src/shared/providers/ai-queue/testing/queue.mock';
 import axios from 'axios';
 import { IdeaAiGatewayProvider } from './idea-ai-gateway.provider';
 import { settings } from '../testing/fixtures';
@@ -5,8 +8,9 @@ import { IDEA_TEXT_SCHEMA } from '../schemas';
 import { EnhancedIdeaTextDto } from '../dto/enhanced-idea.dto';
 import { LessonLlmProvider } from 'src/modules/ai-lessons/providers/lesson-llm.types';
 jest.mock('axios');
-const post = jest.spyOn(axios, 'post');
-const gateway = new IdeaAiGatewayProvider();
+const queued = createAiQueueMock();
+const post = queued.post;
+const gateway = new IdeaAiGatewayProvider(queued.service);
 const request = {
   schema: IDEA_TEXT_SCHEMA,
   instructions: 'Revise o texto.',
@@ -19,6 +23,14 @@ const response = JSON.stringify({
 });
 describe('configured AI gateway', () => {
   beforeEach(() => jest.resetAllMocks());
+  it('preserves queue failures for shared-idea jobs without retrying or switching providers', async () => {
+    const failure = new AiQueueException(AiQueueFailure.UNAVAILABLE);
+    post.mockRejectedValue(failure);
+    await expect(
+      gateway.json(settings, request, EnhancedIdeaTextDto),
+    ).rejects.toBe(failure);
+    expect(post).toHaveBeenCalledTimes(1);
+  });
   it('uses configured model, structured output, store false and isolated source data', async () => {
     post.mockResolvedValue({
       data: {

@@ -19,4 +19,8 @@ export interface YoungerMeditationFit {
   imageHeight: number;
   titleSize: number;
   verseSize: number;
+  /** Minimum height given to the activities row, in twips. */
+  activityRowHeight: number;
+  /** False when the texts cannot fit one half sheet even at the smallest size. */
+  fits: boolean;
 }

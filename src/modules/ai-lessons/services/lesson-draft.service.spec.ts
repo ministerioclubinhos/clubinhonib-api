@@ -7,7 +7,7 @@ import { LESSON_TEMPLATES } from '../templates/lesson-templates';
 import { ConflictException } from '@nestjs/common';
 import * as crypto from 'node:crypto';
 import { getMetadataArgsStorage } from 'typeorm';
-import { LessonDraftService } from './lesson-draft.service';
+import { createLessonStudio } from '../testing/lesson-studio.factory';
 import { AiLessonsRepository } from '../repositories/ai-lessons.repository';
 import { LessonEntity } from '../entities/lesson.entity';
 import { LessonStageEntity } from '../entities/lesson-stage.entity';
@@ -16,7 +16,6 @@ import {
   olderMeditationFixture,
   OLDER_MEDITATION_SOURCE,
 } from '../fixtures/older-meditation.fixture';
-import { LessonCommentEntity } from '../entities/lesson-comment.entity';
 import {
   LESSON_STAGE_ORDER,
   LessonStageStatus,
@@ -30,33 +29,58 @@ import { PdfLibreOfficeService } from './pdf-libreoffice.service';
 import { WeekMaterialsPageCreateService } from 'src/modules/pages/week-material-page/services/create-week-material.service';
 import { WeekMaterialsPageGetService } from 'src/modules/pages/week-material-page/services/get-week-material.service';
 import { AdminLessonPromptService } from './admin-lesson-prompt.service';
+import { ConfigService } from '@nestjs/config';
+import { AppConflictException } from 'src/shared/exceptions';
+import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
+import {
+  createLessonsRepositoryMock,
+  resetLessonsRepositoryMock,
+} from '../testing/lessons-repository.mock';
+import { describeAiFailure } from '../utils/lesson-ai-failure.utils';
+import { LESSON_GENERATION } from '../constants/lesson-workflow.constants';
+import {
+  isNewGame,
+  isNewGameFromHistory,
+  validateCanonicalContent,
+  validateVisualConfig,
+} from '../utils/lesson-generation-validation.utils';
+import { lessonContentToTiptap } from '../utils/lesson-tiptap.utils';
+import { lessonUploadImageMetadata } from '../utils/lesson-upload-image.utils';
+import {
+  canonicalizeVerseVisualAssets,
+  lockDerivedVerse,
+} from '../utils/lesson-verse.utils';
+
+/** Fixtures of the older specs carry no lock version; neither does the call. */
+const UNVERSIONED = undefined as unknown as number;
 
 describe('LessonDraftService workflow safety', () => {
-  const repo = {
-    findLessonById: jest.fn(),
-    runInTransaction: jest.fn(),
-    findLessonByIdForUpdate: jest.fn(),
-    saveLesson: jest.fn(),
-    updateLesson: jest.fn(),
-    removeLesson: jest.fn(),
-    createVersion: jest.fn((value: Partial<unknown>) => value),
-    saveVersion: jest.fn((value: unknown) => Promise.resolve(value)),
-    saveStage: jest.fn(),
-    updateStage: jest.fn(),
-    findGeneratingStages: jest.fn(),
-    claimGeneration: jest.fn<
-      ReturnType<AiLessonsRepository['claimGeneration']>,
-      Parameters<AiLessonsRepository['claimGeneration']>
-    >(),
-    renewGenerationLease: jest.fn(),
-    createComment: jest.fn((value: Partial<LessonCommentEntity>) => value),
-    saveComment: jest.fn(),
+  const pureLessonUtils = {
+    describeAiFailure,
+    toTiptap: lessonContentToTiptap,
+    validateCanonicalContent,
+    isNewGame,
+    isNewGameFromHistory,
+    canonicalizeVerseVisualAssets,
+    lockDerivedVerse,
+    imageUploadMetadata: lessonUploadImageMetadata,
+    validateVisualConfig,
   };
+  const repo = createLessonsRepositoryMock();
   const weekMaterials = { createWeekMaterialsPage: jest.fn() };
   const weekMaterialsGet = {
-    findAllPaginated: jest.fn().mockResolvedValue({ data: [], total: 0 }),
+    findAllPaginated: jest.fn(),
+    findOneBySourceLessonId: jest.fn(),
+    findOnePage: jest.fn(),
   };
-  const service = new LessonDraftService(
+  const config = {
+    get: jest.fn((key: string) => process.env[key]),
+  } as unknown as ConfigService;
+  const mediaMock = {
+    discardUnreferencedUploads: jest.fn(),
+  };
+  const media = mediaMock as unknown as MediaItemProcessor;
+  const studio = createLessonStudio(
     repo as unknown as AiLessonsRepository,
     {} as LessonLlmProviderContract,
     {} as AwsS3Service,
@@ -65,15 +89,24 @@ describe('LessonDraftService workflow safety', () => {
     weekMaterials as unknown as WeekMaterialsPageCreateService,
     weekMaterialsGet as unknown as WeekMaterialsPageGetService,
     {} as AdminLessonPromptService,
+    config,
+    media,
   );
+  const service = studio.service;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    repo.runInTransaction.mockImplementation(
-      async (work: (manager: object) => Promise<unknown>) => work({}),
+    resetLessonsRepositoryMock(repo);
+    weekMaterialsGet.findAllPaginated.mockResolvedValue({ data: [], total: 0 });
+    weekMaterialsGet.findOneBySourceLessonId.mockResolvedValue(null);
+    weekMaterialsGet.findOnePage.mockImplementation((id: string) =>
+      Promise.resolve({ id }),
     );
-    repo.findLessonByIdForUpdate.mockImplementation(
-      (id: string) => repo.findLessonById(id) as Promise<unknown>,
+    mediaMock.discardUnreferencedUploads.mockImplementation(
+      async (urls: string[], deleteFn: (url: string) => Promise<void>) => {
+        for (const url of urls) await deleteFn(url);
+        return urls.length;
+      },
     );
   });
 
@@ -101,7 +134,7 @@ describe('LessonDraftService workflow safety', () => {
       Promise<LessonLlmGenerationResult>,
       [LessonLlmGenerationInput]
     >();
-    const instance = new LessonDraftService(
+    const instance = createLessonStudio(
       repo as unknown as AiLessonsRepository,
       { generateStage } as unknown as LessonLlmProviderContract,
       {} as AwsS3Service,
@@ -110,14 +143,18 @@ describe('LessonDraftService workflow safety', () => {
       weekMaterials as unknown as WeekMaterialsPageCreateService,
       weekMaterialsGet as unknown as WeekMaterialsPageGetService,
       {} as AdminLessonPromptService,
+      config,
+      media,
     );
-    const target = instance as unknown as {
+    const target = instance.generation as unknown as {
       correctStoryVisuals: (
         lesson: LessonEntity,
         input: LessonLlmGenerationInput,
         generated: LessonLlmGenerationResult,
+        provider: LessonLlmProviderContract,
       ) => Promise<LessonLlmGenerationResult>;
     };
+    const provider = { generateStage } as unknown as LessonLlmProviderContract;
     const input: LessonLlmGenerationInput = {
       stage: LessonStageType.LESSON_VISUALS,
       theme: 'Tema',
@@ -142,7 +179,7 @@ describe('LessonDraftService workflow safety', () => {
         },
       };
       await expect(
-        target.correctStoryVisuals(lesson, input, invalid),
+        target.correctStoryVisuals(lesson, input, invalid, provider),
       ).resolves.toEqual(valid);
       expect(generateStage).toHaveBeenCalledTimes(1);
       expect(generateStage.mock.calls[0][0].revisionInstructions).toContain(
@@ -157,7 +194,7 @@ describe('LessonDraftService workflow safety', () => {
     }
     generateStage.mockClear();
     await expect(
-      target.correctStoryVisuals(lesson, input, valid),
+      target.correctStoryVisuals(lesson, input, valid, provider),
     ).resolves.toBe(valid);
     expect(generateStage).not.toHaveBeenCalled();
 
@@ -169,7 +206,7 @@ describe('LessonDraftService workflow safety', () => {
     };
     generateStage.mockResolvedValue(wrongQuantity);
     await expect(
-      target.correctStoryVisuals(lesson, input, wrongQuantity),
+      target.correctStoryVisuals(lesson, input, wrongQuantity, provider),
     ).rejects.toThrow('exatamente 2');
     expect(generateStage).toHaveBeenCalledTimes(2);
 
@@ -177,7 +214,7 @@ describe('LessonDraftService workflow safety', () => {
       .mockClear()
       .mockRejectedValue(new Error('Provider unavailable'));
     await expect(
-      target.correctStoryVisuals(lesson, input, wrongQuantity),
+      target.correctStoryVisuals(lesson, input, wrongQuantity, provider),
     ).rejects.toThrow('Provider unavailable');
     expect(generateStage).toHaveBeenCalledTimes(1);
     generateStage.mockClear();
@@ -186,6 +223,7 @@ describe('LessonDraftService workflow safety', () => {
         { stages: [] } as unknown as LessonEntity,
         input,
         valid,
+        provider,
       ),
     ).rejects.toThrow('narrativa completa');
     expect(generateStage).not.toHaveBeenCalled();
@@ -197,7 +235,7 @@ describe('LessonDraftService workflow safety', () => {
       'base64',
     );
     const generateImage = jest.fn().mockResolvedValue(png);
-    const target = new LessonDraftService(
+    const target = createLessonStudio(
       repo as unknown as AiLessonsRepository,
       { generateImage } as unknown as LessonLlmProviderContract,
       {
@@ -208,13 +246,17 @@ describe('LessonDraftService workflow safety', () => {
       weekMaterials as unknown as WeekMaterialsPageCreateService,
       weekMaterialsGet as unknown as WeekMaterialsPageGetService,
       {} as AdminLessonPromptService,
-    ) as unknown as {
+      config,
+      media,
+    ).assets as unknown as {
       generateAndStoreAssets: (
         id: string,
         type: LessonStageType,
         lesson: LessonEntity,
         content: Record<string, unknown>,
         uploaded: string[],
+        prepared: undefined,
+        provider: LessonLlmProviderContract,
       ) => Promise<Record<string, unknown>>;
     };
     await target.generateAndStoreAssets(
@@ -227,6 +269,8 @@ describe('LessonDraftService workflow safety', () => {
         ],
       },
       [],
+      undefined,
+      { generateImage } as unknown as LessonLlmProviderContract,
     );
     expect(generateImage).toHaveBeenCalledTimes(1);
     expect(generateImage).toHaveBeenCalledWith(
@@ -238,7 +282,7 @@ describe('LessonDraftService workflow safety', () => {
     );
   });
   it('allows older text-only meditation while preserving the approved verse and other asset requirements', () => {
-    const target = service as unknown as {
+    const target = pureLessonUtils as unknown as {
       lockDerivedVerse: (
         lesson: LessonEntity,
         type: LessonStageType,
@@ -294,7 +338,7 @@ describe('LessonDraftService workflow safety', () => {
   });
 
   it('reports interrupted image connections with a specific diagnostic', () => {
-    const target = service as unknown as {
+    const target = pureLessonUtils as unknown as {
       describeAiFailure: (
         type: LessonStageType,
         error: unknown,
@@ -312,7 +356,7 @@ describe('LessonDraftService workflow safety', () => {
   });
 
   it('preserves local validation diagnostics instead of blaming the provider', () => {
-    const target = service as unknown as {
+    const target = pureLessonUtils as unknown as {
       describeAiFailure: (
         type: LessonStageType,
         error: unknown,
@@ -394,7 +438,7 @@ describe('LessonDraftService workflow safety', () => {
         return Promise.resolve({ ...data, id: 'new' });
       }),
     };
-    const instance = new LessonDraftService(
+    const instance = createLessonStudio(
       localRepo as unknown as AiLessonsRepository,
       {} as LessonLlmProviderContract,
       {} as AwsS3Service,
@@ -403,8 +447,10 @@ describe('LessonDraftService workflow safety', () => {
       weekMaterials as unknown as WeekMaterialsPageCreateService,
       weekMaterialsGet as unknown as WeekMaterialsPageGetService,
       {} as AdminLessonPromptService,
+      config,
+      media,
     );
-    await instance.saveContent(
+    await instance.service.saveContent(
       'lesson',
       {
         stage: LessonStageType.MEDITATION_OLDER,
@@ -426,7 +472,7 @@ describe('LessonDraftService workflow safety', () => {
   });
 
   it('keeps older source excerpts, subitem keys and review metadata out of the editable child document', () => {
-    const target = service as unknown as {
+    const target = pureLessonUtils as unknown as {
       toTiptap: (
         value: Record<string, unknown>,
         week?: number,
@@ -460,7 +506,7 @@ describe('LessonDraftService workflow safety', () => {
   });
 
   it('uses the approved theme and references for meditation header fields', () => {
-    const target = service as unknown as {
+    const target = pureLessonUtils as unknown as {
       validateCanonicalContent: (
         lesson: LessonEntity,
         type: LessonStageType,
@@ -532,7 +578,7 @@ describe('LessonDraftService workflow safety', () => {
   it.each(['GEMINI', 'OPENAI'])(
     'identifica a chave ausente de %s antes de uma chamada ao provedor',
     (provider) => {
-      const target = service as unknown as {
+      const target = pureLessonUtils as unknown as {
         describeAiFailure: (
           type: LessonStageType,
           error: unknown,
@@ -553,7 +599,7 @@ describe('LessonDraftService workflow safety', () => {
   );
 
   it('não atribui ao OpenAI uma falha sem identificação de provedor', () => {
-    const target = service as unknown as {
+    const target = pureLessonUtils as unknown as {
       describeAiFailure: (
         type: LessonStageType,
         error: unknown,
@@ -566,7 +612,7 @@ describe('LessonDraftService workflow safety', () => {
   });
 
   it('traduz saldo esgotado da OpenAI e identifica o item afetado', () => {
-    const target = service as unknown as {
+    const target = pureLessonUtils as unknown as {
       describeAiFailure: (
         type: LessonStageType,
         error: unknown,
@@ -587,7 +633,7 @@ describe('LessonDraftService workflow safety', () => {
   });
 
   it('explica faturamento OpenAI inativo em vez de erro desconhecido', () => {
-    const target = service as unknown as {
+    const target = pureLessonUtils as unknown as {
       describeAiFailure: (
         type: LessonStageType,
         error: unknown,
@@ -602,7 +648,7 @@ describe('LessonDraftService workflow safety', () => {
   });
 
   it('traduz cota esgotada do Gemini e identifica o item afetado', () => {
-    const target = service as unknown as {
+    const target = pureLessonUtils as unknown as {
       describeAiFailure: (
         type: LessonStageType,
         error: unknown,
@@ -622,7 +668,7 @@ describe('LessonDraftService workflow safety', () => {
   });
 
   it('preserva a instrução da meditação quando a atividade também contém gabarito', () => {
-    const target = service as unknown as {
+    const target = pureLessonUtils as unknown as {
       toTiptap: (
         value: Record<string, unknown>,
         weekNumber?: number,
@@ -654,7 +700,7 @@ describe('LessonDraftService workflow safety', () => {
   });
 
   it('une o versículo e traduz todos os rótulos da fixação para português', () => {
-    const target = service as unknown as {
+    const target = pureLessonUtils as unknown as {
       toTiptap: (value: Record<string, unknown>) => Record<string, unknown>;
     };
     const document = target.toTiptap({
@@ -691,7 +737,7 @@ describe('LessonDraftService workflow safety', () => {
         .spyOn(crypto, 'randomUUID')
         .mockReturnValueOnce(tokens[0])
         .mockReturnValueOnce(tokens[1]);
-      const target = service as unknown as {
+      const target = studio.generation as unknown as {
         startGeneration: (stage: LessonStageEntity, token: string) => void;
       };
       const start = jest
@@ -715,12 +761,14 @@ describe('LessonDraftService workflow safety', () => {
       repo.claimGeneration.mockResolvedValue(claimed);
 
       try {
-        await service.onApplicationBootstrap();
-        await service.resumePendingGenerations();
+        await studio.generation.onApplicationBootstrap();
+        await studio.generation.resumePendingGenerations();
 
         expect(repo.claimGeneration).toHaveBeenCalledTimes(tokens.length);
         for (const [index, token] of tokens.entries()) {
-          const owner = repo.claimGeneration.mock.calls[index][1];
+          const owner = (
+            repo.claimGeneration.mock.calls[index] as [string, string, number]
+          )[1];
           expect(owner.length).toBeLessThanOrEqual(
             Number(column?.options.length),
           );
@@ -728,7 +776,7 @@ describe('LessonDraftService workflow safety', () => {
             index + 1,
             stage.id,
             token,
-            expect.any(Date),
+            LESSON_GENERATION.LEASE_SECONDS,
           );
           if (claimed)
             expect(start).toHaveBeenNthCalledWith(index + 1, stage, token);
@@ -746,19 +794,35 @@ describe('LessonDraftService workflow safety', () => {
 
   it('marca como falha uma geração legada sem dados persistidos para retomada', async () => {
     const stage = {
+      id: 'stage-legacy',
+      lessonId: 'lesson-legacy',
+      type: LessonStageType.LESSON,
       status: LessonStageStatus.GENERATING,
+      currentVersionId: null,
       generationRequestJson: null,
       generationRequestedById: null,
       failureCode: null,
       failureMessage: null,
     };
+    const lesson = {
+      id: 'lesson-legacy',
+      status: LessonStatus.IN_PROGRESS,
+      stages: [stage],
+    } as unknown as LessonEntity;
     repo.findGeneratingStages.mockResolvedValue([stage]);
+    repo.findLessonById.mockResolvedValue(lesson);
 
-    await service.onApplicationBootstrap();
+    await studio.generation.onApplicationBootstrap();
 
     expect(stage.status).toBe(LessonStageStatus.FAILED);
     expect(stage.failureCode).toBe('GENERATION_REQUEST_MISSING');
-    expect(repo.saveStage).toHaveBeenCalledWith(stage);
+    expect(repo.claimGeneration).not.toHaveBeenCalled();
+    // Written under the lesson lock, never from the unlocked listing snapshot.
+    expect(repo.saveStage).not.toHaveBeenCalled();
+    expect(repo.findLessonByIdForUpdate).toHaveBeenCalledWith(
+      'lesson-legacy',
+      expect.anything(),
+    );
   });
 
   it('GET de detalhe é leitura pura', async () => {
@@ -798,7 +862,11 @@ describe('LessonDraftService workflow safety', () => {
     } as unknown as LessonEntity;
     repo.findLessonById.mockResolvedValue(lesson);
 
-    await service.completeProductionStage('lesson-1', LessonStageType.LESSON);
+    await service.completeProductionStage(
+      'lesson-1',
+      LessonStageType.LESSON,
+      UNVERSIONED,
+    );
 
     expect(repo.updateStage).toHaveBeenCalledWith(
       'stage-1',
@@ -843,8 +911,16 @@ describe('LessonDraftService workflow safety', () => {
     repo.findLessonById.mockResolvedValue(lesson);
     weekMaterials.createWeekMaterialsPage.mockResolvedValue({ id: 'page-1' });
     const render = jest
-      .spyOn(service, 'previewStagePdf')
-      .mockImplementation((_id, type) =>
+      .spyOn(
+        studio.pdfExport as unknown as {
+          renderStagePdf: (
+            lesson: LessonEntity,
+            type: LessonStageType,
+          ) => Promise<{ pdfBuffer: Buffer; fileName: string }>;
+        },
+        'renderStagePdf',
+      )
+      .mockImplementation((_lesson, type) =>
         Promise.resolve({
           pdfBuffer: Buffer.from(type),
           fileName: 'preview.pdf',
@@ -907,7 +983,15 @@ describe('LessonDraftService workflow safety', () => {
     repo.findLessonByIdForUpdate.mockResolvedValue(lesson);
     repo.findLessonById.mockResolvedValue(lesson);
     const exportPdf = jest
-      .spyOn(service, 'previewStagePdf')
+      .spyOn(
+        studio.pdfExport as unknown as {
+          renderStagePdf: () => Promise<{
+            pdfBuffer: Buffer;
+            fileName: string;
+          }>;
+        },
+        'renderStagePdf',
+      )
       .mockResolvedValueOnce({
         pdfBuffer: Buffer.from('first'),
         fileName: 'first.pdf',
@@ -923,7 +1007,9 @@ describe('LessonDraftService workflow safety', () => {
       );
       expect(exportPdf).toHaveBeenCalledTimes(3);
       expect(lesson.status).toBe(LessonStatus.READY_FOR_PUBLICATION);
-      expect(repo.saveLesson).toHaveBeenCalledTimes(2);
+      expect(repo.reservePublication).toHaveBeenCalledTimes(1);
+      expect(lesson.publicationFailureMessage).toBe('PDF sem espaço.');
+      expect(lesson.publicationLeaseOwner).toBeNull();
       expect(weekMaterials.createWeekMaterialsPage).not.toHaveBeenCalled();
     } finally {
       exportPdf.mockRestore();
@@ -936,10 +1022,12 @@ describe('LessonDraftService workflow safety', () => {
     repo.findLessonByIdForUpdate.mockResolvedValue({
       id: 'lesson-1',
       status: LessonStatus.PUBLISHING,
+      stages: [],
     } as unknown as LessonEntity);
+    repo.isPublicationLeaseActive.mockResolvedValue(true);
     await expect(
       service.publishToWeekMaterial('lesson-1'),
-    ).rejects.toBeInstanceOf(ConflictException);
+    ).rejects.toBeInstanceOf(AppConflictException);
   });
 
   it('nunca aprova etapas implicitamente ao tentar publicar', async () => {
@@ -961,7 +1049,7 @@ describe('LessonDraftService workflow safety', () => {
 
     await expect(
       service.publishToWeekMaterial('lesson-1'),
-    ).rejects.toBeInstanceOf(ConflictException);
+    ).rejects.toBeInstanceOf(AppConflictException);
     expect(repo.saveStage).not.toHaveBeenCalled();
     expect(repo.updateStage).not.toHaveBeenCalled();
     expect(weekMaterials.createWeekMaterialsPage).not.toHaveBeenCalled();
@@ -974,6 +1062,7 @@ describe('LessonDraftService workflow safety', () => {
         LessonStageType.LESSON,
         '   ',
         'reviewer-1',
+        UNVERSIONED,
       ),
     ).rejects.toThrow('Descreva os ajustes necessários');
     expect(repo.runInTransaction).not.toHaveBeenCalled();
@@ -985,7 +1074,7 @@ describe('LessonDraftService workflow safety', () => {
   ])(
     'mostra mensagem específica para resposta interrompida de qualquer provedor',
     (error) => {
-      const target = service as unknown as {
+      const target = pureLessonUtils as unknown as {
         describeAiFailure: (
           stage: LessonStageType,
           error: unknown,
@@ -998,7 +1087,7 @@ describe('LessonDraftService workflow safety', () => {
   );
 
   it('rejeita narrativa interrompida mesmo com um JSON de lição válido', () => {
-    const target = service as unknown as {
+    const target = pureLessonUtils as unknown as {
       validateCanonicalContent: (
         lesson: LessonEntity,
         stage: LessonStageType,
@@ -1025,7 +1114,7 @@ describe('LessonDraftService workflow safety', () => {
   });
 
   it('mantém a referência bíblica cadastrada como valor canônico', () => {
-    const target = service as unknown as {
+    const target = pureLessonUtils as unknown as {
       validateCanonicalContent: (
         lesson: LessonEntity,
         type: LessonStageType,
@@ -1056,7 +1145,7 @@ describe('LessonDraftService workflow safety', () => {
   });
 
   it('aceita a quebra integral da lição decidida pela LLM', () => {
-    const target = service as unknown as {
+    const target = pureLessonUtils as unknown as {
       validateCanonicalContent: (
         lesson: LessonEntity,
         type: LessonStageType,
@@ -1094,7 +1183,7 @@ describe('LessonDraftService workflow safety', () => {
   });
 
   it('rejeita uma quebra que omite parte da lição', () => {
-    const target = service as unknown as {
+    const target = pureLessonUtils as unknown as {
       validateCanonicalContent: (
         lesson: LessonEntity,
         type: LessonStageType,
@@ -1127,7 +1216,7 @@ describe('LessonDraftService workflow safety', () => {
   });
 
   it('aceita um visual instrucional para cada passo da brincadeira', () => {
-    const target = service as unknown as {
+    const target = pureLessonUtils as unknown as {
       validateCanonicalContent: (
         lesson: LessonEntity,
         type: LessonStageType,
@@ -1160,7 +1249,7 @@ describe('LessonDraftService workflow safety', () => {
   });
 
   it('rejeita visual da brincadeira desconectado do passo correspondente', () => {
-    const target = service as unknown as {
+    const target = pureLessonUtils as unknown as {
       validateCanonicalContent: (
         lesson: LessonEntity,
         type: LessonStageType,
@@ -1187,7 +1276,7 @@ describe('LessonDraftService workflow safety', () => {
   });
 
   it('exige um visual instrucional para cada passo da fixação do versículo', () => {
-    const target = service as unknown as {
+    const target = pureLessonUtils as unknown as {
       validateCanonicalContent: (
         lesson: LessonEntity,
         type: LessonStageType,
@@ -1220,7 +1309,7 @@ describe('LessonDraftService workflow safety', () => {
   });
 
   it('considera nova somente uma brincadeira com nome, mecânicas e passos diferentes', () => {
-    const target = service as unknown as {
+    const target = pureLessonUtils as unknown as {
       isNewGame: (
         previous: Record<string, unknown>,
         candidate: Record<string, unknown>,
@@ -1249,7 +1338,7 @@ describe('LessonDraftService workflow safety', () => {
   });
 
   it('rejeita nome ou dinâmica reutilizados de qualquer versão anterior', () => {
-    const target = service as unknown as {
+    const target = pureLessonUtils as unknown as {
       isNewGameFromHistory: (
         previous: Array<Record<string, unknown>>,
         candidate: Record<string, unknown>,
@@ -1278,7 +1367,7 @@ describe('LessonDraftService workflow safety', () => {
   });
 
   it('aplica a quebra da IA usando somente o texto canônico do versículo', () => {
-    const target = service as unknown as {
+    const target = pureLessonUtils as unknown as {
       canonicalizeVerseVisualAssets: (
         verseText: string,
         assets: Array<Record<string, unknown>>,
@@ -1297,7 +1386,7 @@ describe('LessonDraftService workflow safety', () => {
   });
 
   it('rejeita mais visuais de conteúdo do que palavras no versículo', () => {
-    const target = service as unknown as {
+    const target = pureLessonUtils as unknown as {
       canonicalizeVerseVisualAssets: (
         verseText: string,
         assets: Array<Record<string, unknown>>,
@@ -1314,7 +1403,7 @@ describe('LessonDraftService workflow safety', () => {
   });
 
   it('exibe a versão do versículo uma única vez no documento gerado', () => {
-    const target = service as unknown as {
+    const target = pureLessonUtils as unknown as {
       toTiptap: (value: Record<string, unknown>) => Record<string, unknown>;
     };
     const document = target.toTiptap({
@@ -1329,7 +1418,7 @@ describe('LessonDraftService workflow safety', () => {
   });
 
   it('mantém a ordem editorial, oculta oração vazia e deixa as cenas fora da narrativa', () => {
-    const target = service as unknown as {
+    const target = pureLessonUtils as unknown as {
       toTiptap: (value: Record<string, unknown>) => {
         content: Array<{ type: string; content?: Array<{ text?: string }> }>;
       };
@@ -1370,7 +1459,7 @@ describe('LessonDraftService workflow safety', () => {
   });
 
   it('destaca as duas sub-histórias como títulos H3 mantendo a abertura e a ordem', () => {
-    const target = service as unknown as {
+    const target = pureLessonUtils as unknown as {
       toTiptap: (value: Record<string, unknown>) => {
         content: Array<{
           type: string;
@@ -1405,7 +1494,7 @@ describe('LessonDraftService workflow safety', () => {
   });
 
   it('preserva compatibilidade com marcadores de cena de versões antigas em toTiptap', () => {
-    const target = service as unknown as {
+    const target = pureLessonUtils as unknown as {
       toTiptap: (value: Record<string, unknown>) => {
         content: Array<{
           type: string;
@@ -1431,7 +1520,7 @@ describe('LessonDraftService workflow safety', () => {
   });
 
   it('preserva o tipo real da imagem ao preparar o upload', () => {
-    const target = service as unknown as {
+    const target = pureLessonUtils as unknown as {
       imageUploadMetadata: (buffer: Buffer) => {
         extension: string;
         mimeType: string;
@@ -1449,7 +1538,7 @@ describe('LessonDraftService workflow safety', () => {
   });
 
   it('aceita somente de 4 a 10 visuais da história', () => {
-    const target = service as unknown as {
+    const target = pureLessonUtils as unknown as {
       validateVisualConfig: (dto: {
         visualType: string;
         visualOrientation: string;
@@ -1495,6 +1584,11 @@ describe('LessonDraftService workflow safety', () => {
             passage: 'João 3',
             verse: 'Porque Deus amou...',
             story: 'História inicial.',
+            memoryVerse: {
+              text: 'Porque Deus amou o mundo.',
+              reference: 'João 3:16',
+              version: 'NVI',
+            },
           },
         },
       ],
@@ -1504,7 +1598,23 @@ describe('LessonDraftService workflow safety', () => {
       type: LessonStageType.MANUAL_WORK,
       status: LessonStageStatus.IN_REVIEW,
       currentVersionId: 'v8',
-      versions: [{ id: 'v8', versionNumber: 1, structuredDataJson: {} }],
+      versions: [
+        {
+          id: 'v8',
+          versionNumber: 1,
+          structuredDataJson: {
+            verseText: 'Porque Deus amou o mundo.',
+            verseReference: 'João 3:16',
+            verseVersion: 'NVI',
+            printableAssets: [
+              {
+                id: 'manual',
+                url: 'https://bucket.s3.amazonaws.com/test/uploads/1762700000000_ab12cd34_lesson-cycle-MANUAL_WORK-manual.png',
+              },
+            ],
+          },
+        },
+      ],
     };
     const otherStages = LESSON_STAGE_ORDER.filter(
       (type) =>
@@ -1536,21 +1646,29 @@ describe('LessonDraftService workflow safety', () => {
       LessonStageType.MANUAL_WORK,
       'Ajustar trabalho manual',
       'rev-1',
+      UNVERSIONED,
     );
     expect(stage8.status).toBe(LessonStageStatus.CHANGES_REQUESTED);
     expect(lesson.status).toBe(LessonStatus.CHANGES_REQUESTED);
 
     // 2. Aprovar etapa 1 enquanto lesson está em CHANGES_REQUESTED
-    await service.approveStage('lesson-cycle', LessonStageType.LESSON, 'rev-1');
+    await service.approveStage(
+      'lesson-cycle',
+      LessonStageType.LESSON,
+      'rev-1',
+      UNVERSIONED,
+    );
     expect(stage1.status).toBe(LessonStageStatus.APPROVED);
     expect(lesson.status).toBe(LessonStatus.CHANGES_REQUESTED);
 
     // 3. Produtor edita etapa 8 via saveContent
     (stage8 as Record<string, unknown>).lockVersion = 1;
     repo.createVersion.mockImplementation((d: Record<string, unknown>) => d);
-    repo.saveVersion.mockImplementation((d: Record<string, unknown>) =>
-      Promise.resolve({ ...d, id: 'v8-new', versionNumber: 2 }),
-    );
+    repo.saveVersion.mockImplementation((d: Record<string, unknown>) => {
+      const saved = { ...d, id: 'v8-new', versionNumber: 2 };
+      (stage8.versions as Array<Record<string, unknown>>).push(saved);
+      return Promise.resolve(saved);
+    });
     await service.saveContent(
       'lesson-cycle',
       {
@@ -1577,6 +1695,7 @@ describe('LessonDraftService workflow safety', () => {
     await service.completeProductionStage(
       'lesson-cycle',
       LessonStageType.MANUAL_WORK,
+      1,
     );
     expect(stage8.status).toBe(LessonStageStatus.PRODUCER_APPROVED);
     expect(stage1.status).toBe(LessonStageStatus.APPROVED);
@@ -1617,7 +1736,7 @@ describe('LessonDraftService workflow safety', () => {
         },
         'user-1',
       ),
-    ).rejects.toThrow(ConflictException);
+    ).rejects.toThrow(AppConflictException);
   });
 
   it('T-B03: completeProductionStage reverte transação e propaga erro se updateLesson falhar', async () => {
@@ -1639,7 +1758,11 @@ describe('LessonDraftService workflow safety', () => {
     repo.updateLesson.mockRejectedValueOnce(new Error('DB connection failure'));
 
     await expect(
-      service.completeProductionStage('lesson-atomic', LessonStageType.LESSON),
+      service.completeProductionStage(
+        'lesson-atomic',
+        LessonStageType.LESSON,
+        UNVERSIONED,
+      ),
     ).rejects.toThrow('DB connection failure');
   });
 
@@ -1674,7 +1797,7 @@ describe('LessonDraftService workflow safety', () => {
       stages: [stage],
     } as unknown as LessonEntity;
 
-    const testService = new LessonDraftService(
+    const testService = createLessonStudio(
       repo as unknown as AiLessonsRepository,
       {
         generateStage: jest.fn().mockResolvedValue({
@@ -1690,12 +1813,14 @@ describe('LessonDraftService workflow safety', () => {
       {
         effective: jest.fn().mockResolvedValue(''),
       } as unknown as AdminLessonPromptService,
+      config,
+      media,
     );
 
     repo.findLessonByIdForUpdate.mockResolvedValue(lesson);
     repo.findLessonById.mockResolvedValue(lesson);
 
-    const target = testService as unknown as {
+    const target = testService.generation as unknown as {
       executeStageGeneration: (
         id: string,
         dto: unknown,
@@ -1794,7 +1919,7 @@ describe('LessonDraftService workflow safety', () => {
         upload: jest.fn().mockResolvedValue('https://s3.example.com/older.png'),
         delete: jest.fn().mockResolvedValue(undefined),
       };
-      const instance = new LessonDraftService(
+      const instance = createLessonStudio(
         repo as unknown as AiLessonsRepository,
         llm as LessonLlmProviderContract,
         s3 as unknown as AwsS3Service,
@@ -1805,12 +1930,14 @@ describe('LessonDraftService workflow safety', () => {
         {
           effective: jest.fn().mockResolvedValue(''),
         } as unknown as AdminLessonPromptService,
+        config,
+        media,
       );
       repo.findLessonById
         .mockResolvedValueOnce(lesson)
         .mockResolvedValue(refreshed);
       repo.findLessonByIdForUpdate.mockResolvedValue(locked);
-      const target = instance as unknown as {
+      const target = instance.generation as unknown as {
         executeStageGeneration: (
           id: string,
           dto: { stage: LessonStageType },
@@ -1881,7 +2008,7 @@ describe('LessonDraftService workflow safety', () => {
       stages: [stage0, stage1, stage2],
     } as unknown as LessonEntity;
 
-    const testService = new LessonDraftService(
+    const testService = createLessonStudio(
       repo as unknown as AiLessonsRepository,
       {
         generateStage: jest.fn().mockResolvedValue({
@@ -1904,7 +2031,9 @@ describe('LessonDraftService workflow safety', () => {
         }),
         generateImage: jest
           .fn()
-          .mockResolvedValue(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a])),
+          .mockResolvedValue(
+            Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+          ),
       } as unknown as LessonLlmProviderContract,
       {
         upload: jest
@@ -1919,6 +2048,8 @@ describe('LessonDraftService workflow safety', () => {
       {
         effective: jest.fn().mockResolvedValue(''),
       } as unknown as AdminLessonPromptService,
+      config,
+      media,
     );
 
     repo.findLessonById.mockResolvedValue(lesson);
@@ -1940,7 +2071,7 @@ describe('LessonDraftService workflow safety', () => {
       .mockResolvedValueOnce(lesson)
       .mockResolvedValue(lockedLesson);
 
-    const target = testService as unknown as {
+    const target = testService.generation as unknown as {
       executeStageGeneration: (
         id: string,
         dto: unknown,
@@ -2011,7 +2142,7 @@ describe('LessonDraftService workflow safety', () => {
     repo.removeLesson = jest.fn();
 
     await expect(service.delete('lesson-del')).rejects.toThrow(
-      ConflictException,
+      AppConflictException,
     );
     expect(repo.removeLesson).not.toHaveBeenCalled();
   });
@@ -2067,7 +2198,7 @@ describe('LessonDraftService workflow safety', () => {
         },
         'producer-1',
       ),
-    ).rejects.toThrow(ConflictException);
+    ).rejects.toThrow(AppConflictException);
 
     stage2.status = LessonStageStatus.NOT_STARTED;
     repo.saveVersion.mockImplementation((v: Record<string, unknown>) => {
@@ -2171,7 +2302,7 @@ describe('LessonDraftService workflow safety', () => {
         'rev-1',
         1,
       ),
-    ).rejects.toThrow(ConflictException);
+    ).rejects.toThrow(AppConflictException);
 
     await expect(
       service.requestChanges(
@@ -2181,7 +2312,7 @@ describe('LessonDraftService workflow safety', () => {
         'rev-1',
         1,
       ),
-    ).rejects.toThrow(ConflictException);
+    ).rejects.toThrow(AppConflictException);
 
     await expect(
       service.previewStagePdf(
@@ -2190,7 +2321,7 @@ describe('LessonDraftService workflow safety', () => {
         1,
         'v-2',
       ),
-    ).rejects.toThrow(ConflictException);
+    ).rejects.toThrow(AppConflictException);
 
     await expect(
       service.previewStagePdf(
@@ -2199,7 +2330,7 @@ describe('LessonDraftService workflow safety', () => {
         2,
         'v-old',
       ),
-    ).rejects.toThrow(ConflictException);
+    ).rejects.toThrow(AppConflictException);
 
     stage.status = LessonStageStatus.DRAFT;
     lesson.status = LessonStatus.IN_PROGRESS;
@@ -2209,17 +2340,17 @@ describe('LessonDraftService workflow safety', () => {
         LessonStageType.LESSON,
         1,
       ),
-    ).rejects.toThrow(ConflictException);
+    ).rejects.toThrow(AppConflictException);
   });
 
   it('exclui no S3 apenas assets pertencentes à própria lição e ignora URLs arbitrárias injetadas no JSON', async () => {
     const ownedUrl =
-      'https://studio-bucket.s3.us-east-1.amazonaws.com/lesson-own-1-LESSON_VISUALS-visual-01.png';
+      'https://studio-bucket.s3.us-east-1.amazonaws.com/test/uploads/1762700000000_ab12cd34_lesson-own-1-LESSON_VISUALS-visual-01.png';
     const foreignUrl =
       'https://studio-bucket.s3.us-east-1.amazonaws.com/shared-site-banner.png';
     const deletedUrls: string[] = [];
 
-    const localService = new LessonDraftService(
+    const localService = createLessonStudio(
       repo as unknown as AiLessonsRepository,
       {} as LessonLlmProviderContract,
       {
@@ -2233,6 +2364,8 @@ describe('LessonDraftService workflow safety', () => {
       weekMaterials as unknown as WeekMaterialsPageCreateService,
       weekMaterialsGet as unknown as WeekMaterialsPageGetService,
       {} as AdminLessonPromptService,
+      config,
+      media,
     );
 
     const lesson = {
@@ -2263,7 +2396,7 @@ describe('LessonDraftService workflow safety', () => {
     } as unknown as LessonEntity;
 
     repo.findLessonById.mockResolvedValue(lesson);
-    await localService.delete('lesson-own-1');
+    await localService.service.delete('lesson-own-1');
 
     expect(deletedUrls).toEqual([ownedUrl]);
   });

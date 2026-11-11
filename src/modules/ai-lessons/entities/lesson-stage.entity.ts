@@ -12,7 +12,7 @@ import { BaseEntity } from 'src/shared/share-entity/base.entity';
 import { LessonEntity } from './lesson.entity';
 import { LessonVersionEntity } from './lesson-version.entity';
 import { LessonStageStatus, LessonStageType } from '../enums/lesson.enums';
-import { GenerateStageRequestDto } from '../dto/generate-stage-request.dto';
+import type { LessonGenerationRequest } from '../types/lesson-generation.types';
 
 @Entity('lesson_stages')
 @Unique('uq_lesson_stage_type', ['lessonId', 'type'])
@@ -70,7 +70,7 @@ export class LessonStageEntity extends BaseEntity {
   failureMessage: string | null;
 
   @Column({ name: 'generation_request_json', type: 'json', nullable: true })
-  generationRequestJson: GenerateStageRequestDto | null;
+  generationRequestJson: LessonGenerationRequest | null;
 
   @Column({
     name: 'generation_requested_by_id',

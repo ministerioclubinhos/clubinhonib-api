@@ -1,3 +1,6 @@
+import { AiQueueException } from 'src/shared/providers/ai-queue/ai-queue.exception';
+import { AiRequestQueueService } from 'src/shared/providers/ai-queue/ai-request-queue.service';
+import { AiQueueFeature } from 'src/shared/providers/ai-queue/enums';
 import { supportsOpenAiReasoning } from 'src/modules/ai-lessons/utils/openai-model-capabilities.utils';
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
@@ -14,6 +17,7 @@ import { IDEA_AI, IDEA_AI_IMAGE_PROMPT, IDEA_AI_SYSTEM } from '../constants';
 import { IdeaAiErrorCode } from '../enums/ideas-section-ai.enums';
 @Injectable()
 export class IdeaAiGatewayProvider {
+  constructor(private readonly queue: AiRequestQueueService) {}
   async json<T extends object>(
     settings: InternalAiProviderSettings,
     request: IdeaAiJsonRequest,
@@ -141,11 +145,11 @@ export class IdeaAiGatewayProvider {
         source.name,
       );
       const result = await this.retry(settings, () =>
-        axios.post<IdeaAiProviderResponse>(
+        this.queue.post<IdeaAiProviderResponse>(
           'https://api.openai.com/v1/images/edits',
           form,
           {
-            headers: { Authorization: `Bearer ${settings.openai.apiKey}` },
+            feature: AiQueueFeature.SHARED_IDEAS,
             timeout: IDEA_AI.requestTimeoutMs,
             maxContentLength: IDEA_AI.maxFileBytes * 4,
           },
@@ -188,15 +192,13 @@ export class IdeaAiGatewayProvider {
   ): Promise<IdeaAiProviderResponse> {
     const openai = settings.llmProvider === LessonLlmProvider.OPENAI;
     const response = await this.retry(settings, () =>
-      axios.post<IdeaAiProviderResponse>(
+      this.queue.post<IdeaAiProviderResponse>(
         openai
           ? 'https://api.openai.com/v1/responses'
           : `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
         body,
         {
-          headers: openai
-            ? { Authorization: `Bearer ${settings.openai.apiKey}` }
-            : { 'x-goog-api-key': settings.gemini.apiKey },
+          feature: AiQueueFeature.SHARED_IDEAS,
           timeout: IDEA_AI.requestTimeoutMs,
           maxContentLength: IDEA_AI.maxFileBytes * 4,
         },
@@ -217,6 +219,7 @@ export class IdeaAiGatewayProvider {
       try {
         return await run();
       } catch (error: unknown) {
+        if (error instanceof AiQueueException) throw error;
         const status = axios.isAxiosError(error)
           ? error.response?.status
           : undefined;

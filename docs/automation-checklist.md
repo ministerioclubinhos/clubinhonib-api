@@ -163,3 +163,12 @@ file receives real objects.
 - Attach during processing: first expect `409`; then send explicit `ignoreAiEnhancement: true`, verify original publication and rejection of late worker artifacts.
 - Reject/remove the section or delete its page, and verify post-commit reference-checked cleanup. Provider and S3 unit tests remain mocked.
 - Complete the real-provider/human rollout checklist in [shared idea enhancement](api-ideas-enhancement.md) before enabling automatic processing.
+
+## Redis / all AI requests
+
+- Prepare locally: `ENV_FILE=env/local.env npm run redis:local:ensure` (or root `./run.sh local`). Repeat to confirm reuse; no environment files or existing data are rewritten.
+- Set identical `REDIS_URL`, `AI_QUEUE_PREFIX` and `AI_QUEUE_CONCURRENCY` across replicas of one environment, distinct namespaces between environments.
+- Run `npm test -- --runInBand src/shared/providers/ai-queue` with mocked external services.
+- Check Redis persistence and `noeviction` before deploying. Do not clear application queues to resolve a stalled job; observe lock recovery and deadlines.
+- For a manual concurrency smoke check, use an isolated queue prefix and a fake transport (no paid provider calls), start two workers, enqueue mixed-feature requests and confirm one active call globally.
+- Read [queue operation and failure semantics](ai-request-queue.md), including the at-least-once billing limitation.

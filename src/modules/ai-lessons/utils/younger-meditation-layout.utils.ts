@@ -14,8 +14,13 @@ import {
   VerticalAlign,
   WidthType,
 } from 'docx';
+import { UnprocessableEntityException } from '@nestjs/common';
 import { YOUNGER_MEDITATION_LAYOUT as L } from '../constants/younger-meditation-layout.constants';
-import type { YoungerMeditationSheet } from '../types/younger-meditation.types';
+import { YOUNGER_MEDITATION_MAX_ACTIVITIES } from '../constants/lesson-document.constants';
+import type {
+  YoungerMeditationFit,
+  YoungerMeditationSheet,
+} from '../types/younger-meditation.types';
 
 import {
   noBorders,
@@ -29,8 +34,8 @@ import {
 
 export function buildYoungerMeditationCopy(
   sheet: YoungerMeditationSheet,
+  fit: YoungerMeditationFit = youngerMeditationFit(sheet),
 ): Table {
-  const fit = youngerMeditationFit(sheet);
   const innerWidth = L.width - 180;
   const logoWidth = 2700;
   const headingWidth = innerWidth - logoWidth;
@@ -179,40 +184,48 @@ export function buildYoungerMeditationCopy(
     [
       new TableRow({
         cantSplit: true,
-        height: { value: 4000, rule: HeightRule.ATLEAST },
-        children: sheet.activities.slice(0, 2).map(
-          (activity, index) =>
-            new TableCell({
-              width: { size: activityWidth, type: WidthType.DXA },
-              margins: { top: 70, bottom: 0, left: 130, right: 130 },
-              verticalAlign: VerticalAlign.TOP,
-              borders: {
-                ...noBorders,
-                ...(index === 0
-                  ? {
-                      right: {
-                        style: BorderStyle.SINGLE,
-                        size: 6,
-                        color: L.black,
-                      },
-                    }
-                  : {}),
-              },
-              children: [
-                ...meditationRichParagraphs(
-                  sheet.document,
-                  `activity${index + 1}`,
-                  activity.instruction,
-                  fit.textSize,
-                  false,
-                  `${index + 1}. `,
-                ),
-                ...(activity.image
-                  ? [imageParagraph(activity.image, 290, fit.imageHeight)]
-                  : []),
-              ],
-            }),
-        ),
+        height: { value: fit.activityRowHeight, rule: HeightRule.ATLEAST },
+        children: sheet.activities
+          .slice(0, YOUNGER_MEDITATION_MAX_ACTIVITIES)
+          .map(
+            (activity, index) =>
+              new TableCell({
+                width: { size: activityWidth, type: WidthType.DXA },
+                margins: { top: 70, bottom: 0, left: 130, right: 130 },
+                verticalAlign: VerticalAlign.TOP,
+                borders: {
+                  ...noBorders,
+                  ...(index === 0
+                    ? {
+                        right: {
+                          style: BorderStyle.SINGLE,
+                          size: 6,
+                          color: L.black,
+                        },
+                      }
+                    : {}),
+                },
+                children: [
+                  ...meditationRichParagraphs(
+                    sheet.document,
+                    `activity${index + 1}`,
+                    activity.instruction,
+                    fit.textSize,
+                    false,
+                    `${index + 1}. `,
+                  ),
+                  ...(activity.image
+                    ? [
+                        imageParagraph(
+                          activity.image,
+                          L.imageMaximumWidth,
+                          fit.imageHeight,
+                        ),
+                      ]
+                    : []),
+                ],
+              }),
+          ),
       }),
     ],
     [activityWidth, activityWidth],
@@ -300,12 +313,19 @@ export function buildYoungerMeditationCopy(
 export function buildYoungerMeditationSheet(
   sheet: YoungerMeditationSheet,
 ): Array<Paragraph | Table> {
+  // Each copy has a fixed height so both stay on one page; content that does
+  // not fit would be silently cut, so it is rejected like the older sheet.
+  const fit = youngerMeditationFit(sheet);
+  if (!fit.fits)
+    throw new UnprocessableEntityException(
+      'O conteúdo da meditação dos menores não cabe nas duas cópias da folha. Reduza os textos das atividades, do versículo ou da oração e visualize novamente.',
+    );
   return [
-    buildYoungerMeditationCopy(sheet),
+    buildYoungerMeditationCopy(sheet, fit),
     new Paragraph({
       spacing: { before: 0, after: 0, line: L.gap },
       children: [text(' ', 2)],
     }),
-    buildYoungerMeditationCopy(sheet),
+    buildYoungerMeditationCopy(sheet, fit),
   ];
 }

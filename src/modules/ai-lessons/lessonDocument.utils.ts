@@ -1,6 +1,7 @@
 import {
   CSS_PIXELS_PER_POINT,
   DOCX_HALF_POINTS_PER_POINT,
+  DOCUMENT_DEFAULT_FONT_SIZE,
   DOCX_LINE_UNITS_PER_LINE,
   DOCUMENT_LINK_PROTOCOLS,
   DOCUMENT_MAX_FONT_SIZE_PT,
@@ -10,13 +11,29 @@ import {
 import type { LessonDocumentSpacing } from './types/lesson-document.types';
 import { LineRuleType } from 'docx';
 
-export function documentFontSize(value: unknown): number | undefined {
+/**
+ * Converts a CSS font size to DOCX half-points. `pt` and `px` are absolute;
+ * `em`, `rem` and `%` are relative to `baseHalfPoints` (the surrounding run).
+ * Anything unparseable or out of range yields `undefined` (caller's default).
+ */
+export function documentFontSize(
+  value: unknown,
+  baseHalfPoints: number = DOCUMENT_DEFAULT_FONT_SIZE,
+): number | undefined {
   if (typeof value !== 'string') return undefined;
-  const match = value.trim().match(/^(\d+(?:\.\d+)?)(pt|px)$/i);
+  const match = value.trim().match(/^(\d+(?:\.\d+)?)(pt|px|em|rem|%)$/i);
   if (!match) return undefined;
+  const amount = Number(match[1]);
+  const unit = match[2].toLowerCase();
+  const basePoints = baseHalfPoints / DOCX_HALF_POINTS_PER_POINT;
   const points =
-    Number(match[1]) /
-    (match[2].toLowerCase() === 'px' ? CSS_PIXELS_PER_POINT : 1);
+    unit === 'pt'
+      ? amount
+      : unit === 'px'
+        ? amount / CSS_PIXELS_PER_POINT
+        : unit === '%'
+          ? (basePoints * amount) / 100
+          : basePoints * amount;
   return points > 0 && points <= DOCUMENT_MAX_FONT_SIZE_PT
     ? Math.round(points * DOCX_HALF_POINTS_PER_POINT)
     : undefined;
@@ -27,8 +44,11 @@ export function documentFontFamily(value: unknown): string | undefined {
   const font = value
     .split(',')[0]
     .trim()
-    .replace(/^['"]|['"]$/g, '');
-  return font && font.length <= 100 ? font : undefined;
+    .replace(/^['"]|['"]$/g, '')
+    .trim();
+  // A CSS variable or generic keyword is not an installable font family.
+  if (!font || font.length > 100 || /[()<>]/.test(font)) return undefined;
+  return font;
 }
 
 export function documentLineSpacing(

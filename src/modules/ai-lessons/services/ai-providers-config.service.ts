@@ -1,5 +1,6 @@
+import { AiRequestQueueService } from 'src/shared/providers/ai-queue/ai-request-queue.service';
+import { AiQueueFeature } from 'src/shared/providers/ai-queue/enums';
 import { Injectable, Logger } from '@nestjs/common';
-import axios from 'axios';
 import { GetAiProviderSettingsService } from './get-ai-provider-settings.service';
 import { UpdateAiProviderSettingsService } from './update-ai-provider-settings.service';
 import {
@@ -8,7 +9,9 @@ import {
   OpenAiSettingsResponseDto,
   GeminiSettingsResponseDto,
 } from '../dto/ai-provider-settings-response.dto';
+import { OPENAI_API } from '../providers/lesson-llm.constants';
 import {
+  AI_MODEL_CATALOG,
   AiModelCatalogSource,
   DEFAULT_OPENAI_GENERAL_MODELS,
   DEFAULT_OPENAI_IMAGE_MODELS,
@@ -27,6 +30,7 @@ export class AiProvidersConfigService {
   constructor(
     private readonly get: GetAiProviderSettingsService,
     private readonly update: UpdateAiProviderSettingsService,
+    private readonly queue: AiRequestQueueService,
   ) {}
 
   /** 1. Lista os modelos da OpenAI consultando a API da OpenAI em tempo real */
@@ -35,11 +39,14 @@ export class AiProvidersConfigService {
 
     if (keyToUse) {
       try {
-        const response = await axios.get<OpenAiModelListResponse>(
-          'https://api.openai.com/v1/models',
+        const response = await this.queue.get<OpenAiModelListResponse>(
+          OPENAI_API.models,
           {
-            headers: { Authorization: `Bearer ${keyToUse}` },
-            timeout: 5000,
+            feature: AiQueueFeature.PROVIDER_SETTINGS,
+            timeout: AI_MODEL_CATALOG.requestMs,
+            // Interactive: fall back to the static list instead of waiting
+            // behind a long generation.
+            waitMs: AI_MODEL_CATALOG.queueWaitMs,
           },
         );
 
@@ -47,17 +54,17 @@ export class AiProvidersConfigService {
           response.data?.data || [];
 
         const isImageModel = (id: string) =>
-          id.startsWith('gpt-image-') || id.includes('dall-e');
+          AI_MODEL_CATALOG.imagePrefixes.some((prefix) =>
+            id.startsWith(prefix),
+          );
         const isGeneralModel = (id: string) =>
-          (id.startsWith('gpt-') ||
-            id.startsWith('o1') ||
-            id.startsWith('o3')) &&
+          AI_MODEL_CATALOG.generalPrefixes.some((prefix) =>
+            id.startsWith(prefix),
+          ) &&
           !isImageModel(id) &&
-          !id.includes('realtime') &&
-          !id.includes('transcribe') &&
-          !id.includes('tts') &&
-          !id.includes('whisper') &&
-          !id.includes('embedding');
+          !AI_MODEL_CATALOG.excludedFragments.some((fragment) =>
+            id.includes(fragment),
+          );
 
         const sorted = [...list].sort(
           (a, b) => (b.created ?? 0) - (a.created ?? 0),

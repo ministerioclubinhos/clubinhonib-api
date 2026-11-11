@@ -15,7 +15,7 @@ export const LESSON_STAGE_QUALITY_RULES: Record<LessonStageType, string> = {
   [LessonStageType.LESSON]:
     'Conclua cada sub-história com seu desfecho bíblico e destaque os relatos separadamente. Mantenha propósito curto e concreto, narrativa participativa e aplicação para quem já crê e para quem deseja seguir Jesus.',
   [LessonStageType.LESSON_VISUALS]:
-    'Cubra os momentos essenciais e o desfecho de cada sub-história aprovada, respeitando a quantidade solicitada. Vincule cada cena ao trecho literal da narrativa; mantenha personagens consistentes e não crie acontecimentos novos.',
+    'Cubra todos os elementos essenciais de cada sub-história aprovada, respeitando a quantidade de pranchas solicitada. Vincule cada item ao trecho literal da narrativa em storyEvidence; mantenha personagens consistentes entre as pranchas e não crie elementos ou acontecimentos sem apoio na lição.',
   [LessonStageType.STANDARD_GAME]:
     'Forneça materiais acessíveis, preparação, passos em ordem, regras, duração e critério claro de encerramento. Explique a ligação prática com o propósito da lição. Inclua adaptações para 5–7 e 8–11 anos, participação de todos e segurança sem eliminação ou constrangimento.',
   [LessonStageType.VERSE_VISUALS]:

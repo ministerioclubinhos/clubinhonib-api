@@ -1,120 +1,111 @@
 @startuml
-title Estúdio Clubinho — produção e publicação idempotente
+title Estúdio Clubinho — produção, revisão e publicação
 actor Administrador
 participant Frontend
 participant "AI Lessons API" as API
 database MySQL
-participant "Provedor salvo (OpenAI/Gemini)" as OpenAI
+queue "Fila de IA (Redis/BullMQ)" as Queue
+participant "Provedor salvo (OpenAI/Gemini)" as LLM
 collections S3
 participant "Materiais da semana" as Week
 
+== Configuração ==
 Administrador -> Frontend: configura provedor e parâmetros
 Frontend -> API: PUT /lessons/providers/settings
-API -> MySQL: transação: OpenAI + Gemini + escolha ativa (apiKey armazenada com segurança)
-API --> Frontend: configurações salvas mascaradas (hasApiKey booleano, sem expor apiKey)
-
-Administrador -> Frontend: cria pacote
-Frontend -> API: POST /lessons
-API -> MySQL: transação: lição + 8 etapas
-
-loop cada etapa
-  Administrador -> Frontend: gerar/revisar/concluir
-  Frontend -> API: gerar ou salvar versão
-  note right of API
-    Todas as etapas: política compartilhada + revisão específica
-    Brincadeiras/dinâmicas completas; atividades e gabaritos coerentes
-    Etapas derivadas preservam o versículo aprovado
-    Lição: prompt editorial 4.5.0 + notas curadas
-    Versículo curto/contextualizado; propósito concreto
-    Revisão interna; referência NVI sem duplicação
-    Narrativa fiel; aplicação para quem crê e convite voluntário
-    Narrativa participativa; cenas separadas
-    Múltiplos relatos: subtítulos ### em story -> H3 no editor/PDF
-    8 a 10 perguntas; oração final opcional
-    Referências incompletas para revisão humana
-  end note
-  API -> MySQL: adquire lease com UUID único por tentativa (36 caracteres)
-  API -> MySQL: resolve provedor e parâmetros salvos (chaves internas)
-  API -> OpenAI: conteúdo e imagens (sem env)
-  OpenAI --> API: JSON / PNG
-  note right of API
-    Texto: verifica término do provedor e integridade formal
-    Visuais (kit de recortes): até duas correções de IDs kit-NN, evidências, cobertura e quantidade; prancha CHARACTERS gerada primeiro
-    Correção recebe narrativa aprovada completa e JSON anterior
-    Interrompido: falha e preserva versão anterior
-    Regras genéricas: desfecho, público infantil e gabarito coerente
-    Validação transacional: geração verifica integridade do checksum upstream
-    Após lock: recarrega versões na mesma transação; dependências em ordem canônica
-    e confirma generationLeaseOwner == attemptToken antes de comitar
-  end note
-  API -> S3: uploads rastreados (_ownedAssetUrls)
-  API -> MySQL: transação: valida lease + upstream checksum -> salva versão + etapa
-  note right of API
-    Snapshot imutável de provedor/modelo/prompt por tentativa
-    Falha remove uploads não referenciados
-    Conclusão da etapa, revisão e preview PDF exigem lockVersion/versionId compatíveis
-  end note
-end
-
-Administrador -> Frontend: publicar
+API -> MySQL: transação com lock: OpenAI + Gemini + escolha ativa
 note right of API
-  Editor e prévia/exportação PDF: normalizam cabeçalho salvo
-  LIÇÃO (semana), TÍTULO e tema em blocos separados
-  Preserva fonte, tamanho, cor, espaçamento, links e células mescladas
-  Item 8: MANUAL_COLORING -> contornos pretos/interiores brancos -> uma arte para pintar
-  PDF item 8: reserva texto -> duas cópias verticais em bloco indivisível A4
-  Tiptap salvo -> reconcilia campos canônicos -> DOCX -> LibreOffice (semáforo limitado) -> PDF
-  Menores: editor com duas cópias sincronizadas -> AST único
-  Itens 6/7: barra de ferramentas -> campos com marcas e alinhamento
-  Formatação salva no AST -> estilos preservados no DOCX/PDF
-  Maiores 2.0.0: subitens estruturados + gabaritos internos
-  Narrativa -> compreensão -> aplicação concreta; mecânicas distintas
-  SEQUENCE: cronologia por relato -> embaralha -> ids impressos -> gabarito calculado
-  Fundamentação semântica na lição; aceita paráfrases fiéis
-  Sem mínimo artificial de palavras
-  Validação local -> revisão textual adicional -> até duas correções
-  Mesma falha local e contagens sem progresso -> interrompe correções
-  Overflow estimado -> salva para edição, sem regeneração textual
-  Alternativas curtas -> mesma linha; PDF continua validando encaixe
-  Imagem: ECONNRESET/EPIPE/EAI_AGAIN -> uma nova tentativa da mesma arte
-  Sem regenerar texto; falha persistente -> AI_CONNECTION_INTERRUPTED
-  Logs: fase, tentativa, responseId, contagens e motivo da rejeição
-  TEXT: defeitos objetivos; sugestões não provocam regeneração
-  Três artes obrigatórias (anexo/apoio por questão) -> revisão IMAGES antes do S3
-  TEXT não exige pixels; IMAGES não reabre revisão editorial
-  Arte reprovada -> até duas correções, sem mudar o exercício
-  Persistindo falha -> preserva versão anterior
-  Caça-palavras/cruzadinha textual -> grade nativa editável
-  PDF maiores: reserva cabeçalho e oração antes dos desafios
-  Ajusta alturas das três artes gradualmente, sem cortar texto
-  Publicação: reserva versões aprovadas + lease; falha antes de criar material -> READY_FOR_PUBLICATION
-  Item 7 exige ids 1, 2, 3; validação local preserva o motivo da falha
-  Item 7: fonte é a lição aprovada, sem assets de outras etapas
-  OpenAI item 7: saída limitada; 429 temporário -> espera -> até duas tentativas
-  Edição salva -> sincroniza campos -> mesmo conteúdo no PDF
-  Editor avisa excesso; PDF rejeita folha ilegível (422), sem corte
-  AST + assets -> duas metades A4 de altura fixa, texto e artes ajustados
-  Maiores: core isolado -> AST -> uma página A4 inteira
-  Prompts: menores 4-7, maiores 8-11; questões ligadas ao tema
-  Artes funcionais opcionais; letras permitidas em enigmas
-  Itens 6/7 sem galeria externa; demais editores preservados
+  apiKey criptografada (enc:v2) quando há chave mestra
+  Resposta só informa hasApiKey
+  Provedor ativo sem chave -> 400
 end note
-Frontend -> API: POST /publish-week-material
-API -> MySQL: lock; READY/PUBLISHING (lease expirado) -> PUBLISHING + lease + versões reservadas
-API -> Week: verifica página existente por sourceLessonId ou tag [origem:licao:id]
-alt página já existente encontrada (recuperação de interrupção)
-  API -> MySQL: PUBLISHED + weekMaterialId existente
-  API --> Frontend: vínculo recuperado sem duplicar materiais ou páginas
-else primeira publicação
-  API -> API: renderizar os oito PDFs das versões aprovadas reservadas
-  API -> Week: criar página Semana + tema, rota, documentos, sourceLessonId e tag [origem:licao:id]
-  Week --> API: weekMaterialId
-  API -> MySQL: PUBLISHED + weekMaterialId (limpa lease)
-  API --> Frontend: vínculo persistido
+
+== Criação ==
+Administrador -> Frontend: cria pacote
+Frontend -> API: POST /lessons (REGULAR ou SPECIAL)
+API -> MySQL: transação: lição + etapas (8 no semanal, 3 no especial)
+
+== Produção (por etapa, na ordem) ==
+loop cada etapa
+  Administrador -> Frontend: gerar
+  Frontend -> API: POST /stages/generate
+  API -> API: valida pedido (visual inválido -> 400)
+  API -> MySQL: snapshot de provedor + prompt efetivo no pedido; etapa GENERATING
+  API --> Frontend: lição (sem aguardar a IA)
+
+  group tentativa em segundo plano (máx. 3 por pedido)
+    API -> MySQL: lease com UUID da tentativa, relógio do banco (30 s, renovada a cada 10 s)
+    API -> Queue: texto (reaproveita checkpoint se o upstream não mudou)
+    Queue -> LLM: uma chamada por job
+    LLM --> Queue: JSON
+    Queue --> API: resultado
+    API -> API: validação local e correções limitadas
+    API -> MySQL: checkpoint do texto
+    loop cada arte
+      API -> Queue: imagem
+      Queue -> LLM
+      LLM --> Queue: PNG/JPEG
+      Queue --> API
+      API -> API: valida assinatura e tamanho (15 MiB)
+      API -> S3: upload
+      API -> MySQL: checkpoint da URL
+    end
+    API -> MySQL: transação: lock + posse da lease + upstream inalterado -> versão + etapa
+  end
+  note right of API
+    Lease perdida ou desligamento -> aborta a tentativa
+    Falha -> restaura status anterior, mantém versão anterior, failureCode
+    Upstream mudou -> UPSTREAM_CHANGED e remove uploads
+    3 tentativas -> GENERATION_ATTEMPTS_EXHAUSTED
+  end note
+
+  Administrador -> Frontend: edita e salva
+  Frontend -> API: PATCH /stages/content (lockVersion)
+  API -> MySQL: reconcilia AST sobre o dado do servidor -> nova versão; posteriores STALE
+  Administrador -> Frontend: conclui
+  Frontend -> API: POST /stages/complete-production (lockVersion, acknowledgeStale?)
+  API -> MySQL: prontidão + etapa anterior concluída -> PRODUCER_APPROVED
 end
 
-Administrador -> Frontend: publicar novamente
+== Revisão ==
+Frontend -> API: POST /package/submit-review
+API -> MySQL: PACKAGE_READY -> IN_REVIEW
+loop cada item
+  Frontend -> API: GET /stages/:stage/preview.pdf (lockVersion, versionId)
+  alt aprovar
+    Frontend -> API: POST /stages/approve (lockVersion)
+    API -> MySQL: versão lida sob lock + prontidão -> APPROVED
+  else devolver
+    Frontend -> API: POST /stages/request-changes (lockVersion, note)
+    API -> MySQL: CHANGES_REQUESTED + observação aberta
+  end
+end
+opt erro notado após a última aprovação
+  Frontend -> API: POST /stages/reopen (lockVersion, note)
+  API -> MySQL: READY_FOR_PUBLICATION -> CHANGES_REQUESTED
+end
+
+== Publicação ==
+Administrador -> Frontend: publicar
 Frontend -> API: POST /publish-week-material
-API -> MySQL: lê PUBLISHED + vínculo
-API --> Frontend: mesmo weekMaterialId
+API -> MySQL: lock; READY_FOR_PUBLICATION -> PUBLISHING + lease (60 s) + versões reservadas
+API -> Week: procura material por sourceLessonId
+alt material já existe (recuperação)
+  API -> MySQL: PUBLISHED + weekMaterialId existente
+else primeira publicação
+  API -> API: um PDF por etapa aprovada (DOCX -> LibreOffice, cache por versão)
+  API -> MySQL: confere posse da lease
+  API -> Week: cria página (semana + tema, documentos, sourceLessonId)
+  Week --> API: weekMaterialId (aviso por e-mail)
+  API -> MySQL: PUBLISHED + vínculo, condicionado à posse da lease
+end
+API --> Frontend: { lesson, weekMaterialId }
+note right of API
+  Falha antes de criar o material -> READY_FOR_PUBLICATION
+  Reconciliador a cada 5 s conclui ou libera publicações com lease vencida
+  Publicar de novo devolve o mesmo vínculo
+end note
+
+== Pós-publicação ==
+Frontend -> API: POST /archive ou /unarchive
+API -> MySQL: PUBLISHED <-> ARCHIVED
 @enduml

@@ -596,211 +596,102 @@ If today were Sunday, 11/23/2025:
 ---
 ⬅️ [Back to Documentation Hub](README.md)
 
-## Estúdio: padrão editorial da lição bíblica
+## Estúdio Clubinho — regras vigentes
 
-A etapa LESSON usa template 4.4.0 e prompt com notas curadas das Semanas 14,
-15, 25 e 26: narrativa participativa, orientações ao professor, preservação das
-escolhas do exemplo correspondente e sinalização de referências incompletas.
-Cenas ficam em visualScenes, fora da história; o schema admite 8 a 10 perguntas.
-A oração final separada é opcional (string vazia por padrão), e sua seção vazia
-não é renderizada. A oração do apelo permanece. Editor ordena as seções
-independentemente da ordem das propriedades do JSON. Ver api-ai-lessons.md.
+Referência completa: [api-ai-lessons.md](api-ai-lessons.md). Regras anteriores
+(visuais por trecho literal em lições regulares, mínimos de palavras e artes
+opcionais do item 7, reconciliação manual de publicação) foram substituídas e
+estão resumidas na seção "Histórico" daquele documento.
 
-## Estúdio: generation lease ownership
+### Pacotes e acesso
 
-Every generation attempt uses a distinct UUID that fits `generation_lease_owner`
-(`varchar(36)`). Acquisition, heartbeat, commit and failure handling share that
-attempt token; a worker whose lease has been taken over cannot commit its result.
-Startup and the five-second scheduler resume persisted requests only when their
-lease is absent or expired. The owner does not concatenate worker and attempt IDs.
+- Todas as rotas exigem JWT e papel de administrador; a API é a autoridade.
+- Material Semanal (`REGULAR`): oito itens. Material Especial (`SPECIAL`): três
+  itens (lição, visuais da história, visuais do versículo), semana opcional.
+- Cada etapa tem versões imutáveis. Gerar ou salvar uma etapa marca as
+  posteriores já iniciadas como `STALE`; salvar conteúdo idêntico não cria
+  versão nem invalida nada.
 
-The generation commit compares complete upstream version content, reloaded after
-the lesson lock in the same transaction. Dependencies follow canonical stage
-order for both checksums. Missing relations in the lightweight locking query and
-changes in query ordering must not produce `UPSTREAM_CHANGED`; actual upstream
-content changes still reject the result and clean up its uploaded assets.
+### Fluxo e concorrência
 
-## Estúdio: configuração de provedores
+- O status da lição é derivado das etapas por uma única função; `PUBLISHING`,
+  `PUBLISHED` e `ARCHIVED` são transições explícitas.
+- Enquanto há publicação ou geração em andamento, salvar, concluir, aprovar,
+  devolver, reabrir e excluir são recusados.
+- Concluir, aprovar, devolver e reabrir exigem o `lockVersion` exibido ao
+  usuário; a versão é lida sob o lock da lição.
+- Concluir exige a etapa anterior concluída e o conteúdo pronto. Item `STALE`
+  ou `FAILED` produzido a partir de versões anteriores dos itens precedentes
+  só é concluído com confirmação explícita (`acknowledgeStale`).
+- Aprovar valida a prontidão; devolver não, para que um item quebrado possa
+  ser devolvido. A nota de devolução/reabertura é obrigatória e vira
+  observação, que pode ser marcada como resolvida.
+- Pacote pronto para publicação pode ter um item aprovado reaberto.
+- Lição publicada pode ser arquivada e restaurada; lição publicada ou
+  arquivada não pode ser excluída.
+- Tema, semana e referência não são editáveis após a criação.
 
-O documento da etapa de lição separa o cabeçalho em `LIÇÃO <semana>`,
-`TÍTULO` e o tema. A semana cadastrada prevalece sobre números produzidos
-pelo modelo; referências e propósito permanecem em suas seções próprias.
-O detalhe retorna as versões antigas com esse mesmo cabeçalho no editor,
-preservando o restante do documento e sem escrever no banco durante a leitura.
+### Geração
 
-A geração resolve o provedor ativo e todos os parâmetros de LLM exclusivamente
-na tabela ai_provider_settings, gerenciada pela página de configurações.
-GET/PUT /api/v1/lessons/providers/settings requerem administrador; o PUT salva
-ambos os provedores e a escolha ativa atomicamente. Não há leitura de env,
-credenciais embutidas, fallback entre provedores ou sucesso simulado em falhas
-de persistência. maxRetries e retryBaseDelayMs são inteiros não negativos.
+- O pedido é persistido antes da resposta; a IA roda em segundo plano.
+- Provedor, modelos, parâmetros e prompt do administrador são congelados no
+  servidor no momento do pedido; o cliente não pode informá-los.
+- A lease de cada tentativa usa um UUID próprio e o relógio do banco. Lease
+  perdida aborta a tentativa; o desligamento libera as leases.
+- Cada pedido tem no máximo 3 tentativas. Texto e imagens já produzidos são
+  reaproveitados na retomada enquanto os itens anteriores não mudaram.
+- Falha de geração preserva a versão anterior e restaura o status anterior da
+  etapa; sem versão anterior, a etapa vai a `FAILED`. Uma tentativa sem posse nunca grava versão.
+- Imagens do provedor são validadas (PNG/JPEG, até 15 MiB) antes do upload.
+- Brincadeira e fixação têm no máximo 8 passos, um visual por passo.
+- Lições regulares geram kit de recortes nos visuais da história; lições
+  especiais geram cartazes de cena por trecho literal da narrativa.
+- A meditação dos maiores tem três atividades, de 1 a 6 subitens por bloco,
+  sempre três imagens e revisão separada de texto e de artes.
+- O trabalho manual gera uma única arte para colorir.
+- As regras editoriais do prompt orientam a IA e exigem autorrevisão; não
+  substituem a revisão humana.
 
-## Estúdio: formatação manual na exportação
+### Provedores e prompts
 
-A versão Tiptap salva prevalece na lição, brincadeira, fixação e meditações
-editadas manualmente. Marcas de fonte, tamanho, cores e links, atributos de
-espaçamento e células mescladas são convertidos para DOCX antes do PDF.
-A normalização do cabeçalho já separado preserva suas marcas. A prévia e a
-exportação recebem a origem da versão para identificar meditações editadas,
-que substituem a imposição baseada no JSON estruturado antigo.
+- Configurações vêm exclusivamente de `ai_provider_settings`; nada é lido do
+  ambiente e não há fallback entre provedores.
+- Chaves de API nunca são devolvidas; são criptografadas quando a chave mestra
+  está configurada, e em produção uma chave nova não é salva sem ela.
+- Ativar um provedor sem chave é recusado. Qualidade, esforço e tamanho de
+  imagem são valores enumerados; retries do Gemini vão de 0 a 5.
+- O prompt personalizado é complemento do prompt-base, por administrador,
+  categoria e etapa, com escrita condicional por versão.
+- Toda chamada a provedor passa pela fila de IA.
 
-## Estúdio: sub-histórias da lição
+### Conteúdo editado e exportação
 
-Temas e orientações com múltiplos relatos exigem subtítulos separados no
-prompt compartilhado pelos provedores. O marcador de linha `###` em story
-vira título H3 no editor e na exportação, inclusive no fallback estruturado.
-A extração da narrativa editada mantém esses marcadores para preservar a
-separação nos produtos posteriores. Não há mudanças no schema ou endpoints.
+- O AST editado é a fonte da prévia e da exportação. Na reconciliação, a base é
+  o dado estruturado do servidor; o JSON enviado pelo cliente não é persistido.
+- Visuais da história, visuais do versículo e trabalho manual são
+  integralmente autoritativos do servidor.
+- Remover o título de uma seção da lição esvazia o campo correspondente.
+- A edição não adiciona, remove nem troca URLs de artes.
+- Formatação manual (fontes, tamanhos, cores, links, espaçamento, tabelas) é
+  convertida para DOCX antes do PDF.
+- Conteúdo que não cabe na folha (meditações, trabalho manual) é rejeitado com
+  422 em vez de ser cortado.
+- Imagens são lidas do bucket pelo SDK; o download HTTP de contingência bloqueia
+  destinos internos, redirecionamentos e arquivos acima de 15 MiB.
 
-## Estúdio: clareza do ensino e versículo curto
+### Publicação e arquivos
 
-O template 4.4.0 orienta um propósito específico em uma frase, versículo NVI
-curto e ligado à lição (até 20 palavras como preferência, sem limite rígido),
-narrativa sem emoções ou intenções inventadas e aplicação para quem já crê
-e quem deseja seguir Jesus. Versículos históricos são sugestões; os pedidos
-explícitos do administrador prevalecem. Músicas não tiveram alteração.
-
-O prompt 4.4.0 exige revisão interna com exemplos explícitos de especulações
-a retirar e pelo menos dois exemplos infantis de pecado. Quando suficiente
-ao contexto, uma frase bíblica de 3 a 12 palavras é preferida. A sigla NVI
-redundante é removida da referência canônica, da montagem do editor e do
-fallback estruturado do PDF, sem truncar ou reescrever o texto bíblico.
-
-## Estúdio: integridade genérica da narrativa
-
-A geração de qualquer lição segue regras gerais de desfecho, harmonização
-cuidadosa, linguagem infantil e coerência das perguntas. Antes de salvar,
-verificações formais rejeitam narrativa vazia, aspas sem fechamento, sinal de
-continuação no fim e subtítulo sem conteúdo. Gemini não aceita finishReason
-interrompido como sucesso; o fallback continua restrito aos modelos salvos
-do mesmo provedor. A falha preserva a versão anterior e tem mensagem específica
-para incompletude. As regras formais não substituem a revisão humana do sentido.
-
-### Shared quality across production stages
-
-All eight stage base prompts and provider template contracts include the same generic quality policy, including administrator-customized prompts. Each stage also receives specific completeness checks: narrative endings and scene fidelity, executable games and verse dynamics, complete verse card sequences, age-appropriate meditations with solvable activities and checked answers, and usable printable craft instructions. Derived stages preserve the approved verse verbatim; only the lesson selects a short contextual verse. These instructions require provider self-review and do not replace human semantic review. Lesson template version is 4.5.0; other stage contracts increment their minor versions. Existing saved materials are unchanged until regeneration.
-
-## Estúdio: raciocínio OpenAI por modelo
-
-A requisição omite `reasoning.effort` em modelos sem suporte, como GPT-4o,
-GPT-4o mini e GPT-4.1, inclusive com valor salvo `none`. As famílias GPT-5,
-GPT-6 e o1/o3/o4 recebem o esforço configurado, exceto variantes `-chat`.
-A configuração persistida não é alterada. Ver api-ai-lessons.md.
-
-### Meditação dos menores — folha de referência
-
-Prévia e exportação usam o formato das Semanas 25 e 26: duas cópias na mesma
-página A4, logo específico à esquerda, duas atividades em colunas, versículo
-em destaque e faixa de oração. Edições de conteúdo preservam esse formato e
-os assets existentes. Instruções omitidas em ASTs antigos são recuperadas dos
-dados estruturados; respostas não aparecem na folha infantil. A geração das
-artes produz artes funcionais completas associadas aos desafios,
-com rótulos indispensáveis ao enigma, sem gabarito e com tamanho limitado na folha.
-
-O editor específico da meditação dos menores exibe duas cópias sincronizadas
-e salva um único AST. O PDF fixa a altura de cada metade e adapta fonte e
-artes ao espaço disponível. A revisão usa a mesma folha sem edição.
-Os maiores usam outro core isolado, com página A4 inteira e três desafios.
-A galeria externa de ilustrações é omitida nos itens 6 e 7; demais itens mantêm seu editor.
-
-Meditation age groups are 4–7 and 8–11. The mandatory base prompt remains
-active with custom instructions and connects every challenge to the approved
-lesson theme. Younger sheets use two complementary activities; older sheets
-use three varied challenges. Puzzle artwork is functional and optional for
-text-only questions; free coloring is exceptional.
-
-Items 6 and 7 have a formatting toolbar in their isolated editors. The saved
-canonical AST retains field marks, headings, tables, links, subscript/superscript
-and paragraph spacing; native DOCX/PDF
-rendering uses them in the same meditation sheet. Other stage editors and
-exports keep their existing behavior.
-
-Older meditation must contain substantial blocks, rather than three isolated
-questions. Generated instructions totaling fewer than 200 words trigger up to two
-targeted correction attempts; still-incomplete output is rejected before image uploads.
-Generation preserves the canonical theme and references in the header. Older
-panels use text beside functional artwork and proportionate row heights.
-
-Older PDF layout reserves footer space, including additional wrapped header
-and prayer lines. Text word-search grids must have uniform row lengths and
-contain every listed word; malformed puzzles receive up to two targeted corrections
-before image generation. Corrections include the previous response and counts
-for instructions only; no header, answers or artwork prompts count toward density. Images may not combine multiple activity panels.
-Item 7 permits text-only worksheets without printable assets. All other
-derived-stage asset requirements remain active. Local validation failures
-preserve their diagnostic under AI_CONTENT_INVALID.
-Older generation uses approved lesson text rather than younger activity text.
-Item 7 OpenAI text calls bound output reservation and retry only temporary rate
-limits, respecting the server wait. Other stages retain their request behavior.
-
-Story visual generation validates literal coverage of the complete approved narrative,
-sequential IDs and the requested asset count before creating images. Invalid output
-receives up to two targeted corrections using the approved story and previous JSON.
-Valid output makes no extra text calls. Persistent content failures retain
-AI_CONTENT_INVALID; provider errors are propagated without content correction retries.
-
-Older meditation rebuilds invalid recognizable text word-search grids locally
-from their listed words before validation and after each text correction. The
-rectangular grid includes every listed word, with a regenerated coordinate answer
-and no duplicate image for the repaired activity. Ambiguous lists still follow
-the bounded correction path and retain AI_CONTENT_INVALID on persistent failure.
-
-Older meditation exports also repair saved text puzzles after applying editor
-edits, synchronize the corrected activity in the renderable AST and retain
-formatting in unaffected fields. The word list is matched on its own line,
-so the heading "Caça-palavras:" cannot be mistaken for the list. Puzzle letters
-render in equal native DOCX cells; activity numbers are not duplicated and
-extra generic answer lines are omitted. Sparse text uses a larger readable font.
-If two full-sheet corrections still leave fewer than 200 words and an approved
-narrative exists, generation makes at most three focused block corrections.
-Each requests six complete subitems and six paired answers with at least 110
-words, merges only the corrected block and removes its obsolete artwork.
-Malformed or insufficient block output is not merged; persistent invalid content
-still fails with AI_CONTENT_INVALID. This applies to both configured providers.
-
-The older sheet fits font and image size against estimated wrapped prose,
-native grid row height and reserved prayer space. Grid letters never count as
-prose words for density validation, even when they are separated by spaces.
-
-### Meditação dos maiores (Estúdio, etapa 7)
-
-- Contrato 2.0.0 independente do tema: três mecânicas distintas com narrativa,
-  compreensão e aplicação concreta, subitens e gabaritos completos.
-- Qualidade não é contagem mínima de palavras. Revisão textual adicional resolve
-  exercícios e verifica repetição, fidelidade e adequação etária; revisão visual
-  inspeciona as artes reais antes do upload, com correções limitadas.
-- Nenhuma arte redundante em questão textual; grade de caça-palavras é nativa.
-  Não converter um enigma em seis perguntas para aumentar extensão.
-- Edição salva alimenta editor e PDF. Transbordamento é sinalizado no editor;
-  exportação que não caiba com fonte legível retorna 422, sem cortar a folha.
-- Aprovação humana continua necessária. Conteúdo antigo não é reescrito sozinho.
-
-A fundamentação (`sourceExcerpt`) do item 7 aceita trechos e paráfrases fiéis. A validação local exige evidência preenchida; a revisão semântica obrigatória confronta evidência e exercícios com a lição aprovada. Diferenças literais não provocam rejeição automática; fatos sem apoio continuam sujeitos a correção e falha após o limite de tentativas.
-
-O item 7 aceita de 1 a 6 subitens completos por bloco para todas as mecânicas. Não há mínimo fixo de quatro perguntas para narrativa ou compreensão. A revisão obrigatória avalia substância e cobertura da lição; blocos vazios, incompletos ou excessivos continuam rejeitados.
-
-Diagnóstico do item 7: logs `[meditation-older]` identificam fase, tentativa, responseId, contagens de palavras/subitens e motivos de rejeição, sem imprimir a folha ou os prompts. Introduções não vazias de até 45 palavras não exigem mínimo de 15 palavras. Correções que repetem a mesma falha local com as mesmas contagens são interrompidas antes de nova chamada paga; a mensagem explica a ausência de progresso.
-
-O encaixe estimado do item 7 é diagnóstico de diagramação, não motivo para regenerar texto via IA. Após aprovação semântica, a versão é salva para edição mesmo com overflow estimado; o log `phase=layout` informa alturas disponível/necessária, alturas por bloco e fonte. Editor sinaliza excesso e exportação continua bloqueando cortes. Alternativas curtas são impressas juntas na mesma linha, preservando ordem, numeração e gabarito.
-
-Regra vigente do item 7: sempre três imagens, IDs 1, 2 e 3, uma por questão como anexo ou apoio visual. A exigência inclui questões textuais e substitui a antiga regra de imagens opcionais. Caça-palavras mantém grade nativa e recebe ilustração de apoio sem duplicar a grade. Revisão aceita apoio contextual relacionado à questão, preservando proibição de respostas expostas, enunciados duplicados e jogos não solicitados.
-
-Revisão do item 7 declara `reviewPhase` TEXT (antes da geração de artes) ou IMAGES (após). Issues possuem severity BLOCKER/SUGGESTION e code categorizado. Sugestões editoriais não causam regeneração; ausência de imagem pronta não bloqueia TEXT. IMAGES avalia somente defeitos das artes relacionadas ao texto aprovado, sem reabrir redação/aplicação. Gabarito incorreto, fatos sem apoio e exercícios incompletos continuam bloqueantes na fase textual. Logs distinguem advisory e outside-phase sem uma chamada adicional de classificação.
-
-SEQUENCE no item 7 usa `sequenceEvents` com relato (`story`), acontecimento (`text`) e posição cronológica dentro do relato (`order`). O servidor separa relatos, embaralha sem entregar a ordem resolvida, atribui `displayedId` e calcula o gabarito a partir desses identificadores. Posições faltantes/repetidas, grupos unitários e eventos duplicados são rejeitados localmente. A revisão semântica confere acontecimentos na fonte; uma inversão precisa identificar os fatos concretos envolvidos, nunca presumir que o gabarito de uma lista embaralhada seja 1,2,3. O servidor ignora apontamentos ANSWER_KEY somente quando lista e gabarito da sequência correspondem exatamente ao cálculo local; cronologia semanticamente errada permanece bloqueante como SOURCE_FACT. Gabaritos alterados ou listas divergentes não recebem essa exceção. A mesma instrução montada alimenta edição e PDF.
-
-Item 8 (Trabalho manual): a geração de arte aplica finalidade MANUAL_COLORING e um prompt obrigatório de contornos pretos, fundo e interiores brancos, sem cores, cinza, sombras ou preenchimentos. Essa regra é aplicada após a composição proposta, inclusive se o texto gerado sugerir uma paleta colorida. Gera uma única arte para pintar; o exportador monta as duas cópias de impressão.
-
-O PDF do item 8 usa A4 retrato explícito e duas cópias idênticas empilhadas numa única linha de tabela não divisível. O dimensionamento reserva cabeçalho e versículo antes da imagem, preserva proporções e inclui separador para recorte. Texto excepcionalmente longo que elimina o espaço mínimo da arte é rejeitado antes da conversão, sem reduzir a legibilidade nem separar cópias em páginas distintas.
-
-Cada uma das duas cópias do trabalho manual possui moldura preta contínua nos quatro lados, com margem interna segura; ambas permanecem no mesmo bloco indivisível em A4.
-
-Falhas ao carregar a lição, exportar ou converter o PDF durante a publicação também restauram READY_FOR_PUBLICATION quando nenhum material foi criado; não deixam a lição presa em PUBLISHING. A meditação dos maiores reduz os limites de altura das três imagens gradualmente (até 140px) antes de rejeitar encaixe, preservando fontes de pelo menos 10pt e todos os textos/imagens.
-
-Weekly material publication now renders the eight approved stages as eight independently named PDF documents, each with a unique upload field and filename. All PDFs must succeed before the weekly page is created. The page title includes the week number and theme, and its public route follows the existing weekly-material route generator (`materiais_semanal_` + normalized title). Consolidated PDF export remains available separately. Already published lessons retain their existing link and are not silently duplicated or rewritten.
-
-Image generation retries a transient socket reset (ECONNRESET/EPIPE) or temporary DNS failure (EAI_AGAIN) exactly once after 1.5 seconds, recreating only the same image request. Text and previously completed artwork are not regenerated during that retry. Invalid requests, authorization/billing/429 errors, and ambiguous timeouts are not retried by this policy. Exhausted connection failures expose AI_CONNECTION_INTERRUPTED rather than AI_UNKNOWN_ERROR; the previous persisted version remains intact. Provider retries can incur additional image charges.
-
+- A publicação reserva a lição com lease, renderiza um PDF por etapa aprovada
+  antes de criar o material e confirma o vínculo condicionado à posse da lease.
+- `sourceLessonId` é único no material semanal; publicar duas vezes devolve o
+  mesmo vínculo. Publicações interrompidas são reconciliadas a cada 5 s.
+- Falha antes de criar o material devolve a lição a `READY_FOR_PUBLICATION`.
+- Publicar cria o material e dispara o aviso por e-mail; não define a semana
+  atual.
+- Na exclusão, só objetos da própria lição e não referenciados em outro lugar
+  são removidos do S3, depois do commit.
+- O auditor de órfãos é dry-run por padrão, ignora objetos recentes e nunca
+  apaga órfãos do Estúdio.
 
 ## Clubinho photos, videos and authorship
 
@@ -865,3 +756,14 @@ run the generated migration normally against the existing production schema.
 - People receive no generative image edits; videos are skipped. Essential document visuals stay original. Guard failures are visible to administrators.
 - Original and historical artifacts survive edits and publication. Deleting the idea or its containing page cleans history transactionally, with reference-checked S3 cleanup after commit.
 - See [API, worker and rollout details](api-ideas-enhancement.md).
+
+## Fila compartilhada de requisições de IA
+
+Todas as chamadas de lição, revisão, imagem, melhoria/reprocessamento de ideias
+compartilhadas e catálogo de modelos ao vivo passam por uma única fila
+Redis/BullMQ. A concorrência global padrão é um, somadas todas as réplicas da
+API. Cada retry de feature reentra na fila; falha do Redis nunca dispara HTTP
+direto ao provedor, e a API continua subindo sem Redis, com as rotas de IA
+degradadas. Jobs de um processo que deixou de existir são descartados. As
+leases de domínio e as decisões de publicação permanecem no MySQL. Ver
+[regras da fila](ai-request-queue.md).

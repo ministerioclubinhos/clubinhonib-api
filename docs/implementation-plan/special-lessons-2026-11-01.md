@@ -1,6 +1,6 @@
 # Estúdio Clubinho — Plano de Implementação Backend: Lições Especiais (`SPECIAL`), 2026-11-01
 
-Status: planejado (aguardando aprovação para implementação).
+Status: implementado. Nota de 2026-11-10: a referência vigente é [api-ai-lessons.md](../api-ai-lessons.md).
 
 Referências de domínio analisadas:
 - [`lições/especial/licao_especial.pdf`](../../../lições/especial/licao_especial.pdf) — *"O Picolé Roubado"*: Lição Especial baseada em narrativa contemporânea nos dias de hoje (Daniel, Rodrigo e Sérgio), estruturada em cenas/cartazes (`Cartaz 1` a `Cartaz 7`) e conectada organicamente a múltiplas referências bíblicas (`Êxodo 20:15; Efésios 4:27,28; Romanos 6:23; 1 Coríntios 15:3,4; Efésios 1:7; Romanos 10:13`), seguida de `APLICAÇÃO / APELO` e `ACONSELHAMENTO / CANTINHO DO ACONSELHAMENTO`.

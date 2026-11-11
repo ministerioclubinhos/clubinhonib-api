@@ -20,7 +20,26 @@ const auditor = require(auditorPath) as {
     lessonVersionsCount: number;
     activeStagesCount: number;
   }>;
+  classifyUnreferencedObjects: (input: {
+    objects: AuditObject[];
+    byKey: Map<string, unknown[]>;
+    activeGeneratingLessonIds: Set<string>;
+    graceHours?: number;
+    now?: number;
+  }) => {
+    orphans: AuditObject[];
+    recentUploads: AuditObject[];
+    inFlightStudioUploads: AuditObject[];
+    studioOrphans: AuditObject[];
+  };
+  parseArgs: (argv: string[]) => { graceHours: number };
 };
+
+interface AuditObject {
+  key: string;
+  size: number;
+  lastModified?: Date;
+}
 
 describe('S3 orphan auditor (BE02 — A06 protection)', () => {
   it('inclui referências de media_items, lesson_versions (atuais e históricas) e lesson_stages em geração', async () => {
@@ -246,5 +265,64 @@ describe('S3 orphan auditor (BE02 — A06 protection)', () => {
     ).toBe(true);
     expect(deletedKeys).not.toContain(studioKey);
     expect(deletedKeys).toContain(unrelatedOrphanKey);
+  });
+
+  it('respeita a carência por data, separa órfãos do Studio e nunca os coloca na lista apagável', () => {
+    const now = Date.parse('2026-11-10T12:00:00Z');
+    const old = new Date('2026-10-01T00:00:00Z');
+    const recent = new Date('2026-11-10T06:00:00Z');
+    const lessonId = '6f1d2c3b-4a5e-4f60-8a1b-2c3d4e5f6a7b';
+    const objects = [
+      { key: 'p/uploads/referenced.png', size: 1, lastModified: old },
+      { key: 'p/uploads/old-photo.png', size: 2, lastModified: old },
+      { key: 'p/uploads/just-uploaded.png', size: 3, lastModified: recent },
+      { key: 'p/uploads/no-date.png', size: 4 },
+      {
+        key: `p/uploads/1762700000000_ab12cd34_${lessonId}-LESSON_VISUALS-kit-01.png`,
+        size: 5,
+        lastModified: old,
+      },
+      {
+        key: 'p/uploads/1762700000000_ab12cd34_other-VERSE_VISUALS-card-01.png',
+        size: 6,
+        lastModified: old,
+      },
+    ];
+    const result = auditor.classifyUnreferencedObjects({
+      objects,
+      byKey: new Map([['p/uploads/referenced.png', []]]),
+      activeGeneratingLessonIds: new Set([lessonId]),
+      now,
+    });
+    expect(result.orphans.map((item) => item.key)).toEqual([
+      'p/uploads/old-photo.png',
+    ]);
+    expect(result.recentUploads.map((item) => item.key)).toEqual([
+      'p/uploads/just-uploaded.png',
+      'p/uploads/no-date.png',
+    ]);
+    expect(result.inFlightStudioUploads).toHaveLength(1);
+    expect(result.studioOrphans.map((item) => item.key)).toEqual([
+      'p/uploads/1762700000000_ab12cd34_other-VERSE_VISUALS-card-01.png',
+    ]);
+    // --grace-hours=0 disables only the grace period.
+    expect(
+      auditor
+        .classifyUnreferencedObjects({
+          objects,
+          byKey: new Map(),
+          activeGeneratingLessonIds: new Set(),
+          graceHours: 0,
+          now,
+        })
+        .orphans.map((item) => item.key),
+    ).toContain('p/uploads/just-uploaded.png');
+    expect(auditor.parseArgs(['node', 'x']).graceHours).toBe(48);
+    expect(
+      auditor.parseArgs(['node', 'x', '--grace-hours=72']).graceHours,
+    ).toBe(72);
+    expect(() => auditor.parseArgs(['node', 'x', '--grace-hours=abc'])).toThrow(
+      '--grace-hours',
+    );
   });
 });

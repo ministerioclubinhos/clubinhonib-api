@@ -1,9 +1,7 @@
-import { cutoutKitPromptRules } from '../constants/story-visual-quality.constants';
-import { getLessonTemplate } from '../templates/special-lesson-templates';
+import { AiQueueException } from 'src/shared/providers/ai-queue/ai-queue.exception';
+import { AiRequestQueueService } from 'src/shared/providers/ai-queue/ai-request-queue.service';
+import { AiQueueFeature } from 'src/shared/providers/ai-queue/enums';
 import { lessonImageContextPrompt } from '../utils/lesson-image-context.utils';
-import { LessonCategory } from '../enums/lesson.enums';
-import { OlderMeditationReviewPhase } from '../enums/older-meditation.enums';
-import { OLDER_MEDITATION_REVIEW_PROMPT } from '../constants/older-meditation-contract.constants';
 import { lessonImageTextPolicy } from '../utils/meditation-image.utils';
 import {
   BadGatewayException,
@@ -12,9 +10,22 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { LessonProviderConfig } from './lesson-llm.types';
-import axios, { AxiosError } from 'axios';
+import { AxiosError } from 'axios';
 import { schemaFor } from '../services/open-ai-lesson.service';
-import { serializeTemplate } from '../templates/lesson-templates';
+import {
+  buildLessonSystemPrompt,
+  buildLessonUserPayload,
+  lessonOperationLabel,
+} from '../utils/lesson-system-prompt.utils';
+import { decodeProviderImage } from '../utils/provider-image.utils';
+import {
+  providerHttpStatus,
+  retryProviderRequest,
+} from '../utils/provider-retry.utils';
+import {
+  AI_PROVIDER_MAX_RETRIES,
+  AI_PROVIDER_RETRY_DELAY_CAP_MS,
+} from '../constants/ai-provider-settings.constants';
 import {
   DEFAULT_GEMINI_IMAGE_MODEL,
   DEFAULT_GEMINI_IMAGE_SIZE,
@@ -23,7 +34,15 @@ import {
   DEFAULT_GEMINI_TEXT_FALLBACK_MODEL,
   DEFAULT_GEMINI_TEXT_MODEL,
   GEMINI_API_BASE_URL,
+  GEMINI_FAILURE_CODE_ALIASES,
+  GEMINI_IMAGE_RETRY_STATUSES,
+  GEMINI_NO_FALLBACK_REASONS,
+  GEMINI_TEXT_RETRY_STATUSES,
   GeminiTextFinishReason,
+  LessonImageOrientation,
+  PROVIDER_REQUEST,
+  PROVIDER_TIMEOUT_FAILURE_CODE,
+  PROVIDER_TIMEOUT_NETWORK_CODES,
 } from './lesson-llm.constants';
 import {
   LessonLlmGenerationInput,
@@ -41,7 +60,15 @@ type GeminiTextResponse = {
     content?: { parts?: Array<{ text?: string }> };
   }>;
   promptFeedback?: { blockReason?: string };
+  usageMetadata?: {
+    promptTokenCount?: number;
+    candidatesTokenCount?: number;
+    totalTokenCount?: number;
+  };
 };
+
+/** A content block another Gemini model would repeat: skips the fallback. */
+class GeminiContentBlockedException extends BadGatewayException {}
 
 type GeminiImageResponse = {
   id?: string;
@@ -52,77 +79,33 @@ type GeminiImageResponse = {
 export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
   private readonly logger = new Logger(GeminiLessonLlmProvider.name);
 
-  constructor(private readonly config: LessonProviderConfig) {}
+  constructor(
+    private readonly config: LessonProviderConfig,
+    private readonly queue: AiRequestQueueService,
+  ) {}
 
   async generateStage(
     input: LessonLlmGenerationInput,
   ): Promise<LessonLlmGenerationResult> {
-    const apiKey = this.requiredApiKey();
+    this.requiredApiKey();
     const primaryModel =
       this.config.get<string>('GEMINI_TEXT_MODEL') || DEFAULT_GEMINI_TEXT_MODEL;
     const fallbackModel =
       this.config.get<string>('GEMINI_TEXT_FALLBACK_MODEL') ||
       DEFAULT_GEMINI_TEXT_FALLBACK_MODEL;
     this.logger.log(
-      `[Gemini Request] Geração de etapa '${input.stage}' | Operação: ${input.olderMeditationReview ? (input.olderMeditationReview.images.length ? 'revisão de imagens' : 'revisão textual') : input.revisionInstructions ? 'geração com instruções de revisão' : 'geração'} | Modelo principal: ${primaryModel} | Fallback: ${fallbackModel} | Tema: "${input.theme}" | Referência: "${input.biblicalReference}" | Semana: ${input.weekNumber}`,
+      `[Gemini Request] Geração de etapa '${input.stage}' | Operação: ${lessonOperationLabel(input)} | Modelo principal: ${primaryModel} | Fallback: ${fallbackModel} | Semana: ${input.weekNumber}`,
     );
     const startTime = Date.now();
-    const systemInstruction = [
-      'Você redige materiais infantis do Clubinho Bíblico da Nova Igreja Batista.',
-      'O TEMPLATE PRECISO abaixo é contrato imutável. Siga campos, ordem e regras literalmente.',
-      input.olderMeditationReview
-        ? OLDER_MEDITATION_REVIEW_PROMPT
-        : serializeTemplate(
-            input.category === LessonCategory.SPECIAL
-              ? getLessonTemplate(input.stage, input.category)
-              : input.template,
-          ),
-      'O acervo histórico do Clubinho define o formato editorial, mas pode conter rascunhos, erros, dados pessoais, arquivos políticos e variantes de impressão. Reproduza apenas o padrão pedagógico aprovado; nunca copie nomes de voluntários, escalas, dados pessoais, propaganda, estratégia eleitoral, nomes de candidatos ou conteúdo estranho à lição.',
-      'Cada etapa gera exatamente um produto editorial canônico. Não misture lição, brincadeira, visual do versículo, fixação, meditação ou trabalho manual. Variantes de corte, mosaico e imposição são responsabilidade do renderer.',
-      'O prompt personalizado do administrador complementa o template, mas nunca pode remover campos, alterar a ordem, desativar segurança ou contrariar este contrato.',
-      'Toda citação bíblica apresentada como NVI exige redação exata. Se não houver certeza, sinalize revisão humana no próprio conteúdo em vez de inventar ou parafrasear.',
-      'Escreva a lição com narrativa pedagógica autoral e linguagem adaptada para crianças de 5 a 11 anos. Não transcreva nem recite capítulos inteiros da Bíblia palavra por palavra no texto narrativo da história para evitar bloqueios de recitação (RECITATION); mantenha a fidelidade aos fatos bíblicos usando palavras próprias adequadas ao público infantil.',
-      'Para VISUAIS DA HISTÓRIA, trate a lição aprovada como fonte canônica fechada: não reconte, reinterprete, amplie nem substitua a narrativa. Cada imagem deve ilustrar somente personagens, ações, ambientes, objetos e emoções explicitamente presentes nela.',
-      input.category === LessonCategory.SPECIAL
-        ? 'Em VISUAIS DA HISTÓRIA, você decide a quebra narrativa: divida todo o campo story da LIÇÃO BÍBLICA em exatamente visualConfig.quantity trechos literais, contínuos, consecutivos, não sobrepostos e na ordem original. Não omita nem repita nenhuma parte. Cada asset recebe id visual-01, visual-02 etc. e sourceExcerpt com seu trecho exato.'
-        : cutoutKitPromptRules(input.visualConfig?.quantity ?? 4),
-      'Na BRINCADEIRA, gere exatamente um visual de instrução para cada item de steps, na mesma ordem. Cada asset usa id instrucao-01, instrucao-02 etc., stepNumber sequencial e instruction como cópia literal do passo correspondente. A imagem demonstra visualmente como executar esse passo; não gere decoração genérica nem texto dentro da arte.',
-      'Na BRINCADEIRA, diversão é requisito verificável: combine 2 ou 3 mecânicas lúdicas, mantenha todas as crianças ativas, evite filas, eliminação, espera longa, questionário e encenação passiva. A mesma regra central atende de 5 a 11 anos, com simplificação concreta para 5 a 7 e desafio opcional para 8 a 11 anos.',
-      'Quando previousVariants estiver preenchido para BRINCADEIRA, trata-se de uma regeneração: crie outra brincadeira do zero. Todas as brincadeiras desse histórico são referências negativas. É proibido reutilizar qualquer nome anterior, inclusive com pequena mudança de pontuação, artigo, subtítulo ou grafia. Não revise, adapte, renomeie nem recicle nenhuma dinâmica anterior. Nome, mecânica principal, organização, materiais característicos e sequência de ações devem ser genuinamente diferentes.',
-      'Para VISUAIS DO VERSÍCULO, use canonicalVerse.text e canonicalVerse.reference completos. Você decide a quantidade da melhor divisão semântica do texto, entre uma e nove partes; elas devem reconstruí-lo exatamente. Depois acrescente obrigatoriamente um último item isolado contendo somente a referência completa.',
-      'Em VISUAIS DO VERSÍCULO, a própria imagem gerada é o cartão final e já deve conter o trecho exato em tipografia infantil extragrande, ocupando aproximadamente 95% da área. Não dependa de texto aplicado posteriormente. Siga a identidade da Semana 7 com fundo azul/ciano, raios, nuvens e brilhos somente nas bordas, sem pessoas, personagens, animais, cenas ou objetos reconhecíveis.',
-      'VISUAIS DO VERSÍCULO e FIXAÇÃO DO VERSÍCULO são produtos distintos.',
-      'Quando houver configuração visual escolhida pelo administrador, ela é obrigatória. Gere exatamente a quantidade solicitada, na orientação pedida e usando a estratégia pedagógica selecionada.',
-      'Responda somente conforme o JSON Schema. Não crie etapas posteriores e não use marcadores [Image #].',
-    ].join('\n\n');
-    const userInput = JSON.stringify({
-      ...(input.olderMeditationReview
-        ? {
-            worksheetToReview: input.olderMeditationReview.content,
-            reviewPhase: input.olderMeditationReview.images.length
-              ? OlderMeditationReviewPhase.IMAGES
-              : OlderMeditationReviewPhase.TEXT,
-          }
-        : {}),
-      theme: input.theme,
-      biblicalReference: input.biblicalReference,
-      weekNumber: input.weekNumber,
-      category: input.category ?? LessonCategory.REGULAR,
-      specialContext: input.specialContext ?? null,
-      stage: input.stage,
-      adminPrompt: input.olderMeditationReview ? null : input.adminPrompt,
-      approvedUpstream: input.approvedUpstream,
-      previousVariants: input.previousVariants ?? [],
-      canonicalVerse: input.canonicalVerse ?? null,
-      visualConfig: input.visualConfig ?? null,
-      revisionInstructions: input.revisionInstructions ?? null,
-    });
+    const systemInstruction = buildLessonSystemPrompt(input);
+    const userInput = buildLessonUserPayload(input);
 
     try {
       const models = [
         ...new Set([primaryModel, fallbackModel].filter(Boolean)),
       ];
       let response: { data: GeminiTextResponse } | undefined;
+      let usedModel = primaryModel;
       let rawText = '';
       let lastError: unknown;
       for (const [index, model] of models.entries()) {
@@ -162,9 +145,9 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
                 ),
               },
             },
-            apiKey,
-            120000,
+            PROVIDER_REQUEST.textTimeoutMs,
             `texto com ${model}`,
+            GEMINI_TEXT_RETRY_STATUSES,
           );
 
           const candidate = res.data.candidates?.[0];
@@ -175,9 +158,13 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
             (candidate?.finishReason &&
               candidate.finishReason !== GeminiTextFinishReason.STOP)
           ) {
-            throw new BadGatewayException(
-              `Gemini: ${JSON.stringify({ error: { code: stopReason } })}`,
-            );
+            const message = `Gemini: ${JSON.stringify({ error: { code: stopReason } })}`;
+            throw res.data.promptFeedback?.blockReason ||
+              (GEMINI_NO_FALLBACK_REASONS as readonly string[]).includes(
+                String(stopReason),
+              )
+              ? new GeminiContentBlockedException(message)
+              : new BadGatewayException(message);
           }
           const text = candidate?.content?.parts
             ?.map((part) => part.text ?? '')
@@ -195,9 +182,12 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
           }
 
           response = res;
+          usedModel = model;
           rawText = text;
           break;
         } catch (error: unknown) {
+          if (error instanceof AiQueueException) throw error;
+          if (error instanceof GeminiContentBlockedException) throw error;
           lastError = error;
           const hasFallback = index < models.length - 1;
           if (!hasFallback) throw error;
@@ -214,11 +204,19 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
       this.logger.log(
         `[Gemini Response] Etapa '${input.stage}' gerada em ${elapsed}ms | Response ID: ${responseId} | Conteúdo raw: ${rawText.length} chars`,
       );
+      const usage = response.data.usageMetadata;
       return {
-        content: JSON.parse(rawText) as Record<string, unknown>,
+        content: this.parseStructured(rawText),
         responseId,
+        usage: {
+          model: usedModel,
+          inputTokens: usage?.promptTokenCount,
+          outputTokens: usage?.candidatesTokenCount,
+          totalTokens: usage?.totalTokenCount,
+        },
       };
     } catch (error: unknown) {
+      if (error instanceof AiQueueException) throw error;
       const elapsed = Date.now() - startTime;
       this.logger.error(
         `[Gemini Error] Etapa '${input.stage}' falhou em ${elapsed}ms`,
@@ -236,11 +234,12 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
     purpose?: LessonImagePurpose,
     context?: LessonImageContext,
   ): Promise<Buffer> {
-    const apiKey = this.requiredApiKey();
+    this.requiredApiKey();
     const model =
       this.config.get<string>('GEMINI_IMAGE_MODEL') ||
       DEFAULT_GEMINI_IMAGE_MODEL;
-    const aspectRatio = orientation === 'PORTRAIT' ? '3:4' : '4:3';
+    const aspectRatio =
+      orientation === String(LessonImageOrientation.PORTRAIT) ? '3:4' : '4:3';
     const finalPrompt =
       purpose === LessonImagePurpose.CUTOUT_SHEET
         ? `Prancha de elementos ilustrados para recortar, para crianças de 5 a 11 anos. Orientação obrigatória: ${orientation || 'definida no prompt'}. Sem conteúdo sexual, romântico, erotizado, violência gráfica ou debates de sexualidade. ${lessonImageTextPolicy(purpose)} ${prompt}`
@@ -250,7 +249,7 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
           `violência gráfica ou debates de sexualidade. ${lessonImageTextPolicy(purpose)} ${prompt}`;
 
     this.logger.log(
-      `[Gemini Request] Geração de imagem | Modelo: ${model} | Orientação: ${orientation ?? 'PADRÃO'} (${aspectRatio}) | Tipo: ${visualType ?? 'PADRÃO'} | Prompt: "${prompt.slice(0, 120)}..."`,
+      `[Gemini Request] Geração de imagem | Modelo: ${model} | Orientação: ${orientation ?? 'PADRÃO'} (${aspectRatio}) | Tipo: ${visualType ?? 'PADRÃO'}`,
     );
     const startTime = Date.now();
     try {
@@ -276,9 +275,9 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
               DEFAULT_GEMINI_IMAGE_SIZE,
           },
         },
-        apiKey,
-        180000,
+        PROVIDER_REQUEST.imageTimeoutMs,
         `imagem com ${model}`,
+        GEMINI_IMAGE_RETRY_STATUSES,
       );
       const encoded = response.data.outputImage?.data;
       if (!encoded)
@@ -289,8 +288,9 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
       this.logger.log(
         `[Gemini Response] Imagem gerada em ${elapsed}ms | Tamanho: ${encoded.length} b64 chars`,
       );
-      return Buffer.from(encoded, 'base64');
+      return decodeProviderImage(encoded);
     } catch (error: unknown) {
+      if (error instanceof AiQueueException) throw error;
       const elapsed = Date.now() - startTime;
       this.logger.error(
         `[Gemini Error] Geração de imagem falhou em ${elapsed}ms`,
@@ -309,44 +309,54 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
     return apiKey;
   }
 
+  private parseStructured(rawText: string): Record<string, unknown> {
+    try {
+      const parsed: unknown = JSON.parse(rawText);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed))
+        return parsed as Record<string, unknown>;
+    } catch {
+      // Reported below with a stable message.
+    }
+    throw new BadGatewayException(
+      'Gemini retornou conteúdo estruturado inválido (JSON malformado).',
+    );
+  }
+
   private async postWithRetry<T>(
     url: string,
     body: Record<string, unknown>,
-    apiKey: string,
     timeout: number,
     operation: string,
+    statuses: readonly number[],
   ): Promise<{ data: T }> {
-    const maxRetries = this.configuredInteger(
-      'GEMINI_MAX_RETRIES',
-      DEFAULT_GEMINI_MAX_RETRIES,
+    const maxRetries = Math.min(
+      this.configuredInteger('GEMINI_MAX_RETRIES', DEFAULT_GEMINI_MAX_RETRIES),
+      AI_PROVIDER_MAX_RETRIES,
     );
-    const baseDelayMs = this.configuredInteger(
-      'GEMINI_RETRY_BASE_DELAY_MS',
-      DEFAULT_GEMINI_RETRY_BASE_DELAY_MS,
-    );
-
-    for (let attempt = 0; ; attempt += 1) {
-      try {
-        return await axios.post<T>(url, body, {
-          headers: { 'x-goog-api-key': apiKey },
+    return retryProviderRequest(
+      () =>
+        this.queue.post<T>(url, body, {
+          feature: AiQueueFeature.LESSONS,
           timeout,
-        });
-      } catch (error: unknown) {
-        if (!this.isTransient(error) || attempt >= maxRetries) throw error;
-        const delayMs = baseDelayMs * 2 ** attempt;
-        const status = this.httpStatus(error);
+        }),
+      {
+        maxRetries,
+        baseDelayMs: this.configuredInteger(
+          'GEMINI_RETRY_BASE_DELAY_MS',
+          DEFAULT_GEMINI_RETRY_BASE_DELAY_MS,
+        ),
+        capMs: AI_PROVIDER_RETRY_DELAY_CAP_MS,
+        jitterMs: PROVIDER_REQUEST.retryJitterMs,
+        statuses,
+      },
+      (delayMs, attempt, error) =>
         this.logger.warn(
-          `Gemini indisponível em ${operation} (HTTP ${status}); nova tentativa ${attempt + 2}/${maxRetries + 1} em ${delayMs}ms.`,
-        );
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-      }
-    }
-  }
-
-  private isTransient(error: unknown): boolean {
-    const status = this.httpStatus(error);
-    if (status === 429 && this.isUnavailableFreeTierQuota(error)) return false;
-    return status !== undefined && [429, 500, 502, 503, 504].includes(status);
+          `Gemini indisponível em ${operation} (HTTP ${providerHttpStatus(error)}); nova tentativa ${attempt + 2}/${maxRetries + 1} em ${delayMs}ms.`,
+        ),
+      (error) =>
+        !(error instanceof AiQueueException) &&
+        !this.isUnavailableFreeTierQuota(error),
+    );
   }
 
   private isUnavailableFreeTierQuota(error: unknown): boolean {
@@ -360,33 +370,48 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
     );
   }
 
-  private httpStatus(error: unknown): number | undefined {
-    if (typeof error !== 'object' || error === null || !('response' in error))
-      return undefined;
-    const response = (error as { response?: unknown }).response;
-    if (
-      typeof response !== 'object' ||
-      response === null ||
-      !('status' in response)
-    )
-      return undefined;
-    const status = (response as { status?: unknown }).status;
-    return typeof status === 'number' ? status : undefined;
-  }
-
   private configuredInteger(key: string, fallback: number): number {
     const parsed = Number(this.config.get<string>(key));
     return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
   }
 
+  /**
+   * The message keeps a sanitized `{ error: { code, status } }` JSON so the
+   * Studio can classify the failure; provider text is never forwarded.
+   */
   private externalFailure(
     operation: string,
     error: unknown,
   ): BadGatewayException {
-    const detail =
-      error instanceof AxiosError
-        ? JSON.stringify(error.response?.data ?? error.message)
-        : String(error);
+    let detail = error instanceof Error ? error.message : String(error);
+    if (error instanceof AxiosError) {
+      const data: unknown = error.response?.data;
+      const upstream: unknown =
+        data && typeof data === 'object'
+          ? Reflect.get(data, 'error')
+          : undefined;
+      const read = (key: string): string | undefined => {
+        const value: unknown =
+          upstream && typeof upstream === 'object'
+            ? Reflect.get(upstream, key)
+            : undefined;
+        return typeof value === 'string' && value ? value : undefined;
+      };
+      const status = read('status') ?? read('code');
+      const timedOut = (
+        PROVIDER_TIMEOUT_NETWORK_CODES as readonly string[]
+      ).includes(error.code ?? '');
+      const code = timedOut
+        ? PROVIDER_TIMEOUT_FAILURE_CODE
+        : status
+          ? (GEMINI_FAILURE_CODE_ALIASES[status] ?? status)
+          : undefined;
+      detail = code
+        ? JSON.stringify({
+            error: { code, status, httpStatus: error.response?.status },
+          })
+        : `${error.code ? `[${error.code}] ` : ''}HTTP ${error.response?.status ?? 'sem resposta'}`;
+    }
     return new BadGatewayException(
       `Falha no Gemini durante a geração de ${operation}: ${detail.slice(0, 500)}`,
     );

@@ -7,6 +7,10 @@ import {
   LessonStageType,
   LessonStatus,
 } from '../enums/lesson.enums';
+import {
+  LessonPublicationState,
+  LessonView,
+} from '../enums/lesson-failure-code.enum';
 
 export class LessonVersionResponseDto {
   id: string;
@@ -27,12 +31,6 @@ export class LessonStageResponseDto {
   failureMessage: string | null;
   versions: LessonVersionResponseDto[];
 }
-
-export type LessonPublicationState =
-  | 'IDLE'
-  | 'PUBLISHING'
-  | 'FAILED'
-  | 'PUBLISHED';
 
 export class LessonResponseDto {
   id: string;
@@ -79,8 +77,13 @@ export class LessonPublicationResponseDto {
   weekMaterialId: string;
 }
 
+export class LessonDeleteResponseDto {
+  success: boolean;
+  message: string;
+}
+
 export interface ToLessonResponseOptions {
-  view?: 'full' | 'compact';
+  view?: LessonView;
 }
 
 const mapVersion = (
@@ -96,11 +99,11 @@ const mapVersion = (
 
 const mapStage = (
   stage: LessonStageEntity,
-  view: 'full' | 'compact' = 'full',
+  view: LessonView = LessonView.FULL,
 ): LessonStageResponseDto => {
   const allVersions = stage.versions ?? [];
   const filteredVersions =
-    view === 'compact' && stage.currentVersionId
+    view === LessonView.COMPACT && stage.currentVersionId
       ? allVersions.filter((version) => version.id === stage.currentVersionId)
       : allVersions;
   return {
@@ -119,22 +122,22 @@ const resolvePublicationState = (
   lesson: LessonEntity,
 ): LessonPublicationState => {
   if (lesson.status === LessonStatus.PUBLISHED || lesson.weekMaterialId) {
-    return 'PUBLISHED';
+    return LessonPublicationState.PUBLISHED;
   }
   if (lesson.status === LessonStatus.PUBLISHING) {
-    return 'PUBLISHING';
+    return LessonPublicationState.PUBLISHING;
   }
   if (lesson.publicationFailureMessage) {
-    return 'FAILED';
+    return LessonPublicationState.FAILED;
   }
-  return 'IDLE';
+  return LessonPublicationState.IDLE;
 };
 
 export const toLessonResponse = (
   lesson: LessonEntity,
   options?: ToLessonResponseOptions,
 ): LessonResponseDto => {
-  const view = options?.view ?? 'full';
+  const view = options?.view ?? LessonView.FULL;
   return {
     id: lesson.id,
     theme: lesson.theme,
@@ -158,22 +161,4 @@ export const toLessonResponse = (
       createdAt: comment.createdAt,
     })),
   };
-};
-
-export const computeLessonEventDigest = (lesson: LessonEntity): string => {
-  const stagePart = (lesson.stages ?? [])
-    .map(
-      (stage) =>
-        `${stage.type}:${stage.status}:${stage.lockVersion ?? 0}:${stage.currentVersionId ?? ''}:${stage.failureCode ?? ''}:${stage.failureMessage ?? ''}`,
-    )
-    .join('|');
-  const commentCount = (lesson.comments ?? []).length;
-  return [
-    lesson.id,
-    lesson.status,
-    lesson.weekMaterialId ?? '',
-    lesson.publicationFailureMessage ?? '',
-    stagePart,
-    String(commentCount),
-  ].join('::');
 };

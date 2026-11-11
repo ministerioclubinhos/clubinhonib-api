@@ -80,6 +80,7 @@ Welcome to the official documentation for the **Clubinho NIB API**. This hub ser
 
 ## 🧭 Implementation Plans
 
-- [Estúdio Clubinho](implementation-plan/estudio-clubinho-improvements-implementation-plan.md)
+- [Estúdio Clubinho — plano de 2026-11-01 (implementado, histórico)](implementation-plan/studio-clubinho-improvements-2026-11-01.md)
+- [Estúdio Clubinho — plano de outubro/2026 (superado)](implementation-plan/estudio-clubinho-improvements-implementation-plan.md)
 - [Media Streaming](implementation-plan/media-streaming-implementation-plan.md)
 - [Observability Audit](implementation-plan/observability-audit-implementation-plan.md)

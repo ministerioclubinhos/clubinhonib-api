@@ -1,10 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { AiProviderSettingEntity } from '../entities/ai-provider-setting.entity';
 import { AiProviderSettingsKey } from '../constants/ai-provider-settings.constants';
-
-import { LessonLlmProvider } from '../providers/lesson-llm.types';
+import {
+  StoredAiProviderSettings,
+  StoredAiProviderSettingsMerge,
+} from '../types/ai-provider-settings.types';
 
 @Injectable()
 export class AiProviderSettingRepository {
@@ -20,35 +22,29 @@ export class AiProviderSettingRepository {
     return record?.settings ?? null;
   }
 
-  async saveProviderSettings(
-    provider: AiProviderSettingsKey,
-    settings: Record<string, unknown>,
-  ): Promise<Record<string, unknown>> {
-    await this.repo.save(this.repo.create({ provider, settings }));
-    return settings;
-  }
-
-  async saveAllSettings(settings: {
-    llmProvider: LessonLlmProvider;
-    openai: Record<string, unknown>;
-    gemini: Record<string, unknown>;
-  }): Promise<void> {
+  /**
+   * Read-merge-write under a row lock, so two concurrent saves cannot each
+   * merge over the same stale snapshot and silently drop the other's change.
+   */
+  async updateLocked(
+    providers: AiProviderSettingsKey[],
+    merge: StoredAiProviderSettingsMerge,
+  ): Promise<void> {
     await this.repo.manager.transaction(async (manager) => {
       const repo = manager.getRepository(AiProviderSettingEntity);
-      await repo.save([
-        repo.create({
-          provider: AiProviderSettingsKey.OPENAI,
-          settings: { ...settings.openai },
-        }),
-        repo.create({
-          provider: AiProviderSettingsKey.GEMINI,
-          settings: { ...settings.gemini },
-        }),
-        repo.create({
-          provider: AiProviderSettingsKey.ACTIVE,
-          settings: { llmProvider: settings.llmProvider },
-        }),
-      ]);
+      const rows = await repo.find({
+        where: { provider: In(providers) },
+        lock: { mode: 'pessimistic_write' },
+      });
+      const current: StoredAiProviderSettings = {};
+      for (const row of rows)
+        current[row.provider as AiProviderSettingsKey] = row.settings;
+      const next = merge(current);
+      await repo.save(
+        Object.entries(next).map(([provider, settings]) =>
+          repo.create({ provider, settings: { ...settings } }),
+        ),
+      );
     });
   }
 }

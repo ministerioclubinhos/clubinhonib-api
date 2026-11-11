@@ -7,14 +7,36 @@ import { LessonStageEntity } from '../entities/lesson-stage.entity';
 import { LessonVersionEntity } from '../entities/lesson-version.entity';
 import { LessonCommentEntity } from '../entities/lesson-comment.entity';
 import { LessonStageStatus, LessonStatus } from '../enums/lesson.enums';
-import { QueryLessonsDto, LessonSortField } from '../dto/query-lessons.dto';
+import { QueryLessonsDto } from '../dto/query-lessons.dto';
+import {
+  LESSON_ASSET_REFERENCE_BATCH_SIZE,
+  LESSON_SORT_COLUMNS,
+} from '../constants/lesson-repository.constants';
+import type {
+  LessonEventDigestSource,
+  LessonGenerationRequest,
+} from '../types/lesson-generation.types';
+import { escapeLikePattern } from '../utils/lesson-workflow.utils';
 
-const LESSON_SORT_COLUMNS: Record<LessonSortField, string> = {
-  [LessonSortField.CREATED_AT]: 'lesson.createdAt',
-  [LessonSortField.UPDATED_AT]: 'lesson.updatedAt',
-  [LessonSortField.THEME]: 'lesson.theme',
-  [LessonSortField.WEEK_NUMBER]: 'lesson.weekNumber',
-};
+/** `DATE_ADD` on the database clock: leases never depend on the app clock. */
+function leaseExpiry(seconds: number): string {
+  const safeSeconds = Math.max(1, Math.floor(Number(seconds) || 0));
+  return `DATE_ADD(NOW(), INTERVAL ${safeSeconds} SECOND)`;
+}
+
+/** Last path segment of an asset URL: what uniquely names the object. */
+function assetBaseName(url: string): string {
+  const trimmed = url.trim();
+  try {
+    const path = decodeURIComponent(new URL(trimmed).pathname).replace(
+      /^\/+/,
+      '',
+    );
+    return path.split('/').pop() || trimmed;
+  } catch {
+    return trimmed.split('/').pop() || trimmed;
+  }
+}
 
 @Injectable()
 export class AiLessonsRepository {
@@ -139,8 +161,8 @@ export class AiLessonsRepository {
     }
     if (search?.trim()) {
       query.andWhere(
-        '(LOWER(lesson.theme) LIKE LOWER(:search) OR LOWER(lesson.biblicalReference) LIKE LOWER(:search))',
-        { search: `%${search.trim()}%` },
+        "(LOWER(lesson.theme) LIKE LOWER(:search) ESCAPE '\\\\' OR LOWER(lesson.biblicalReference) LIKE LOWER(:search) ESCAPE '\\\\')",
+        { search: `%${escapeLikePattern(search.trim())}%` },
       );
     }
 
@@ -209,19 +231,28 @@ export class AiLessonsRepository {
     });
   }
 
+  /**
+   * Atomically takes an unowned or expired generation lease. Lease writes keep
+   * `lock_version` untouched: they are not content changes and must neither
+   * invalidate an open editor nor break the event-stream deduplication.
+   */
   async claimGeneration(
     stageId: string,
     owner: string,
-    leaseUntil: Date,
+    leaseSeconds: number,
   ): Promise<boolean> {
     const result = await this.stagesRepo
       .createQueryBuilder()
       .update(LessonStageEntity)
-      .set({ generationLeaseOwner: owner, generationLeaseUntil: leaseUntil })
+      .set({
+        generationLeaseOwner: owner,
+        generationLeaseUntil: () => leaseExpiry(leaseSeconds),
+        lockVersion: () => 'lock_version',
+      })
       .where('id = :stageId', { stageId })
       .andWhere('status = :status', { status: LessonStageStatus.GENERATING })
       .andWhere(
-        '(generation_lease_until IS NULL OR generation_lease_until < CURRENT_TIMESTAMP)',
+        '(generation_lease_until IS NULL OR generation_lease_until < NOW())',
       )
       .execute();
     return result.affected === 1;
@@ -230,99 +261,243 @@ export class AiLessonsRepository {
   async renewGenerationLease(
     stageId: string,
     owner: string,
-    leaseUntil: Date,
+    leaseSeconds: number,
   ): Promise<boolean> {
-    const result = await this.stagesRepo.update(
-      {
-        id: stageId,
-        generationLeaseOwner: owner,
-        status: LessonStageStatus.GENERATING,
-      },
-      { generationLeaseUntil: leaseUntil },
-    );
-    return (result.affected ?? 0) === 1;
-  }
-
-  async findPublishingLessons(): Promise<LessonEntity[]> {
-    return this.lessonsRepo.find({
-      where: { status: LessonStatus.PUBLISHING },
-      relations: ['stages'],
-    });
-  }
-
-  async claimPublication(
-    lessonId: string,
-    owner: string,
-    leaseUntil: Date,
-  ): Promise<boolean> {
-    const result = await this.lessonsRepo
+    const result = await this.stagesRepo
       .createQueryBuilder()
-      .update(LessonEntity)
-      .set({ publicationLeaseOwner: owner, publicationLeaseUntil: leaseUntil })
-      .where('id = :lessonId', { lessonId })
-      .andWhere('status = :status', { status: LessonStatus.PUBLISHING })
-      .andWhere(
-        '(publication_lease_until IS NULL OR publication_lease_until < CURRENT_TIMESTAMP)',
-      )
+      .update(LessonStageEntity)
+      .set({
+        generationLeaseUntil: () => leaseExpiry(leaseSeconds),
+        lockVersion: () => 'lock_version',
+      })
+      .where('id = :stageId', { stageId })
+      .andWhere('generation_lease_owner = :owner', { owner })
+      .andWhere('status = :status', { status: LessonStageStatus.GENERATING })
       .execute();
     return result.affected === 1;
+  }
+
+  /** Hands an owned lease back so another attempt can claim it at once. */
+  async releaseGenerationLease(
+    stageId: string,
+    owner: string,
+  ): Promise<boolean> {
+    const result = await this.stagesRepo
+      .createQueryBuilder()
+      .update(LessonStageEntity)
+      .set({
+        generationLeaseOwner: null,
+        generationLeaseUntil: null,
+        lockVersion: () => 'lock_version',
+      })
+      .where('id = :stageId', { stageId })
+      .andWhere('generation_lease_owner = :owner', { owner })
+      .andWhere('status = :status', { status: LessonStageStatus.GENERATING })
+      .execute();
+    return result.affected === 1;
+  }
+
+  /** Persists attempt bookkeeping (counter, checkpoints) while owning the lease. */
+  async updateGenerationRequest(
+    stageId: string,
+    owner: string,
+    request: LessonGenerationRequest,
+  ): Promise<boolean> {
+    const result = await this.stagesRepo
+      .createQueryBuilder()
+      .update(LessonStageEntity)
+      .set({
+        generationRequestJson: request,
+        lockVersion: () => 'lock_version',
+      } as QueryDeepPartialEntity<LessonStageEntity>)
+      .where('id = :stageId', { stageId })
+      .andWhere('generation_lease_owner = :owner', { owner })
+      .andWhere('status = :status', { status: LessonStageStatus.GENERATING })
+      .execute();
+    return result.affected === 1;
+  }
+
+  /** Publications whose lease is absent or expired on the database clock. */
+  async findExpiredPublishingLessons(): Promise<LessonEntity[]> {
+    return this.lessonsRepo
+      .createQueryBuilder('lesson')
+      .where('lesson.status = :status', { status: LessonStatus.PUBLISHING })
+      .andWhere(
+        '(lesson.publicationLeaseUntil IS NULL OR lesson.publicationLeaseUntil < NOW())',
+      )
+      .getMany();
+  }
+
+  async isPublicationLeaseActive(
+    lessonId: string,
+    manager?: EntityManager,
+  ): Promise<boolean> {
+    const count = await this.lessons(manager)
+      .createQueryBuilder('lesson')
+      .where('lesson.id = :lessonId', { lessonId })
+      .andWhere('lesson.publicationLeaseUntil > NOW()')
+      .getCount();
+    return count > 0;
+  }
+
+  /** Marks the lesson as publishing under a lease owned by one attempt. */
+  async reservePublication(
+    lessonId: string,
+    owner: string,
+    leaseSeconds: number,
+    reservedVersions: Record<string, string>,
+    manager: EntityManager,
+  ): Promise<void> {
+    await this.lessons(manager)
+      .createQueryBuilder()
+      .update(LessonEntity)
+      .set({
+        status: LessonStatus.PUBLISHING,
+        publicationLeaseOwner: owner,
+        publicationLeaseUntil: () => leaseExpiry(leaseSeconds),
+        publicationReservedVersionsJson: reservedVersions,
+        publicationFailureMessage: null,
+      })
+      .where('id = :lessonId', { lessonId })
+      .execute();
   }
 
   async renewPublicationLease(
     lessonId: string,
     owner: string,
-    leaseUntil: Date,
+    leaseSeconds: number,
   ): Promise<boolean> {
-    const result = await this.lessonsRepo.update(
-      {
-        id: lessonId,
-        publicationLeaseOwner: owner,
-        status: LessonStatus.PUBLISHING,
-      },
-      { publicationLeaseUntil: leaseUntil },
-    );
-    return (result.affected ?? 0) === 1;
+    const result = await this.lessonsRepo
+      .createQueryBuilder()
+      .update(LessonEntity)
+      .set({ publicationLeaseUntil: () => leaseExpiry(leaseSeconds) })
+      .where('id = :lessonId', { lessonId })
+      .andWhere('publication_lease_owner = :owner', { owner })
+      .andWhere('status = :status', { status: LessonStatus.PUBLISHING })
+      .execute();
+    return result.affected === 1;
   }
 
-  async isAssetReferencedElsewhere(
+  /**
+   * Which of the given asset URLs are also referenced by versions of OTHER
+   * lessons. One aggregate query per batch instead of one table scan per URL.
+   */
+  async findAssetUrlsReferencedElsewhere(
     lessonId: string,
-    assetUrl: string,
-  ): Promise<boolean> {
-    const trimmed = assetUrl.trim();
-    if (!trimmed) return false;
-    let keySearch = trimmed;
-    try {
-      const parsed = new URL(trimmed);
-      const cleanPath = decodeURIComponent(
-        parsed.pathname.replace(/^\/+/, ''),
-      ).trim();
-      if (cleanPath) {
-        keySearch = cleanPath.split('/').pop() ?? cleanPath;
-      }
-    } catch {
-      keySearch = trimmed;
+    assetUrls: readonly string[],
+    manager?: EntityManager,
+  ): Promise<Set<string>> {
+    const urls = [
+      ...new Set(assetUrls.map((url) => url.trim()).filter(Boolean)),
+    ];
+    const referenced = new Set<string>();
+    for (
+      let offset = 0;
+      offset < urls.length;
+      offset += LESSON_ASSET_REFERENCE_BATCH_SIZE
+    ) {
+      const batch = urls.slice(
+        offset,
+        offset + LESSON_ASSET_REFERENCE_BATCH_SIZE,
+      );
+      const query = this.versions(manager)
+        .createQueryBuilder('version')
+        .innerJoin('version.stage', 'stage')
+        .select('COUNT(version.id)', 'scanned')
+        .where('stage.lessonId <> :lessonId', { lessonId });
+      batch.forEach((url, index) => {
+        query
+          .addSelect(
+            `MAX(CASE WHEN version.docxS3Key = :url${index} OR version.pdfS3Key = :url${index} OR CAST(version.structuredDataJson AS CHAR) LIKE :pattern${index} ESCAPE '\\\\' THEN 1 ELSE 0 END)`,
+            `match_${index}`,
+          )
+          .setParameter(`url${index}`, url)
+          .setParameter(
+            `pattern${index}`,
+            `%${escapeLikePattern(assetBaseName(url))}%`,
+          );
+      });
+      const row =
+        await query.getRawOne<Record<string, string | number | null>>();
+      batch.forEach((url, index) => {
+        if (Number(row?.[`match_${index}`] ?? 0) > 0) referenced.add(url);
+      });
     }
+    return referenced;
+  }
 
-    const otherVersionRows = await this.dataSource.query<Array<{ id: string }>>(
-      `SELECT lv.id
-       FROM lesson_versions lv
-       INNER JOIN lesson_stages ls ON ls.id = lv.stage_id
-       WHERE ls.lesson_id <> ?
-         AND (
-           lv.docx_s3_key = ?
-           OR lv.pdf_s3_key = ?
-           OR CAST(lv.structured_data_json AS CHAR) LIKE ?
-         )
-       LIMIT 1`,
-      [lessonId, trimmed, trimmed, `%${keySearch}%`],
-    );
-    if (otherVersionRows.length > 0) return true;
+  async findLessonHeader(id: string): Promise<LessonEntity | null> {
+    return this.lessonsRepo.findOne({ where: { id } });
+  }
 
-    const mediaRows = await this.dataSource.query<Array<{ id: string }>>(
-      `SELECT id FROM media_items WHERE url = ? OR url LIKE ? LIMIT 1`,
-      [trimmed, `%${keySearch}%`],
-    );
-    return mediaRows.length > 0;
+  /** Columns behind the event-stream digest; never loads versions. */
+  async findLessonDigestSource(
+    id: string,
+  ): Promise<LessonEventDigestSource | null> {
+    const lesson = await this.lessonsRepo
+      .createQueryBuilder('lesson')
+      .leftJoin('lesson.stages', 'stages')
+      .select([
+        'lesson.id',
+        'lesson.status',
+        'lesson.weekMaterialId',
+        'lesson.publicationFailureMessage',
+        'stages.id',
+        'stages.type',
+        'stages.status',
+        'stages.lockVersion',
+        'stages.currentVersionId',
+        'stages.failureCode',
+        'stages.failureMessage',
+      ])
+      .where('lesson.id = :id', { id })
+      .getOne();
+    if (!lesson) return null;
+    const commentCount = await this.commentsRepo
+      .createQueryBuilder('comment')
+      .where('comment.lesson = :id', { id })
+      .getCount();
+    return {
+      id: lesson.id,
+      status: lesson.status,
+      weekMaterialId: lesson.weekMaterialId ?? null,
+      publicationFailureMessage: lesson.publicationFailureMessage ?? null,
+      stages: (lesson.stages ?? []).map((stage) => ({
+        type: stage.type,
+        status: stage.status,
+        lockVersion: stage.lockVersion ?? 0,
+        currentVersionId: stage.currentVersionId ?? null,
+        failureCode: stage.failureCode ?? null,
+        failureMessage: stage.failureMessage ?? null,
+      })),
+      commentCount,
+    };
+  }
+
+  async findStageById(stageId: string): Promise<LessonStageEntity | null> {
+    return this.stagesRepo.findOne({ where: { id: stageId } });
+  }
+
+  /** Creation instants of the given versions, without loading their JSON. */
+  async findVersionCreationDates(
+    versionIds: readonly string[],
+    manager?: EntityManager,
+  ): Promise<Map<string, Date>> {
+    const ids = [...new Set(versionIds)];
+    if (!ids.length) return new Map();
+    const rows = await this.versions(manager)
+      .createQueryBuilder('version')
+      .select(['version.id', 'version.createdAt'])
+      .where('version.id IN (:...ids)', { ids })
+      .getMany();
+    return new Map(rows.map((row) => [row.id, row.createdAt]));
+  }
+
+  async findVersionById(
+    versionId: string,
+    manager?: EntityManager,
+  ): Promise<LessonVersionEntity | null> {
+    return this.versions(manager).findOne({ where: { id: versionId } });
   }
 
   createVersion(data: Partial<LessonVersionEntity>): LessonVersionEntity {
@@ -345,5 +520,20 @@ export class AiLessonsRepository {
     manager?: EntityManager,
   ): Promise<LessonCommentEntity> {
     return this.comments(manager).save(comment);
+  }
+
+  async resolveComment(
+    lessonId: string,
+    commentId: string,
+    manager?: EntityManager,
+  ): Promise<boolean> {
+    const result = await this.comments(manager)
+      .createQueryBuilder()
+      .update(LessonCommentEntity)
+      .set({ isResolved: true })
+      .where('id = :commentId', { commentId })
+      .andWhere('lesson_id = :lessonId', { lessonId })
+      .execute();
+    return result.affected === 1;
   }
 }

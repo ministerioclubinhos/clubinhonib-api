@@ -11,13 +11,11 @@ import {
   ValidatorConstraint,
   ValidatorConstraintInterface,
 } from 'class-validator';
+import { LESSON_CONTENT_LIMITS } from '../constants/lesson-workflow.constants';
 import { LessonStageType } from '../enums/lesson.enums';
 
-const MAX_TIPTAP_AST_BYTES = 1_500_000;
-const MAX_TIPTAP_AST_DEPTH = 32;
-
 function hasSafeAstDepth(node: unknown, depth = 0): boolean {
-  if (depth > MAX_TIPTAP_AST_DEPTH) return false;
+  if (depth > LESSON_CONTENT_LIMITS.MAX_TIPTAP_AST_DEPTH) return false;
   if (!node || typeof node !== 'object') return true;
   if (Array.isArray(node)) {
     return node.every((item) => hasSafeAstDepth(item, depth + 1));
@@ -37,6 +35,31 @@ function hasSafeAstDepth(node: unknown, depth = 0): boolean {
   return true;
 }
 
+function hasSafeJsonDepth(
+  value: unknown,
+  maxDepth: number,
+  depth = 0,
+): boolean {
+  if (depth > maxDepth) return false;
+  if (!value || typeof value !== 'object') return true;
+  const children = Array.isArray(value)
+    ? (value as unknown[])
+    : Object.values(value as Record<string, unknown>);
+  return children.every((child) =>
+    hasSafeJsonDepth(child, maxDepth, depth + 1),
+  );
+}
+
+/** Serialized size in bytes, or `null` when the value is not serializable. */
+function serializedBytes(value: unknown): number | null {
+  try {
+    const serialized = JSON.stringify(value);
+    return serialized ? Buffer.byteLength(serialized, 'utf8') : null;
+  } catch {
+    return null;
+  }
+}
+
 @ValidatorConstraint({ name: 'tiptapAstDocument', async: false })
 export class TiptapAstDocumentValidator
   implements ValidatorConstraintInterface
@@ -49,12 +72,8 @@ export class TiptapAstDocumentValidator
     if (doc.type !== 'doc' || !Array.isArray(doc.content)) {
       return false;
     }
-    try {
-      const serialized = JSON.stringify(doc);
-      if (!serialized || serialized.length > MAX_TIPTAP_AST_BYTES) {
-        return false;
-      }
-    } catch {
+    const bytes = serializedBytes(doc);
+    if (bytes === null || bytes > LESSON_CONTENT_LIMITS.MAX_TIPTAP_AST_BYTES) {
       return false;
     }
     return hasSafeAstDepth(doc, 0);
@@ -65,6 +84,31 @@ export class TiptapAstDocumentValidator
   }
 }
 
+@ValidatorConstraint({ name: 'lessonStructuredData', async: false })
+export class LessonStructuredDataValidator
+  implements ValidatorConstraintInterface
+{
+  validate(value: unknown): boolean {
+    if (value === undefined || value === null) return true;
+    if (typeof value !== 'object' || Array.isArray(value)) return false;
+    const bytes = serializedBytes(value);
+    if (
+      bytes === null ||
+      bytes > LESSON_CONTENT_LIMITS.MAX_STRUCTURED_DATA_BYTES
+    ) {
+      return false;
+    }
+    return hasSafeJsonDepth(
+      value,
+      LESSON_CONTENT_LIMITS.MAX_STRUCTURED_DATA_DEPTH,
+    );
+  }
+
+  defaultMessage(): string {
+    return 'Os dados estruturados da etapa excedem os limites de tamanho ou profundidade.';
+  }
+}
+
 export class SaveTiptapContentDto {
   @IsObject()
   @Validate(TiptapAstDocumentValidator)
@@ -72,6 +116,7 @@ export class SaveTiptapContentDto {
 
   @IsObject()
   @IsOptional()
+  @Validate(LessonStructuredDataValidator)
   structuredDataJson?: Record<string, unknown>;
 
   @IsEnum(LessonStageType)

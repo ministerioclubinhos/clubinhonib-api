@@ -14,5 +14,7 @@ export const MANUAL_WORK_LAYOUT = {
   imageMinimumHeight: 120,
   twipsPerPixel: 15,
   frameBorderSize: 24,
+  logoWidth: 86,
+  logoHeight: 43,
   framePadding: 80,
 } as const;

@@ -4,10 +4,17 @@ import { MANUAL_WORK_LAYOUT } from '../constants/manual-work-layout.constants';
 import { editedOlderMeditation } from '../utils/older-meditation-content.utils';
 import { buildOlderMeditationSheet } from '../utils/older-meditation-layout.utils';
 import { meditationActivityAsset } from '../utils/meditation-assets.utils';
-import { Injectable, UnprocessableEntityException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnApplicationBootstrap,
+  Optional,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
+import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import {
   AlignmentType,
   BorderStyle,
@@ -34,14 +41,47 @@ import {
   documentTableSpan,
   documentCellWidth,
 } from '../lessonDocument.utils';
-import type { LessonInlineExportOptions } from '../types/lesson-document.types';
+import type {
+  LessonAssetPageEntry,
+  LessonDocumentBlock,
+  LessonImageLoader,
+  LessonInlineExportOptions,
+  LessonListContext,
+} from '../types/lesson-document.types';
+import {
+  DEFAULT_MAX_IMAGE_ASSET_BYTES,
+  IMAGE_DOWNLOAD_CONCURRENCY,
+} from '../constants/asset-download.constants';
+import {
+  DOCUMENT_BASE_FONT,
+  DOCUMENT_CODE_FONT,
+  DOCUMENT_DEFAULT_COLOR,
+  DOCUMENT_DEFAULT_FONT_SIZE,
+  DOCUMENT_DEFAULT_HIGHLIGHT,
+  DOCUMENT_IMAGE_BOXES,
+  DOCUMENT_LINK_COLOR,
+  DOCUMENT_LIST_INDENT,
+  LEGACY_DOCUMENT_LABELS,
+  OLDER_MEDITATION_MAX_ACTIVITIES,
+  YOUNGER_MEDITATION_MAX_ACTIVITIES,
+} from '../constants/lesson-document.constants';
+import {
+  LESSON_HEADER_ASSETS_DIRECTORY,
+  LESSON_HEADER_IMAGES,
+  LessonHeaderImage,
+} from '../constants/lesson-header.constants';
+import { LessonVisualOrientation } from '../enums/lesson.enums';
+import { createConcurrencyLimiter } from '../utils/concurrency.utils';
+import {
+  docxTextLines,
+  normalizeDocxColor,
+  sanitizeDocxText,
+} from '../utils/docx-text.utils';
+import { fitImageInBox } from '../utils/image-dimensions.utils';
 import { YOUNGER_MEDITATION_LAYOUT } from '../constants/younger-meditation-layout.constants';
 import { buildYoungerMeditationSheet } from '../utils/younger-meditation-layout.utils';
 import { editedYoungerMeditation } from '../utils/younger-meditation-content.utils';
-import {
-  downloadSafeImageBuffer,
-  type SafeImageDownloadOptions,
-} from '../utils/asset-url.utils';
+import { downloadSafeImageBuffer } from '../utils/asset-url.utils';
 import { reconcileStageStructuredContent } from '../utils/lesson-canonical-content.utils';
 import {
   lessonHeaderLines,
@@ -55,13 +95,29 @@ type Json = Record<string, unknown>;
 type Alignment = (typeof AlignmentType)[keyof typeof AlignmentType];
 
 @Injectable()
-export class DocxExporterService {
-  private downloadOptions: SafeImageDownloadOptions = {};
+export class DocxExporterService implements OnApplicationBootstrap {
+  private readonly logger = new Logger(DocxExporterService.name);
+  /** Shared by every document being built, so exports cannot flood the network. */
+  private readonly limitDownload = createConcurrencyLimiter(
+    IMAGE_DOWNLOAD_CONCURRENCY,
+  );
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    @Optional() private readonly s3?: AwsS3Service,
+  ) {}
 
-  setDownloadOptions(options: SafeImageDownloadOptions): void {
-    this.downloadOptions = options;
+  /** A missing header only fails the export; warn at boot so it is noticed earlier. */
+  async onApplicationBootstrap(): Promise<void> {
+    for (const image of Object.values(LessonHeaderImage)) {
+      try {
+        await this.header(image);
+      } catch {
+        this.logger.warn(
+          `Cabeçalho ${LESSON_HEADER_IMAGES[image].env} indisponível: a exportação de PDF do Estúdio falhará até que o arquivo exista.`,
+        );
+      }
+    }
   }
 
   async buildDocxFromTiptapOrStructuredJson(
@@ -70,6 +126,7 @@ export class DocxExporterService {
     category?: LessonCategory | null,
   ): Promise<Buffer> {
     const children: (Paragraph | Table)[] = [];
+    const loadImage = this.createImageLoader();
     const lesson = this.stageData(input[LessonStageType.LESSON]);
     const lessonDoc = this.stageDocument(input[LessonStageType.LESSON]);
     if (Object.keys(lesson).length || lessonDoc) {
@@ -200,16 +257,12 @@ export class DocxExporterService {
 
     const [left, right] = children.length
       ? await Promise.all([
-          this.header(
-            'LESSON_HEADER_LEFT_PATH',
-            '../clubinhonib-app/public/header_esquerdo.png',
-          ),
-          this.header(
-            'LESSON_HEADER_RIGHT_PATH',
-            '../clubinhonib-app/public/header_direito.png',
-          ),
+          this.header(LessonHeaderImage.LESSON_LEFT),
+          this.header(LessonHeaderImage.LESSON_RIGHT),
         ])
       : [Buffer.alloc(0), Buffer.alloc(0)];
+    const leftHeader = fitImageInBox(left, DOCUMENT_IMAGE_BOXES.headerLeft);
+    const rightHeader = fitImageInBox(right, DOCUMENT_IMAGE_BOXES.headerRight);
     const headerTable = new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
       borders: {
@@ -237,8 +290,11 @@ export class DocxExporterService {
                   children: [
                     new ImageRun({
                       data: left,
-                      transformation: { width: 190, height: 76 },
-                      type: 'png',
+                      transformation: {
+                        width: leftHeader.width,
+                        height: leftHeader.height,
+                      },
+                      type: leftHeader.type,
                     }),
                   ],
                 }),
@@ -258,8 +314,11 @@ export class DocxExporterService {
                   children: [
                     new ImageRun({
                       data: right,
-                      transformation: { width: 190, height: 95 },
-                      type: 'png',
+                      transformation: {
+                        width: rightHeader.width,
+                        height: rightHeader.height,
+                      },
+                      type: rightHeader.type,
                     }),
                   ],
                 }),
@@ -275,23 +334,31 @@ export class DocxExporterService {
       : [];
 
     const visualConfig = this.object(visualStage.visualConfig);
-    const landscapePages = await this.landscapeAssetPages([
-      ...(visualConfig.orientation === 'PORTRAIT'
-        ? []
-        : [{ stage: visualStage, imageOnly: true }]),
-      { stage: gameStage, imageOnly: false },
-      { stage: verseVisualStage, imageOnly: true },
-      { stage: fixationStage, imageOnly: false },
-    ]);
-    const portraitVisualPages =
-      visualConfig.orientation === 'PORTRAIT'
-        ? await this.portraitAssetPages(visualStage)
-        : [];
-    const supplementaryPages = await this.supplementaryPortraitPages(
-      youngerMeditation,
-      olderMeditation,
-      manualWork,
-    );
+    const portraitVisuals =
+      visualConfig.orientation === String(LessonVisualOrientation.PORTRAIT);
+    const [landscapePages, portraitVisualPages, supplementaryPages] =
+      await Promise.all([
+        this.landscapeAssetPages(
+          [
+            ...(portraitVisuals
+              ? []
+              : [{ stage: visualStage, imageOnly: true }]),
+            { stage: gameStage, imageOnly: false },
+            { stage: verseVisualStage, imageOnly: true },
+            { stage: fixationStage, imageOnly: false },
+          ],
+          loadImage,
+        ),
+        portraitVisuals
+          ? this.portraitAssetPages(visualStage, loadImage)
+          : Promise.resolve([]),
+        this.supplementaryPortraitPages(
+          youngerMeditation,
+          olderMeditation,
+          manualWork,
+          loadImage,
+        ),
+      ]);
     const sections = [
       ...(bodyElements.length
         ? [
@@ -361,23 +428,46 @@ export class DocxExporterService {
     return Packer.toBuffer(
       new Document({
         styles: {
-          default: { document: { run: { font: 'Calibri', size: 24 } } },
+          default: {
+            document: {
+              run: {
+                font: DOCUMENT_BASE_FONT,
+                size: DOCUMENT_DEFAULT_FONT_SIZE,
+              },
+            },
+          },
         },
         sections,
       }),
     );
   }
 
-  private async header(env: string, fallback: string): Promise<Buffer> {
+  /**
+   * Header artwork: the configured override when present, otherwise the copy
+   * packaged with the API, otherwise the legacy sibling frontend checkout.
+   */
+  private async header(image: LessonHeaderImage): Promise<Buffer> {
+    const { env, file, legacyPath } = LESSON_HEADER_IMAGES[image];
     const configured = this.config.get<string>(env);
-    const path = resolve(process.cwd(), configured || fallback);
-    try {
-      return await readFile(path);
-    } catch {
-      throw new UnprocessableEntityException(
-        `Cabeçalho obrigatório ausente: ${env} (${path}).`,
-      );
+    const candidates = configured
+      ? [resolve(process.cwd(), configured)]
+      : [
+          join(LESSON_HEADER_ASSETS_DIRECTORY, file),
+          resolve(process.cwd(), legacyPath),
+        ];
+    for (const path of candidates) {
+      try {
+        return await readFile(path);
+      } catch {
+        // try the next candidate
+      }
     }
+    this.logger.error(
+      `Cabeçalho ${env} não encontrado em: ${candidates.join(', ')}`,
+    );
+    throw new UnprocessableEntityException(
+      `Cabeçalho obrigatório ausente (${env}). Avise o suporte técnico.`,
+    );
   }
 
   private object(value: unknown): Json {
@@ -422,11 +512,11 @@ export class DocxExporterService {
   private renderTiptapNodes(
     out: (Paragraph | Table)[],
     nodes: unknown[],
-    listContext?: { type: 'bullet' | 'ordered'; depth: number },
+    listContext?: LessonListContext,
   ): void {
     if (!Array.isArray(nodes)) return;
 
-    let orderedIndex = 1;
+    let orderedIndex = listContext?.start ?? 1;
 
     for (const raw of nodes) {
       const node = this.object(raw);
@@ -443,9 +533,11 @@ export class DocxExporterService {
 
       if (type === 'orderedList') {
         const listContent = Array.isArray(node.content) ? node.content : [];
+        const start = Number(this.object(node.attrs).start);
         this.renderTiptapNodes(out, listContent, {
           type: 'ordered',
           depth: (listContext?.depth ?? 0) + 1,
+          start: Number.isInteger(start) && start > 0 ? start : 1,
         });
         continue;
       }
@@ -514,9 +606,9 @@ export class DocxExporterService {
         const runs = this.convertInlineNodesToTextRuns(
           Array.isArray(node.content) ? node.content : [],
           {
-            size: 24,
-            defaultColor: '000000',
-            defaultFont: type === 'codeBlock' ? 'Courier New' : undefined,
+            size: DOCUMENT_DEFAULT_FONT_SIZE,
+            defaultColor: DOCUMENT_DEFAULT_COLOR,
+            defaultFont: type === 'codeBlock' ? DOCUMENT_CODE_FONT : undefined,
           },
         );
         if (runs.length || type === 'paragraph') {
@@ -537,6 +629,11 @@ export class DocxExporterService {
     }
   }
 
+  /**
+   * Renders every block of a list item. The marker is prepended to the first
+   * paragraph; any other block (heading, quote, code, table) is rendered with
+   * the regular block renderer instead of being dropped.
+   */
   private renderListItem(
     out: (Paragraph | Table)[],
     itemNode: Json,
@@ -544,7 +641,15 @@ export class DocxExporterService {
     depth: number,
   ): void {
     const itemContent = Array.isArray(itemNode.content) ? itemNode.content : [];
-    let isFirstParagraph = true;
+    const indent = { left: Math.max(1, depth) * DOCUMENT_LIST_INDENT };
+    let markerPending = true;
+    const marker = (): TextRun =>
+      new TextRun({
+        text: prefix,
+        bold: true,
+        color: DOCUMENT_DEFAULT_COLOR,
+        size: DOCUMENT_DEFAULT_FONT_SIZE,
+      });
 
     for (const rawChild of itemContent) {
       const child = this.object(rawChild);
@@ -555,34 +660,32 @@ export class DocxExporterService {
         const alignment = this.getAlignment(attrs, AlignmentType.JUSTIFIED);
         const runs = this.convertInlineNodesToTextRuns(
           Array.isArray(child.content) ? child.content : [],
-          { size: 24, defaultColor: '000000' },
+          {
+            size: DOCUMENT_DEFAULT_FONT_SIZE,
+            defaultColor: DOCUMENT_DEFAULT_COLOR,
+          },
         );
-        const children = isFirstParagraph
-          ? [
-              new TextRun({
-                text: prefix,
-                bold: true,
-                color: '000000',
-                size: 24,
-              }),
-              ...runs,
-            ]
-          : runs;
-
         out.push(
           new Paragraph({
             alignment,
-            indent: { left: Math.max(360, depth * 360) },
+            indent,
             spacing: documentLineSpacing(attrs, { after: 100, line: 260 }),
-            children,
+            children: markerPending ? [marker(), ...runs] : runs,
           }),
         );
-        isFirstParagraph = false;
-      } else if (childType === 'bulletList' || childType === 'orderedList') {
-        this.renderTiptapNodes(out, [child], {
-          type: childType === 'orderedList' ? 'ordered' : 'bullet',
-          depth: depth + 1,
-        });
+        markerPending = false;
+        continue;
+      }
+
+      if (markerPending) {
+        out.push(new Paragraph({ indent, children: [marker()] }));
+        markerPending = false;
+      }
+      if (childType === 'bulletList' || childType === 'orderedList') {
+        // The list branch adds one level itself; passing `depth` avoids doubling.
+        this.renderTiptapNodes(out, [child], { type: 'bullet', depth });
+      } else {
+        this.renderTiptapNodes(out, [child]);
       }
     }
   }
@@ -731,8 +834,8 @@ export class DocxExporterService {
     options: LessonInlineExportOptions = {},
   ): ParagraphChild[] {
     if (!Array.isArray(nodes)) return [];
-    const defaultSize = options.size ?? 24;
-    const defaultColor = options.defaultColor ?? '000000';
+    const defaultSize = options.size ?? DOCUMENT_DEFAULT_FONT_SIZE;
+    const defaultColor = options.defaultColor ?? DOCUMENT_DEFAULT_COLOR;
     const defaultBold = options.defaultBold ?? false;
     const defaultItalic = options.defaultItalic ?? false;
 
@@ -749,12 +852,9 @@ export class DocxExporterService {
 
       if (type === 'text') {
         const rawText = typeof node.text === 'string' ? node.text : '';
-        const text =
-          {
-            'FUN MECHANICS': 'MECÂNICAS DIVERTIDAS',
-            AGES5TO7: 'CRIANÇAS DE 5 A 7 ANOS',
-            AGES8TO11: 'CRIANÇAS DE 8 A 11 ANOS',
-          }[rawText] ?? rawText;
+        const text = sanitizeDocxText(
+          LEGACY_DOCUMENT_LABELS[rawText] ?? rawText,
+        );
         if (!text) continue;
 
         const marks = Array.isArray(node.marks) ? node.marks : [];
@@ -775,7 +875,7 @@ export class DocxExporterService {
           const mType = lessonString(mark.type);
           if (mType === 'link')
             href = documentLink(this.object(mark.attrs).href);
-          if (mType === 'code') font = 'Courier New';
+          if (mType === 'code') font = DOCUMENT_CODE_FONT;
           if (mType === 'bold') isBold = true;
           if (mType === 'italic') isItalic = true;
           if (mType === 'underline') isUnderline = true;
@@ -785,18 +885,15 @@ export class DocxExporterService {
           if (mType === 'textStyle' || mType === 'color') {
             const attrs = this.object(mark.attrs);
             font = documentFontFamily(attrs.fontFamily) ?? font;
-            size = documentFontSize(attrs.fontSize) ?? size;
-            if (typeof attrs.color === 'string' && attrs.color) {
-              textColor = attrs.color.replace(/^#/, '');
-            }
+            size = documentFontSize(attrs.fontSize, defaultSize) ?? size;
+            // Pasted content may carry rgb()/named colours; an unparseable
+            // value keeps the default instead of breaking the whole document.
+            textColor = normalizeDocxColor(attrs.color) ?? textColor;
           }
           if (mType === 'highlight') {
-            const attrs = this.object(mark.attrs);
-            if (typeof attrs.color === 'string' && attrs.color) {
-              highlightFill = attrs.color.replace(/^#/, '');
-            } else {
-              highlightFill = 'FFFF00';
-            }
+            highlightFill =
+              normalizeDocxColor(this.object(mark.attrs).color) ??
+              DOCUMENT_DEFAULT_HIGHLIGHT;
           }
         }
 
@@ -808,7 +905,10 @@ export class DocxExporterService {
           strike: isStrike,
           subScript: isSubScript,
           superScript: isSuperScript,
-          color: href && textColor === defaultColor ? '0563C1' : textColor,
+          color:
+            href && textColor === defaultColor
+              ? DOCUMENT_LINK_COLOR
+              : textColor,
           shading: highlightFill ? { fill: highlightFill } : undefined,
           size,
           font,
@@ -822,6 +922,29 @@ export class DocxExporterService {
     }
 
     return runs;
+  }
+
+  /** One sanitised run per line, so `\n` in structured text becomes a real break. */
+  private plainRuns(
+    value: string,
+    options: {
+      bold?: boolean;
+      italics?: boolean;
+      size?: number;
+      color?: string;
+    } = {},
+  ): TextRun[] {
+    return docxTextLines(value).map(
+      (line, index) =>
+        new TextRun({
+          text: line,
+          ...(index ? { break: 1 } : {}),
+          bold: options.bold,
+          italics: options.italics,
+          color: options.color ?? DOCUMENT_DEFAULT_COLOR,
+          size: options.size ?? DOCUMENT_DEFAULT_FONT_SIZE,
+        }),
+    );
   }
 
   private getAlignment(
@@ -845,37 +968,11 @@ export class DocxExporterService {
       new Paragraph({
         heading: level === 1 ? HeadingLevel.HEADING_1 : HeadingLevel.HEADING_2,
         alignment: AlignmentType.CENTER,
-        children: [
-          new TextRun({
-            text: text.toUpperCase(),
-            bold: true,
-            color: '000000',
-            size: level === 1 ? 36 : 26,
-          }),
-        ],
+        children: this.plainRuns(text.toUpperCase(), {
+          bold: true,
+          size: level === 1 ? 36 : 26,
+        }),
         spacing: { before: 240, after: 120 },
-      }),
-    );
-  }
-
-  private addBlockquote(out: (Paragraph | Table)[], text: string): void {
-    out.push(
-      new Paragraph({
-        alignment: AlignmentType.JUSTIFIED,
-        indent: { left: 360, right: 360 },
-        shading: { fill: 'F5F5F5' },
-        border: {
-          left: { color: '000000', style: BorderStyle.SINGLE, size: 24 },
-        },
-        spacing: { before: 140, after: 140, line: 260 },
-        children: [
-          new TextRun({
-            text: text,
-            italics: true,
-            color: '000000',
-            size: 22,
-          }),
-        ],
       }),
     );
   }
@@ -886,13 +983,7 @@ export class DocxExporterService {
         new Paragraph({
           alignment: AlignmentType.JUSTIFIED,
           spacing: { after: 140, line: 276 },
-          children: [
-            new TextRun({
-              text: value,
-              color: '000000',
-              size: 24,
-            }),
-          ],
+          children: this.plainRuns(value),
         }),
       );
     }
@@ -909,13 +1000,8 @@ export class DocxExporterService {
         alignment: AlignmentType.JUSTIFIED,
         spacing: { after: 140, line: 276 },
         children: [
-          new TextRun({
-            text: `${label}: `,
-            bold: true,
-            color: '000000',
-            size: 24,
-          }),
-          new TextRun({ text: value, color: '000000', size: 24 }),
+          ...this.plainRuns(`${label}: `, { bold: true }),
+          ...this.plainRuns(value),
         ],
       }),
     );
@@ -967,210 +1053,247 @@ export class DocxExporterService {
     if (!Array.isArray(asset.items)) return '';
     return asset.items
       .map((item) => this.object(item).label)
-      .filter((label): label is string => typeof label === 'string' && !!label.trim())
+      .filter(
+        (label): label is string => typeof label === 'string' && !!label.trim(),
+      )
       .map((label, index) => `${index + 1}. ${label.trim()}`)
       .join('   ');
   }
 
-  private async landscapeAssetPages(
-    entries: Array<{ stage: Json; imageOnly: boolean }>,
-  ): Promise<Array<Array<Paragraph | Table>>> {
-    const pages: Array<Array<Paragraph | Table>> = [];
-    for (const { stage, imageOnly } of entries) {
-      const rawAssets = stage.assets ?? stage.printableAssets;
-      if (!Array.isArray(rawAssets)) continue;
-      for (const raw of rawAssets) {
-        const asset = this.object(raw);
-        if (typeof asset.url !== 'string') continue;
-        const image = await this.downloadImage(asset.url);
-        const instruction =
-          typeof asset.instruction === 'string' ? asset.instruction.trim() : '';
-        const instructionWithoutRepeatedNumber = instruction.replace(
-          /^\d+\.\s*/,
-          '',
+  /** Assets of a stage, each with the URL the generation must have stored. */
+  private requiredAssets(rawAssets: unknown): Json[] {
+    if (!Array.isArray(rawAssets)) return [];
+    return rawAssets.map((raw) => {
+      const asset = this.object(raw);
+      if (typeof asset.url !== 'string' || !asset.url.trim())
+        throw new UnprocessableEntityException(
+          'Uma imagem obrigatória deste item ainda não foi gerada. Gere o item novamente antes de exportar.',
         );
-        const stepNumber = Number(asset.stepNumber);
-        const displayText = imageOnly
-          ? ''
-          : instructionWithoutRepeatedNumber
-            ? `${Number.isInteger(stepNumber) ? `PASSO ${stepNumber} - ` : ''}${instructionWithoutRepeatedNumber}`
-            : typeof asset.displayText === 'string'
-              ? asset.displayText.trim()
-              : '';
-        const legend = imageOnly ? '' : this.cutoutLegend(asset);
-        const visualContent = [
-          ...(displayText
-            ? [
-                new Paragraph({
-                  alignment: AlignmentType.CENTER,
-                  children: [
-                    new TextRun({
-                      text: displayText.toLocaleUpperCase('pt-BR'),
-                      bold: true,
-                      size: 34,
-                      color: '111111',
-                    }),
-                  ],
-                  spacing: { before: 0, after: 30 },
-                  keepNext: true,
-                }),
-              ]
-            : []),
-          new Paragraph({
-            alignment: AlignmentType.CENTER,
+      return asset;
+    });
+  }
+
+  private async landscapeAssetPages(
+    entries: LessonAssetPageEntry[],
+    loadImage: LessonImageLoader,
+  ): Promise<LessonDocumentBlock[][]> {
+    const items = entries.flatMap(({ stage, imageOnly }) =>
+      this.requiredAssets(stage.assets ?? stage.printableAssets).map(
+        (asset) => ({ asset, imageOnly }),
+      ),
+    );
+    return Promise.all(
+      items.map(async ({ asset, imageOnly }) =>
+        this.landscapeAssetPage(
+          asset,
+          imageOnly,
+          await loadImage(String(asset.url)),
+        ),
+      ),
+    );
+  }
+
+  private landscapeAssetPage(
+    asset: Json,
+    imageOnly: boolean,
+    image: Buffer,
+  ): LessonDocumentBlock[] {
+    const instruction =
+      typeof asset.instruction === 'string' ? asset.instruction.trim() : '';
+    const instructionWithoutRepeatedNumber = instruction.replace(
+      /^\d+\.\s*/,
+      '',
+    );
+    const stepNumber = Number(asset.stepNumber);
+    const displayText = imageOnly
+      ? ''
+      : instructionWithoutRepeatedNumber
+        ? `${Number.isInteger(stepNumber) ? `PASSO ${stepNumber} - ` : ''}${instructionWithoutRepeatedNumber}`
+        : typeof asset.displayText === 'string'
+          ? asset.displayText.trim()
+          : '';
+    const legend = imageOnly ? '' : this.cutoutLegend(asset);
+    const fitted = fitImageInBox(
+      image,
+      displayText || legend
+        ? DOCUMENT_IMAGE_BOXES.landscapeWithText
+        : DOCUMENT_IMAGE_BOXES.landscapeFull,
+    );
+    const visualContent = [
+      ...(displayText
+        ? [
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              children: this.plainRuns(displayText.toLocaleUpperCase('pt-BR'), {
+                bold: true,
+                size: 34,
+                color: '111111',
+              }),
+              spacing: { before: 0, after: 30 },
+              keepNext: true,
+            }),
+          ]
+        : []),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [
+          new ImageRun({
+            data: image,
+            transformation: { width: fitted.width, height: fitted.height },
+            type: fitted.type,
+          }),
+        ],
+        spacing: { after: 0 },
+      }),
+      ...(legend
+        ? [
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              children: this.plainRuns(legend, { size: 20, color: '333333' }),
+              spacing: { before: 40, after: 0 },
+            }),
+          ]
+        : []),
+    ];
+    return [
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        borders: {
+          top: { style: BorderStyle.NONE },
+          bottom: { style: BorderStyle.NONE },
+          left: { style: BorderStyle.NONE },
+          right: { style: BorderStyle.NONE },
+          insideHorizontal: { style: BorderStyle.NONE },
+          insideVertical: { style: BorderStyle.NONE },
+        },
+        rows: [
+          new TableRow({
+            cantSplit: true,
             children: [
-              new ImageRun({
-                data: image,
-                transformation: {
-                  width: displayText || legend ? 984 : 1070,
-                  height: displayText || legend ? 620 : 758,
+              new TableCell({
+                borders: {
+                  top: { style: BorderStyle.NONE },
+                  bottom: { style: BorderStyle.NONE },
+                  left: { style: BorderStyle.NONE },
+                  right: { style: BorderStyle.NONE },
                 },
-                type: 'png',
-              }),
-            ],
-            spacing: { after: 0 },
-          }),
-          ...(legend
-            ? [
-                new Paragraph({
-                  alignment: AlignmentType.CENTER,
-                  children: [
-                    new TextRun({ text: legend, size: 20, color: '333333' }),
-                  ],
-                  spacing: { before: 40, after: 0 },
-                }),
-              ]
-            : []),
-        ];
-        pages.push([
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            borders: {
-              top: { style: BorderStyle.NONE },
-              bottom: { style: BorderStyle.NONE },
-              left: { style: BorderStyle.NONE },
-              right: { style: BorderStyle.NONE },
-              insideHorizontal: { style: BorderStyle.NONE },
-              insideVertical: { style: BorderStyle.NONE },
-            },
-            rows: [
-              new TableRow({
-                cantSplit: true,
-                children: [
-                  new TableCell({
-                    borders: {
-                      top: { style: BorderStyle.NONE },
-                      bottom: { style: BorderStyle.NONE },
-                      left: { style: BorderStyle.NONE },
-                      right: { style: BorderStyle.NONE },
-                    },
-                    margins: { top: 0, bottom: 0, left: 0, right: 0 },
-                    children: visualContent,
-                  }),
-                ],
+                margins: { top: 0, bottom: 0, left: 0, right: 0 },
+                children: visualContent,
               }),
             ],
           }),
-        ]);
-      }
-    }
-    return pages;
+        ],
+      }),
+    ];
   }
 
   private async supplementaryPortraitPages(
     younger: Json,
     older: Json,
     manual: Json,
-  ): Promise<Array<Array<Paragraph | Table>>> {
-    const pages: Array<Array<Paragraph | Table>> = [];
-    if (Object.keys(younger).length)
-      pages.push(await this.meditationPage(younger, true));
-    if (Object.keys(older).length)
-      pages.push(await this.meditationPage(older, false));
-    if (Object.keys(manual).length)
-      pages.push(await this.manualWorkPage(manual));
-    return pages;
+    loadImage: LessonImageLoader,
+  ): Promise<LessonDocumentBlock[][]> {
+    const [youngerPage, olderPage, manualPage] = await Promise.all([
+      Object.keys(younger).length
+        ? this.youngerMeditationPage(younger, loadImage)
+        : null,
+      Object.keys(older).length
+        ? this.olderMeditationPage(older, loadImage)
+        : null,
+      Object.keys(manual).length
+        ? this.manualWorkPage(manual, loadImage)
+        : null,
+    ]);
+    return [youngerPage, olderPage, manualPage].filter(
+      (page): page is LessonDocumentBlock[] => page !== null,
+    );
   }
 
-  private async portraitAssetPages(stage: Json): Promise<Paragraph[][]> {
-    const rawAssets = Array.isArray(stage.assets) ? stage.assets : [];
-    const pages: Paragraph[][] = [];
-    for (const raw of rawAssets) {
-      const asset = this.object(raw);
-      if (typeof asset.url !== 'string') continue;
-      pages.push([
-        new Paragraph({
-          alignment: AlignmentType.CENTER,
-          children: [
-            new ImageRun({
-              data: await this.downloadImage(asset.url),
-              transformation: { width: 760, height: 1074 },
-              type: 'png',
-            }),
-          ],
-        }),
-      ]);
-    }
-    return pages;
+  private async portraitAssetPages(
+    stage: Json,
+    loadImage: LessonImageLoader,
+  ): Promise<Paragraph[][]> {
+    return Promise.all(
+      this.requiredAssets(stage.assets).map(async (asset) => {
+        const image = await loadImage(String(asset.url));
+        const fitted = fitImageInBox(image, DOCUMENT_IMAGE_BOXES.portraitFull);
+        return [
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [
+              new ImageRun({
+                data: image,
+                transformation: { width: fitted.width, height: fitted.height },
+                type: fitted.type,
+              }),
+            ],
+          }),
+        ];
+      }),
+    );
   }
 
-  private async meditationPage(
+  /** Activities of a meditation sheet with their optional artwork. */
+  private async meditationActivities(
     data: Json,
-    duplicate: boolean,
-  ): Promise<Array<Paragraph | Table>> {
-    if (duplicate) {
-      const assets = Array.isArray(data.printableAssets)
-        ? data.printableAssets
-        : [];
-      const activities = Array.isArray(data.activities) ? data.activities : [];
-      const logo = await this.header(
-        'MEDITATION_HEADER_LEFT_PATH',
-        YOUNGER_MEDITATION_LAYOUT.logoPath,
-      );
-      const sheetActivities = await Promise.all(
-        activities.slice(0, 2).map(async (raw, index) => {
-          const activity = this.object(raw);
-          const asset = meditationActivityAsset(
-            assets,
-            index,
-            activities.length,
-          );
-          return {
-            instruction: lessonString(activity.instruction),
-            ...(typeof asset.url === 'string'
-              ? { image: await this.downloadImage(asset.url) }
-              : {}),
-          };
-        }),
-      );
-      return buildYoungerMeditationSheet({
-        title: lessonString(data.title),
-        verse: `“${lessonString(data.verseText)}” (${normalizeLessonVerseReference(data.verseReference)})`,
-        prayer: lessonString(data.prayer),
-        logo,
-        document: this.object(data.meditationDocument),
-        activities: sheetActivities,
-      });
-    }
+    maximum: number,
+    loadImage: LessonImageLoader,
+  ): Promise<Array<{ instruction: string; image?: Buffer }>> {
     const assets = Array.isArray(data.printableAssets)
       ? data.printableAssets
       : [];
     const activities = Array.isArray(data.activities) ? data.activities : [];
-    const logo = await this.header(
-      'MEDITATION_HEADER_LEFT_PATH',
-      YOUNGER_MEDITATION_LAYOUT.logoPath,
-    );
-    const sheetActivities = await Promise.all(
-      activities.slice(0, 3).map(async (raw, index) => {
+    if (activities.length > maximum)
+      throw new UnprocessableEntityException(
+        `A folha comporta no máximo ${maximum} atividades, mas o item possui ${activities.length}. Remova as excedentes ou gere o item novamente.`,
+      );
+    return Promise.all(
+      activities.map(async (raw, index) => {
         const asset = meditationActivityAsset(assets, index, activities.length);
         return {
           instruction: lessonString(this.object(raw).instruction),
-          ...(typeof asset.url === 'string'
-            ? { image: await this.downloadImage(asset.url) }
+          ...(typeof asset.url === 'string' && asset.url.trim()
+            ? { image: await loadImage(asset.url) }
             : {}),
         };
       }),
     );
+  }
+
+  private async youngerMeditationPage(
+    data: Json,
+    loadImage: LessonImageLoader,
+  ): Promise<LessonDocumentBlock[]> {
+    const [logo, activities] = await Promise.all([
+      this.header(LessonHeaderImage.MEDITATION_LEFT),
+      this.meditationActivities(
+        data,
+        YOUNGER_MEDITATION_MAX_ACTIVITIES,
+        loadImage,
+      ),
+    ]);
+    return buildYoungerMeditationSheet({
+      title: lessonString(data.title),
+      verse: `“${lessonString(data.verseText)}” (${normalizeLessonVerseReference(data.verseReference)})`,
+      prayer: lessonString(data.prayer),
+      logo,
+      document: this.object(data.meditationDocument),
+      activities,
+    });
+  }
+
+  private async olderMeditationPage(
+    data: Json,
+    loadImage: LessonImageLoader,
+  ): Promise<LessonDocumentBlock[]> {
+    const [logo, activities] = await Promise.all([
+      this.header(LessonHeaderImage.MEDITATION_LEFT),
+      this.meditationActivities(
+        data,
+        OLDER_MEDITATION_MAX_ACTIVITIES,
+        loadImage,
+      ),
+    ]);
     return buildOlderMeditationSheet({
       title: lessonString(data.title),
       verse: `“${lessonString(data.verseText)}”\n${normalizeLessonVerseReference(data.verseReference)} — NVI`,
@@ -1179,21 +1302,27 @@ export class DocxExporterService {
       prayer: lessonString(data.prayer),
       logo,
       document: this.object(data.meditationDocument),
-      activities: sheetActivities,
+      activities,
     });
   }
 
-  private async manualWorkPage(data: Json): Promise<Array<Paragraph | Table>> {
-    const assets = Array.isArray(data.printableAssets)
-      ? data.printableAssets
-      : [];
-    const asset = this.object(assets[0]);
-    if (typeof asset.url !== 'string') return [];
-    const image = await this.downloadImage(asset.url);
-    const logo = await this.header(
-      'LESSON_HEADER_RIGHT_PATH',
-      '../clubinhonib-app/public/header_direito.png',
+  private async manualWorkPage(
+    data: Json,
+    loadImage: LessonImageLoader,
+  ): Promise<LessonDocumentBlock[]> {
+    const [asset] = this.requiredAssets(
+      Array.isArray(data.printableAssets)
+        ? data.printableAssets.slice(0, 1)
+        : [],
     );
+    if (!asset)
+      throw new UnprocessableEntityException(
+        'O trabalho manual ainda não possui a arte para colorir. Gere o item novamente antes de exportar.',
+      );
+    const [image, logo] = await Promise.all([
+      loadImage(String(asset.url)),
+      this.header(LessonHeaderImage.LESSON_RIGHT),
+    ]);
     return buildManualWorkSheet(
       image,
       logo,
@@ -1201,14 +1330,38 @@ export class DocxExporterService {
     );
   }
 
+  /**
+   * Per-document loader: each distinct URL is downloaded once, and downloads
+   * run with bounded concurrency while pages are assembled in order.
+   */
+  private createImageLoader(): LessonImageLoader {
+    const cache = new Map<string, Promise<Buffer>>();
+    return (url: string): Promise<Buffer> => {
+      const key = url.trim();
+      let pending = cache.get(key);
+      if (!pending) {
+        pending = this.limitDownload(() => this.downloadImage(key));
+        cache.set(key, pending);
+      }
+      return pending;
+    };
+  }
+
   private async downloadImage(url: string): Promise<Buffer> {
-    const bucketName =
-      this.downloadOptions.bucketName ??
-      this.config?.get<string>('AWS_S3_BUCKET_NAME') ??
-      undefined;
+    const s3 = this.s3;
     return downloadSafeImageBuffer(url, {
-      ...this.downloadOptions,
-      bucketName,
+      bucketName: this.config.get<string>('AWS_S3_BUCKET_NAME') ?? undefined,
+      ...(s3
+        ? {
+            // Reads through the SDK: works with private buckets and skips DNS.
+            s3ObjectReader: (_key: string, objectUrl: string) =>
+              s3.downloadOwned(objectUrl, DEFAULT_MAX_IMAGE_ASSET_BYTES),
+            onS3ReadFailure: (key: string, error: unknown) =>
+              this.logger.warn(
+                `Leitura direta do S3 falhou para ${key}; usando download HTTP. ${error instanceof Error ? error.message : String(error)}`,
+              ),
+          }
+        : {}),
     });
   }
 }

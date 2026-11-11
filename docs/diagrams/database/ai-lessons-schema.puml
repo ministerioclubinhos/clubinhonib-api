@@ -1,5 +1,5 @@
 @startuml
-title Estúdio Clubinho — schema essencial
+title Estúdio Clubinho — schema
 entity ai_provider_settings {
   * provider : varchar(50)
   --
@@ -8,49 +8,109 @@ entity ai_provider_settings {
   updated_at : datetime
 }
 note right of ai_provider_settings
-  openai / gemini: parâmetros
+  openai / gemini: parâmetros (apiKey criptografada
+  quando há chave mestra)
   active: llmProvider
 end note
 entity admin_lesson_prompts {
   * id : uuid
-  * admin_id : uuid
-  * stage : enum
   --
+  admin_id : varchar(36) <<index>>
+  category : enum (REGULAR, SPECIAL)
+  stage : enum
   custom_prompt : text
   lock_version : int
-  UNIQUE(admin_id, stage)
+  createdAt : datetime
+  updatedAt : datetime
+  --
+  UNIQUE(admin_id, category, stage)
 }
 entity lessons {
   * id : uuid
   --
+  weekNumber : int nullable
+  category : enum (REGULAR, SPECIAL)
+  special_context : text nullable
+  theme : varchar(255)
+  biblicalReference : varchar(500)
   status : enum
-  week_material_id : uuid nullable <<index>>
-  publication_lease_owner : varchar(64) nullable
+  createdById : varchar(36)
+  week_material_id : varchar(36) nullable <<index>>
+  publication_lease_owner : varchar(36) nullable
   publication_lease_until : datetime nullable
   publication_reserved_versions_json : json nullable
-  publication_failure_message : text nullable
+  publication_failure_message : varchar(500) nullable
+  createdAt : datetime
+  updatedAt : datetime
 }
 entity lesson_stages {
   * id : uuid
-  * lesson_id : uuid
+  --
+  lesson_id : varchar(36) <<FK, index>>
   type : enum
+  status : enum <<index>>
+  current_version_id : varchar(36) nullable
+  template_key : varchar(80)
+  template_version : varchar(32)
+  template_checksum : char(64)
+  failure_code : varchar(80) nullable
+  failure_message : varchar(500) nullable
+  generation_request_json : json nullable
+  generation_requested_by_id : varchar(36) nullable
+  generation_lease_owner : varchar(36) nullable
+  generation_lease_until : datetime nullable
+  approved_by_id : varchar(36) nullable
+  approved_at : datetime nullable
   lock_version : int
+  createdAt : datetime
+  updatedAt : datetime
   --
   UNIQUE(lesson_id, type)
 }
+note right of lesson_stages
+  generation_request_json: pedido interno do servidor
+  (snapshot do provedor, prompt, tentativas,
+  checkpoints e status anterior)
+end note
 entity lesson_versions {
   * id : uuid
-  * stage_id : uuid
-  version_number : int
   --
-  UNIQUE(stage_id, version_number)
+  stage_id : varchar(36) <<FK>>
+  versionNumber : int
+  tiptapAstJson : json
+  structuredDataJson : json nullable
+  docxS3Key : varchar(500) nullable
+  pdfS3Key : varchar(500) nullable
+  changeSummary : varchar(255) nullable
+  createdSource : enum
+  openai_response_id : varchar(100) nullable
+  admin_prompt_snapshot : text nullable
+  admin_prompt_checksum : char(64) nullable
+  content_checksum : char(64)
+  createdById : varchar(36)
+  createdAt : datetime
+  updatedAt : datetime
+  --
+  UNIQUE(stage_id, versionNumber)
+}
+entity lesson_comments {
+  * id : uuid
+  --
+  lesson_id : varchar(36) <<FK>>
+  sectionKey : varchar(100)
+  commentText : text
+  isResolved : boolean
+  authorId : varchar(36)
+  createdAt : datetime
+  updatedAt : datetime
 }
 entity week_material_pages {
   * id : uuid
   --
-  sourceLessonId : varchar(36) nullable <<unique>>
+  source_lesson_id : varchar(36) nullable <<unique>>
 }
 lessons ||--|{ lesson_stages
+lessons ||--o{ lesson_comments
 lesson_stages ||--o{ lesson_versions
-lessons }o--o| week_material_pages : week_material_id / sourceLessonId
+lessons }o--o| week_material_pages : week_material_id / source_lesson_id
 @enduml

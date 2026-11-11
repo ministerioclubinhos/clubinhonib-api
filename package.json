@@ -34,7 +34,8 @@
     "db:local:migration:deploy": "cross-env ENV_FILE=env/local.env node --require ts-node/register/transpile-only --require tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:run",
     "db:local:migration:status": "cross-env ENV_FILE=env/local.env node --require ts-node/register/transpile-only --require tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:show",
     "db:local:migration:revert": "cross-env ENV_FILE=env/local.env node --require ts-node/register/transpile-only --require tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:revert",
-    "diagrams:generate": "node scripts/generate-diagrams.js"
+    "diagrams:generate": "node scripts/generate-diagrams.js",
+    "redis:local:ensure": "node --require ts-node/register/transpile-only --require tsconfig-paths/register scripts/redis-local/ensure-redis.ts"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.1127.0",
@@ -51,10 +52,12 @@
     "@nestjs/typeorm": "^11.0.0",
     "axios": "^1.13.2",
     "bcryptjs": "^3.0.2",
+    "bullmq": "^5.81.5",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "docx": "^9.7.1",
     "google-auth-library": "^10.2.0",
+    "ioredis": "^5.11.1",
     "multer": "^1.4.5-lts.1",
     "mysql2": "^3.12.0",
     "nodemailer": "^9.1.1",

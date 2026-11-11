@@ -12,10 +12,32 @@ export enum LessonLlmProvider {
   GEMINI = 'gemini',
 }
 
+/** Token accounting reported by the provider for one text call. */
+export interface LessonLlmUsage {
+  model: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+}
+
 export type LessonLlmGenerationResult = {
   content: Record<string, unknown>;
   responseId: string;
+  usage?: LessonLlmUsage;
 };
+
+export interface ProviderRetryPolicy {
+  maxRetries: number;
+  baseDelayMs: number;
+  capMs: number;
+  jitterMs: number;
+  statuses: readonly number[];
+}
+
+export interface ProviderImageFormat {
+  mimeType: 'image/png' | 'image/jpeg';
+  extension: 'png' | 'jpg';
+}
 
 export type LessonLlmGenerationInput = {
   theme: string;
@@ -54,10 +76,22 @@ export interface LessonImageContext {
   category: LessonCategory;
 }
 
+/**
+ * Non-secret provider parameters frozen for one generation attempt. Persisted
+ * with the request so a resumed attempt uses the same configuration. Fields
+ * beyond the first three are optional for requests persisted before they
+ * existed. Never carries an API key.
+ */
 export interface LessonAttemptProviderMetadata {
   provider: string;
   textModel: string;
   imageModel: string;
+  imageQuality?: string;
+  reasoningEffort?: string;
+  fallbackModel?: string;
+  imageSize?: string;
+  maxRetries?: number;
+  retryBaseDelayMs?: number;
 }
 
 export interface LessonAttemptProviderSnapshot {

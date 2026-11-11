@@ -1,3 +1,7 @@
+import { AiQueueException } from 'src/shared/providers/ai-queue/ai-queue.exception';
+import { AiQueueFailure } from 'src/shared/providers/ai-queue/enums';
+import { AiQueueFeature } from 'src/shared/providers/ai-queue/enums';
+import { createAiQueueMock } from 'src/shared/providers/ai-queue/testing/queue.mock';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { AiProviderSettingRepository } from '../repositories/ai-provider-setting.repository';
@@ -5,9 +9,18 @@ import { GetAiProviderSettingsService } from './get-ai-provider-settings.service
 import { UpdateAiProviderSettingsService } from './update-ai-provider-settings.service';
 import { AiProvidersConfigService } from './ai-providers-config.service';
 import {
+  AI_PROVIDER_SECRET,
   AiModelCatalogSource,
+  AiProviderSecretFailure,
   AiProviderSettingsKey,
 } from '../constants/ai-provider-settings.constants';
+import {
+  StoredAiProviderSettings,
+  StoredAiProviderSettingsMerge,
+} from '../types/ai-provider-settings.types';
+import { ConfigService } from '@nestjs/config';
+import { Logger } from '@nestjs/common';
+import { createCipheriv, createHash, randomBytes } from 'node:crypto';
 import { LessonLlmProvider } from '../providers/lesson-llm.types';
 import {
   SaveAiProviderSettingsDto,
@@ -17,6 +30,8 @@ import {
 import {
   decryptProviderSecret,
   encryptProviderSecret,
+  ProviderSecretError,
+  providerSecretNeedsRotation,
 } from '../aiProviderSettings.utils';
 
 describe('Configurações de IA salvas no banco', () => {
@@ -25,21 +40,60 @@ describe('Configurações de IA salvas no banco', () => {
     findByProvider: jest.fn((key: AiProviderSettingsKey) =>
       Promise.resolve(rows.get(key) ?? null),
     ),
-    saveProviderSettings: jest.fn(),
-    saveAllSettings: jest.fn(),
+    // Mirrors the repository contract: read under lock, merge, write.
+    updateLocked: jest.fn(
+      (keys: AiProviderSettingsKey[], merge: StoredAiProviderSettingsMerge) => {
+        const current: StoredAiProviderSettings = {};
+        for (const key of keys) {
+          const row = rows.get(key);
+          if (row) current[key] = row;
+        }
+        for (const [key, value] of Object.entries(merge(current)))
+          rows.set(key as AiProviderSettingsKey, value);
+        return Promise.resolve();
+      },
+    ),
   };
+  const environment = { value: 'local' };
   const getter = new GetAiProviderSettingsService(
     repo as unknown as AiProviderSettingRepository,
   );
   const updater = new UpdateAiProviderSettingsService(
     repo as unknown as AiProviderSettingRepository,
     getter,
+    {
+      get: (key: string) =>
+        key === 'ENVIRONMENT' ? environment.value : undefined,
+    } as unknown as ConfigService,
   );
+  const masterKeyEnv = AI_PROVIDER_SECRET.currentKeyEnv;
+  const previousKeyEnv = AI_PROVIDER_SECRET.previousKeyEnv;
+  const withKeys = async (
+    current: string | undefined,
+    previous: string | undefined,
+    run: () => Promise<void>,
+  ): Promise<void> => {
+    const saved = [process.env[masterKeyEnv], process.env[previousKeyEnv]];
+    const assign = (name: string, value: string | undefined) => {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    };
+    assign(masterKeyEnv, current);
+    assign(previousKeyEnv, previous);
+    try {
+      await run();
+    } finally {
+      assign(masterKeyEnv, saved[0]);
+      assign(previousKeyEnv, saved[1]);
+    }
+  };
+  const storedKey = (provider: AiProviderSettingsKey): unknown =>
+    rows.get(provider)?.apiKey;
 
   beforeEach(() => {
     rows.clear();
     jest.clearAllMocks();
-    repo.saveAllSettings.mockReset();
+    environment.value = 'local';
   });
 
   it('retorna números reais, preserva zero e não importa chaves ou provedor do ambiente', async () => {
@@ -137,23 +191,6 @@ describe('Configurações de IA salvas no banco', () => {
     expect(internal.gemini.apiKey).toBe(syntheticGeminiKey);
 
     // 3. PUT preserva a chave quando apiKey for omitida (undefined)
-    repo.saveProviderSettings.mockImplementation(
-      (key: AiProviderSettingsKey, data: Record<string, unknown>) => {
-        rows.set(key, data);
-        return Promise.resolve();
-      },
-    );
-    repo.saveAllSettings.mockImplementation(
-      (data: {
-        openai: Record<string, unknown>;
-        gemini: Record<string, unknown>;
-      }) => {
-        rows.set(AiProviderSettingsKey.OPENAI, data.openai);
-        rows.set(AiProviderSettingsKey.GEMINI, data.gemini);
-        return Promise.resolve();
-      },
-    );
-
     const updatedOpenAi = await updater.saveOpenAiSettings({
       generalModel: 'gpt-4.5-preview',
     });
@@ -177,20 +214,7 @@ describe('Configurações de IA salvas no banco', () => {
   });
 
   it('salva a seleção e os dois provedores numa única operação e propaga falhas', async () => {
-    repo.saveAllSettings.mockImplementation(
-      (data: {
-        llmProvider: LessonLlmProvider;
-        openai: Record<string, unknown>;
-        gemini: Record<string, unknown>;
-      }) => {
-        rows.set(AiProviderSettingsKey.OPENAI, data.openai);
-        rows.set(AiProviderSettingsKey.GEMINI, data.gemini);
-        rows.set(AiProviderSettingsKey.ACTIVE, {
-          llmProvider: data.llmProvider,
-        });
-        return Promise.resolve();
-      },
-    );
+    rows.set(AiProviderSettingsKey.GEMINI, { apiKey: 'synthetic-gemini-key' });
     const settings = await getter.getSettings();
     const dto = {
       llmProvider: LessonLlmProvider.GEMINI,
@@ -199,14 +223,60 @@ describe('Configurações de IA salvas no banco', () => {
     };
     const result = await updater.saveSettings(dto);
     expect(result.llmProvider).toBe(LessonLlmProvider.GEMINI);
-    expect(repo.saveAllSettings).toHaveBeenCalled();
-    expect(repo.saveProviderSettings).not.toHaveBeenCalled();
-    repo.saveAllSettings.mockRejectedValueOnce(
-      new Error('Database unavailable'),
-    );
+    expect(repo.updateLocked).toHaveBeenCalledTimes(1);
+    expect(repo.updateLocked.mock.calls[0][0]).toEqual([
+      AiProviderSettingsKey.OPENAI,
+      AiProviderSettingsKey.GEMINI,
+      AiProviderSettingsKey.ACTIVE,
+    ]);
+    repo.updateLocked.mockRejectedValueOnce(new Error('Database unavailable'));
     await expect(updater.saveSettings(dto)).rejects.toThrow(
       'Database unavailable',
     );
+  });
+
+  it('merges over the row read under the lock, so a concurrent save is not lost', async () => {
+    rows.set(AiProviderSettingsKey.OPENAI, {
+      generalModel: 'gpt-old',
+      imageModel: 'gpt-image-old',
+    });
+    repo.updateLocked.mockImplementationOnce(
+      (keys: AiProviderSettingsKey[], merge: StoredAiProviderSettingsMerge) => {
+        // Another session committed between this request's arrival and its lock.
+        rows.set(AiProviderSettingsKey.OPENAI, {
+          generalModel: 'gpt-old',
+          imageModel: 'gpt-image-from-other-session',
+        });
+        const current = { [keys[0]]: rows.get(keys[0]) };
+        for (const [key, value] of Object.entries(merge(current)))
+          rows.set(key as AiProviderSettingsKey, value);
+        return Promise.resolve();
+      },
+    );
+    await updater.saveOpenAiSettings({ generalModel: 'gpt-new' });
+    expect(rows.get(AiProviderSettingsKey.OPENAI)).toMatchObject({
+      generalModel: 'gpt-new',
+      imageModel: 'gpt-image-from-other-session',
+    });
+  });
+
+  it('recusa ativar um provedor sem chave e clampa tentativas salvas acima do teto', async () => {
+    await expect(
+      updater.saveSettings({
+        llmProvider: LessonLlmProvider.GEMINI,
+        openai: {},
+        gemini: {},
+      }),
+    ).rejects.toThrow('chave de API do provedor selecionado');
+    expect(rows.has(AiProviderSettingsKey.ACTIVE)).toBe(false);
+    rows.set(AiProviderSettingsKey.GEMINI, {
+      maxRetries: 10,
+      retryBaseDelayMs: 999999,
+    });
+    expect(await getter.getInternalGeminiSettings()).toMatchObject({
+      maxRetries: 5,
+      retryBaseDelayMs: 10000,
+    });
   });
 
   it('aceita parâmetros numéricos antigos em string e rejeita valores inválidos', async () => {
@@ -217,7 +287,7 @@ describe('Configurações de IA salvas no banco', () => {
     expect(await validate(valid)).toEqual([]);
     expect(valid.maxRetries).toBe(0);
     expect(valid.retryBaseDelayMs).toBe(1000);
-    for (const maxRetries of [-1, 11, 1.5, 'invalid', null]) {
+    for (const maxRetries of [-1, 6, 11, 1.5, 'invalid', null]) {
       expect(
         await validate(plainToInstance(SaveGeminiSettingsDto, { maxRetries })),
       ).not.toHaveLength(0);
@@ -248,20 +318,222 @@ describe('Configurações de IA salvas no banco', () => {
     ).not.toHaveLength(0);
   });
 
-  it('criptografa e descriptografa chaves de API com AES-256-GCM quando AI_PROVIDER_SETTINGS_ENCRYPTION_KEY está configurada', () => {
-    const encryptionKey = 'synthetic-test-master-key-for-aes-gcm';
+  it('rejeita opções fora das listas aceitas pelos provedores', async () => {
+    for (const dto of [
+      plainToInstance(SaveOpenAiSettingsDto, { imageQuality: 'ultra' }),
+      plainToInstance(SaveOpenAiSettingsDto, { reasoningEffort: 'maximum' }),
+      plainToInstance(SaveGeminiSettingsDto, { imageSize: '1024x1024' }),
+    ])
+      expect(await validate(dto)).not.toHaveLength(0);
+    expect(
+      await validate(
+        plainToInstance(SaveOpenAiSettingsDto, {
+          imageQuality: 'high',
+          reasoningEffort: 'none',
+        }),
+      ),
+    ).toEqual([]);
+    expect(
+      await validate(
+        plainToInstance(SaveGeminiSettingsDto, { imageSize: '2K' }),
+      ),
+    ).toEqual([]);
+  });
+
+  describe('segredos em repouso', () => {
+    const keys = { current: 'synthetic-master-key-A', previous: '' };
     const raw = 'sk-synthetic-secret-value-999';
-    const encrypted = encryptProviderSecret(raw, encryptionKey);
-    expect(encrypted).toMatch(/^enc:v1:/);
-    expect(encrypted).not.toContain(raw);
-    expect(decryptProviderSecret(encrypted, encryptionKey)).toBe(raw);
-    expect(decryptProviderSecret(encrypted, 'wrong-key')).toBe('');
-    // Backward compatibility with legacy plaintext
-    expect(decryptProviderSecret(raw, encryptionKey)).toBe(raw);
+
+    it('criptografa com AES-256-GCM v2, id de chave e vínculo ao provedor', () => {
+      const encrypted = encryptProviderSecret(raw, 'openai', keys);
+      expect(encrypted).toMatch(/^enc:v2:[0-9a-f]{8}:/);
+      expect(encrypted).not.toContain(raw);
+      expect(encryptProviderSecret(raw, 'openai', keys)).not.toBe(encrypted);
+      expect(decryptProviderSecret(encrypted, 'openai', keys)).toBe(raw);
+      // Legacy plaintext stays readable.
+      expect(decryptProviderSecret(raw, 'openai', keys)).toBe(raw);
+      // A ciphertext copied to another provider row does not authenticate.
+      expect(() => decryptProviderSecret(encrypted, 'gemini', keys)).toThrow(
+        AiProviderSecretFailure.DECRYPT_FAILED,
+      );
+    });
+
+    it('distingue chave mestra ausente, desconhecida e valor corrompido — nunca devolve vazio', () => {
+      const encrypted = encryptProviderSecret(raw, 'openai', keys);
+      expect(() =>
+        decryptProviderSecret(encrypted, 'openai', {
+          current: '',
+          previous: '',
+        }),
+      ).toThrow(AiProviderSecretFailure.MASTER_KEY_MISSING);
+      expect(() =>
+        decryptProviderSecret(encrypted, 'openai', {
+          current: 'another-key',
+          previous: '',
+        }),
+      ).toThrow(AiProviderSecretFailure.UNKNOWN_KEY_ID);
+      expect(() =>
+        decryptProviderSecret('enc:v2:broken', 'openai', keys),
+      ).toThrow(AiProviderSecretFailure.MALFORMED);
+      expect(() =>
+        decryptProviderSecret(`${encrypted.slice(0, -4)}AAAA`, 'openai', keys),
+      ).toThrow(ProviderSecretError);
+    });
+
+    it('lê valores da chave anterior e do formato enc:v1 durante a rotação', () => {
+      const rotated = {
+        current: 'synthetic-master-key-B',
+        previous: keys.current,
+      };
+      const old = encryptProviderSecret(raw, 'openai', keys);
+      expect(decryptProviderSecret(old, 'openai', rotated)).toBe(raw);
+      expect(providerSecretNeedsRotation(old, rotated)).toBe(true);
+      expect(providerSecretNeedsRotation(old, keys)).toBe(false);
+
+      // enc:v1 as written by the previous implementation: sha256 key, no AAD.
+      const iv = randomBytes(12);
+      const cipher = createCipheriv(
+        'aes-256-gcm',
+        createHash('sha256').update(keys.current, 'utf8').digest(),
+        iv,
+      );
+      const body = Buffer.concat([cipher.update(raw, 'utf8'), cipher.final()]);
+      const v1 = `enc:v1:${iv.toString('base64')}:${cipher.getAuthTag().toString('base64')}:${body.toString('base64')}`;
+      expect(decryptProviderSecret(v1, 'openai', keys)).toBe(raw);
+      expect(providerSecretNeedsRotation(v1, keys)).toBe(true);
+    });
+
+    it('preserva o ciphertext salvo quando a chave mestra some ou muda, em vez de apagá-lo', async () => {
+      await withKeys('synthetic-master-key-A', undefined, async () => {
+        await updater.saveOpenAiSettings({ apiKey: raw });
+      });
+      const ciphertext = storedKey(AiProviderSettingsKey.OPENAI);
+      expect(ciphertext).toMatch(/^enc:v2:/);
+
+      for (const broken of [undefined, 'synthetic-wrong-master-key']) {
+        await withKeys(broken, undefined, async () => {
+          const errors = jest
+            .spyOn(Logger.prototype, 'error')
+            .mockImplementation(() => undefined);
+          const settings = await getter.getInternalOpenAiSettings();
+          expect(settings).toMatchObject({
+            apiKey: '',
+            apiKeyUnreadable: true,
+          });
+          expect(errors).toHaveBeenCalledWith(
+            expect.stringContaining('ilegível'),
+          );
+          expect(await getter.getOpenAiSettings()).toMatchObject({
+            hasApiKey: false,
+            apiKeyUnreadable: true,
+          });
+          await updater.saveOpenAiSettings({ generalModel: 'gpt-4o' });
+          errors.mockRestore();
+        });
+        expect(storedKey(AiProviderSettingsKey.OPENAI)).toBe(ciphertext);
+        expect(rows.get(AiProviderSettingsKey.OPENAI)).not.toHaveProperty(
+          'apiKeyUnreadable',
+        );
+      }
+
+      await withKeys('synthetic-master-key-A', undefined, async () => {
+        expect((await getter.getInternalOpenAiSettings()).apiKey).toBe(raw);
+      });
+    });
+
+    it('migra texto puro e chave anterior no próximo salvamento e remove só por ação explícita', async () => {
+      rows.set(AiProviderSettingsKey.GEMINI, { apiKey: raw });
+      await withKeys(
+        'synthetic-master-key-B',
+        'synthetic-master-key-A',
+        async () => {
+          await updater.saveGeminiSettings({
+            generalModel: 'gemini-2.5-flash',
+          });
+          const migrated = storedKey(AiProviderSettingsKey.GEMINI);
+          expect(migrated).toMatch(/^enc:v2:/);
+          expect((await getter.getInternalGeminiSettings()).apiKey).toBe(raw);
+          await updater.saveGeminiSettings({ generalModel: 'gemini-2.5-pro' });
+          expect(storedKey(AiProviderSettingsKey.GEMINI)).toBe(migrated);
+          await updater.saveGeminiSettings({ apiKey: '' });
+          expect(storedKey(AiProviderSettingsKey.GEMINI)).toBe('');
+        },
+      );
+    });
+
+    it('recusa valores já cifrados e, em produção, uma nova chave sem chave mestra', async () => {
+      await expect(
+        updater.saveOpenAiSettings({ apiKey: 'enc:v2:aaaaaaaa:x:y:z:w' }),
+      ).rejects.toThrow('não é válida');
+      await withKeys(undefined, undefined, async () => {
+        environment.value = 'production';
+        await expect(
+          updater.saveOpenAiSettings({ apiKey: raw }),
+        ).rejects.toThrow(masterKeyEnv);
+        expect(rows.has(AiProviderSettingsKey.OPENAI)).toBe(false);
+        // Outside production the plaintext fallback keeps local setups working.
+        environment.value = 'local';
+        await updater.saveOpenAiSettings({ apiKey: raw });
+        expect(storedKey(AiProviderSettingsKey.OPENAI)).toBe(raw);
+      });
+    });
+
+    it('avisa na subida quando a chave mestra está ausente', async () => {
+      await withKeys(undefined, undefined, () => {
+        const warnings = jest
+          .spyOn(Logger.prototype, 'warn')
+          .mockImplementation(() => undefined);
+        getter.onModuleInit();
+        expect(warnings).toHaveBeenCalledWith(
+          expect.stringContaining(masterKeyEnv),
+        );
+        warnings.mockRestore();
+        return Promise.resolve();
+      });
+    });
+  });
+
+  it('queries the live model catalog through the queue without copying credentials and keeps its offline fallback', async () => {
+    rows.set(AiProviderSettingsKey.OPENAI, { apiKey: 'synthetic-saved-key' });
+    const queued = createAiQueueMock();
+    const service = new AiProvidersConfigService(
+      getter,
+      updater,
+      queued.service,
+    );
+    queued.get.mockResolvedValue({
+      data: { data: [{ id: 'gpt-custom-model' }, { id: 'dall-e-3' }] },
+    });
+    const live = await service.getOpenAiModels();
+    expect(live.source).toBe(AiModelCatalogSource.LIVE);
+    expect(live.models.general).toContain('gpt-custom-model');
+    // Families the Studio cannot drive are not offered.
+    expect(live.models.image).not.toContain('dall-e-3');
+    expect(queued.get).toHaveBeenCalledWith(
+      'https://api.openai.com/v1/models',
+      {
+        feature: AiQueueFeature.PROVIDER_SETTINGS,
+        timeout: 5000,
+        waitMs: 10000,
+      },
+    );
+    expect(JSON.stringify(queued.get.mock.calls)).not.toContain(
+      'synthetic-saved-key',
+    );
+    queued.get.mockRejectedValue(
+      new AiQueueException(AiQueueFailure.UNAVAILABLE),
+    );
+    expect((await service.getOpenAiModels()).source).toBe(
+      AiModelCatalogSource.FALLBACK,
+    );
   });
 
   it('informa proveniência explícita (FALLBACK e STATIC) no catálogo de modelos quando não há consulta ao vivo', async () => {
-    const configService = new AiProvidersConfigService(getter, updater);
+    const configService = new AiProvidersConfigService(
+      getter,
+      updater,
+      createAiQueueMock().service,
+    );
     const openaiCatalog = await configService.getOpenAiModels();
     expect(openaiCatalog.source).toBe(AiModelCatalogSource.FALLBACK);
     expect(openaiCatalog.isLive).toBe(false);

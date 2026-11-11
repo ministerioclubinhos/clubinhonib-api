@@ -15,6 +15,7 @@ import {
 } from 'docx';
 import { YOUNGER_MEDITATION_LAYOUT as L } from '../constants/younger-meditation-layout.constants';
 import { OLDER_MEDITATION_LAYOUT as O } from '../constants/older-meditation-layout.constants';
+import { OLDER_MEDITATION_MAX_ACTIVITIES } from '../constants/lesson-document.constants';
 import type { OlderMeditationSheet } from '../types/older-meditation.types';
 import { olderMeditationActivityBlocks } from './older-meditation-activity.utils';
 import { fitOlderMeditationSheet } from './older-meditation-fit.utils';
@@ -169,7 +170,7 @@ export function buildOlderMeditationSheet(
   ];
   children.push(
     table(
-      sheet.activities.slice(0, 3).map(
+      sheet.activities.slice(0, OLDER_MEDITATION_MAX_ACTIVITIES).map(
         (activity, index) =>
           new TableRow({
             cantSplit: true,
@@ -201,22 +202,26 @@ export function buildOlderMeditationSheet(
                                   activity.instruction,
                                   fontSize,
                                 ),
-                                Math.floor(width * 0.58),
+                                Math.floor(width * O.textColumnShare),
                               ),
                               cell(
                                 [
                                   imageParagraph(
                                     activity.image,
-                                    (width * 0.42) / 15,
+                                    (width * O.imageColumnShare) /
+                                      O.twipsPerPixel,
                                     imageHeight,
                                   ),
                                 ],
-                                Math.ceil(width * 0.42),
+                                Math.ceil(width * O.imageColumnShare),
                               ),
                             ],
                           }),
                         ],
-                        [Math.floor(width * 0.58), Math.ceil(width * 0.42)],
+                        [
+                          Math.floor(width * O.textColumnShare),
+                          Math.ceil(width * O.imageColumnShare),
+                        ],
                       ),
                     ]
                   : [

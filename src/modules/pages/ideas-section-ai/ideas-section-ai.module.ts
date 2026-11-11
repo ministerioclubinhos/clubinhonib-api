@@ -1,3 +1,4 @@
+import { AiRequestQueueModule } from 'src/shared/providers/ai-queue/ai-request-queue.module';
 import { Module } from '@nestjs/common';
 import { MediaModule } from 'src/shared/media/media.module';
 import { AwsModule } from 'src/shared/providers/aws/aws.module';
@@ -20,7 +21,13 @@ import { IdeaImageTransformProvider } from './providers/idea-image-transform.pro
 import { IdeasSectionAiEnhancementJob } from './jobs/ideas-section-ai-enhancement.job';
 import { IdeasSectionAiController } from './ideas-section-ai.controller';
 @Module({
-  imports: [MediaModule, AwsModule, AiLessonsModule, FeatureFlagsCoreModule],
+  imports: [
+    AiRequestQueueModule,
+    MediaModule,
+    AwsModule,
+    AiLessonsModule,
+    FeatureFlagsCoreModule,
+  ],
   controllers: [IdeasSectionAiController],
   providers: [
     IdeasSectionAiRepository,

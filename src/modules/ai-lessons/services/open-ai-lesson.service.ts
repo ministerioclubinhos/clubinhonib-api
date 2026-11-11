@@ -1,16 +1,15 @@
-import { cutoutKitPromptRules } from '../constants/story-visual-quality.constants';
-import { getLessonTemplate } from '../templates/special-lesson-templates';
+import { AiQueueException } from 'src/shared/providers/ai-queue/ai-queue.exception';
+import { AiRequestQueueService } from 'src/shared/providers/ai-queue/ai-request-queue.service';
+import { AiQueueFeature } from 'src/shared/providers/ai-queue/enums';
 import { lessonImageContextPrompt } from '../utils/lesson-image-context.utils';
 import { LessonCategory, LessonStageType } from '../enums/lesson.enums';
 import {
   imageConnectionErrorCode,
   retryImageConnection,
 } from '../utils/image-request.utils';
-import { OlderMeditationReviewPhase } from '../enums/older-meditation.enums';
 import {
   OLDER_MEDITATION_ACTIVITY_SCHEMA,
   OLDER_MEDITATION_REVIEW_SCHEMA,
-  OLDER_MEDITATION_REVIEW_PROMPT,
 } from '../constants/older-meditation-contract.constants';
 import { lessonImageTextPolicy } from '../utils/meditation-image.utils';
 import { retryOlderMeditationRequest } from '../utils/older-meditation-request.utils';
@@ -26,9 +25,31 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { LessonProviderConfig } from '../providers/lesson-llm.types';
-import axios, { AxiosError } from 'axios';
-import { serializeTemplate } from '../templates/lesson-templates';
-import { supportsOpenAiReasoning } from '../utils/openai-model-capabilities.utils';
+import { AxiosError } from 'axios';
+import {
+  openAiReasoningEffort,
+  supportsOpenAiReasoning,
+} from '../utils/openai-model-capabilities.utils';
+import {
+  buildLessonSystemPrompt,
+  buildLessonUserPayload,
+  lessonOperationLabel,
+} from '../utils/lesson-system-prompt.utils';
+import { decodeProviderImage } from '../utils/provider-image.utils';
+import {
+  DEFAULT_OPENAI_IMAGE_MODEL,
+  DEFAULT_OPENAI_IMAGE_QUALITY,
+  DEFAULT_OPENAI_TEXT_MODEL,
+  LESSON_GAME_MAX_STEPS,
+} from '../constants/ai-provider-settings.constants';
+import {
+  LessonImageOrientation,
+  OPENAI_API,
+  OPENAI_MAX_OUTPUT_TOKENS,
+  PROVIDER_REQUEST,
+  PROVIDER_TIMEOUT_FAILURE_CODE,
+  PROVIDER_TIMEOUT_NETWORK_CODES,
+} from '../providers/lesson-llm.constants';
 import {
   LessonLlmGenerationInput,
   LessonLlmGenerationResult,
@@ -45,8 +66,20 @@ type ResponsesPayload = {
     content?: Array<{ type?: string; text?: string; refusal?: string }>;
   }>;
   incomplete_details?: { reason?: string };
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    total_tokens?: number;
+  };
 };
 const STRING_ARRAY = { type: 'array', items: { type: 'string' } } as const;
+/** One paid image is generated per step: the ceiling bounds cost. */
+const GAME_STEPS_SCHEMA = {
+  type: 'array',
+  minItems: 1,
+  maxItems: LESSON_GAME_MAX_STEPS,
+  items: { type: 'string' },
+} as const;
 const ASSET_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -205,7 +238,7 @@ const FIXATION_ASSET_SCHEMA = {
     displayText: {
       type: 'string',
       description:
-        'Trecho exato da NVI aplicado posteriormente pelo renderer; a imagem deve permanecer sem texto.',
+        'Trecho exato da NVI que a própria imagem gerada deve exibir como cartão final; o servidor recompõe este campo a partir do versículo aprovado.',
     },
   },
 } as const;
@@ -330,7 +363,7 @@ export function schemaFor(
         },
         materials: STRING_ARRAY,
         preparation: { type: 'string' },
-        steps: STRING_ARRAY,
+        steps: GAME_STEPS_SCHEMA,
         rulesAndSafety: STRING_ARRAY,
         ageAdaptations: {
           type: 'object',
@@ -345,6 +378,7 @@ export function schemaFor(
         assets: {
           type: 'array',
           minItems: 1,
+          maxItems: LESSON_GAME_MAX_STEPS,
           items: GAME_INSTRUCTION_ASSET_SCHEMA,
         },
       },
@@ -409,7 +443,7 @@ export function schemaFor(
         verseVersion: { type: 'string', enum: ['NVI'] },
         materials: STRING_ARRAY,
         preparation: { type: 'string' },
-        steps: STRING_ARRAY,
+        steps: GAME_STEPS_SCHEMA,
         ageAdaptations: {
           type: 'object',
           additionalProperties: false,
@@ -425,6 +459,7 @@ export function schemaFor(
         assets: {
           type: 'array',
           minItems: 1,
+          maxItems: LESSON_GAME_MAX_STEPS,
           items: GAME_INSTRUCTION_ASSET_SCHEMA,
         },
       },
@@ -482,7 +517,9 @@ export function schemaFor(
           minItems: stage === LessonStageType.MEDITATION_YOUNGER ? 1 : 0,
           maxItems: count,
           description:
-            'Apenas artes necessárias ao desafio, ids correspondentes aos números das atividades. Não gerar ilustração decorativa para questão textual.',
+            stage === LessonStageType.MEDITATION_OLDER
+              ? 'Exatamente uma arte por atividade (ids 1, 2 e 3), como anexo ou apoio visual da questão, sem expor a resposta nem duplicar o enunciado.'
+              : 'Artes das atividades, com ids correspondentes aos números das atividades.',
           items: {
             ...ASSET_SCHEMA,
             properties: {
@@ -532,7 +569,10 @@ export function schemaFor(
 export class OpenAiLessonService implements LessonLlmProviderContract {
   private readonly logger = new Logger(OpenAiLessonService.name);
 
-  constructor(private readonly config: LessonProviderConfig) {}
+  constructor(
+    private readonly config: LessonProviderConfig,
+    private readonly queue: AiRequestQueueService,
+  ) {}
 
   async generateStage(
     input: LessonLlmGenerationInput,
@@ -543,75 +583,31 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
         'OPENAI_API_KEY não configurada; nenhuma minuta simulada foi criada.',
       );
 
-    const model = this.config.get<string>('OPENAI_TEXT_MODEL') || 'gpt-5.4';
-    const reasoningEffort = this.config.get<string>('OPENAI_REASONING_EFFORT');
+    const model =
+      this.config.get<string>('OPENAI_TEXT_MODEL') || DEFAULT_OPENAI_TEXT_MODEL;
+    const reasoning = supportsOpenAiReasoning(model);
+    const reasoningEffort = openAiReasoningEffort(
+      model,
+      this.config.get<string>('OPENAI_REASONING_EFFORT'),
+    );
     this.logger.log(
-      `[OpenAI Request] Geração de etapa '${input.stage}' | Operação: ${input.olderMeditationReview ? (input.olderMeditationReview.images.length ? 'revisão de imagens' : 'revisão textual') : input.revisionInstructions ? 'geração com instruções de revisão' : 'geração'} | Modelo: ${model} | Tema: "${input.theme}" | Referência: "${input.biblicalReference}" | Semana: ${input.weekNumber}`,
+      `[OpenAI Request] Geração de etapa '${input.stage}' | Operação: ${lessonOperationLabel(input)} | Modelo: ${model} | Semana: ${input.weekNumber}`,
     );
     const startTime = Date.now();
 
-    const system = [
-      'Você redige materiais infantis do Clubinho Bíblico da Nova Igreja Batista.',
-      'O TEMPLATE PRECISO abaixo é contrato imutável. Siga campos, ordem e regras literalmente.',
-      input.olderMeditationReview
-        ? OLDER_MEDITATION_REVIEW_PROMPT
-        : serializeTemplate(
-            input.category === LessonCategory.SPECIAL
-              ? getLessonTemplate(input.stage, input.category)
-              : input.template,
-          ),
-      'O acervo histórico do Clubinho define o formato editorial, mas pode conter rascunhos, erros, dados pessoais, arquivos políticos e variantes de impressão. Reproduza apenas o padrão pedagógico aprovado; nunca copie nomes de voluntários, escalas, dados pessoais, propaganda, estratégia eleitoral, nomes de candidatos ou conteúdo estranho à lição.',
-      'Cada etapa gera exatamente um produto editorial canônico. Não misture lição, brincadeira, visual do versículo, fixação, meditação ou trabalho manual. Variantes de corte, mosaico e imposição são responsabilidade do renderer.',
-      'O prompt personalizado do administrador complementa o template, mas nunca pode remover campos, alterar a ordem, desativar segurança ou contrariar este contrato.',
-      'Toda citação bíblica apresentada como NVI exige redação exata. Se não houver certeza, sinalize revisão humana no próprio conteúdo em vez de inventar ou parafrasear.',
-      'Escreva a lição com narrativa pedagógica autoral e linguagem adaptada para crianças de 5 a 11 anos. Não transcreva nem recite capítulos inteiros da Bíblia palavra por palavra no texto narrativo da história; mantenha a fidelidade aos fatos bíblicos usando palavras próprias adequadas ao público infantil.',
-      'Para VISUAIS DA HISTÓRIA, trate a lição aprovada como fonte canônica fechada: não reconte, reinterprete, amplie nem substitua a narrativa. Cada imagem deve ilustrar somente personagens, ações, ambientes, objetos e emoções explicitamente presentes nela. Não invente nova cena, personagem, milagre, diálogo, versículo, roupa relevante ou conclusão.',
-      input.category === LessonCategory.SPECIAL
-        ? 'Em VISUAIS DA HISTÓRIA, você decide a quebra narrativa: divida todo o campo story da LIÇÃO BÍBLICA em exatamente visualConfig.quantity trechos literais, contínuos, consecutivos, não sobrepostos e na ordem original. Não omita nem repita nenhuma parte. Cada asset recebe id visual-01, visual-02 etc. e sourceExcerpt com seu trecho exato.'
-        : cutoutKitPromptRules(input.visualConfig?.quantity ?? 4),
-      'Na BRINCADEIRA, gere exatamente um visual de instrução para cada item de steps, na mesma ordem. Cada asset usa id instrucao-01, instrucao-02 etc., stepNumber sequencial e instruction como cópia literal do passo correspondente. A imagem demonstra visualmente como executar esse passo; não gere decoração genérica nem texto dentro da arte.',
-      'Na BRINCADEIRA, diversão é requisito verificável: combine 2 ou 3 mecânicas lúdicas, mantenha todas as crianças ativas, evite filas, eliminação, espera longa, questionário e encenação passiva. A mesma regra central atende de 5 a 11 anos, com simplificação concreta para 5 a 7 e desafio opcional para 8 a 11 anos.',
-      'Quando previousVariants estiver preenchido para BRINCADEIRA, trata-se de uma regeneração: crie outra brincadeira do zero. Todas as brincadeiras desse histórico são referências negativas. É proibido reutilizar qualquer nome anterior, inclusive com pequena mudança de pontuação, artigo, subtítulo ou grafia. Não revise, adapte, renomeie nem recicle nenhuma dinâmica anterior. Nome, mecânica principal, organização, materiais característicos e sequência de ações devem ser genuinamente diferentes.',
-      'Para VISUAIS DO VERSÍCULO, use canonicalVerse.text e canonicalVerse.reference completos. Você decide a quantidade da melhor divisão semântica do texto, entre uma e nove partes; elas devem reconstruí-lo exatamente. Depois acrescente obrigatoriamente um último item isolado contendo somente a referência completa.',
-      'Em VISUAIS DO VERSÍCULO, a própria imagem gerada é o cartão final e já deve conter o trecho exato em tipografia infantil extragrande, ocupando aproximadamente 95% da área. Não dependa de texto aplicado posteriormente. Siga a identidade da Semana 7 com fundo azul/ciano, raios, nuvens e brilhos somente nas bordas, sem pessoas, personagens, animais, cenas ou objetos reconhecíveis.',
-      'VISUAIS DO VERSÍCULO e FIXAÇÃO DO VERSÍCULO são produtos distintos: o primeiro é uma sequência de imagens mnemônicas; o segundo é uma dinâmica ou brincadeira divertida.',
-      'Quando houver configuração visual escolhida pelo administrador, ela é obrigatória. Gere exatamente a quantidade solicitada, na orientação pedida e usando a estratégia pedagógica selecionada.',
-      'Responda somente no JSON Schema. Não crie etapas posteriores e não use marcadores [Image #].',
-    ].join('\n\n');
-    const user = JSON.stringify({
-      ...(input.olderMeditationReview
-        ? {
-            worksheetToReview: input.olderMeditationReview.content,
-            reviewPhase: input.olderMeditationReview.images.length
-              ? OlderMeditationReviewPhase.IMAGES
-              : OlderMeditationReviewPhase.TEXT,
-          }
-        : {}),
-      theme: input.theme,
-      biblicalReference: input.biblicalReference,
-      weekNumber: input.weekNumber,
-      category: input.category ?? LessonCategory.REGULAR,
-      specialContext: input.specialContext ?? null,
-      stage: input.stage,
-      adminPrompt: input.olderMeditationReview ? null : input.adminPrompt,
-      approvedUpstream: input.approvedUpstream,
-      previousVariants: input.previousVariants ?? [],
-      canonicalVerse: input.canonicalVerse ?? null,
-      visualConfig: input.visualConfig ?? null,
-      revisionInstructions: input.revisionInstructions ?? null,
-    });
+    const system = buildLessonSystemPrompt(input);
+    const user = buildLessonUserPayload(input);
     try {
       const request = () =>
-        axios.post<ResponsesPayload>(
-          'https://api.openai.com/v1/responses',
+        this.queue.post<ResponsesPayload>(
+          OPENAI_API.responses,
           {
             model,
             store: false,
-            ...(input.stage === LessonStageType.MEDITATION_OLDER &&
-            !supportsOpenAiReasoning(model)
-              ? { max_output_tokens: OLDER_MEDITATION_REQUEST.maxOutputTokens }
-              : {}),
-            ...(reasoningEffort && supportsOpenAiReasoning(model)
+            ...(reasoning
+              ? {}
+              : { max_output_tokens: this.maxOutputTokens(input.stage) }),
+            ...(reasoningEffort
               ? { reasoning: { effort: reasoningEffort } }
               : {}),
             input: [
@@ -651,27 +647,33 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
               },
             },
           },
-          { headers: { Authorization: `Bearer ${apiKey}` }, timeout: 120000 },
+          {
+            feature: AiQueueFeature.LESSONS,
+            timeout: PROVIDER_REQUEST.textTimeoutMs,
+          },
         );
-      const response =
-        input.stage === LessonStageType.MEDITATION_OLDER
-          ? await retryOlderMeditationRequest(request, (delay) =>
-              this.logger.warn(
-                `Limite temporário no item 7; nova tentativa em ${delay}ms.`,
-              ),
-            )
-          : await request();
+      // The same bounded 429 policy protects every stage, not only item 7.
+      const response = await retryOlderMeditationRequest(request, (delay) =>
+        this.logger.warn(
+          `Limite temporário da OpenAI na etapa '${input.stage}'; nova tentativa em ${delay}ms.`,
+        ),
+      );
       if (response.data.incomplete_details)
         throw new BadGatewayException(
           `Resposta incompleta da OpenAI: ${response.data.incomplete_details.reason ?? 'sem motivo'}`,
         );
-      const block = response.data.output
-        ?.flatMap((item) => item.content ?? [])
-        .find((item) => item.type === 'output_text' || item.text);
-      if (block?.refusal)
+      const blocks =
+        response.data.output?.flatMap((item) => item.content ?? []) ?? [];
+      const refusal = blocks.find(
+        (item) => item.type === OPENAI_API.refusalBlock || item.refusal,
+      );
+      if (refusal)
         throw new BadGatewayException(
-          `OpenAI recusou a geração: ${block.refusal}`,
+          `OpenAI recusou a geração: ${JSON.stringify({ error: { code: 'content_blocked' } })}`,
         );
+      const block = blocks.find(
+        (item) => item.type === OPENAI_API.textBlock || item.text,
+      );
       const raw = response.data.output_text ?? block?.text;
       if (!raw || !response.data.id)
         throw new BadGatewayException(
@@ -682,10 +684,17 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
         `[OpenAI Response] Etapa '${input.stage}' gerada em ${elapsed}ms | Response ID: ${response.data.id}`,
       );
       return {
-        content: JSON.parse(raw) as Record<string, unknown>,
+        content: this.parseStructured(raw),
         responseId: response.data.id,
+        usage: {
+          model,
+          inputTokens: response.data.usage?.input_tokens,
+          outputTokens: response.data.usage?.output_tokens,
+          totalTokens: response.data.usage?.total_tokens,
+        },
       };
     } catch (error: unknown) {
+      if (error instanceof AiQueueException) throw error;
       const elapsed = Date.now() - startTime;
       if (error instanceof BadGatewayException) {
         this.logger.error(
@@ -693,17 +702,49 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
         );
         throw error;
       }
-      const detail =
-        error instanceof AxiosError
-          ? JSON.stringify(error.response?.data ?? error.message)
-          : String(error);
+      const detail = this.failureDetail(error);
       this.logger.error(
-        `[OpenAI Error] Etapa '${input.stage}' falhou em ${elapsed}ms: ${detail.slice(0, 500)}`,
+        `[OpenAI Error] Etapa '${input.stage}' falhou em ${elapsed}ms: ${detail}`,
       );
       throw new BadGatewayException(
-        `Falha ao gerar ${input.stage} na OpenAI: ${detail.slice(0, 500)}`,
+        `Falha ao gerar ${input.stage} na OpenAI: ${detail}`,
       );
     }
+  }
+
+  private maxOutputTokens(stage: LessonStageType): number {
+    if (stage === LessonStageType.MEDITATION_OLDER)
+      return OLDER_MEDITATION_REQUEST.maxOutputTokens;
+    return stage === LessonStageType.LESSON
+      ? OPENAI_MAX_OUTPUT_TOKENS.lesson
+      : OPENAI_MAX_OUTPUT_TOKENS.default;
+  }
+
+  private parseStructured(raw: string): Record<string, unknown> {
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed))
+        return parsed as Record<string, unknown>;
+    } catch {
+      // Reported below with a stable message.
+    }
+    throw new BadGatewayException(
+      'OpenAI retornou conteúdo estruturado inválido (JSON malformado).',
+    );
+  }
+
+  /** Timeouts get a classifiable code; other failures keep the sanitized payload. */
+  private failureDetail(error: unknown): string {
+    if (!(error instanceof AxiosError)) return String(error).slice(0, 500);
+    if (
+      (PROVIDER_TIMEOUT_NETWORK_CODES as readonly string[]).includes(
+        error.code ?? '',
+      )
+    )
+      return JSON.stringify({
+        error: { code: PROVIDER_TIMEOUT_FAILURE_CODE },
+      });
+    return JSON.stringify(error.response?.data ?? error.message).slice(0, 500);
   }
 
   async generateImage(
@@ -718,10 +759,13 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
     if (!apiKey)
       throw new ServiceUnavailableException('OPENAI_API_KEY não configurada.');
     const model =
-      this.config.get<string>('OPENAI_IMAGE_MODEL') || 'gpt-image-2.5-sunburst';
-    const quality = this.config.get<string>('OPENAI_IMAGE_QUALITY') || 'high';
+      this.config.get<string>('OPENAI_IMAGE_MODEL') ||
+      DEFAULT_OPENAI_IMAGE_MODEL;
+    const quality =
+      this.config.get<string>('OPENAI_IMAGE_QUALITY') ||
+      DEFAULT_OPENAI_IMAGE_QUALITY;
     this.logger.log(
-      `[OpenAI Request] Geração de imagem | Modelo: ${model} | Orientação: ${orientation ?? 'PADRÃO'} | Tipo: ${visualType ?? 'PADRÃO'} | Prompt: "${prompt.slice(0, 120)}..."`,
+      `[OpenAI Request] Geração de imagem | Modelo: ${model} | Orientação: ${orientation ?? 'PADRÃO'} | Tipo: ${visualType ?? 'PADRÃO'}`,
     );
     const startTime = Date.now();
     try {
@@ -729,7 +773,10 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
         purpose === LessonImagePurpose.CUTOUT_SHEET
           ? `Prancha de elementos ilustrados para recortar, para crianças de 5 a 11 anos. Orientação obrigatória: ${orientation || 'definida no prompt'}. Sem conteúdo sexual, romântico, erotizado, violência gráfica ou debates de sexualidade. ${lessonImageTextPolicy(purpose)} ${prompt}`
           : `${lessonImageContextPrompt(context)} Para crianças de ${purpose === LessonImagePurpose.MEDITATION_ACTIVITY ? '4 a 11' : '5 a 11'} anos. Não acrescente personagens, fatos ou símbolos não pedidos. Estratégia pedagógica: ${visualType || 'definida no prompt'}. Orientação obrigatória: ${orientation || 'definida no prompt'}. Sem conteúdo sexual, romântico, erotizado, violência gráfica ou debates de sexualidade. Obedeça literalmente ao estilo, orientação, paleta, margem e finalidade pedidos a seguir. ${lessonImageTextPolicy(purpose)} ${prompt}`;
-      const size = orientation === 'PORTRAIT' ? '1024x1536' : '1536x1024';
+      const size =
+        orientation === String(LessonImageOrientation.PORTRAIT)
+          ? OPENAI_API.portraitSize
+          : OPENAI_API.landscapeSize;
       const request = () =>
         identityReferenceImage
           ? (() => {
@@ -738,7 +785,7 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
               form.append('prompt', finalPrompt);
               form.append('size', size);
               form.append('quality', quality);
-              form.append('output_format', 'png');
+              form.append('output_format', OPENAI_API.imageFormat);
               form.append(
                 'image[]',
                 new Blob([new Uint8Array(identityReferenceImage.data)], {
@@ -748,27 +795,27 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
                   ? 'clubinho-identidade-visual.jpg'
                   : 'clubinho-identidade-visual.png',
               );
-              return axios.post<{ data?: Array<{ b64_json?: string }> }>(
-                'https://api.openai.com/v1/images/edits',
+              return this.queue.post<{ data?: Array<{ b64_json?: string }> }>(
+                OPENAI_API.imageEdits,
                 form,
                 {
-                  headers: { Authorization: `Bearer ${apiKey}` },
-                  timeout: 180000,
+                  feature: AiQueueFeature.LESSONS,
+                  timeout: PROVIDER_REQUEST.imageTimeoutMs,
                 },
               );
             })()
-          : axios.post<{ data?: Array<{ b64_json?: string }> }>(
-              'https://api.openai.com/v1/images/generations',
+          : this.queue.post<{ data?: Array<{ b64_json?: string }> }>(
+              OPENAI_API.imageGenerations,
               {
                 model,
                 prompt: finalPrompt,
                 size,
                 quality,
-                output_format: 'png',
+                output_format: OPENAI_API.imageFormat,
               },
               {
-                headers: { Authorization: `Bearer ${apiKey}` },
-                timeout: 180000,
+                feature: AiQueueFeature.LESSONS,
+                timeout: PROVIDER_REQUEST.imageTimeoutMs,
               },
             );
       const response = await retryImageConnection(request, (code) => {
@@ -785,20 +832,18 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
       this.logger.log(
         `[OpenAI Response] Imagem gerada em ${elapsed}ms | Tamanho: ${encoded.length} b64 chars`,
       );
-      return Buffer.from(encoded, 'base64');
+      return decodeProviderImage(encoded);
     } catch (error: unknown) {
+      if (error instanceof AiQueueException) throw error;
       const elapsed = Date.now() - startTime;
-      const detail =
-        error instanceof AxiosError
-          ? JSON.stringify(error.response?.data ?? error.message)
-          : String(error);
+      const detail = this.failureDetail(error);
       this.logger.error(
-        `[OpenAI Error] Geração de imagem falhou em ${elapsed}ms: ${detail.slice(0, 500)}`,
+        `[OpenAI Error] Geração de imagem falhou em ${elapsed}ms: ${detail}`,
       );
       if (error instanceof BadGatewayException) throw error;
       const connectionCode = imageConnectionErrorCode(error);
       throw new BadGatewayException(
-        `Falha ao gerar imagem na OpenAI: ${connectionCode ? `[${connectionCode}] ` : ''}${detail.slice(0, 500)}`,
+        `Falha ao gerar imagem na OpenAI: ${connectionCode ? `[${connectionCode}] ` : ''}${detail}`,
       );
     }
   }

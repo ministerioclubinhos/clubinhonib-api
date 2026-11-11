@@ -36,15 +36,22 @@ describe('AdminLessonPromptService', () => {
       } else records.push(entity);
       return Promise.resolve(entity);
     }),
-    deletePrompt: jest.fn((adminId: string, stage: LessonStageType) => {
-      const index = records.findIndex(
-        (item) => item.adminId === adminId && item.stage === stage,
-      );
-      if (index >= 0) records.splice(index, 1);
-      return Promise.resolve();
-    }),
-  } as unknown as AdminLessonPromptRepository;
-  const service = new AdminLessonPromptService(repository);
+    // Same contract as the SQL compare-and-swap: one row, only at that version.
+    updatePromptWhereVersion: jest.fn(
+      (id: string, expectedLockVersion: number, customPrompt: string) => {
+        const record = records.find(
+          (item) => item.id === id && item.lockVersion === expectedLockVersion,
+        );
+        if (!record) return Promise.resolve(false);
+        record.customPrompt = customPrompt;
+        record.lockVersion += 1;
+        return Promise.resolve(true);
+      },
+    ),
+  };
+  const service = new AdminLessonPromptService(
+    repository as unknown as AdminLessonPromptRepository,
+  );
 
   beforeEach(() => {
     records.splice(0);
@@ -216,14 +223,133 @@ describe('AdminLessonPromptService', () => {
         (saved.lockVersion ?? 1) - 1,
       ),
     ).rejects.toBeInstanceOf(ConflictException);
-    const reset = await service.reset('admin-a', LessonStageType.STANDARD_GAME);
+    // A reset without the version the editor loaded would be a blind overwrite.
+    await expect(
+      service.reset('admin-a', LessonStageType.STANDARD_GAME),
+    ).rejects.toBeInstanceOf(ConflictException);
+    const reset = await service.reset(
+      'admin-a',
+      LessonStageType.STANDARD_GAME,
+      saved.lockVersion ?? undefined,
+    );
     expect(reset.customPrompt).toBeNull();
+    // The row survives with a monotonic version, so a stale editor cannot win.
+    expect(reset.lockVersion).toBe((saved.lockVersion ?? 0) + 1);
+    await expect(
+      service.save(
+        'admin-a',
+        LessonStageType.STANDARD_GAME,
+        'Texto de uma sessão antiga, suficientemente longo.',
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+    await expect(
+      service.save(
+        'admin-a',
+        LessonStageType.STANDARD_GAME,
+        'Texto de uma sessão antiga, suficientemente longo.',
+        saved.lockVersion ?? undefined,
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(
+      (
+        await service.save(
+          'admin-a',
+          LessonStageType.STANDARD_GAME,
+          'Texto da sessão atual, suficientemente longo.',
+          reset.lockVersion ?? undefined,
+        )
+      ).customPrompt,
+    ).toBe('Texto da sessão atual, suficientemente longo.');
     expect(reset.effectivePrompt).toBe(reset.basePrompt);
     expect(reset.basePrompt).toContain('crianças realmente queiram brincar');
     expect(reset.basePrompt).toContain('5 a 7 anos');
     expect(reset.basePrompt).toContain('8 a 11 anos');
     expect(reset.basePrompt).toContain(
       'espera superior a aproximadamente 30 segundos',
+    );
+  });
+
+  it('trata como conflito a gravação condicional que não alterou nenhuma linha', async () => {
+    const saved = await service.save(
+      'admin-a',
+      LessonStageType.LESSON,
+      'Prompt personalizado suficientemente longo.',
+    );
+    // Another instance won the race between this read and its UPDATE.
+    repository.updatePromptWhereVersion.mockResolvedValueOnce(false);
+    await expect(
+      service.save(
+        'admin-a',
+        LessonStageType.LESSON,
+        'Outra versão suficientemente longa.',
+        saved.lockVersion ?? undefined,
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+    repository.updatePromptWhereVersion.mockResolvedValueOnce(false);
+    await expect(
+      service.reset(
+        'admin-a',
+        LessonStageType.LESSON,
+        saved.lockVersion ?? undefined,
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('descreve o kit de recortes nos visuais da história, sem o contrato antigo de cenas', async () => {
+    const prompt = await service.effective(
+      'admin-a',
+      LessonStageType.LESSON_VISUALS,
+    );
+    expect(prompt).toContain('KIT DE RECORTES');
+    expect(prompt).toContain('kit-01');
+    expect(prompt).toContain('storyEvidence');
+    expect(prompt).not.toContain('sceneId');
+    expect(prompt).not.toContain('STORY_SEQUENCE');
+    expect(prompt).not.toContain(
+      'Cada imagem deve representar um acontecimento',
+    );
+  });
+
+  it('converte a criação concorrente (ER_DUP_ENTRY) em conflito 409', async () => {
+    repository.savePrompt.mockRejectedValueOnce(
+      Object.assign(new Error('Duplicate entry'), { code: 'ER_DUP_ENTRY' }),
+    );
+    await expect(
+      service.save(
+        'admin-a',
+        LessonStageType.MANUAL_WORK,
+        'Prompt personalizado suficientemente longo.',
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+    repository.savePrompt.mockRejectedValueOnce(new Error('Database down'));
+    await expect(
+      service.save(
+        'admin-a',
+        LessonStageType.MANUAL_WORK,
+        'Prompt personalizado suficientemente longo.',
+      ),
+    ).rejects.toThrow('Database down');
+  });
+
+  it('dois salvamentos seguidos guardam só o complemento e a base aparece uma única vez', async () => {
+    const first = await service.save(
+      'admin-a',
+      LessonStageType.MANUAL_WORK,
+      'Primeiro complemento suficientemente longo.',
+    );
+    const second = await service.save(
+      'admin-a',
+      LessonStageType.MANUAL_WORK,
+      'Segundo complemento suficientemente longo.',
+      first.lockVersion ?? undefined,
+    );
+    expect(second.customPrompt).toBe(
+      'Segundo complemento suficientemente longo.',
+    );
+    expect(second.effectivePrompt.split(second.basePrompt)).toHaveLength(2);
+    expect(second.effectivePrompt).not.toContain('Primeiro complemento');
+    expect(second.effectivePrompt).toContain(
+      'ORIENTAÇÃO COMPLEMENTAR DO ADMINISTRADOR',
     );
   });
 });

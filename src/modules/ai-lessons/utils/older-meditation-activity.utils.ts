@@ -12,6 +12,11 @@ import {
 import type { MeditationJson } from '../types/younger-meditation.types';
 import { OLDER_MEDITATION_LAYOUT as O } from '../constants/older-meditation-layout.constants';
 import { MEDITATION_ACTIVITY_FIELDS } from '../constants/meditation-formatting.constants';
+import {
+  gridRowCells,
+  isPuzzleGridBlock,
+  isPuzzleGridRow,
+} from './meditation-grid.utils';
 import { paragraph, table } from './meditation-layout.utils';
 import {
   meditationNodeText,
@@ -63,17 +68,15 @@ export function olderMeditationActivityBlocks(
     if (/caça[ -]palavras|cruzadinha/i.test(instruction)) {
       while (
         end < nodes.length &&
-        /^[A-ZÀ-Ü0-9#._\s]{4,}$/.test(meditationNodeText(nodes[end]).trim())
+        isPuzzleGridRow(meditationNodeText(nodes[end]))
       )
         end++;
     }
-    if (end - cursor >= 3) {
-      const rows = nodes.slice(cursor, end).map((node) =>
-        meditationNodeText(node)
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f\s]/g, '')
-          .toUpperCase(),
-      );
+    const rows = nodes
+      .slice(cursor, end)
+      .map((node) => gridRowCells(meditationNodeText(node)));
+    // Three identical "______" answer lines are not a grid.
+    if (isPuzzleGridBlock(rows)) {
       if (rows.every((row) => row.length === rows[0].length)) {
         const side = Math.min(
           O.gridCellSize,

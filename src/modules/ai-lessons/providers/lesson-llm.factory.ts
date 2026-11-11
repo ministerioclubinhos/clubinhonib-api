@@ -15,7 +15,7 @@ export function selectLessonLlmProvider(
   };
   if (!Object.prototype.hasOwnProperty.call(providers, configured))
     throw new ServiceUnavailableException(
-      `Provedor de IA inválido: ${configured}. Use openai ou gemini.`,
+      'Provedor de IA inválido. Use openai ou gemini.',
     );
   return providers[configured as LessonLlmProvider];
 }

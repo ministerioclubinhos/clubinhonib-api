@@ -1,12 +1,17 @@
 import { ConflictException } from '@nestjs/common';
 import { CutoutCategory } from '../enums/lesson.enums';
-import { CUTOUT_SKY_KEYWORDS } from '../constants/story-visual-quality.constants';
+import {
+  CUTOUT_COVERAGE_COVERED,
+  CUTOUT_COVERAGE_NOT_APPLICABLE,
+  CUTOUT_ITEM_SIZES,
+  CUTOUT_SKY_KEYWORDS,
+} from '../constants/story-visual-quality.constants';
 import { lessonString } from '../utils';
 
 type JsonObject = Record<string, unknown>;
 
-const SIZES = ['LARGE', 'MEDIUM', 'SMALL'];
-const CATEGORIES = Object.values(CutoutCategory) as string[];
+const CATEGORIES: string[] = Object.values(CutoutCategory);
+const SKY_AND_NATURE: string = CutoutCategory.SKY_AND_NATURE;
 
 function asObject(value: unknown): JsonObject {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -91,7 +96,7 @@ export function validateCutoutKit(
         throw new ConflictException(
           `Todos os elementos da prancha ${id} precisam de label e description.`,
         );
-      if (!SIZES.includes(lessonString(item.size)))
+      if (!CUTOUT_ITEM_SIZES.includes(lessonString(item.size)))
         throw new ConflictException(
           `O elemento "${label}" precisa declarar o tamanho LARGE, MEDIUM ou SMALL.`,
         );
@@ -110,7 +115,7 @@ export function validateCutoutKit(
           throw new ConflictException(
             `O storyEvidence do elemento "${label}" precisa ser um trecho literal da LIÇÃO BÍBLICA.`,
           );
-      } else if (!extra && category !== CutoutCategory.SKY_AND_NATURE)
+      } else if (!extra && category !== SKY_AND_NATURE)
         throw new ConflictException(
           `O elemento "${label}" precisa de storyEvidence literal da LIÇÃO BÍBLICA.`,
         );
@@ -126,12 +131,15 @@ export function validateCutoutKit(
       throw new ConflictException(
         `O coverageChecklist precisa conter a categoria ${category}.`,
       );
-    if (entry.status === 'NOT_APPLICABLE') {
+    if (entry.status === CUTOUT_COVERAGE_NOT_APPLICABLE) {
       if (!lessonString(entry.justification).trim())
         throw new ConflictException(
           `A categoria ${category} marcada como NOT_APPLICABLE precisa de justificativa.`,
         );
-    } else if (entry.status !== 'COVERED' || !presentCategories.has(category))
+    } else if (
+      entry.status !== CUTOUT_COVERAGE_COVERED ||
+      !presentCategories.has(category)
+    )
       throw new ConflictException(
         `A categoria ${category} está marcada como coberta, mas não possui elementos no kit.`,
       );

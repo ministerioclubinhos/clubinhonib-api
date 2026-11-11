@@ -58,6 +58,7 @@ para entender as relações; as entidades TypeORM continuam sendo a fonte comple
 - [Páginas de vídeos](flow/video-pages/video-pages-flow.png)
 - [Materiais da semana](flow/week-materials/week-materials-flow.png)
 - [Estúdio Clubinho](flow/ai-lessons/ai-lessons-flow.png)
+- [Estúdio Clubinho — máquina de estados](flow/ai-lessons/ai-lessons-states.png)
 - [Rotas de conteúdo](flow/routes/routes-flow.png)
 
 ## Eventos

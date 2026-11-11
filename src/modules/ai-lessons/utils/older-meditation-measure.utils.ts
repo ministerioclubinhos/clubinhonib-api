@@ -5,6 +5,7 @@ import {
 } from './meditation-rich-text.utils';
 import { MEDITATION_HEADING_SCALE } from '../constants/meditation-formatting.constants';
 import { OLDER_MEDITATION_LAYOUT as O } from '../constants/older-meditation-layout.constants';
+import { documentFontSize } from '../lessonDocument.utils';
 
 function object(value: unknown): MeditationJson {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -14,13 +15,9 @@ function object(value: unknown): MeditationJson {
 function largestSize(node: MeditationJson, fallback: number): number {
   const marks = Array.isArray(node.marks) ? node.marks.map(object) : [];
   const style = object(marks.find((mark) => mark.type === 'textStyle')?.attrs);
-  const size =
-    typeof style.fontSize === 'string'
-      ? Number.parseFloat(style.fontSize) *
-        (style.fontSize.endsWith('px') ? 1.5 : 2)
-      : fallback;
+  const size = documentFontSize(style.fontSize, fallback) ?? fallback;
   return Math.max(
-    Number.isFinite(size) ? size : fallback,
+    size,
     ...(Array.isArray(node.content)
       ? node.content.map((child) => largestSize(object(child), fallback))
       : []),

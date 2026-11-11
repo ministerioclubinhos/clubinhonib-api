@@ -1,6 +1,6 @@
 # Plano de Implementação Backend — Estúdio Clubinho: correções baseadas em evidências
 
-**Status:** plano auditado; correções delimitadas e decisões pendentes identificadas. Implementação não executada.
+**Status:** superado pelo [plano de 2026-11-01](studio-clubinho-improvements-2026-11-01.md); mantido como histórico. A referência vigente é [api-ai-lessons.md](../api-ai-lessons.md) (nota de 2026-11-10).
 
 **Revisão:** 2026-10-11 — revisão 2, após a exigência de precisão e zero suposições.
 

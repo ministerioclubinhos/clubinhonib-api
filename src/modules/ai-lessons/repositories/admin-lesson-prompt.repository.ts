@@ -57,12 +57,4 @@ export class AdminLessonPromptRepository {
       .execute();
     return result.affected === 1;
   }
-
-  async deletePrompt(
-    adminId: string,
-    stage: LessonStageType,
-    category: LessonCategory = LessonCategory.REGULAR,
-  ): Promise<void> {
-    await this.repo.delete({ adminId, stage, category });
-  }
 }

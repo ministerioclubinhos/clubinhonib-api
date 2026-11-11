@@ -18,26 +18,22 @@ import {
   StreamableFile,
   UseGuards,
 } from '@nestjs/common';
-import {
-  Observable,
-  defer,
-  from,
-  interval,
-  map,
-  startWith,
-  switchMap,
-  take,
-} from 'rxjs';
+import { Observable } from 'rxjs';
 import { AuthRequest } from 'src/core/auth/auth.types';
 import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 import { AdminRoleGuard } from 'src/core/auth/guards/role-guard';
 import { LessonDraftService } from '../services/lesson-draft.service';
 import { GenerateLessonRequestDto } from '../dto/generate-lesson-request.dto';
 import {
+  ApproveStageRequestDto,
+  CompleteStageRequestDto,
   GenerateStageRequestDto,
+  LessonViewQueryDto,
   PreviewStagePdfQueryDto,
-  ReviewStageRequestDto,
+  ReopenStageRequestDto,
+  RequestStageChangesDto,
 } from '../dto/generate-stage-request.dto';
+import { LessonEventStreamService } from '../services/lesson-event-stream.service';
 import { SaveTiptapContentDto } from '../dto/save-tiptap-content.dto';
 import { LessonStageType } from '../enums/lesson.enums';
 import { AdminLessonPromptService } from '../services/admin-lesson-prompt.service';
@@ -49,14 +45,12 @@ import {
 import { QueryLessonsDto } from '../dto/query-lessons.dto';
 import {
   LessonDashboardResponseDto,
+  LessonDeleteResponseDto,
   LessonListResponseDto,
   LessonPublicationResponseDto,
   LessonResponseDto,
-  computeLessonEventDigest,
   toLessonResponse,
 } from '../dto/lesson-response.dto';
-
-const SSE_MAX_TICKS_PER_CONNECTION = 90;
 
 @Controller('api/v1/lessons')
 @UseGuards(JwtAuthGuard, AdminRoleGuard)
@@ -64,6 +58,7 @@ export class AiLessonsController {
   constructor(
     private readonly service: LessonDraftService,
     private readonly prompts: AdminLessonPromptService,
+    private readonly eventStream: LessonEventStreamService,
   ) {}
   @Get('prompt-preferences/me') promptPreferences(
     @Req() req: AuthRequest,
@@ -118,44 +113,47 @@ export class AiLessonsController {
   }
   @Get(':id') async get(
     @Param('id', ParseUUIDPipe) id: string,
-    @Query('view') view?: 'full' | 'compact',
+    @Query() query: LessonViewQueryDto = {},
   ): Promise<LessonResponseDto> {
-    const normalizedView = view === 'compact' ? 'compact' : 'full';
     return toLessonResponse(await this.service.getById(id), {
-      view: normalizedView,
+      view: query.view,
     });
   }
   @Sse(':id/events') events(
     @Param('id', ParseUUIDPipe) id: string,
-    @Query('view') view?: 'full' | 'compact',
+    @Req() req: AuthRequest,
+    @Query() query: LessonViewQueryDto = {},
   ): Observable<MessageEvent> {
-    const normalizedView = view === 'compact' ? 'compact' : 'full';
-    return defer(() => {
-      let lastDigest: string | null = null;
-      return interval(2000).pipe(
-        startWith(0),
-        take(SSE_MAX_TICKS_PER_CONNECTION),
-        switchMap(() => from(this.service.getById(id))),
-        map((lesson): MessageEvent => {
-          const nextDigest = computeLessonEventDigest(lesson);
-          if (lastDigest === nextDigest) {
-            return {
-              type: 'heartbeat',
-              data: { type: 'heartbeat', timestamp: new Date().toISOString() },
-            };
-          }
-          lastDigest = nextDigest;
-          return {
-            data: toLessonResponse(lesson, { view: normalizedView }),
-          };
-        }),
-      );
-    });
+    return this.eventStream.stream(id, req.user.userId, query.view);
   }
   @Delete(':id') @HttpCode(HttpStatus.OK) delete(
     @Param('id', ParseUUIDPipe) id: string,
-  ) {
-    return this.service.delete(id);
+    @Req() req: AuthRequest,
+  ): Promise<LessonDeleteResponseDto> {
+    return this.service.delete(id, req.user.userId);
+  }
+  @Post(':id/archive') @HttpCode(HttpStatus.OK) async archive(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthRequest,
+  ): Promise<LessonResponseDto> {
+    return toLessonResponse(await this.service.archive(id, req.user.userId));
+  }
+  @Post(':id/unarchive') @HttpCode(HttpStatus.OK) async unarchive(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthRequest,
+  ): Promise<LessonResponseDto> {
+    return toLessonResponse(await this.service.unarchive(id, req.user.userId));
+  }
+  @Post(':id/comments/:commentId/resolve')
+  @HttpCode(HttpStatus.OK)
+  async resolveComment(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('commentId', ParseUUIDPipe) commentId: string,
+    @Req() req: AuthRequest,
+  ): Promise<LessonResponseDto> {
+    return toLessonResponse(
+      await this.service.resolveComment(id, commentId, req.user.userId),
+    );
   }
   @Post(':id/stages/generate') async generate(
     @Param('id', ParseUUIDPipe) id: string,
@@ -177,24 +175,32 @@ export class AiLessonsController {
   }
   @Post(':id/stages/complete-production') async completeProduction(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: ReviewStageRequestDto,
+    @Body() dto: CompleteStageRequestDto,
+    @Req() req: AuthRequest,
   ): Promise<LessonResponseDto> {
     return toLessonResponse(
       await this.service.completeProductionStage(
         id,
         dto.stage,
         dto.lockVersion,
+        {
+          acknowledgeStale: dto.acknowledgeStale,
+          actorId: req.user.userId,
+        },
       ),
     );
   }
   @Post(':id/package/submit-review') async submitPackage(
     @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthRequest,
   ): Promise<LessonResponseDto> {
-    return toLessonResponse(await this.service.submitPackageReview(id));
+    return toLessonResponse(
+      await this.service.submitPackageReview(id, req.user.userId),
+    );
   }
   @Post(':id/stages/approve') async approve(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: ReviewStageRequestDto,
+    @Body() dto: ApproveStageRequestDto,
     @Req() req: AuthRequest,
   ): Promise<LessonResponseDto> {
     return toLessonResponse(
@@ -208,11 +214,26 @@ export class AiLessonsController {
   }
   @Post(':id/stages/request-changes') async requestChanges(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: ReviewStageRequestDto,
+    @Body() dto: RequestStageChangesDto,
     @Req() req: AuthRequest,
   ): Promise<LessonResponseDto> {
     return toLessonResponse(
       await this.service.requestChanges(
+        id,
+        dto.stage,
+        dto.note,
+        req.user.userId,
+        dto.lockVersion,
+      ),
+    );
+  }
+  @Post(':id/stages/reopen') @HttpCode(HttpStatus.OK) async reopen(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ReopenStageRequestDto,
+    @Req() req: AuthRequest,
+  ): Promise<LessonResponseDto> {
+    return toLessonResponse(
+      await this.service.reopenStage(
         id,
         dto.stage,
         dto.note,
@@ -252,8 +273,12 @@ export class AiLessonsController {
   }
   @Post(':id/publish-week-material') async publish(
     @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthRequest,
   ): Promise<LessonPublicationResponseDto> {
-    const result = await this.service.publishToWeekMaterial(id);
+    const result = await this.service.publishToWeekMaterial(
+      id,
+      req.user.userId,
+    );
     return {
       lesson: toLessonResponse(result.lesson),
       weekMaterialId: result.weekMaterialId,

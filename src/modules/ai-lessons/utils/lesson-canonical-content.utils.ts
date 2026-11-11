@@ -1,13 +1,37 @@
 import { ConflictException } from '@nestjs/common';
+import {
+  BIBLE_REFERENCE_PATTERN,
+  BIBLE_VERSION_PATTERN,
+  CANONICAL_TABLE_CELL_SEPARATOR,
+  GAME_AGE_ADAPTATIONS_HEADINGS,
+  GAME_AGE_ADAPTATIONS_KEY,
+  GAME_AGE_ADAPTATION_SECTIONS,
+  GAME_CANONICAL_SECTIONS,
+  GAME_MAX_DURATION_MINUTES,
+  LESSON_CANONICAL_SECTIONS,
+  LESSON_REQUIRED_BIBLE_VERSION,
+  LESSON_VERSE_SUBHEADINGS,
+  SERVER_AUTHORITATIVE_STAGES,
+} from '../constants/lesson-canonical-content.constants';
+import { LESSON_ASSET_LIST_FIELDS } from '../constants/lesson-asset.constants';
 import { LESSON_NARRATIVE_INCOMPLETE_PREFIX } from '../constants/lesson-editorial.constants';
+import { CanonicalSectionKind } from '../enums/lesson-canonical-content.enums';
 import { LessonStageType } from '../enums/lesson.enums';
 import { lessonNarrativeIssue } from '../lessonNarrative.utils';
+import type {
+  CanonicalJsonObject as JsonObject,
+  CanonicalSectionField,
+  ExtractedTiptapSection,
+  LessonMemoryVerse,
+  LessonReviewQuestion,
+} from '../types/lesson-canonical-content.types';
 import { lessonString, normalizeLessonVerseReference } from '../utils';
 import { preserveServerOwnedAssetsOnManualSave } from './lesson-asset-ownership.utils';
 import { editedOlderMeditation } from './older-meditation-content.utils';
 import { editedYoungerMeditation } from './younger-meditation-content.utils';
 
-type JsonObject = Record<string, unknown>;
+const LIST_NODE_TYPES = ['bulletList', 'orderedList', 'listItem'];
+const TABLE_CELL_NODE_TYPES = ['tableCell', 'tableHeader'];
 
 function asObject(value: unknown): JsonObject {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -15,110 +39,223 @@ function asObject(value: unknown): JsonObject {
     : {};
 }
 
-function tiptapNodeText(node: JsonObject): string {
-  if (node.type === 'hardBreak') return '\n';
-  const ownText = lessonString(node.text);
-  const children = Array.isArray(node.content)
-    ? node.content.map((item) =>
-        item && typeof item === 'object'
-          ? tiptapNodeText(item as JsonObject)
-          : '',
-      )
-    : [];
-  const separator = ['bulletList', 'orderedList', 'listItem'].includes(
-    String(node.type),
-  )
-    ? '\n'
-    : '';
-  return [ownText, ...children].filter(Boolean).join(separator);
-}
-
-interface ExtractedSection {
-  present: boolean;
-  text: string;
-  nodes: JsonObject[];
-}
-
-function normalizeHeading(value: string): string {
-  return value.trim().replace(/\s+/g, ' ').toLocaleUpperCase('pt-BR');
-}
-
-export function extractTiptapSection(
-  document: JsonObject,
-  headingCandidates: readonly string[],
-): ExtractedSection {
-  const nodes = Array.isArray(document.content)
-    ? document.content.filter(
+function childNodes(node: JsonObject): JsonObject[] {
+  return Array.isArray(node.content)
+    ? node.content.filter(
         (item): item is JsonObject =>
           Boolean(item) && typeof item === 'object' && !Array.isArray(item),
       )
     : [];
+}
+
+/** Flattens a node to text keeping list items, table rows and cells apart. */
+export function tiptapNodeText(node: JsonObject): string {
+  if (node.type === 'hardBreak') return '\n';
+  const type = lessonString(node.type);
+  const ownText = lessonString(node.text);
+  const children = childNodes(node).map(tiptapNodeText);
+  if (type === 'tableRow')
+    return children
+      .map((cell) => cell.trim())
+      .join(CANONICAL_TABLE_CELL_SEPARATOR);
+  if (TABLE_CELL_NODE_TYPES.includes(type))
+    return children.filter(Boolean).join(' ');
+  const separator =
+    LIST_NODE_TYPES.includes(type) || type === 'table' ? '\n' : '';
+  return [ownText, ...children].filter(Boolean).join(separator);
+}
+
+/** Case-, accent- and punctuation-insensitive key ("Aplicação & Apelo" ≡ "APLICAÇÃO E APELO"). */
+export function normalizeHeading(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/&/g, ' E ')
+    .toLocaleUpperCase('pt-BR')
+    .replace(/[^A-Z0-9]+/g, ' ')
+    .trim();
+}
+
+function headingLevel(node: JsonObject): number {
+  return Number(asObject(node.attrs).level ?? 2);
+}
+
+function isHeading(node: JsonObject): boolean {
+  return node.type === 'heading';
+}
+
+/**
+ * Label the generator gives to a structured key it has no translation for;
+ * such headings also delimit sections (see `LessonDraftService.toTiptap`).
+ */
+function genericKeyHeading(key: string): string {
+  return key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ');
+}
+
+function recognizedHeadingSet(
+  fields: readonly CanonicalSectionField[],
+  base: JsonObject,
+  extraHeadings: readonly string[] = [],
+): Set<string> {
+  return new Set(
+    [
+      ...fields.flatMap((field) => field.headings),
+      ...extraHeadings,
+      ...Object.keys(base)
+        .filter((key) => !key.startsWith('_'))
+        .map(genericKeyHeading),
+    ].map(normalizeHeading),
+  );
+}
+
+/**
+ * Returns the nodes between a section heading and the next section.
+ *
+ * When `recognizedHeadings` is given, only a recognised section heading (or a
+ * level-1 title) ends the section, so a free sub-heading typed inside the
+ * narrative no longer truncates it. Without it, the legacy rule applies: any
+ * heading of the same or higher level ends the section.
+ */
+export function extractTiptapSection(
+  document: JsonObject,
+  headingCandidates: readonly string[],
+  recognizedHeadings?: ReadonlySet<string>,
+): ExtractedTiptapSection {
+  const nodes = childNodes(document);
   const normalizedCandidates = headingCandidates.map(normalizeHeading);
   const start = nodes.findIndex(
     (node) =>
-      node.type === 'heading' &&
+      isHeading(node) &&
       normalizedCandidates.includes(normalizeHeading(tiptapNodeText(node))),
   );
   if (start < 0) {
     return { present: false, text: '', nodes: [] };
   }
 
-  const headingLevel = Number(asObject(nodes[start].attrs).level ?? 2);
+  const startLevel = headingLevel(nodes[start]);
   const remaining = nodes.slice(start + 1);
-  const end = remaining.findIndex(
-    (node) =>
-      node.type === 'heading' &&
-      Number(asObject(node.attrs).level ?? 2) <= headingLevel,
-  );
+  const end = remaining.findIndex((node) => {
+    if (!isHeading(node)) return false;
+    if (!recognizedHeadings) return headingLevel(node) <= startLevel;
+    return (
+      headingLevel(node) === 1 ||
+      recognizedHeadings.has(normalizeHeading(tiptapNodeText(node)))
+    );
+  });
   const sectionNodes = end < 0 ? remaining : remaining.slice(0, end);
   const text = sectionNodes
     .map((node) => {
       const nodeText = tiptapNodeText(node).trim();
-      return node.type === 'heading' && nodeText ? `### ${nodeText}` : nodeText;
+      return isHeading(node) && nodeText ? `### ${nodeText}` : nodeText;
     })
     .filter(Boolean)
     .join('\n\n')
     .trim();
 
-  return {
-    present: true,
-    text,
-    nodes: sectionNodes,
-  };
+  return { present: true, text, nodes: sectionNodes };
 }
 
-function extractListItemsFromSection(section: ExtractedSection): string[] {
+function stripListMarker(value: string): string {
+  return value
+    .trim()
+    .replace(/^(?:•|\d+[.)])\s*/, '')
+    .trim();
+}
+
+function extractListItemsFromSection(
+  section: ExtractedTiptapSection,
+): string[] {
   const items: string[] = [];
   for (const node of section.nodes) {
     if (node.type === 'bulletList' || node.type === 'orderedList') {
-      const children = Array.isArray(node.content) ? node.content : [];
-      for (const child of children) {
-        const text = tiptapNodeText(asObject(child))
-          .trim()
-          .replace(/^(?:•|\d+[.)])\s*/, '')
-          .trim();
+      for (const child of childNodes(node)) {
+        const text = stripListMarker(tiptapNodeText(child));
         if (text) items.push(text);
       }
     } else if (node.type === 'paragraph') {
-      const lines = tiptapNodeText(node)
-        .split(/\r?\n/)
-        .map((line) =>
-          line
-            .trim()
-            .replace(/^(?:•|\d+[.)])\s*/, '')
-            .trim(),
-        )
-        .filter(Boolean);
-      items.push(...lines);
+      items.push(
+        ...tiptapNodeText(node)
+          .split(/\r?\n/)
+          .map(stripListMarker)
+          .filter(Boolean),
+      );
     }
   }
   return items;
 }
 
-function parseLessonMemoryVerseSection(
-  section: ExtractedSection,
+function stripQuotes(value: string): string {
+  return value
+    .trim()
+    .replace(/^[“"«]+/, '')
+    .replace(/[”"»]+$/, '')
+    .trim();
+}
+
+export function isBibleReference(value: string): boolean {
+  return BIBLE_REFERENCE_PATTERN.test(value.trim());
+}
+
+function versionToken(value: string): string | null {
+  return value.trim().match(BIBLE_VERSION_PATTERN)?.[1] ?? null;
+}
+
+/** Legacy editor layout: one sub-heading per verse part. */
+function parseVerseSubheadings(
+  section: ExtractedTiptapSection,
   previousVerse: JsonObject,
-): JsonObject {
+): LessonMemoryVerse | null {
+  const parts: Record<keyof typeof LESSON_VERSE_SUBHEADINGS, string[]> = {
+    text: [],
+    reference: [],
+    version: [],
+  };
+  let current: keyof typeof LESSON_VERSE_SUBHEADINGS | null = null;
+  let found = false;
+  for (const node of section.nodes) {
+    if (isHeading(node)) {
+      const heading = normalizeHeading(tiptapNodeText(node));
+      const match = (
+        Object.keys(LESSON_VERSE_SUBHEADINGS) as Array<
+          keyof typeof LESSON_VERSE_SUBHEADINGS
+        >
+      ).find((key) =>
+        LESSON_VERSE_SUBHEADINGS[key].map(normalizeHeading).includes(heading),
+      );
+      current = match ?? null;
+      found = found || Boolean(match);
+      continue;
+    }
+    const text = tiptapNodeText(node).trim();
+    if (current && text) parts[current].push(text);
+  }
+  if (!found) return null;
+  return {
+    text: stripQuotes(parts.text.join(' ')),
+    reference: normalizeLessonVerseReference(parts.reference.join(' ')),
+    version:
+      parts.version.join(' ').trim() ||
+      lessonString(previousVerse.version).trim() ||
+      LESSON_REQUIRED_BIBLE_VERSION,
+  };
+}
+
+/**
+ * Reads "text / reference — version" in any of the editor layouts:
+ * several paragraphs of verse followed by a reference line, a single line
+ * `“text” — Reference — NVI`, or `“text” (Reference - NVI)`. The reference is
+ * always the LAST segment that looks like one, so a dash or a second paragraph
+ * inside the verse stays part of the verse.
+ */
+export function parseLessonMemoryVerseSection(
+  section: ExtractedTiptapSection,
+  previousVerse: JsonObject,
+): LessonMemoryVerse {
+  const subheadings = parseVerseSubheadings(section, previousVerse);
+  if (subheadings) return subheadings;
+
+  const previousVersion =
+    lessonString(previousVerse.version).trim() || LESSON_REQUIRED_BIBLE_VERSION;
   const lines = section.text
     .split(/\r?\n+/)
     .map((line) => line.trim())
@@ -127,74 +264,133 @@ function parseLessonMemoryVerseSection(
     return { text: '', reference: '', version: '' };
   }
 
-  if (lines.length === 1) {
-    const singleLine = lines[0];
-    const parts = singleLine.split(/\s*[—–]\s*/);
-    if (parts.length >= 2) {
-      const text = parts[0].replace(/^[“"«]|[”"»]$/g, '').trim();
-      const reference = normalizeLessonVerseReference(parts[1]);
-      const version = (
-        parts[2] ??
-        (lessonString(previousVerse.version) || 'NVI')
-      ).trim();
-      return { text, reference, version };
+  // `“text” (Reference - NVI)` or `“text” (Reference)` closing the section.
+  const parenthetical = lines.join(' ').match(/^(.*?)\s*\(([^()]+)\)\s*$/s);
+  if (parenthetical) {
+    const inner = parenthetical[2].trim();
+    const innerVersion = inner.match(/\s*[-–—,]?\s*(\p{Lu}{2,5})$/u);
+    const innerReference = normalizeLessonVerseReference(
+      innerVersion ? inner.slice(0, innerVersion.index).trim() : inner,
+    );
+    if (parenthetical[1].trim() && isBibleReference(innerReference)) {
+      return {
+        text: stripQuotes(parenthetical[1]),
+        reference: innerReference,
+        version: innerVersion?.[1] ?? previousVersion,
+      };
     }
+  }
+
+  // Segments keep the separator that preceded them so the verse is rebuilt verbatim.
+  const segments: Array<{ value: string; separator: string }> = [];
+  lines.forEach((line, lineIndex) => {
+    const pieces = line.split(/(\s+[—–-]\s+|\s*—\s*)/);
+    for (let index = 0; index < pieces.length; index += 2) {
+      const value = pieces[index].trim();
+      if (!value) continue;
+      segments.push({
+        value,
+        separator: index === 0 ? (lineIndex === 0 ? '' : ' ') : ' — ',
+      });
+    }
+  });
+
+  let version = previousVersion;
+  const last = segments[segments.length - 1];
+  const trailingVersion = last ? versionToken(last.value) : null;
+  if (trailingVersion && segments.length > 1) {
+    version = trailingVersion;
+    segments.pop();
+  }
+
+  const joinSegments = (
+    items: Array<{ value: string; separator: string }>,
+  ): string =>
+    items
+      .map((segment, index) =>
+        index === 0 ? segment.value : `${segment.separator}${segment.value}`,
+      )
+      .join('');
+
+  const candidate = segments[segments.length - 1];
+  const candidateReference = candidate
+    ? normalizeLessonVerseReference(candidate.value)
+    : '';
+  if (segments.length >= 2 && isBibleReference(candidateReference)) {
     return {
-      text: singleLine.replace(/^[“"«]|[”"»]$/g, '').trim(),
-      reference: normalizeLessonVerseReference(previousVerse.reference),
-      version: lessonString(previousVerse.version).trim() || 'NVI',
+      text: stripQuotes(joinSegments(segments.slice(0, -1))),
+      reference: candidateReference,
+      version,
     };
   }
 
-  const text = lines[0].replace(/^[“"«]|[”"»]$/g, '').trim();
-  const refLine = lines[1];
-  const refParts = refLine.split(/\s*[—–]\s*/);
-  const reference = normalizeLessonVerseReference(refParts[0]);
-  const version = (
-    refParts[1] ??
-    (/\bNVI\b/i.test(refLine)
-      ? 'NVI'
-      : lessonString(previousVerse.version).trim() || 'NVI')
-  ).trim();
-  return { text, reference, version };
+  if (segments.length === 1) {
+    // Only the verse was typed: the reference stays the one already approved.
+    return {
+      text: stripQuotes(segments[0].value),
+      reference: normalizeLessonVerseReference(previousVerse.reference),
+      version,
+    };
+  }
+
+  // Several segments and none is a reference: keep the whole text and leave
+  // the reference empty so completion fails with a specific message.
+  return { text: stripQuotes(joinSegments(segments)), reference: '', version };
 }
 
-function parseReviewQuestionsSection(section: ExtractedSection): JsonObject[] {
+/**
+ * Numbered lines open a question; "Resposta:" opens its answer, on its own
+ * line or after the question on the same line. Unnumbered lines continue the
+ * answer (or the question) unless they are themselves a question.
+ */
+export function parseReviewQuestionsSection(
+  section: ExtractedTiptapSection,
+): LessonReviewQuestion[] {
   const lines = section.text
     .split(/\r?\n+/)
     .map((line) => line.trim())
     .filter(Boolean);
-  if (lines.length === 0) return [];
-  const questions: JsonObject[] = [];
+  const questions: LessonReviewQuestion[] = [];
+  let answering = false;
   for (const line of lines) {
-    if (/^resposta\s*:/i.test(line)) {
-      const answer = line.replace(/^resposta\s*:\s*/i, '').trim();
-      if (questions.length > 0) {
-        questions[questions.length - 1].answer = answer;
+    const numbered = /^\d+[.)]\s*/.test(line);
+    const body = line.replace(/^\d+[.)]\s*/, '').trim();
+    const answerOnly = body.match(/^resposta\s*:\s*(.*)$/is);
+    const current = questions[questions.length - 1];
+    if (answerOnly && !numbered) {
+      if (current) {
+        current.answer = [current.answer, answerOnly[1].trim()]
+          .filter(Boolean)
+          .join('\n');
+        answering = true;
       }
-    } else {
-      const question = line.replace(/^\d+[.)]\s*/, '').trim();
-      if (question) {
-        questions.push({ question, answer: '' });
-      }
+      continue;
     }
+    const startsQuestion =
+      numbered ||
+      !current ||
+      (answering ? /\?\s*$/.test(body) : /\?\s*$/.test(current.question));
+    if (!startsQuestion) {
+      if (answering)
+        current.answer = [current.answer, body].filter(Boolean).join('\n');
+      else current.question = `${current.question} ${body}`.trim();
+      continue;
+    }
+    const inline = body.match(/^(.*?)\s+resposta\s*:\s*(.*)$/is);
+    const question = (inline ? inline[1] : body).trim();
+    if (!question) continue;
+    questions.push({ question, answer: inline ? inline[2].trim() : '' });
+    answering = Boolean(inline);
   }
   return questions;
 }
 
 function extractLessonTitleFromAst(document: JsonObject): string | undefined {
-  const nodes = Array.isArray(document.content)
-    ? document.content.filter(
-        (item): item is JsonObject =>
-          Boolean(item) && typeof item === 'object' && !Array.isArray(item),
-      )
-    : [];
-  const h1Nodes = nodes.filter(
-    (node) =>
-      node.type === 'heading' && Number(asObject(node.attrs).level ?? 1) === 1,
-  );
-  if (h1Nodes.length === 0) return undefined;
-  const nonMarker = h1Nodes
+  const nonMarker = childNodes(document)
+    .filter(
+      (node) =>
+        isHeading(node) && Number(asObject(node.attrs).level ?? 1) === 1,
+    )
     .map((node) => tiptapNodeText(node).trim())
     .filter(
       (text) =>
@@ -205,95 +401,101 @@ function extractLessonTitleFromAst(document: JsonObject): string | undefined {
   return nonMarker[0];
 }
 
+function emptyValue(field: CanonicalSectionField, previous: unknown): unknown {
+  switch (field.kind) {
+    case CanonicalSectionKind.LIST:
+    case CanonicalSectionKind.QUESTIONS:
+      return [];
+    case CanonicalSectionKind.TEXT_OR_LIST:
+      return Array.isArray(previous) ? [] : '';
+    case CanonicalSectionKind.VERSE:
+      return { text: '', reference: '', version: '' };
+    case CanonicalSectionKind.NUMBER:
+      return previous;
+    default:
+      return '';
+  }
+}
+
+function sectionValue(
+  field: CanonicalSectionField,
+  section: ExtractedTiptapSection,
+  previous: unknown,
+): unknown {
+  switch (field.kind) {
+    case CanonicalSectionKind.LIST:
+      return extractListItemsFromSection(section);
+    case CanonicalSectionKind.TEXT_OR_LIST:
+      return Array.isArray(previous)
+        ? extractListItemsFromSection(section)
+        : section.text;
+    case CanonicalSectionKind.VERSE:
+      return parseLessonMemoryVerseSection(section, asObject(previous));
+    case CanonicalSectionKind.QUESTIONS:
+      return parseReviewQuestionsSection(section);
+    case CanonicalSectionKind.NUMBER: {
+      const parsed = Number(section.text.match(/\d+/)?.[0]);
+      return Number.isInteger(parsed) &&
+        parsed > 0 &&
+        parsed <= GAME_MAX_DURATION_MINUTES
+        ? parsed
+        : previous;
+    }
+    default:
+      return section.text;
+  }
+}
+
+/**
+ * Applies every known editor section onto `target`. A section whose heading
+ * was removed is emptied (when the server stores that field) so the PDF, which
+ * follows the edited document, and the derived stages, which follow the
+ * structured data, cannot diverge.
+ */
+function applySections(
+  target: JsonObject,
+  document: JsonObject,
+  fields: readonly CanonicalSectionField[],
+  recognized: ReadonlySet<string>,
+  clearMissing: boolean,
+): void {
+  for (const field of fields) {
+    const section = extractTiptapSection(document, field.headings, recognized);
+    if (section.present) {
+      target[field.key] = sectionValue(field, section, target[field.key]);
+    } else if (clearMissing && field.key in target) {
+      target[field.key] = emptyValue(field, target[field.key]);
+    }
+  }
+}
+
+function hasRecognizedSection(
+  document: JsonObject,
+  fields: readonly CanonicalSectionField[],
+): boolean {
+  const known = new Set(
+    fields.flatMap((field) => field.headings).map(normalizeHeading),
+  );
+  return childNodes(document).some(
+    (node) =>
+      isHeading(node) && known.has(normalizeHeading(tiptapNodeText(node))),
+  );
+}
+
 function reconcileLessonStructuredContent(
   base: JsonObject,
   document: JsonObject,
 ): JsonObject {
   const next: JsonObject = { ...base };
-  const nodes = Array.isArray(document.content)
-    ? document.content.filter(
-        (item): item is JsonObject =>
-          Boolean(item) && typeof item === 'object' && !Array.isArray(item),
-      )
-    : [];
-  const hasLevel2Headings = nodes.some(
-    (node) =>
-      node.type === 'heading' && Number(asObject(node.attrs).level ?? 2) === 2,
-  );
-
   const editedTitle = extractLessonTitleFromAst(document);
-  if (editedTitle !== undefined) {
-    next.title = editedTitle;
-  }
-
-  const biblicalRefSection = extractTiptapSection(document, ['TEXTO BÍBLICO']);
-  if (biblicalRefSection.present) {
-    next.biblicalReference = biblicalRefSection.text;
-  }
-
-  const purposeSection = extractTiptapSection(document, ['PROPÓSITO']);
-  if (purposeSection.present) {
-    next.purpose = purposeSection.text;
-  }
-
-  const songsSection = extractTiptapSection(document, ['MÚSICAS']);
-  if (songsSection.present) {
-    next.songs = extractListItemsFromSection(songsSection);
-  }
-
-  const verseSection = extractTiptapSection(document, [
-    'VERSÍCULO PARA MEMORIZAR',
-  ]);
-  if (verseSection.present) {
-    next.memoryVerse = parseLessonMemoryVerseSection(
-      verseSection,
-      asObject(next.memoryVerse),
-    );
-  } else if (hasLevel2Headings && 'memoryVerse' in next) {
-    next.memoryVerse = { text: '', reference: '', version: '' };
-  }
-
-  const principleSection = extractTiptapSection(document, [
-    'EXPLICAÇÃO DO PRINCÍPIO',
-  ]);
-  if (principleSection.present) {
-    next.principleExplanation = principleSection.text;
-  }
-
-  const storySection = extractTiptapSection(document, ['LIÇÃO BÍBLICA']);
-  if (storySection.present) {
-    next.story = storySection.text;
-  } else if (hasLevel2Headings && 'story' in next) {
-    next.story = '';
-  }
-
-  const applicationSection = extractTiptapSection(document, [
-    'APLICAÇÃO E APELO',
-  ]);
-  if (applicationSection.present) {
-    next.applicationAndAppeal = applicationSection.text;
-  }
-
-  const counselingSection = extractTiptapSection(document, [
-    'ACONSELHAMENTO / CANTINHO DO ACONSELHAMENTO',
-    'CANTINHO DO ACONSELHAMENTO',
-  ]);
-  if (counselingSection.present) {
-    next.counseling = counselingSection.text;
-  }
-
-  const questionsSection = extractTiptapSection(document, [
-    'PERGUNTAS DA LIÇÃO',
-  ]);
-  if (questionsSection.present) {
-    next.reviewQuestions = parseReviewQuestionsSection(questionsSection);
-  }
-
-  const prayerSection = extractTiptapSection(document, ['FALANDO COM DEUS']);
-  if (prayerSection.present) {
-    next.closingPrayer = prayerSection.text;
-  }
-
+  if (editedTitle !== undefined) next.title = editedTitle;
+  applySections(
+    next,
+    document,
+    LESSON_CANONICAL_SECTIONS,
+    recognizedHeadingSet(LESSON_CANONICAL_SECTIONS, base),
+    hasRecognizedSection(document, LESSON_CANONICAL_SECTIONS),
+  );
   return next;
 }
 
@@ -302,117 +504,87 @@ function reconcileGameStructuredContent(
   document: JsonObject,
 ): JsonObject {
   const next: JsonObject = { ...base };
-  const nodes = Array.isArray(document.content)
-    ? document.content.filter(
-        (item): item is JsonObject =>
-          Boolean(item) && typeof item === 'object' && !Array.isArray(item),
-      )
+  const allFields = [
+    ...GAME_CANONICAL_SECTIONS,
+    ...GAME_AGE_ADAPTATION_SECTIONS,
+  ];
+  const recognized = recognizedHeadingSet(
+    allFields,
+    base,
+    GAME_AGE_ADAPTATIONS_HEADINGS,
+  );
+  const clearMissing = hasRecognizedSection(document, allFields);
+
+  if ('title' in next) {
+    const editedTitle = extractLessonTitleFromAst(document);
+    if (editedTitle !== undefined) next.title = editedTitle;
+  }
+  applySections(
+    next,
+    document,
+    GAME_CANONICAL_SECTIONS,
+    recognized,
+    clearMissing,
+  );
+
+  const steps = Array.isArray(next.steps)
+    ? next.steps.map((step) => lessonString(step))
     : [];
-  const hasHeadings = nodes.some((node) => node.type === 'heading');
-
-  const nameSection = extractTiptapSection(document, ['NOME']);
-  if (nameSection.present) {
-    next.name = nameSection.text;
+  if (Array.isArray(next.assets) && steps.length === next.assets.length) {
+    next.assets = (next.assets as unknown[]).map((raw, index) => ({
+      ...asObject(raw),
+      stepNumber: index + 1,
+      instruction: steps[index],
+    }));
   }
 
-  const objectiveSection = extractTiptapSection(document, ['OBJETIVO']);
-  if (objectiveSection.present) {
-    next.objective = objectiveSection.text;
-  }
-
-  const mechanicsSection = extractTiptapSection(document, [
-    'MECÂNICAS DIVERTIDAS',
-    'FUN MECHANICS',
-  ]);
-  if (mechanicsSection.present) {
-    next.funMechanics = Array.isArray(next.funMechanics)
-      ? extractListItemsFromSection(mechanicsSection)
-      : mechanicsSection.text;
-  }
-
-  const materialsSection = extractTiptapSection(document, ['MATERIAIS']);
-  if (materialsSection.present) {
-    next.materials = extractListItemsFromSection(materialsSection);
-  }
-
-  const preparationSection = extractTiptapSection(document, ['PREPARAÇÃO']);
-  if (preparationSection.present) {
-    next.preparation = Array.isArray(next.preparation)
-      ? extractListItemsFromSection(preparationSection)
-      : preparationSection.text;
-  }
-
-  const stepsSection = extractTiptapSection(document, ['PASSO A PASSO']);
-  if (stepsSection.present) {
-    const steps = extractListItemsFromSection(stepsSection);
-    next.steps = steps;
-    if (Array.isArray(next.assets) && steps.length === next.assets.length) {
-      next.assets = (next.assets as unknown[]).map((raw, index) => ({
-        ...asObject(raw),
-        stepNumber: index + 1,
-        instruction: steps[index],
-      }));
-    }
-  } else if (hasHeadings && 'steps' in next) {
-    next.steps = [];
-  }
-
-  const rulesSection = extractTiptapSection(document, ['REGRAS E SEGURANÇA']);
-  if (rulesSection.present) {
-    next.rulesAndSafety = Array.isArray(next.rulesAndSafety)
-      ? extractListItemsFromSection(rulesSection)
-      : rulesSection.text;
-  }
-
-  const principleSection = extractTiptapSection(document, [
-    'PRINCÍPIO BÍBLICO',
-  ]);
-  if (principleSection.present) {
-    next.biblicalPrinciple = principleSection.text;
-  }
-
-  const evaluationSection = extractTiptapSection(document, ['COMO AVALIAR']);
-  if (evaluationSection.present) {
-    next.evaluation = evaluationSection.text;
-  }
-
-  const ages5To7Section = extractTiptapSection(document, [
-    'CRIANÇAS DE 5 A 7 ANOS',
-    'AGES5TO7',
-  ]);
-  const ages8To11Section = extractTiptapSection(document, [
-    'CRIANÇAS DE 8 A 11 ANOS',
-    'AGES8TO11',
-  ]);
-  if (ages5To7Section.present || ages8To11Section.present) {
-    const prevAdaptations = asObject(next.ageAdaptations);
-    next.ageAdaptations = {
-      ...prevAdaptations,
-      ...(ages5To7Section.present ? { ages5To7: ages5To7Section.text } : {}),
-      ...(ages8To11Section.present ? { ages8To11: ages8To11Section.text } : {}),
-    };
+  const hasAdaptations = GAME_AGE_ADAPTATIONS_KEY in next;
+  const adaptations: JsonObject = {
+    ...asObject(next[GAME_AGE_ADAPTATIONS_KEY]),
+  };
+  const anyAdaptationSection = GAME_AGE_ADAPTATION_SECTIONS.some(
+    (field) =>
+      extractTiptapSection(document, field.headings, recognized).present,
+  );
+  if (anyAdaptationSection || (hasAdaptations && clearMissing)) {
+    applySections(
+      adaptations,
+      document,
+      GAME_AGE_ADAPTATION_SECTIONS,
+      recognized,
+      clearMissing,
+    );
+    next[GAME_AGE_ADAPTATIONS_KEY] = adaptations;
   }
 
   return next;
 }
 
+/**
+ * Builds the canonical structured data of a manual edit.
+ *
+ * The server's current structured data is the only base: the client echo
+ * (`_candidateStructured`) is ignored, so a request cannot inject, replace or
+ * erase structured keys. Only fields derived from the edited document change.
+ * Items 2, 4 and 8 have no editable structured field and stay as generated.
+ */
 export function reconcileStageStructuredContent(
   stageType: LessonStageType,
   currentStructured: JsonObject | null | undefined,
-  candidateStructured: JsonObject | null | undefined,
+  _candidateStructured: JsonObject | null | undefined,
   tiptapAstJson: JsonObject | null | undefined,
 ): JsonObject {
-  const safeBase = preserveServerOwnedAssetsOnManualSave(
-    currentStructured,
-    candidateStructured ?? currentStructured ?? {},
-  );
+  const server = asObject(currentStructured);
+  const safeBase = preserveServerOwnedAssetsOnManualSave(server, { ...server });
   const document =
     tiptapAstJson &&
     typeof tiptapAstJson === 'object' &&
     !Array.isArray(tiptapAstJson)
       ? tiptapAstJson
       : null;
-  if (!document) return safeBase;
+  if (!document || SERVER_AUTHORITATIVE_STAGES.includes(stageType)) {
+    return safeBase;
+  }
 
   if (stageType === LessonStageType.LESSON) {
     return reconcileLessonStructuredContent(safeBase, document);
@@ -427,14 +599,14 @@ export function reconcileStageStructuredContent(
 
   if (stageType === LessonStageType.MEDITATION_YOUNGER) {
     return preserveServerOwnedAssetsOnManualSave(
-      currentStructured,
+      server,
       editedYoungerMeditation(safeBase, document),
     );
   }
 
   if (stageType === LessonStageType.MEDITATION_OLDER) {
     return preserveServerOwnedAssetsOnManualSave(
-      currentStructured,
+      server,
       editedOlderMeditation(safeBase, document),
     );
   }
@@ -442,6 +614,99 @@ export function reconcileStageStructuredContent(
   return safeBase;
 }
 
+function assetList(structured: JsonObject, key: string): JsonObject[] {
+  return Array.isArray(structured[key])
+    ? (structured[key] as unknown[]).map(asObject)
+    : [];
+}
+
+function hasDocumentContent(document: JsonObject | null | undefined): boolean {
+  return Boolean(document) && childNodes(asObject(document)).length > 0;
+}
+
+function assertLessonReady(canonical: JsonObject): void {
+  const story = lessonString(canonical.story).trim();
+  if (!story) {
+    throw new ConflictException(
+      'A lição não pode ser concluída ou publicada com o tópico LIÇÃO BÍBLICA vazio.',
+    );
+  }
+  const narrativeIssue = lessonNarrativeIssue(story);
+  if (narrativeIssue) {
+    throw new ConflictException(
+      `${LESSON_NARRATIVE_INCOMPLETE_PREFIX}: ${narrativeIssue}. Revise o texto antes de concluir.`,
+    );
+  }
+  const verse = asObject(canonical.memoryVerse);
+  const reference = lessonString(verse.reference).trim();
+  if (lessonString(verse.text).trim() && !reference) {
+    throw new ConflictException(
+      'Não foi possível identificar a referência do versículo principal. Escreva a referência em uma linha própria, no formato Livro capítulo:versículo (ex.: João 3:16), seguida de — NVI.',
+    );
+  }
+  if (
+    !lessonString(verse.text).trim() ||
+    !reference ||
+    lessonString(verse.version).trim().toUpperCase() !==
+      LESSON_REQUIRED_BIBLE_VERSION
+  ) {
+    throw new ConflictException(
+      'A lição precisa manter o versículo principal com texto, referência e versão NVI antes de concluir.',
+    );
+  }
+  if (!isBibleReference(reference)) {
+    throw new ConflictException(
+      `A referência do versículo principal ("${reference}") não está no formato Livro capítulo:versículo (ex.: João 3:16). Corrija o tópico VERSÍCULO PARA MEMORIZAR antes de concluir.`,
+    );
+  }
+}
+
+function assertGameReady(canonical: JsonObject): void {
+  const steps = Array.isArray(canonical.steps)
+    ? canonical.steps.map((step) => lessonString(step).trim()).filter(Boolean)
+    : [];
+  const assets = assetList(canonical, 'assets');
+  if (steps.length === 0) {
+    throw new ConflictException(
+      'A brincadeira precisa manter ao menos um passo no PASSO A PASSO.',
+    );
+  }
+  if (assets.length > 0 && steps.length !== assets.length) {
+    throw new ConflictException(
+      'A quantidade de passos do texto editado não corresponde às imagens instrucionais geradas. Ajuste os passos ou gere a etapa novamente.',
+    );
+  }
+  if (
+    assets.some(
+      (asset, index) =>
+        !lessonString(asset.url).trim() ||
+        lessonString(asset.instruction).trim() !== steps[index],
+    )
+  ) {
+    throw new ConflictException(
+      'Cada passo da brincadeira precisa corresponder exatamente à sua imagem instrucional.',
+    );
+  }
+}
+
+function assertImagesReady(
+  canonical: JsonObject,
+  key: (typeof LESSON_ASSET_LIST_FIELDS)[number],
+  message: string,
+): void {
+  const assets = assetList(canonical, key);
+  if (
+    assets.length === 0 ||
+    assets.some((asset) => !lessonString(asset.url).trim())
+  ) {
+    throw new ConflictException(message);
+  }
+}
+
+/**
+ * Required content per stage. The rules do not depend on which keys happen to
+ * be present: a version without the required field is not ready.
+ */
 export function assertStageReadyForCompletionOrPublication(
   stageType: LessonStageType,
   structuredDataJson: JsonObject | null | undefined,
@@ -458,120 +723,37 @@ export function assertStageReadyForCompletionOrPublication(
     tiptapAstJson ?? null,
   );
 
-  if (stageType === LessonStageType.LESSON) {
-    if ('story' in canonical) {
-      const story = lessonString(canonical.story).trim();
-      if (!story) {
-        throw new ConflictException(
-          'A lição não pode ser concluída ou publicada com o tópico LIÇÃO BÍBLICA vazio.',
-        );
+  switch (stageType) {
+    case LessonStageType.LESSON:
+      assertLessonReady(canonical);
+      return;
+    case LessonStageType.STANDARD_GAME:
+    case LessonStageType.VERSE_FIXATION:
+      assertGameReady(canonical);
+      return;
+    case LessonStageType.LESSON_VISUALS:
+      assertImagesReady(
+        canonical,
+        'assets',
+        'Os visuais da história precisam conter imagens válidas antes da conclusão ou publicação.',
+      );
+      return;
+    case LessonStageType.VERSE_VISUALS:
+    case LessonStageType.MANUAL_WORK:
+      assertImagesReady(
+        canonical,
+        'printableAssets',
+        'Este item precisa conter todas as artes imprimíveis válidas antes da conclusão ou publicação.',
+      );
+      return;
+    case LessonStageType.MEDITATION_YOUNGER:
+    case LessonStageType.MEDITATION_OLDER: {
+      const activities = assetList(canonical, 'activities');
+      // Legacy free-form meditations have no structured activities and are
+      // exported straight from their document.
+      if (!Array.isArray(raw.activities) && hasDocumentContent(tiptapAstJson)) {
+        return;
       }
-      const narrativeIssue = lessonNarrativeIssue(story);
-      if (narrativeIssue) {
-        throw new ConflictException(
-          `${LESSON_NARRATIVE_INCOMPLETE_PREFIX}: ${narrativeIssue}. Revise o texto antes de concluir.`,
-        );
-      }
-    }
-    if ('memoryVerse' in canonical) {
-      const verse = asObject(canonical.memoryVerse);
-      if (
-        !lessonString(verse.text).trim() ||
-        !lessonString(verse.reference).trim() ||
-        lessonString(verse.version).trim().toUpperCase() !== 'NVI'
-      ) {
-        throw new ConflictException(
-          'A lição precisa manter o versículo principal com texto, referência e versão NVI antes de concluir.',
-        );
-      }
-    }
-    return;
-  }
-
-  if (
-    stageType === LessonStageType.STANDARD_GAME ||
-    stageType === LessonStageType.VERSE_FIXATION
-  ) {
-    if ('steps' in canonical || 'assets' in canonical) {
-      const steps = Array.isArray(canonical.steps)
-        ? canonical.steps
-            .map((step) => lessonString(step).trim())
-            .filter(Boolean)
-        : [];
-      const assets = Array.isArray(canonical.assets)
-        ? canonical.assets.map(asObject)
-        : [];
-      if (steps.length === 0) {
-        throw new ConflictException(
-          'A brincadeira precisa manter ao menos um passo no PASSO A PASSO.',
-        );
-      }
-      if (assets.length > 0 && steps.length !== assets.length) {
-        throw new ConflictException(
-          'A quantidade de passos do texto editado não corresponde às imagens instrucionais geradas. Ajuste os passos ou gere a etapa novamente.',
-        );
-      }
-      if (
-        assets.length > 0 &&
-        assets.some(
-          (asset, index) =>
-            !lessonString(asset.url).trim() ||
-            lessonString(asset.instruction).trim() !== steps[index],
-        )
-      ) {
-        throw new ConflictException(
-          'Cada passo da brincadeira precisa corresponder exatamente à sua imagem instrucional.',
-        );
-      }
-    }
-    return;
-  }
-
-  if (stageType === LessonStageType.LESSON_VISUALS) {
-    if ('assets' in canonical) {
-      const assets = Array.isArray(canonical.assets)
-        ? canonical.assets.map(asObject)
-        : [];
-      if (
-        assets.length === 0 ||
-        assets.some((asset) => !lessonString(asset.url).trim())
-      ) {
-        throw new ConflictException(
-          'Os visuais da história precisam conter imagens válidas antes da conclusão ou publicação.',
-        );
-      }
-    }
-    return;
-  }
-
-  if (
-    stageType === LessonStageType.VERSE_VISUALS ||
-    stageType === LessonStageType.MANUAL_WORK
-  ) {
-    if ('printableAssets' in canonical) {
-      const assets = Array.isArray(canonical.printableAssets)
-        ? canonical.printableAssets.map(asObject)
-        : [];
-      if (
-        assets.length === 0 ||
-        assets.some((asset) => !lessonString(asset.url).trim())
-      ) {
-        throw new ConflictException(
-          'Este item precisa conter todas as artes imprimíveis válidas antes da conclusão ou publicação.',
-        );
-      }
-    }
-    return;
-  }
-
-  if (
-    stageType === LessonStageType.MEDITATION_YOUNGER ||
-    stageType === LessonStageType.MEDITATION_OLDER
-  ) {
-    if ('activities' in canonical) {
-      const activities = Array.isArray(canonical.activities)
-        ? canonical.activities.map(asObject)
-        : [];
       if (
         activities.length === 0 ||
         activities.some(
@@ -582,6 +764,9 @@ export function assertStageReadyForCompletionOrPublication(
           'Todas as atividades da meditação precisam manter instruções preenchidas.',
         );
       }
+      return;
     }
+    default:
+      return;
   }
 }

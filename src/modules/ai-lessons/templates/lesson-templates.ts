@@ -1,6 +1,7 @@
 import { LESSON_SHARED_QUALITY_RULES } from '../constants/lesson-quality.constants';
 import { createHash } from 'node:crypto';
 import { LessonStageType } from '../enums/lesson.enums';
+import { LESSON_GAME_MAX_STEPS } from '../constants/ai-provider-settings.constants';
 
 export type LessonTemplateContract = {
   key: string;
@@ -9,6 +10,9 @@ export type LessonTemplateContract = {
   exactStructure: readonly string[];
   rules: readonly string[];
 };
+
+/** Each step becomes one generated image: the ceiling keeps cost bounded. */
+const GAME_STEP_LIMIT_RULE = `Descrever a brincadeira em no máximo ${LESSON_GAME_MAX_STEPS} passos objetivos; cada passo recebe exatamente um visual.`;
 
 const sharedRules = [
   ...LESSON_SHARED_QUALITY_RULES,
@@ -54,7 +58,7 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
     },
     [LessonStageType.LESSON_VISUALS]: {
       key: 'clubinho.lesson-visuals.canonical',
-      version: '3.0.0',
+      version: '3.0.1',
       stage: LessonStageType.LESSON_VISUALS,
       exactStructure: [
         'INVENTÁRIO DE ELEMENTOS DA LIÇÃO',
@@ -75,7 +79,7 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
     },
     [LessonStageType.STANDARD_GAME]: {
       key: 'clubinho.standard-game.canonical',
-      version: '3.1.0',
+      version: '3.2.0',
       stage: LessonStageType.STANDARD_GAME,
       exactStructure: [
         'NOME DA BRINCADEIRA',
@@ -95,12 +99,13 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
         'A dinâmica deve combinar 2 ou 3 elementos lúdicos, manter todas as crianças ativas e evitar filas, eliminação, espera longa, questionário ou encenação passiva.',
         'A regra central deve servir de 5 a 11 anos, com simplificação para 5 a 7 e desafio opcional para 8 a 11 anos.',
         'Criar exatamente um visual instrucional para cada passo da brincadeira, na mesma ordem, demonstrando como executar a instrução em vez de gerar decoração genérica.',
+        GAME_STEP_LIMIT_RULE,
         'Visuais de apoio não podem conter texto; as instruções são exibidas como legenda e compostas pelo renderer.',
       ],
     },
     [LessonStageType.VERSE_VISUALS]: {
       key: 'clubinho.verse-visuals.canonical',
-      version: '1.1.0',
+      version: '1.1.1',
       stage: LessonStageType.VERSE_VISUALS,
       exactStructure: [
         'VISUAIS DO VERSÍCULO',
@@ -120,7 +125,7 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
     },
     [LessonStageType.VERSE_FIXATION]: {
       key: 'clubinho.verse-fixation.canonical',
-      version: '2.1.0',
+      version: '2.2.0',
       stage: LessonStageType.VERSE_FIXATION,
       exactStructure: [
         'NOME DA BRINCADEIRA',
@@ -141,6 +146,7 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
         'Usar o mesmo template completo da Brincadeira Normal, mas fazer da compreensão e memorização do versículo o objetivo central de todas as mecânicas.',
         'Combinar 2 ou 3 mecânicas lúdicas, manter todas as crianças ativas e concluir com a recitação coletiva do versículo completo.',
         'Criar exatamente um visual instrucional para cada passo, na mesma ordem, demonstrando como executar a instrução e sem texto dentro da imagem.',
+        GAME_STEP_LIMIT_RULE,
       ],
     },
     [LessonStageType.MEDITATION_YOUNGER]: {
@@ -166,7 +172,7 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
     },
     [LessonStageType.MEDITATION_OLDER]: {
       key: 'clubinho.meditation-older.canonical',
-      version: '2.0.0',
+      version: '2.0.1',
       stage: LessonStageType.MEDITATION_OLDER,
       exactStructure: [
         'MEDITAÇÃO PARA CRIANÇAS MAIORES',

@@ -1,6 +1,6 @@
 # Estúdio Clubinho — Visuais da história em "kit de recortes" (plano de implementação, 2026-11-02)
 
-Status: planejamento. Nenhum código, schema ou dado foi alterado por este documento.
+Status: implementado (template 3.0.x). Nota de 2026-11-10: a referência vigente é [api-ai-lessons.md](../api-ai-lessons.md); as "decisões abertas" abaixo são históricas.
 
 Exemplos de referência (pasta `lições/exemplos de visual para lição`):
 

@@ -2,10 +2,14 @@ import {
   BadRequestException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import axios, { type AxiosRequestConfig } from 'axios';
+import * as http from 'node:http';
+import type { AddressInfo, LookupFunction } from 'node:net';
 import {
   assertSafeImageUrl,
   assertSafeIpAddress,
   assertValidImageBuffer,
+  createPinnedLookup,
   downloadSafeImageBuffer,
   extractAuthorizedStudioBucketKey,
 } from './asset-url.utils';
@@ -202,18 +206,152 @@ describe('assertSafeImageUrl & downloadSafeImageBuffer (BE01 SSRF and asset safe
   });
 
   it('utiliza leitor autorizado do S3 quando a URL pertence ao bucket configurado e valida assinatura', async () => {
-    const s3KeyReader = jest.fn().mockResolvedValue(VALID_PNG_BUFFER);
+    const s3ObjectReader = jest.fn().mockResolvedValue(VALID_PNG_BUFFER);
     const httpGet = jest.fn();
+    const url =
+      'https://my-bucket.s3.amazonaws.com/local/uploads/test-image.png';
+    const result = await downloadSafeImageBuffer(url, {
+      bucketName: 'my-bucket',
+      s3ObjectReader,
+      httpGet,
+    });
+    expect(result).toEqual(VALID_PNG_BUFFER);
+    expect(s3ObjectReader).toHaveBeenCalledWith(
+      'local/uploads/test-image.png',
+      url,
+    );
+    expect(httpGet).not.toHaveBeenCalled();
+  });
+
+  it('recorre ao download HTTP fixado quando a leitura direta do S3 falha', async () => {
+    const onS3ReadFailure = jest.fn();
+    const httpGet = jest.fn().mockResolvedValue({
+      status: 200,
+      headers: {},
+      data: VALID_PNG_BUFFER,
+    });
     const result = await downloadSafeImageBuffer(
-      'https://my-bucket.s3.amazonaws.com/local/uploads/test-image.png',
+      'https://my-bucket.s3.us-east-2.amazonaws.com/local/uploads/test-image.png',
       {
         bucketName: 'my-bucket',
-        s3KeyReader,
+        s3ObjectReader: jest.fn().mockRejectedValue(new Error('AccessDenied')),
+        onS3ReadFailure,
         httpGet,
+        dnsResolver: () =>
+          Promise.resolve([{ address: '52.216.0.1', family: 4 }]),
       },
     );
     expect(result).toEqual(VALID_PNG_BUFFER);
-    expect(s3KeyReader).toHaveBeenCalledWith('local/uploads/test-image.png');
-    expect(httpGet).not.toHaveBeenCalled();
+    expect(onS3ReadFailure).toHaveBeenCalledWith(
+      'local/uploads/test-image.png',
+      expect.any(Error),
+    );
+    expect(httpGet).toHaveBeenCalledTimes(1);
+  });
+
+  it('não confunde hosts parecidos com o bucket autorizado', () => {
+    const key = 'local/uploads/test-image.png';
+    expect(
+      extractAuthorizedStudioBucketKey(
+        `https://my-bucket.s3.us-east-2.amazonaws.com/${key}`,
+        'my-bucket',
+      ),
+    ).toBe(key);
+    expect(
+      extractAuthorizedStudioBucketKey(
+        `https://s3.us-east-2.amazonaws.com/my-bucket/${key}`,
+        'my-bucket',
+      ),
+    ).toBe(key);
+    for (const host of [
+      'my-bucket.s3evil.amazonaws.com',
+      'my-bucket.s3.amazonaws.com.evil.example',
+      'my-bucket-other.s3.amazonaws.com',
+      's3evil.amazonaws.com',
+    ]) {
+      expect(
+        extractAuthorizedStudioBucketKey(`https://${host}/${key}`, 'my-bucket'),
+      ).toBeNull();
+    }
+  });
+
+  it('bloqueia faixas reservadas adicionais em IPv4 e IPv6', () => {
+    for (const address of [
+      '192.88.99.1',
+      '100::1',
+      '2001:2::1',
+      '2001:10::1',
+      '2001:20::1',
+      '3fff::1',
+    ]) {
+      expect(() => assertSafeIpAddress(address)).toThrow(BadRequestException);
+    }
+    expect(() => assertSafeIpAddress('2001:4860:4860::8888')).not.toThrow();
+  });
+});
+
+describe('pinned DNS lookup (BE01 — Node >= 20 autoSelectFamily)', () => {
+  const record = { address: '203.0.114.7', family: 4 };
+
+  it('responde no formato de array quando o Node pede all: true e no formato posicional caso contrário', () => {
+    const lookup = createPinnedLookup(record);
+    const all = jest.fn();
+    lookup('asset.example.com', { all: true }, all);
+    expect(all).toHaveBeenCalledWith(null, [record]);
+
+    const single = jest.fn();
+    lookup('asset.example.com', { all: false }, single);
+    expect(single).toHaveBeenCalledWith(null, record.address, record.family);
+  });
+
+  it('fixa o IP resolvido nos dois agentes, desliga proxy e redirecionamentos e limita a duração total', async () => {
+    let captured: AxiosRequestConfig | undefined;
+    await downloadSafeImageBuffer('https://cdn.example.com/image.png', {
+      dnsResolver: () => Promise.resolve([record]),
+      httpGet: (_url, config) => {
+        captured = config;
+        return Promise.resolve({
+          status: 200,
+          headers: {},
+          data: VALID_PNG_BUFFER,
+        });
+      },
+    });
+    expect(captured?.proxy).toBe(false);
+    expect(captured?.maxRedirects).toBe(0);
+    expect(captured?.signal).toBeDefined();
+    for (const agent of [captured?.httpAgent, captured?.httpsAgent] as Array<
+      http.Agent & { options: { lookup?: LookupFunction } }
+    >) {
+      const callback = jest.fn();
+      agent.options.lookup?.('cdn.example.com', { all: true }, callback);
+      expect(callback).toHaveBeenCalledWith(null, [record]);
+    }
+  });
+
+  it('conecta de verdade pelo axios + agent ao endereço fixado, mantendo o Host original (somente loopback)', async () => {
+    const hosts: string[] = [];
+    const server = http.createServer((request, response) => {
+      hosts.push(String(request.headers.host));
+      response.end('ok');
+    });
+    await new Promise<void>((resolve) =>
+      server.listen(0, '127.0.0.1', resolve),
+    );
+    const { port } = server.address() as AddressInfo;
+    const lookup = createPinnedLookup({ address: '127.0.0.1', family: 4 });
+    const agent = new http.Agent({ lookup });
+    try {
+      // The hostname does not resolve: only the pinned lookup can connect.
+      const response = await axios.get<string>(
+        `http://pinned-host.invalid:${port}/image.png`,
+        { httpAgent: agent, proxy: false, maxRedirects: 0 },
+      );
+      expect(response.status).toBe(200);
+      expect(hosts).toEqual([`pinned-host.invalid:${port}`]);
+    } finally {
+      agent.destroy();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 });

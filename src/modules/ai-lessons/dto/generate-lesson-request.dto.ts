@@ -4,11 +4,13 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  Max,
   MaxLength,
   Min,
   MinLength,
   ValidateIf,
 } from 'class-validator';
+import { LESSON_WEEK_NUMBER } from '../constants/lesson-workflow.constants';
 import { LessonCategory } from '../enums/lesson.enums';
 
 export class GenerateLessonRequestDto {
@@ -39,7 +41,8 @@ export class GenerateLessonRequestDto {
       (o.weekNumber !== undefined && o.weekNumber !== null),
   )
   @IsInt()
-  @Min(1)
+  @Min(LESSON_WEEK_NUMBER.MIN)
+  @Max(LESSON_WEEK_NUMBER.MAX)
   weekNumber?: number | null;
 
   @IsOptional()

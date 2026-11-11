@@ -2,10 +2,15 @@
  * Audita os arquivos do bucket contra `media_items`, `lesson_versions` e `lesson_stages`.
  *
  * Relata inconsistências:
- *  - ÓRFÃOS: objeto no bucket que nenhuma mídia ou versão/etapa do Studio referencia
- *    e que não é um upload do Studio protegido em andamento/sem ledger;
- *  - PROTEGIDOS (STUDIO): objetos referenciados por versões/etapas de lições ou
- *    protegidos conservadoramente por padrão de upload do Studio;
+ *  - ÓRFÃOS: objeto no bucket que nenhuma mídia ou versão/etapa do Studio referencia,
+ *    que não tem nome de upload do Studio e é mais antigo que a carência;
+ *  - RECENTES: objeto sem referência enviado dentro da carência (padrão 48 h). O
+ *    upload acontece antes de o registro ser gravado no banco, então um objeto
+ *    recente pode pertencer a uma operação ainda em andamento. Nunca é apagado;
+ *  - EM GERAÇÃO (STUDIO): upload de uma lição com etapa em GENERATING. Nunca é apagado;
+ *  - ÓRFÃOS DO STUDIO: upload com nome do Studio que nenhuma versão referencia e
+ *    fora da carência. É listado à parte para limpeza supervisionada e NUNCA é
+ *    apagado por este script;
  *  - QUEBRADOS: mídia no banco cujo objeto não está mais no bucket.
  *
  * Por padrão só relata (dry-run). A remoção exige `--delete --confirm` e falha de forma
@@ -14,6 +19,7 @@
  *
  *   node scripts/s3/audit-orphans.js
  *   node scripts/s3/audit-orphans.js --out=orfaos.json
+ *   node scripts/s3/audit-orphans.js --grace-hours=72
  *   node scripts/s3/audit-orphans.js --delete --confirm
  */
 const fs = require('node:fs');
@@ -24,6 +30,11 @@ const {
   ListObjectsV2Command,
   DeleteObjectCommand,
 } = require('@aws-sdk/client-s3');
+
+/** Carência padrão: objetos mais novos que isso nunca são classificados como órfãos. */
+const DEFAULT_GRACE_HOURS = 48;
+/** Mesma região padrão de `AwsS3Service`. */
+const DEFAULT_AWS_REGION = 'us-east-2';
 
 const STUDIO_STAGE_TOKENS = [
   'LESSON',
@@ -52,11 +63,25 @@ function loadEnvFile() {
 }
 
 function parseArgs(argv) {
-  const args = { delete: false, confirm: false, out: '' };
+  const args = {
+    delete: false,
+    confirm: false,
+    out: '',
+    graceHours: DEFAULT_GRACE_HOURS,
+  };
   for (const arg of argv.slice(2)) {
     if (arg === '--delete') args.delete = true;
     else if (arg === '--confirm') args.confirm = true;
     else if (arg.startsWith('--out=')) args.out = arg.slice('--out='.length);
+    else if (arg.startsWith('--grace-hours=')) {
+      const hours = Number(arg.slice('--grace-hours='.length));
+      if (!Number.isFinite(hours) || hours < 0) {
+        throw new Error(
+          '--grace-hours exige um número de horas maior ou igual a zero.',
+        );
+      }
+      args.graceHours = hours;
+    }
   }
   return args;
 }
@@ -285,14 +310,60 @@ async function loadReferencedKeys(connection, bucket) {
   };
 }
 
+/**
+ * Separa os objetos sem referência. Só `orphans` pode ser apagado: objetos
+ * recentes, de lições em geração e com nome de upload do Studio ficam de fora.
+ * Um objeto sem data de modificação é tratado como recente (fail-closed).
+ */
+function classifyUnreferencedObjects({
+  objects,
+  byKey,
+  activeGeneratingLessonIds,
+  graceHours = DEFAULT_GRACE_HOURS,
+  now = Date.now(),
+}) {
+  const graceMs = graceHours * 60 * 60 * 1000;
+  const activeIds = [...(activeGeneratingLessonIds ?? [])];
+  const orphans = [];
+  const recentUploads = [];
+  const inFlightStudioUploads = [];
+  const studioOrphans = [];
+
+  for (const object of objects) {
+    if (byKey.has(object.key)) continue;
+    if (activeIds.some((id) => object.key.includes(id))) {
+      inFlightStudioUploads.push({
+        ...object,
+        protectedBy: 'lesson_stages:GENERATING',
+      });
+      continue;
+    }
+    const modifiedAt = object.lastModified
+      ? new Date(object.lastModified).getTime()
+      : Number.NaN;
+    if (!Number.isFinite(modifiedAt) || now - modifiedAt < graceMs) {
+      recentUploads.push({ ...object, protectedBy: 'grace_period' });
+      continue;
+    }
+    if (isPotentialStudioUploadKey(object.key)) {
+      studioOrphans.push(object);
+      continue;
+    }
+    orphans.push(object);
+  }
+
+  return { orphans, recentUploads, inFlightStudioUploads, studioOrphans };
+}
+
 const formatMB = (bytes) => `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+const sumBytes = (items) => items.reduce((sum, item) => sum + item.size, 0);
 
 async function main() {
   loadEnvFile();
   const args = parseArgs(process.argv);
 
   const bucket = process.env.AWS_S3_BUCKET_NAME;
-  const region = process.env.AWS_REGION || 'us-east-1';
+  const region = process.env.AWS_REGION || DEFAULT_AWS_REGION;
   const environment = process.env.ENVIRONMENT ?? '';
   const prefix = `${environment}/uploads/`;
 
@@ -300,7 +371,8 @@ async function main() {
 
   console.log(`Bucket:   ${bucket} (${region})`);
   console.log(`Prefixo:  ${prefix}`);
-  console.log(`Banco:    ${process.env.DB_NAME}@${process.env.DB_HOST}\n`);
+  console.log(`Banco:    ${process.env.DB_NAME}@${process.env.DB_HOST}`);
+  console.log(`Carência: ${args.graceHours} h\n`);
 
   const s3 = new S3Client({ region });
   const connection = await mysql.createConnection({
@@ -322,37 +394,26 @@ async function main() {
     } = await loadReferencedKeys(connection, bucket);
 
     const bucketKeys = new Set(objects.map((object) => object.key));
-    const protectedStudioUploads = [];
-    const orphans = [];
-
-    for (const object of objects) {
-      if (byKey.has(object.key)) continue;
-      const isInFlightLessonAsset = [...activeGeneratingLessonIds].some((id) =>
-        object.key.includes(id),
-      );
-      if (isInFlightLessonAsset || isPotentialStudioUploadKey(object.key)) {
-        protectedStudioUploads.push({
-          ...object,
-          protectedBy: isInFlightLessonAsset
-            ? 'lesson_stages:GENERATING'
-            : 'studio_upload_pattern_guard',
-        });
-        continue;
-      }
-      orphans.push(object);
-    }
+    const { orphans, recentUploads, inFlightStudioUploads, studioOrphans } =
+      classifyUnreferencedObjects({
+        objects,
+        byKey,
+        activeGeneratingLessonIds,
+        graceHours: args.graceHours,
+      });
 
     const broken = [...byKey.entries()]
       .filter(([key]) => !bucketKeys.has(key))
       .flatMap(([, rows]) => rows);
 
-    const wastedBytes = orphans.reduce((sum, item) => sum + item.size, 0);
+    const wastedBytes = sumBytes(orphans);
 
     console.log(`Objetos no bucket:        ${objects.length}`);
     console.log(`Mídias no banco:          ${total}`);
     console.log(`Versões do Studio lidas:  ${lessonVersionsCount}`);
+    console.log(`Em geração (Studio):      ${inFlightStudioUploads.length}`);
     console.log(
-      `Protegidos pelo Studio:   ${protectedStudioUploads.length}`,
+      `Recentes (carência):      ${recentUploads.length} — ${formatMB(sumBytes(recentUploads))}`,
     );
     console.log(`  fora deste bucket:      ${foreign.length} (links externos)`);
     console.log(
@@ -369,10 +430,21 @@ async function main() {
       console.log(`  ... e mais ${orphans.length - 20}`);
     }
 
-    for (const row of broken.slice(0, 20)) {
+    console.log(
+      `\nÓRFÃOS DO STUDIO (limpeza supervisionada; nunca apagados aqui): ${studioOrphans.length} — ${formatMB(sumBytes(studioOrphans))}`,
+    );
+    for (const item of studioOrphans.slice(0, 20)) {
       console.log(
-        `  quebrado  ${row.source}.id=${row.id}  ${row.url}`,
+        `  studio  ${item.key}  ${formatMB(item.size)}  ${item.lastModified?.toISOString?.() ?? ''}`,
       );
+    }
+    if (studioOrphans.length > 20) {
+      console.log(`  ... e mais ${studioOrphans.length - 20}`);
+    }
+    console.log('');
+
+    for (const row of broken.slice(0, 20)) {
+      console.log(`  quebrado  ${row.source}.id=${row.id}  ${row.url}`);
     }
     if (broken.length > 20) {
       console.log(`  ... e mais ${broken.length - 20}`);
@@ -382,7 +454,15 @@ async function main() {
       fs.writeFileSync(
         args.out,
         JSON.stringify(
-          { orphans, protectedStudioUploads, broken, foreign },
+          {
+            graceHours: args.graceHours,
+            orphans,
+            studioOrphans,
+            recentUploads,
+            inFlightStudioUploads,
+            broken,
+            foreign,
+          },
           null,
           2,
         ),
@@ -420,6 +500,7 @@ if (typeof module !== 'undefined' && module.exports) {
     collectStringsFromJson,
     parseJsonColumn,
     isPotentialStudioUploadKey,
+    classifyUnreferencedObjects,
     loadReferencedKeys,
     listBucketObjects,
     parseArgs,

@@ -1,4 +1,6 @@
+import { UnprocessableEntityException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import * as JSZip from 'jszip';
 import { DocxExporterService } from './docx-exporter.service';
 import { LessonStageType, LessonVersionSource } from '../enums/lesson.enums';
@@ -326,5 +328,262 @@ describe('DocxExporterService lesson header', () => {
     ).rejects.toThrow(
       'Acesso a endereço IP privado ou de metadados não é permitido.',
     );
+  });
+});
+
+describe('DocxExporterService — robustez da exportação', () => {
+  const BUCKET = 'studio-bucket';
+  const assetUrl = (name: string): string =>
+    `https://${BUCKET}.s3.us-east-2.amazonaws.com/prod/uploads/1762700000000_ab12cd34_${name}`;
+  const png = (width: number, height: number): Buffer => {
+    const data = Buffer.alloc(24);
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(data);
+    data.writeUInt32BE(13, 8);
+    data.write('IHDR', 12, 'latin1');
+    data.writeUInt32BE(width, 16);
+    data.writeUInt32BE(height, 20);
+    return data;
+  };
+  const jpeg = (width: number, height: number): Buffer => {
+    const sof = Buffer.from([0xff, 0xc0, 0x00, 0x11, 0x08, 0, 0, 0, 0, 0x03]);
+    sof.writeUInt16BE(height, 5);
+    sof.writeUInt16BE(width, 7);
+    return Buffer.concat([
+      Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x04, 0x4a, 0x46]),
+      sof,
+      Buffer.alloc(12),
+    ]);
+  };
+  const exporterWithS3 = (image: Buffer) => {
+    const downloadOwned = jest.fn().mockResolvedValue(image);
+    const exporter = new DocxExporterService(
+      {
+        get: jest.fn((key: string) =>
+          key === 'AWS_S3_BUCKET_NAME' ? BUCKET : undefined,
+        ),
+      } as unknown as ConfigService,
+      { downloadOwned } as unknown as AwsS3Service,
+    );
+    return { exporter, downloadOwned };
+  };
+  const plainExporter = () =>
+    new DocxExporterService({ get: jest.fn() } as unknown as ConfigService);
+  const documentXml = async (buffer: Buffer): Promise<string> =>
+    (await JSZip.loadAsync(buffer)).file('word/document.xml')!.async('string');
+  const text = (value: string, marks?: unknown[]) => ({
+    type: 'text',
+    text: value,
+    ...(marks ? { marks } : {}),
+  });
+  const paragraph = (...content: unknown[]) => ({ type: 'paragraph', content });
+  const item = (...content: unknown[]) => ({ type: 'listItem', content });
+
+  it('exporta cores rgb()/nomeadas e remove caracteres de controle sem derrubar o documento', async () => {
+    const xml = await documentXml(
+      await plainExporter().buildDocxFromTiptapOrStructuredJson({
+        [LessonStageType.LESSON]: {
+          tiptapAstJson: {
+            type: 'doc',
+            content: [
+              paragraph(
+                text('vermelho\u0001 colado\u000b', [
+                  { type: 'textStyle', attrs: { color: 'rgb(255, 0, 0)' } },
+                  { type: 'highlight', attrs: { color: 'yellow' } },
+                ]),
+                text('variável', [
+                  { type: 'textStyle', attrs: { color: 'var(--x)' } },
+                ]),
+              ),
+            ],
+          },
+        },
+      }),
+    );
+    expect(xml).toContain('vermelho colado');
+    expect(xml).toContain('w:color w:val="FF0000"');
+    expect(xml).toContain('w:fill="FFFF00"');
+    expect(
+      Array.from(xml).some((character) => {
+        const code = character.charCodeAt(0);
+        return code < 0x20 && ![0x09, 0x0a, 0x0d].includes(code);
+      }),
+    ).toBe(false);
+  });
+
+  it('mantém todos os blocos de um item de lista, respeita start e não duplica o recuo', async () => {
+    const xml = await documentXml(
+      await plainExporter().buildDocxFromTiptapOrStructuredJson({
+        [LessonStageType.LESSON]: {
+          tiptapAstJson: {
+            type: 'doc',
+            content: [
+              {
+                type: 'orderedList',
+                attrs: { start: 5 },
+                content: [
+                  item(
+                    {
+                      type: 'heading',
+                      attrs: { level: 3 },
+                      content: [text('Título no item')],
+                    },
+                    { type: 'codeBlock', content: [text('codigo()')] },
+                    {
+                      type: 'bulletList',
+                      content: [
+                        item(paragraph(text('nível dois')), {
+                          type: 'bulletList',
+                          content: [item(paragraph(text('nível três')))],
+                        }),
+                      ],
+                    },
+                  ),
+                  item(paragraph(text('sexto'))),
+                ],
+              },
+            ],
+          },
+        },
+      }),
+    );
+    expect(xml).toContain('Título no item');
+    expect(xml).toContain('codigo()');
+    expect(xml).toContain('5. ');
+    expect(xml).toContain('6. ');
+    expect(xml).not.toContain('>1. <');
+    const indents = [...xml.matchAll(/<w:ind w:left="(\d+)"/g)].map((match) =>
+      Number(match[1]),
+    );
+    expect(new Set(indents)).toEqual(new Set([360, 720, 1080]));
+  });
+
+  it('quebra a linha entre pergunta e resposta no documento sem AST', async () => {
+    const xml = await documentXml(
+      await plainExporter().buildDocxFromTiptapOrStructuredJson({
+        [LessonStageType.LESSON]: {
+          structuredDataJson: {
+            title: 'TEMA',
+            reviewQuestions: [{ question: 'Quem?', answer: 'Jesus.' }],
+          },
+        },
+      }),
+    );
+    expect(xml).toContain('1. Quem?');
+    expect(xml).toMatch(/<w:br\/>\s*<w:t[^>]*>Resposta: Jesus\./);
+    expect(xml).not.toContain('Quem?\nResposta');
+  });
+
+  it('lê os assets do bucket pelo SDK, uma vez por URL, com proporção e tipo reais', async () => {
+    const { exporter, downloadOwned } = exporterWithS3(png(1536, 1024));
+    const url = assetUrl('lesson-1-LESSON_VISUALS-kit-01.png');
+    const buffer = await exporter.buildDocxFromTiptapOrStructuredJson({
+      [LessonStageType.LESSON_VISUALS]: {
+        structuredDataJson: {
+          assets: [
+            { id: 'kit-01', url },
+            { id: 'kit-02', url },
+            {
+              id: 'kit-03',
+              url: assetUrl('lesson-1-LESSON_VISUALS-kit-03.png'),
+            },
+          ],
+        },
+      },
+    });
+    expect(downloadOwned).toHaveBeenCalledTimes(2);
+    expect(downloadOwned).toHaveBeenCalledWith(url, expect.any(Number));
+    const xml = await documentXml(buffer);
+    // 1070 × 713 px at 9525 EMU per pixel: 1536×1024 fitted, not stretched to 1070×758.
+    expect(xml).toContain('cx="10191750" cy="6791325"');
+    expect(xml).not.toContain('cy="7219950"');
+  });
+
+  it('declara JPEG como JPEG no pacote', async () => {
+    const { exporter } = exporterWithS3(jpeg(1024, 1536));
+    const zip = await JSZip.loadAsync(
+      await exporter.buildDocxFromTiptapOrStructuredJson({
+        [LessonStageType.VERSE_VISUALS]: {
+          structuredDataJson: {
+            printableAssets: [
+              { id: 'card-01', url: assetUrl('l-VERSE_VISUALS-1.jpg') },
+            ],
+          },
+        },
+      }),
+    );
+    const media = Object.keys(zip.files).filter((name) =>
+      name.startsWith('word/media/'),
+    );
+    expect(media.some((name) => name.endsWith('.jpg'))).toBe(true);
+  });
+
+  it.each([
+    [
+      'imagem sem URL em etapa visual',
+      {
+        [LessonStageType.STANDARD_GAME]: {
+          structuredDataJson: {
+            name: 'Roda',
+            steps: ['a'],
+            assets: [{ id: 'instrucao-01', instruction: 'a' }],
+          },
+        },
+      },
+      'Uma imagem obrigatória deste item ainda não foi gerada',
+    ],
+    [
+      'trabalho manual sem arte',
+      {
+        [LessonStageType.MANUAL_WORK]: {
+          structuredDataJson: { verseText: 'Texto', printableAssets: [] },
+        },
+      },
+      'ainda não possui a arte para colorir',
+    ],
+    [
+      'folha dos menores com atividades além do suportado',
+      {
+        [LessonStageType.MEDITATION_YOUNGER]: {
+          structuredDataJson: {
+            title: 'Tema',
+            activities: [
+              { instruction: 'Um.' },
+              { instruction: 'Dois.' },
+              { instruction: 'Três.' },
+            ],
+          },
+        },
+      },
+      'comporta no máximo 2 atividades',
+    ],
+  ])(
+    'responde 422 para %s em vez de omitir conteúdo',
+    async (_label, input, message) => {
+      const error = await plainExporter()
+        .buildDocxFromTiptapOrStructuredJson(input)
+        .catch((caught: unknown) => caught);
+      expect(error).toBeInstanceOf(UnprocessableEntityException);
+      expect((error as Error).message).toContain(message);
+    },
+  );
+
+  it('rejeita a folha dos menores cujo texto não cabe em vez de cortá-la no PDF', async () => {
+    const long =
+      'Leia com atenção e pinte somente o que aconteceu na história. '.repeat(
+        40,
+      );
+    await expect(
+      plainExporter().buildDocxFromTiptapOrStructuredJson({
+        [LessonStageType.MEDITATION_YOUNGER]: {
+          structuredDataJson: {
+            title: 'Tema',
+            verseText: 'Jesus vive.',
+            verseReference: 'João 11:25',
+            prayer: 'Obrigado, Jesus.',
+            activities: [{ instruction: long }, { instruction: long }],
+          },
+        },
+      }),
+    ).rejects.toThrow('não cabe nas duas cópias da folha');
   });
 });

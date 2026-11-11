@@ -7,6 +7,8 @@ export class OpenAiSettingsResponseDto {
   imageQuality: string;
   reasoningEffort: string;
   hasApiKey: boolean;
+  /** Há uma chave salva, mas a chave mestra atual não consegue lê-la. */
+  apiKeyUnreadable?: boolean;
 }
 
 export class GeminiSettingsResponseDto {
@@ -17,6 +19,8 @@ export class GeminiSettingsResponseDto {
   maxRetries: number;
   retryBaseDelayMs: number;
   hasApiKey: boolean;
+  /** Há uma chave salva, mas a chave mestra atual não consegue lê-la. */
+  apiKeyUnreadable?: boolean;
 }
 
 export class AiProviderSettingsResponseDto {

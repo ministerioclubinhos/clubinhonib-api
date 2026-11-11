@@ -17,6 +17,17 @@ import {
 } from '../constants/meditation-formatting.constants';
 import type { MeditationJson } from '../types/younger-meditation.types';
 import { YOUNGER_MEDITATION_LAYOUT as L } from '../constants/younger-meditation-layout.constants';
+import { DOCUMENT_DEFAULT_COLOR } from '../constants/lesson-document.constants';
+import {
+  documentFontFamily,
+  documentFontSize,
+  documentLink,
+} from '../lessonDocument.utils';
+import {
+  docxTextLines,
+  normalizeDocxColor,
+  sanitizeDocxText,
+} from './docx-text.utils';
 
 function object(value: unknown): MeditationJson {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -109,23 +120,19 @@ function runs(
     const highlight = object(
       marks.find((mark) => mark.type === 'highlight')?.attrs,
     );
-    const color =
-      typeof style.color === 'string' && /^#[\da-f]{6}$/i.test(style.color)
-        ? style.color.slice(1).toUpperCase()
-        : '000000';
-    const fontSize =
-      typeof style.fontSize === 'string'
-        ? Number.parseFloat(style.fontSize) *
-          (style.fontSize.endsWith('px') ? 1.5 : 2)
-        : size;
-    const textRuns = node.text.split(/\r?\n/).map(
+    const color = normalizeDocxColor(style.color) ?? DOCUMENT_DEFAULT_COLOR;
+    const fontSize = documentFontSize(style.fontSize, size) ?? size;
+    const font = documentFontFamily(style.fontFamily) ?? L.font;
+    const highlightFill = marks.some((mark) => mark.type === 'highlight')
+      ? normalizeDocxColor(highlight.color)
+      : undefined;
+    const textRuns = docxTextLines(node.text).map(
       (line, index) =>
         new TextRun({
           text: line,
           ...(index ? { break: 1 } : {}),
-          font:
-            typeof style.fontFamily === 'string' ? style.fontFamily : L.font,
-          size: Number.isFinite(fontSize) ? fontSize : size,
+          font,
+          size: fontSize,
           bold: bold || marks.some((mark) => mark.type === 'bold'),
           italics: marks.some((mark) => mark.type === 'italic'),
           strike: marks.some((mark) => mark.type === 'strike'),
@@ -135,14 +142,13 @@ function runs(
             ? { underline: { type: UnderlineType.SINGLE } }
             : {}),
           color,
-          ...(typeof highlight.color === 'string' &&
-          /^#[\da-f]{6}$/i.test(highlight.color)
-            ? { shading: { fill: highlight.color.slice(1).toUpperCase() } }
-            : {}),
+          ...(highlightFill ? { shading: { fill: highlightFill } } : {}),
         }),
     );
-    const href = object(marks.find((mark) => mark.type === 'link')?.attrs).href;
-    return typeof href === 'string' && /^(https?:\/\/|mailto:|tel:)/i.test(href)
+    const href = documentLink(
+      object(marks.find((mark) => mark.type === 'link')?.attrs).href,
+    );
+    return href
       ? [new ExternalHyperlink({ link: href, children: textRuns })]
       : textRuns;
   }
@@ -288,7 +294,9 @@ export function meditationRichParagraphs(
         : {}),
       children: [
         new TextRun({
-          text: `${index === 0 ? prefix : ''}${typeof node.listPrefix === 'string' ? node.listPrefix : ''}`,
+          text: sanitizeDocxText(
+            `${index === 0 ? prefix : ''}${typeof node.listPrefix === 'string' ? node.listPrefix : ''}`,
+          ),
           size,
           font: L.font,
         }),

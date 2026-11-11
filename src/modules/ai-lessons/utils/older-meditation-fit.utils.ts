@@ -1,5 +1,8 @@
+import { UnprocessableEntityException } from '@nestjs/common';
+import { isPuzzleGridBlock, isPuzzleGridRow } from './meditation-grid.utils';
 import { olderMeditationRichHeight } from './older-meditation-measure.utils';
 import { OLDER_MEDITATION_LAYOUT as O } from '../constants/older-meditation-layout.constants';
+import { OLDER_MEDITATION_MAX_ACTIVITIES } from '../constants/lesson-document.constants';
 import { YOUNGER_MEDITATION_LAYOUT as L } from '../constants/younger-meditation-layout.constants';
 import type {
   OlderMeditationFit,
@@ -26,17 +29,23 @@ export function fitOlderMeditationSheet(
     (activity) => activity.image,
   ).length;
   const initialSize =
-    length > 4500
-      ? 20
-      : length > 3000 || (imageCount >= 2 && length > 2300)
-        ? 20
-        : length < 2300 && !imageCount
-          ? 26
-          : 22;
+    length > O.denseTextLength ||
+    (imageCount >= 2 && length > O.sparseTextLength)
+      ? O.denseFontSize
+      : length < O.sparseTextLength && !imageCount
+        ? O.sparseFontSize
+        : O.regularFontSize;
+  const titleLines = wrappedLines(sheet.title, O.titleColumns);
+  const verseLines = wrappedLines(sheet.verse, O.verseColumns);
   let fit: OlderMeditationFit | undefined;
   for (const fontSize of O.fontSizes.filter((size) => size <= initialSize)) {
+    const prayerLines = wrappedLines(sheet.prayer, O.prayerColumns);
     for (const imageHeight of O.imageHeights.filter(
-      (height) => height <= (fontSize <= 20 ? 180 : 230),
+      (height) =>
+        height <=
+        (fontSize <= O.denseFontSize
+          ? O.denseImageMaximumHeight
+          : O.imageHeights[0]),
     )) {
       const activitySpace =
         O.height -
@@ -62,7 +71,7 @@ export function fitOlderMeditationSheet(
             24,
             O.titleColumns,
           ) -
-            wrappedLines(sheet.title, O.titleColumns) * 24 * O.lineHeight,
+            titleLines * 24 * O.lineHeight,
         ) -
         Math.max(
           0,
@@ -72,57 +81,62 @@ export function fitOlderMeditationSheet(
             22,
             O.verseColumns,
           ) -
-            wrappedLines(sheet.verse, O.verseColumns) * 22 * O.lineHeight,
+            verseLines * 22 * O.lineHeight,
         ) -
         Math.max(
           0,
-          olderMeditationRichHeight(sheet.document, 'prayer', fontSize, 70) -
-            wrappedLines(sheet.prayer, 70) * fontSize * O.lineHeight,
+          olderMeditationRichHeight(
+            sheet.document,
+            'prayer',
+            fontSize,
+            O.prayerColumns,
+          ) -
+            prayerLines * fontSize * O.lineHeight,
         ) -
-        Math.max(0, wrappedLines(sheet.title, O.titleColumns) - 2) *
-          24 *
-          O.lineHeight -
-        Math.max(0, wrappedLines(sheet.verse, O.verseColumns) - 2) *
-          22 *
-          O.lineHeight -
-        Math.max(0, wrappedLines(sheet.prayer, 70) - 2) *
+        Math.max(0, titleLines - O.reservedHeaderLines) * 24 * O.lineHeight -
+        Math.max(0, verseLines - O.reservedHeaderLines) * 22 * O.lineHeight -
+        Math.max(0, prayerLines - O.reservedHeaderLines) *
           fontSize *
           O.lineHeight;
-      const weights = sheet.activities.slice(0, 3).map((activity, index) => {
-        const columns = Math.floor(
-          (width * (activity.image ? 0.58 : 1) * O.wrapSafety) / (fontSize * 5),
-        );
-        const lines = activity.instruction.split(/\r?\n/);
-        const isPuzzle = /caça[ -]palavras|cruzadinha/i.test(
-          activity.instruction,
-        );
-        const gridRows = isPuzzle
-          ? lines.filter((line) => /^[A-ZÀ-Ü0-9#._\s]{4,}$/.test(line.trim()))
-              .length
-          : 0;
-        const prose = isPuzzle
-          ? lines
-              .filter((line) => !/^[A-ZÀ-Ü0-9#._\s]{4,}$/.test(line.trim()))
-              .join('\n')
-          : activity.instruction;
-        const textHeight =
-          wrappedLines(prose, columns) * fontSize * O.lineHeight +
-          gridRows *
-            Math.min(O.gridCellSize, fontSize * O.lineHeight + O.gridPadding) +
-          (gridRows ? O.paragraphReserve : 0);
-        return (
-          Math.max(
-            textHeight,
-            olderMeditationRichHeight(
-              sheet.document,
-              `activity${index + 1}`,
-              fontSize,
-              columns,
-            ),
-            activity.image ? imageHeight * 15 : 0,
-          ) + O.activityMargins
-        );
-      });
+      const weights = sheet.activities
+        .slice(0, OLDER_MEDITATION_MAX_ACTIVITIES)
+        .map((activity, index) => {
+          const columns = Math.floor(
+            (width * (activity.image ? O.textColumnShare : 1) * O.wrapSafety) /
+              (fontSize * O.twipsPerCharacterUnit),
+          );
+          const lines = activity.instruction.split(/\r?\n/);
+          const isPuzzle = /caça[ -]palavras|cruzadinha/i.test(
+            activity.instruction,
+          );
+          const gridLines = isPuzzle ? lines.filter(isPuzzleGridRow) : [];
+          // Grid letters are native cells, never prose words to be wrapped.
+          const hasGrid = isPuzzleGridBlock(gridLines);
+          const gridRows = hasGrid ? gridLines.length : 0;
+          const prose = hasGrid
+            ? lines.filter((line) => !isPuzzleGridRow(line)).join('\n')
+            : activity.instruction;
+          const textHeight =
+            wrappedLines(prose, columns) * fontSize * O.lineHeight +
+            gridRows *
+              Math.min(
+                O.gridCellSize,
+                fontSize * O.lineHeight + O.gridPadding,
+              ) +
+            (gridRows ? O.paragraphReserve : 0);
+          return (
+            Math.max(
+              textHeight,
+              olderMeditationRichHeight(
+                sheet.document,
+                `activity${index + 1}`,
+                fontSize,
+                columns,
+              ),
+              activity.image ? imageHeight * O.twipsPerPixel : 0,
+            ) + O.activityMargins
+          );
+        });
       fit = {
         fontSize,
         imageHeight,
@@ -130,9 +144,12 @@ export function fitOlderMeditationSheet(
         activitySpace,
         fits: weights.reduce((sum, value) => sum + value, 0) <= activitySpace,
       };
-      if (weights.reduce((sum, value) => sum + value, 0) <= activitySpace)
-        return fit;
+      if (fit.fits) return fit;
     }
   }
-  return fit!;
+  if (!fit)
+    throw new UnprocessableEntityException(
+      'Não foi possível calcular o encaixe da meditação dos maiores.',
+    );
+  return fit;
 }

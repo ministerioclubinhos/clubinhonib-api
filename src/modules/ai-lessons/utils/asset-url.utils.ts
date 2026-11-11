@@ -5,46 +5,36 @@ import {
 import { lookup as dnsLookup } from 'node:dns/promises';
 import * as http from 'node:http';
 import * as https from 'node:https';
-import { isIP } from 'node:net';
+import { isIP, type LookupFunction } from 'node:net';
 import axios, { AxiosRequestConfig, AxiosResponse } from 'axios';
+import {
+  ASSET_ALLOWED_PORTS,
+  ASSET_FORBIDDEN_HOSTNAMES,
+  ASSET_FORBIDDEN_HOSTNAME_SUFFIXES,
+  DEFAULT_IMAGE_DOWNLOAD_TIMEOUT_MS,
+  DEFAULT_IMAGE_DOWNLOAD_TOTAL_TIMEOUT_MS,
+  DEFAULT_MAX_IMAGE_ASSET_BYTES,
+} from '../constants/asset-download.constants';
+import type {
+  DnsResolverFn,
+  HttpGetBufferFn,
+  ImageSignature,
+  ResolvedDnsRecord,
+  SafeImageDownloadOptions,
+} from '../types/asset-download.types';
 
-export const DEFAULT_MAX_IMAGE_ASSET_BYTES = 15 * 1024 * 1024; // 15 MB
-export const DEFAULT_IMAGE_DOWNLOAD_TIMEOUT_MS = 15000;
-
-const FORBIDDEN_HOSTNAMES = new Set([
-  'localhost',
-  'localhost.localdomain',
-  'ip6-localhost',
-  'ip6-loopback',
-  'metadata',
-  'metadata.google.internal',
-  'instance-data',
-]);
-
-const ALLOWED_PORTS = new Set(['', '80', '443']);
-
-export interface ResolvedDnsRecord {
-  address: string;
-  family: number;
-}
-
-export type DnsResolverFn = (hostname: string) => Promise<ResolvedDnsRecord[]>;
-
-export type HttpGetBufferFn = (
-  url: string,
-  config: AxiosRequestConfig,
-) => Promise<
-  Pick<AxiosResponse<ArrayBuffer | Buffer>, 'status' | 'headers' | 'data'>
->;
-
-export interface SafeImageDownloadOptions {
-  maxBytes?: number;
-  timeoutMs?: number;
-  bucketName?: string;
-  s3KeyReader?: (key: string) => Promise<Buffer | null>;
-  dnsResolver?: DnsResolverFn;
-  httpGet?: HttpGetBufferFn;
-}
+export {
+  DEFAULT_IMAGE_DOWNLOAD_TIMEOUT_MS,
+  DEFAULT_IMAGE_DOWNLOAD_TOTAL_TIMEOUT_MS,
+  DEFAULT_MAX_IMAGE_ASSET_BYTES,
+} from '../constants/asset-download.constants';
+export type {
+  DnsResolverFn,
+  HttpGetBufferFn,
+  ImageSignature,
+  ResolvedDnsRecord,
+  SafeImageDownloadOptions,
+} from '../types/asset-download.types';
 
 export function isPrivateIpv4(ip: string): boolean {
   const parts = ip.split('.');
@@ -68,6 +58,8 @@ export function isPrivateIpv4(ip: string): boolean {
   if (b0 === 172 && b1 >= 16 && b1 <= 31) return true;
   // 192.0.0.0/24 (IETF protocol assignments) & 192.0.2.0/24 (TEST-NET-1)
   if (b0 === 192 && b1 === 0 && (b2 === 0 || b2 === 2)) return true;
+  // 192.88.99.0/24 (deprecated 6to4 relay anycast)
+  if (b0 === 192 && b1 === 88 && b2 === 99) return true;
   // 192.168.0.0/16 (private)
   if (b0 === 192 && b1 === 168) return true;
   // 198.18.0.0/15 (benchmarking) & 198.51.100.0/24 (TEST-NET-2)
@@ -190,6 +182,22 @@ export function isPrivateOrReservedIpv6(ip: string): boolean {
     return true;
   }
 
+  // Benchmarking 2001:2::/48, ORCHID 2001:10::/28 and ORCHIDv2 2001:20::/28
+  if (
+    g0 === 0x2001 &&
+    ((g1 === 0x0002 && g2 === 0) ||
+      (g1 & 0xfff0) === 0x0010 ||
+      (g1 & 0xfff0) === 0x0020)
+  ) {
+    return true;
+  }
+
+  // Discard-only 100::/64
+  if (g0 === 0x0100 && g1 === 0 && g2 === 0 && g3 === 0) return true;
+
+  // Documentation 3fff::/20
+  if (g0 === 0x3fff && (g1 & 0xf000) === 0) return true;
+
   // Unique local fc00::/7 (fc00:: - fdff::)
   if ((g0 & 0xfe00) === 0xfc00) return true;
 
@@ -257,7 +265,7 @@ export function assertSafeImageUrl(urlString: string): URL {
     );
   }
 
-  if (!ALLOWED_PORTS.has(parsed.port)) {
+  if (!ASSET_ALLOWED_PORTS.has(parsed.port)) {
     throw new BadRequestException('Porta na URL do asset não é permitida.');
   }
 
@@ -266,10 +274,10 @@ export function assertSafeImageUrl(urlString: string): URL {
 
   if (
     !hostname ||
-    FORBIDDEN_HOSTNAMES.has(hostname) ||
-    hostname.endsWith('.localhost') ||
-    hostname.endsWith('.local') ||
-    hostname.endsWith('.internal')
+    ASSET_FORBIDDEN_HOSTNAMES.has(hostname) ||
+    ASSET_FORBIDDEN_HOSTNAME_SUFFIXES.some((suffix) =>
+      hostname.endsWith(suffix),
+    )
   ) {
     throw new BadRequestException(
       'Acesso a host interno ou local não é permitido.',
@@ -291,12 +299,26 @@ export function assertSafeImageUrl(urlString: string): URL {
     );
   }
 
-  // Catch numeric/octal/partial IPv4 forms if all labels are numeric/hex
-  if (/^[0-9.]+$/.test(hostname) && isIP(hostname) !== 4) {
-    throw new BadRequestException('Endereço IP do asset é inválido.');
-  }
-
   return parsed;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** `bucket.s3.amazonaws.com` or `bucket.s3[.-]region.amazonaws.com` only. */
+export function isVirtualHostedBucketHost(
+  hostname: string,
+  bucketName: string,
+): boolean {
+  return new RegExp(
+    `^${escapeRegExp(bucketName.toLowerCase())}\\.s3(?:[.-][a-z0-9-]+)*\\.amazonaws\\.com$`,
+  ).test(hostname.toLowerCase());
+}
+
+/** `s3.amazonaws.com` or `s3[.-]region.amazonaws.com` only. */
+export function isPathStyleS3Host(hostname: string): boolean {
+  return /^s3(?:[.-][a-z0-9-]+)*\.amazonaws\.com$/.test(hostname.toLowerCase());
 }
 
 export function extractAuthorizedStudioBucketKey(
@@ -318,11 +340,13 @@ export function extractAuthorizedStudioBucketKey(
   const decodedPath = decodeURIComponent(parsed.pathname).replace(/^\/+/, '');
   if (!decodedPath || decodedPath.includes('..')) return null;
 
-  const bucketPrefix = `${bucketName.toLowerCase()}.s3`;
   const pathPrefix = `${bucketName}/`;
-  if (hostname.startsWith(bucketPrefix)) {
+  if (isVirtualHostedBucketHost(hostname, bucketName)) {
     key = decodedPath;
-  } else if (hostname.startsWith('s3.') && decodedPath.startsWith(pathPrefix)) {
+  } else if (
+    isPathStyleS3Host(hostname) &&
+    decodedPath.startsWith(pathPrefix)
+  ) {
     key = decodedPath.slice(pathPrefix.length);
   } else {
     return null;
@@ -334,9 +358,7 @@ export function extractAuthorizedStudioBucketKey(
   return key;
 }
 
-export function detectImageSignature(
-  buffer: Buffer,
-): 'png' | 'jpeg' | 'webp' | null {
+export function detectImageSignature(buffer: Buffer): ImageSignature | null {
   if (!Buffer.isBuffer(buffer) || buffer.byteLength < 12) return null;
 
   // PNG: 89 50 4E 47 0D 0A 1A 0A
@@ -378,7 +400,7 @@ export function detectImageSignature(
 export function assertValidImageBuffer(
   buffer: Buffer,
   maxBytes = DEFAULT_MAX_IMAGE_ASSET_BYTES,
-): 'png' | 'jpeg' | 'webp' {
+): ImageSignature {
   if (!Buffer.isBuffer(buffer) || buffer.byteLength === 0) {
     throw new UnprocessableEntityException(
       'O arquivo de imagem do asset está vazio ou inacessível.',
@@ -403,6 +425,46 @@ const defaultDnsResolver: DnsResolverFn = async (hostname: string) => {
   return records.map((r) => ({ address: r.address, family: r.family }));
 };
 
+/**
+ * Lookup pinned to the already-validated address. Node >= 20 enables
+ * `autoSelectFamily`, which calls the lookup with `all: true` and expects an
+ * array; older call sites still expect the positional form.
+ */
+export function createPinnedLookup(record: ResolvedDnsRecord): LookupFunction {
+  return (_hostname, options, callback): void => {
+    if (options.all) {
+      callback(null, [{ address: record.address, family: record.family }]);
+      return;
+    }
+    callback(null, record.address, record.family);
+  };
+}
+
+async function readOwnedBucketObject(
+  urlString: string,
+  options: SafeImageDownloadOptions,
+  maxBytes: number,
+): Promise<Buffer | null> {
+  if (!options.s3ObjectReader || !options.bucketName) return null;
+  const bucketKey = extractAuthorizedStudioBucketKey(
+    urlString,
+    options.bucketName,
+  );
+  if (!bucketKey) return null;
+  let s3Buffer: Buffer | null;
+  try {
+    s3Buffer = await options.s3ObjectReader(bucketKey, urlString);
+  } catch (error: unknown) {
+    // The SDK read is an optimisation and the only path for private buckets;
+    // the pinned HTTP download below remains the fallback for public objects.
+    options.onS3ReadFailure?.(bucketKey, error);
+    return null;
+  }
+  if (!s3Buffer) return null;
+  assertValidImageBuffer(s3Buffer, maxBytes);
+  return s3Buffer;
+}
+
 export async function downloadSafeImageBuffer(
   urlString: string,
   options: SafeImageDownloadOptions = {},
@@ -410,20 +472,11 @@ export async function downloadSafeImageBuffer(
   const parsed = assertSafeImageUrl(urlString);
   const maxBytes = options.maxBytes ?? DEFAULT_MAX_IMAGE_ASSET_BYTES;
   const timeoutMs = options.timeoutMs ?? DEFAULT_IMAGE_DOWNLOAD_TIMEOUT_MS;
+  const totalTimeoutMs =
+    options.totalTimeoutMs ?? DEFAULT_IMAGE_DOWNLOAD_TOTAL_TIMEOUT_MS;
 
-  if (options.s3KeyReader && options.bucketName) {
-    const bucketKey = extractAuthorizedStudioBucketKey(
-      urlString,
-      options.bucketName,
-    );
-    if (bucketKey) {
-      const s3Buffer = await options.s3KeyReader(bucketKey);
-      if (s3Buffer) {
-        assertValidImageBuffer(s3Buffer, maxBytes);
-        return s3Buffer;
-      }
-    }
-  }
+  const ownedObject = await readOwnedBucketObject(urlString, options, maxBytes);
+  if (ownedObject) return ownedObject;
 
   const hostname = normalizeUrlHostname(parsed.hostname);
   const literalFamily = isIP(hostname.split('%')[0]);
@@ -454,33 +507,29 @@ export async function downloadSafeImageBuffer(
   }
 
   const pinnedLookup = pinnedRecord
-    ? (
-        _host: string,
-        _opts: unknown,
-        cb: (
-          err: NodeJS.ErrnoException | null,
-          address: string,
-          family: number,
-        ) => void,
-      ) => {
-        cb(null, pinnedRecord.address, pinnedRecord.family);
-      }
+    ? createPinnedLookup(pinnedRecord)
+    : undefined;
+  const httpAgent = pinnedLookup
+    ? new http.Agent({ lookup: pinnedLookup })
+    : undefined;
+  const httpsAgent = pinnedLookup
+    ? new https.Agent({ lookup: pinnedLookup })
     : undefined;
 
   const requestConfig: AxiosRequestConfig = {
     responseType: 'arraybuffer',
+    // `timeout` only bounds inactivity; the signal bounds the whole transfer.
     timeout: timeoutMs,
+    signal: AbortSignal.timeout(totalTimeoutMs),
+    // Never route through HTTP(S)_PROXY: the pinned lookup must apply to the
+    // asset host itself, not to a proxy.
+    proxy: false,
     maxRedirects: 0,
     maxContentLength: maxBytes,
     maxBodyLength: maxBytes,
     decompress: true,
     validateStatus: (status) => status >= 200 && status < 400,
-    ...(pinnedLookup
-      ? {
-          httpAgent: new http.Agent({ lookup: pinnedLookup as never }),
-          httpsAgent: new https.Agent({ lookup: pinnedLookup as never }),
-        }
-      : {}),
+    ...(httpAgent && httpsAgent ? { httpAgent, httpsAgent } : {}),
   };
 
   const httpGet: HttpGetBufferFn =
@@ -508,6 +557,9 @@ export async function downloadSafeImageBuffer(
     throw new UnprocessableEntityException(
       'Não foi possível baixar uma imagem necessária para gerar o documento.',
     );
+  } finally {
+    httpAgent?.destroy();
+    httpsAgent?.destroy();
   }
 
   if (response.status >= 300 && response.status < 400) {

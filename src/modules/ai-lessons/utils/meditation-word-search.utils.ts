@@ -1,24 +1,23 @@
-import { MEDITATION_WORD_SEARCH_DIRECTIONS } from '../constants/meditation-word-search.constants';
-
-function letters(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f\s]/g, '')
-    .toUpperCase();
-}
+import {
+  MEDITATION_GRID_MINIMUM_ROWS,
+  MEDITATION_WORD_SEARCH_DIRECTIONS,
+} from '../constants/meditation-word-search.constants';
+import {
+  gridRowCells as letters,
+  isWordSearchGridRow,
+} from './meditation-grid.utils';
 
 export function meditationWordSearchIssue(instruction: string): string | null {
   if (!/caça[ -]palavras/i.test(instruction)) return null;
   const lines = instruction.split(/\r?\n/);
   const grid: string[] = [];
   for (const line of lines) {
-    const trimmed = line.trim();
-    if (/^[A-ZÀ-Ü\s]{4,}$/.test(trimmed)) grid.push(letters(trimmed));
-    else if (grid.length >= 3) break;
+    if (isWordSearchGridRow(line)) grid.push(letters(line));
+    else if (grid.length >= MEDITATION_GRID_MINIMUM_ROWS) break;
     else grid.length = 0;
   }
   // Visual puzzles may supply their grid in the associated image instead.
-  if (grid.length < 3) return null;
+  if (grid.length < MEDITATION_GRID_MINIMUM_ROWS) return null;
   if (grid.some((row) => row.length !== grid[0].length))
     return 'O caça-palavras tem linhas com tamanhos diferentes; refaça uma grade retangular.';
   const list = instruction.match(/^\s*palavras\s*:\s*([^\n]+)/im)?.[1];

@@ -10,6 +10,7 @@ import {
   WidthType,
 } from 'docx';
 import { MANUAL_WORK_LAYOUT as L } from '../constants/manual-work-layout.constants';
+import { docxTextLines } from './docx-text.utils';
 import { imageParagraph, noBorders } from './meditation-layout.utils';
 
 /** One unsplittable row keeps the two copies together; image space is reserved after the verse. */
@@ -39,7 +40,7 @@ export function buildManualWorkSheet(
       'O versículo do trabalho manual excede o espaço das duas cópias na mesma página. Revise o texto antes de exportar.',
     );
   const copyContent = (): Paragraph[] => [
-    imageParagraph(logo, 86, 43),
+    imageParagraph(logo, L.logoWidth, L.logoHeight),
     new Paragraph({
       alignment: AlignmentType.CENTER,
       spacing: { before: 0, after: 40, line: 240 },
@@ -50,7 +51,14 @@ export function buildManualWorkSheet(
     new Paragraph({
       alignment: AlignmentType.CENTER,
       spacing: { before: 0, after: 40, line: L.verseLineHeight },
-      children: [new TextRun({ text: verse, size: L.verseSize })],
+      children: docxTextLines(verse).map(
+        (line, index) =>
+          new TextRun({
+            text: line,
+            size: L.verseSize,
+            ...(index ? { break: 1 } : {}),
+          }),
+      ),
     }),
     imageParagraph(image, L.imageMaximumWidth, imageHeight),
   ];

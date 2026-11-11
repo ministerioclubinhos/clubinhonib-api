@@ -1,19 +1,24 @@
 import {
+  MEDITATION_GRID_MINIMUM_ROWS,
   MEDITATION_WORD_SEARCH_FILLER,
   MEDITATION_WORD_SEARCH_GRID_PADDING,
   MEDITATION_WORD_SEARCH_MAX_WORD_LENGTH,
   MEDITATION_WORD_SEARCH_MAX_WORDS,
 } from '../constants/meditation-word-search.constants';
 import type { MeditationJson } from '../types/younger-meditation.types';
+import { isWordSearchGridRow } from './meditation-grid.utils';
 import { meditationWordSearchIssue } from './meditation-word-search.utils';
 
-/** Rebuild only recognizable broken text puzzles; ambiguous output still needs correction. */
+/**
+ * Rebuild only recognizable broken text puzzles; ambiguous output still needs
+ * correction. The activity keeps its artwork: item 7 always has three images,
+ * and the support illustration never duplicates the native grid.
+ */
 export function repairMeditationWordSearch(
   content: MeditationJson,
 ): MeditationJson {
   if (!Array.isArray(content.activities)) return content;
-  const repairedIds = new Set<string>();
-  const activities = content.activities.map((value: unknown, index: number) => {
+  const activities = content.activities.map((value: unknown) => {
     if (!value || typeof value !== 'object' || Array.isArray(value))
       return value;
     const activity = value as MeditationJson;
@@ -49,21 +54,22 @@ export function repairMeditationWordSearch(
     let start = -1;
     let end = -1;
     for (let index = 0; index < lines.length; index++) {
-      if (/^[A-ZÀ-Ü\s]{4,}$/.test(lines[index].trim())) {
+      if (isWordSearchGridRow(lines[index])) {
         if (start < 0) start = index;
         end = index + 1;
       } else if (start >= 0) {
-        if (end - start >= 3) break;
+        if (end - start >= MEDITATION_GRID_MINIMUM_ROWS) break;
         start = -1;
       }
     }
-    if (start < 0 || end - start < 3) return activity;
+    if (start < 0 || end - start < MEDITATION_GRID_MINIMUM_ROWS)
+      return activity;
     const width =
       Math.max(...words.map((word) => word.length)) +
       MEDITATION_WORD_SEARCH_GRID_PADDING;
     const height = Math.max(
       words.length + MEDITATION_WORD_SEARCH_GRID_PADDING,
-      3,
+      MEDITATION_GRID_MINIMUM_ROWS,
     );
     const grid = Array.from({ length: height }, (_, row) =>
       Array.from(
@@ -88,30 +94,11 @@ export function repairMeditationWordSearch(
       ...lines.slice(end),
     ].join('\n');
     if (meditationWordSearchIssue(correctedInstruction)) return activity;
-    repairedIds.add(
-      typeof activity.id === 'string'
-        ? activity.id
-        : typeof activity.number === 'number'
-          ? String(activity.number)
-          : String(index + 1),
-    );
     return {
       ...activity,
       instruction: correctedInstruction,
       answer: positions.join('\n'),
     };
   });
-  return {
-    ...content,
-    activities,
-    ...(Array.isArray(content.printableAssets)
-      ? {
-          printableAssets: content.printableAssets.filter((value: unknown) => {
-            if (!value || typeof value !== 'object') return true;
-            const asset = value as MeditationJson;
-            return typeof asset.id !== 'string' || !repairedIds.has(asset.id);
-          }),
-        }
-      : {}),
-  };
+  return { ...content, activities };
 }
