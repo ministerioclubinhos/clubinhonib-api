@@ -56,7 +56,7 @@ Provedores, prefixo `/api/v1/lessons/providers`:
 | `GET /settings`, `PUT /settings` | `{ llmProvider, openai, gemini }`. O `PUT` salva os dois provedores e a escolha ativa em uma transação. |
 | `GET/PUT /openai/settings`, `GET/PUT /gemini/settings` | Variantes individuais. |
 | `GET /openai/models` | `{ models: { general, image }, source: 'LIVE' \| 'FALLBACK', isLive, warning }`. Não aceita `apiKey` na query. |
-| `GET /gemini/models` | Lista estática: `source: 'STATIC'`, `isLive: false`. |
+| `GET /gemini/models` | Mesmo contrato de `GET /openai/models`, consultando a lista de modelos do Gemini com a chave salva. |
 
 ### 2.1 Campos da resposta
 
@@ -141,7 +141,8 @@ O Estúdio usa exclusivamente as configurações salvas em `/adm/config-provedor
 - **Contrato de escrita da chave:** `apiKey` omitido preserva; `''` remove; outro valor substitui. Valores iniciados por `enc:` são rejeitados. As respostas só informam `hasApiKey`.
 - Ativar um provedor sem chave configurada é recusado (400).
 - **Validação:** `imageQuality` (`low`, `medium`, `high`, `auto`), `reasoningEffort` (`none`, `minimal`, `low`, `medium`, `high`, `xhigh`) e `imageSize` (`1K`, `2K`, `4K`) são enums. Gemini: `maxRetries` de 0 a 5 e `retryBaseDelayMs` de 0 a 10.000; cada espera é limitada a 60 s.
-- **Catálogo:** a lista da OpenAI vem da consulta ao vivo filtrada (famílias `gpt-`, `o1`, `o3`, `o4` e `gpt-image-`; variantes de áudio, busca, instruct e DALL·E ficam fora) ou, em falha, da lista de contingência com `source: 'FALLBACK'`. A consulta entra na fila de IA com prioridade e espera curta.
+- Ativar um provedor cuja chave salva está ilegível também é recusado (400).
+- **Catálogo:** os dois provedores são consultados ao vivo com a chave salva. OpenAI: famílias `gpt-`, `o1`, `o3`, `o4` e `gpt-image-`; variantes de áudio, busca, instruct e DALL·E ficam fora. Gemini: modelos `gemini-*` que aceitam `generateContent` (texto) e os que têm `image` no nome (imagem); embeddings, TTS, áudio, live e Imagen ficam fora. Com `source: 'LIVE'` a resposta traz apenas o que o provedor devolveu, sem misturar a lista padrão. Em falha vem a lista de contingência com `source: 'FALLBACK'` e um `warning` que diz o motivo: sem chave, chave ilegível, chave recusada (401 na OpenAI; 400/401/403 no Gemini), sem permissão para listar (403 na OpenAI), provedor indisponível ou nenhuma família compatível. A consulta entra na fila de IA com prioridade e espera curta; a fila aceita `GET /v1beta/models?pageSize=1000` do Gemini como única URL com query, e nenhum `GET` leva corpo.
 - **OpenAI:** `max_output_tokens` é enviado em todas as etapas para modelos sem raciocínio; `reasoning.effort` é enviado apenas às famílias que o suportam e `none` é omitido para a série o. Recusas (`refusal`) e respostas incompletas são rejeitadas.
 - **Gemini:** saída JSON estruturada; candidatos com `finishReason` diferente de `STOP` são rejeitados; bloqueio de segurança não consome o modelo fallback. Retries usam jitter e respeitam `Retry-After`.
 - Toda chamada passa pela fila Redis descrita em [`ai-request-queue.md`](ai-request-queue.md).

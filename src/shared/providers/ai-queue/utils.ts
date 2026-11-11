@@ -2,6 +2,7 @@ import { AxiosError, AxiosHeaders } from 'axios';
 import { RedisOptions } from 'ioredis';
 import {
   AI_QUEUE,
+  AI_QUEUE_GEMINI_MODELS_QUERY,
   AI_QUEUE_NETWORK_CODES,
   AI_QUEUE_PROVIDER_ERROR_CODES,
   AI_QUEUE_SAFE_HEADERS,
@@ -73,10 +74,18 @@ export function aiQueueEndpoint(
     url.username ||
     url.password ||
     url.port ||
-    url.search ||
     url.hash
   )
     throw new AiQueueException(AiQueueFailure.INVALID_REQUEST);
+  // The only query accepted is the fixed page size of the Gemini model list.
+  if (
+    url.hostname === 'generativelanguage.googleapis.com' &&
+    method === AiQueueMethod.GET &&
+    url.pathname === '/v1beta/models' &&
+    url.search === AI_QUEUE_GEMINI_MODELS_QUERY
+  )
+    return { provider: AiQueueProviderName.GEMINI, url: url.href };
+  if (url.search) throw new AiQueueException(AiQueueFailure.INVALID_REQUEST);
   if (
     url.hostname === 'api.openai.com' &&
     ((method === AiQueueMethod.GET && url.pathname === '/v1/models') ||

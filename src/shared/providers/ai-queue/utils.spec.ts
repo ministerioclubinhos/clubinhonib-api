@@ -97,6 +97,11 @@ describe('AI queue serialization and boundaries', () => {
       AiQueueMethod.POST,
       AiQueueProviderName.GEMINI,
     ],
+    [
+      'https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000',
+      AiQueueMethod.GET,
+      AiQueueProviderName.GEMINI,
+    ],
   ])('allows the supported provider endpoint %s', (url, method, provider) => {
     expect(aiQueueEndpoint(url, method)).toEqual({ url, provider });
   });
@@ -112,6 +117,16 @@ describe('AI queue serialization and boundaries', () => {
     'invalid',
   ])('rejects unsafe endpoint %s', (url) => {
     expect(() => aiQueueEndpoint(url, AiQueueMethod.POST)).toThrow();
+  });
+
+  it.each([
+    'https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&key=secret',
+    'https://generativelanguage.googleapis.com/v1beta/models?key=secret',
+    'https://generativelanguage.googleapis.com/v1beta/models',
+    'https://generativelanguage.googleapis.com/v1beta/files?pageSize=1000',
+    'https://api.openai.com/v1/models?pageSize=1000',
+  ])('accepts a query only on the exact Gemini model list: %s', (url) => {
+    expect(() => aiQueueEndpoint(url, AiQueueMethod.GET)).toThrow();
   });
 
   it('preserves retry signals but removes provider secrets and arbitrary error contents', () => {

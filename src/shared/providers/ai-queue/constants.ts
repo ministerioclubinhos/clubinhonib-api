@@ -101,3 +101,6 @@ export const LOCAL_REDIS = {
   retryMs: 1000,
   pingMs: 1000,
 } as const;
+
+/** Exact query allowed on the Gemini model list (single page, no key). */
+export const AI_QUEUE_GEMINI_MODELS_QUERY = '?pageSize=1000';

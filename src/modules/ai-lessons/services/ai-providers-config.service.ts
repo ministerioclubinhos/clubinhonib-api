@@ -4,14 +4,20 @@ import { Injectable, Logger } from '@nestjs/common';
 import { GetAiProviderSettingsService } from './get-ai-provider-settings.service';
 import { UpdateAiProviderSettingsService } from './update-ai-provider-settings.service';
 import {
+  AiModelCatalogLists,
   AiProviderModelsResponseDto,
+  GeminiModelListResponse,
   OpenAiModelListResponse,
   OpenAiSettingsResponseDto,
   GeminiSettingsResponseDto,
 } from '../dto/ai-provider-settings-response.dto';
-import { OPENAI_API } from '../providers/lesson-llm.constants';
+import {
+  GEMINI_MODELS_URL,
+  OPENAI_API,
+} from '../providers/lesson-llm.constants';
 import {
   AI_MODEL_CATALOG,
+  AI_MODEL_CATALOG_WARNING,
   AiModelCatalogSource,
   DEFAULT_OPENAI_GENERAL_MODELS,
   DEFAULT_OPENAI_IMAGE_MODELS,
@@ -22,6 +28,11 @@ import {
   SaveGeminiSettingsDto,
   SaveOpenAiSettingsDto,
 } from '../dto/ai-provider-settings.dto';
+import {
+  geminiCatalogModels,
+  modelCatalogFailureWarning,
+  openAiCatalogModels,
+} from '../utils/ai-model-catalog.utils';
 
 @Injectable()
 export class AiProvidersConfigService {
@@ -33,82 +44,67 @@ export class AiProvidersConfigService {
     private readonly queue: AiRequestQueueService,
   ) {}
 
-  /** 1. Lista os modelos da OpenAI consultando a API da OpenAI em tempo real */
-  async getOpenAiModels(): Promise<AiProviderModelsResponseDto> {
-    const keyToUse = (await this.get.getInternalOpenAiSettings()).apiKey;
-
-    if (keyToUse) {
-      try {
-        const response = await this.queue.get<OpenAiModelListResponse>(
-          OPENAI_API.models,
-          {
-            feature: AiQueueFeature.PROVIDER_SETTINGS,
-            timeout: AI_MODEL_CATALOG.requestMs,
-            // Interactive: fall back to the static list instead of waiting
-            // behind a long generation.
-            waitMs: AI_MODEL_CATALOG.queueWaitMs,
-          },
-        );
-
-        const list: Array<{ id: string; created?: number }> =
-          response.data?.data || [];
-
-        const isImageModel = (id: string) =>
-          AI_MODEL_CATALOG.imagePrefixes.some((prefix) =>
-            id.startsWith(prefix),
-          );
-        const isGeneralModel = (id: string) =>
-          AI_MODEL_CATALOG.generalPrefixes.some((prefix) =>
-            id.startsWith(prefix),
-          ) &&
-          !isImageModel(id) &&
-          !AI_MODEL_CATALOG.excludedFragments.some((fragment) =>
-            id.includes(fragment),
-          );
-
-        const sorted = [...list].sort(
-          (a, b) => (b.created ?? 0) - (a.created ?? 0),
-        );
-
-        const fetchedImage = sorted
-          .filter((m) => isImageModel(m.id))
-          .map((m) => m.id);
-        const fetchedGeneral = sorted
-          .filter((m) => isGeneralModel(m.id))
-          .map((m) => m.id);
-
-        return {
-          models: {
-            general: Array.from(
-              new Set([...fetchedGeneral, ...DEFAULT_OPENAI_GENERAL_MODELS]),
-            ),
-            image: Array.from(
-              new Set([...fetchedImage, ...DEFAULT_OPENAI_IMAGE_MODELS]),
-            ),
-          },
-          source: AiModelCatalogSource.LIVE,
-          isLive: true,
-          warning: null,
-        };
-      } catch {
-        this.logger.warn('Não foi possível consultar os modelos da OpenAI.');
-      }
+  /**
+   * Live catalog with the saved key. A live answer lists only what the
+   * provider returned; any failure falls back to the default list and says why.
+   */
+  private async catalog<T>(
+    provider: string,
+    key: { apiKey: string; apiKeyUnreadable?: boolean },
+    url: string,
+    parse: (response: T | undefined) => AiModelCatalogLists,
+    defaults: AiModelCatalogLists,
+    rejectedKeyStatuses: readonly number[],
+  ): Promise<AiProviderModelsResponseDto> {
+    const fallback = (warning: string): AiProviderModelsResponseDto => ({
+      models: defaults,
+      source: AiModelCatalogSource.FALLBACK,
+      isLive: false,
+      warning,
+    });
+    if (key.apiKeyUnreadable)
+      return fallback(AI_MODEL_CATALOG_WARNING.unreadableKey(provider));
+    if (!key.apiKey)
+      return fallback(AI_MODEL_CATALOG_WARNING.missingKey(provider));
+    try {
+      const response = await this.queue.get<T>(url, {
+        feature: AiQueueFeature.PROVIDER_SETTINGS,
+        timeout: AI_MODEL_CATALOG.requestMs,
+        // Interactive: fall back to the default list instead of waiting
+        // behind a long generation.
+        waitMs: AI_MODEL_CATALOG.queueWaitMs,
+      });
+      const live = parse(response.data);
+      if (!live.general.length && !live.image.length)
+        return fallback(AI_MODEL_CATALOG_WARNING.empty(provider));
+      return {
+        models: live,
+        source: AiModelCatalogSource.LIVE,
+        isLive: true,
+        warning: null,
+      };
+    } catch (error: unknown) {
+      this.logger.warn(`Não foi possível consultar os modelos de ${provider}.`);
+      return fallback(
+        modelCatalogFailureWarning(provider, error, rejectedKeyStatuses),
+      );
     }
+  }
 
-    return {
-      models: {
+  async getOpenAiModels(): Promise<AiProviderModelsResponseDto> {
+    return this.catalog<OpenAiModelListResponse>(
+      'OpenAI',
+      await this.get.getInternalOpenAiSettings(),
+      OPENAI_API.models,
+      openAiCatalogModels,
+      {
         general: DEFAULT_OPENAI_GENERAL_MODELS,
         image: DEFAULT_OPENAI_IMAGE_MODELS,
       },
-      source: AiModelCatalogSource.FALLBACK,
-      isLive: false,
-      warning: keyToUse
-        ? 'Não foi possível consultar o catálogo em tempo real da OpenAI; exibindo a lista padrão de contingência.'
-        : 'Nenhuma chave da OpenAI configurada; exibindo a lista padrão de contingência.',
-    };
+      AI_MODEL_CATALOG.openAiRejectedKeyStatuses,
+    );
   }
 
-  /** 2. Busca as configurações salvas da OpenAI */
   async getOpenAiSettings(): Promise<OpenAiSettingsResponseDto> {
     return this.get.getOpenAiSettings();
   }
@@ -119,21 +115,20 @@ export class AiProvidersConfigService {
     return this.update.saveOpenAiSettings(dto);
   }
 
-  /** 4. Lista os modelos do Gemini */
-  getGeminiModels(): Promise<AiProviderModelsResponseDto> {
-    return Promise.resolve({
-      models: {
+  async getGeminiModels(): Promise<AiProviderModelsResponseDto> {
+    return this.catalog<GeminiModelListResponse>(
+      'Gemini',
+      await this.get.getInternalGeminiSettings(),
+      GEMINI_MODELS_URL,
+      geminiCatalogModels,
+      {
         general: DEFAULT_GEMINI_GENERAL_MODELS,
         image: DEFAULT_GEMINI_IMAGE_MODELS,
       },
-      source: AiModelCatalogSource.STATIC,
-      isLive: false,
-      warning:
-        'Catálogo estático de modelos compatíveis com o Gemini no Studio Clubinho.',
-    });
+      AI_MODEL_CATALOG.geminiRejectedKeyStatuses,
+    );
   }
 
-  /** 5. Busca as configurações salvas do Gemini */
   async getGeminiSettings(): Promise<GeminiSettingsResponseDto> {
     return this.get.getGeminiSettings();
   }

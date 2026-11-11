@@ -39,3 +39,12 @@ export class AiProviderModelsResponseDto {
 export interface OpenAiModelListResponse {
   data: Array<{ id: string; created?: number }>;
 }
+
+export interface GeminiModelListResponse {
+  models?: Array<{ name?: string; supportedGenerationMethods?: string[] }>;
+}
+
+export interface AiModelCatalogLists {
+  general: string[];
+  image: string[];
+}

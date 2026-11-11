@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 import { GetAiProviderSettingsService } from 'src/modules/ai-lessons/services/get-ai-provider-settings.service';
-import { AiQueueProviderName, AiQueueFailure } from './enums';
+import { AiQueueProviderName, AiQueueFailure, AiQueueMethod } from './enums';
 import { AiQueueRequest, AiQueueResponse } from './types';
 import { aiQueueEndpoint, restoreAiBody, safeAiHeaders } from './utils';
 import { AiQueueException } from './ai-queue.exception';
@@ -27,7 +27,10 @@ export class AiProviderTransportProvider {
     const response = await axios.request<unknown>({
       method: request.method,
       url: endpoint.url,
-      data: restoreAiBody(request.body),
+      // Google rejects a GET that carries a body.
+      ...(request.method === AiQueueMethod.GET
+        ? {}
+        : { data: restoreAiBody(request.body) }),
       headers:
         request.provider === AiQueueProviderName.OPENAI
           ? { Authorization: `Bearer ${settings.apiKey}` }

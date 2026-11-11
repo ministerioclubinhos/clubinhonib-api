@@ -2,6 +2,7 @@ import { AiQueueException } from 'src/shared/providers/ai-queue/ai-queue.excepti
 import { AiQueueFailure } from 'src/shared/providers/ai-queue/enums';
 import { AiQueueFeature } from 'src/shared/providers/ai-queue/enums';
 import { createAiQueueMock } from 'src/shared/providers/ai-queue/testing/queue.mock';
+import { AxiosError, AxiosHeaders } from 'axios';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { AiProviderSettingRepository } from '../repositories/ai-provider-setting.repository';
@@ -528,20 +529,160 @@ describe('Configurações de IA salvas no banco', () => {
     );
   });
 
-  it('informa proveniência explícita (FALLBACK e STATIC) no catálogo de modelos quando não há consulta ao vivo', async () => {
+  it('sem chave salva, os dois catálogos são de contingência e dizem o motivo', async () => {
+    const queued = createAiQueueMock();
     const configService = new AiProvidersConfigService(
       getter,
       updater,
-      createAiQueueMock().service,
+      queued.service,
     );
-    const openaiCatalog = await configService.getOpenAiModels();
-    expect(openaiCatalog.source).toBe(AiModelCatalogSource.FALLBACK);
-    expect(openaiCatalog.isLive).toBe(false);
-    expect(openaiCatalog.warning).toContain('contingência');
+    for (const catalog of [
+      await configService.getOpenAiModels(),
+      await configService.getGeminiModels(),
+    ]) {
+      expect(catalog.source).toBe(AiModelCatalogSource.FALLBACK);
+      expect(catalog.isLive).toBe(false);
+      expect(catalog.warning).toContain('Nenhuma chave');
+    }
+    expect(queued.get).not.toHaveBeenCalled();
+  });
 
-    const geminiCatalog = await configService.getGeminiModels();
-    expect(geminiCatalog.source).toBe(AiModelCatalogSource.STATIC);
-    expect(geminiCatalog.isLive).toBe(false);
-    expect(geminiCatalog.warning).toContain('Catálogo estático');
+  it('catálogo ao vivo lista só o que o provedor devolveu, sem misturar a lista padrão', async () => {
+    rows.set(AiProviderSettingsKey.OPENAI, { apiKey: 'synthetic-saved-key' });
+    const queued = createAiQueueMock();
+    const service = new AiProvidersConfigService(
+      getter,
+      updater,
+      queued.service,
+    );
+    queued.get.mockResolvedValue({
+      data: {
+        data: [
+          { id: 'gpt-old', created: 1 },
+          { id: 'gpt-new', created: 2 },
+          { id: 'gpt-image-x', created: 1 },
+          { id: 'gpt-new-audio-preview', created: 3 },
+        ],
+      },
+    });
+    expect((await service.getOpenAiModels()).models).toEqual({
+      general: ['gpt-new', 'gpt-old'],
+      image: ['gpt-image-x'],
+    });
+    queued.get.mockResolvedValue({ data: { data: [{ id: 'whisper-1' }] } });
+    const empty = await service.getOpenAiModels();
+    expect(empty.source).toBe(AiModelCatalogSource.FALLBACK);
+    expect(empty.warning).toContain('não retornou modelos compatíveis');
+  });
+
+  it('consulta o catálogo do Gemini ao vivo e separa texto de imagem', async () => {
+    rows.set(AiProviderSettingsKey.GEMINI, { apiKey: 'synthetic-saved-key' });
+    const queued = createAiQueueMock();
+    const service = new AiProvidersConfigService(
+      getter,
+      updater,
+      queued.service,
+    );
+    queued.get.mockResolvedValue({
+      data: {
+        models: [
+          {
+            name: 'models/gemini-2.5-flash',
+            supportedGenerationMethods: ['generateContent', 'countTokens'],
+          },
+          {
+            name: 'models/gemini-3.1-flash-image',
+            supportedGenerationMethods: ['generateContent'],
+          },
+          {
+            name: 'models/gemini-embedding-001',
+            supportedGenerationMethods: ['embedContent'],
+          },
+          {
+            name: 'models/gemini-2.5-flash-preview-tts',
+            supportedGenerationMethods: ['generateContent'],
+          },
+          {
+            name: 'models/imagen-4.0-generate-001',
+            supportedGenerationMethods: ['predict'],
+          },
+          { name: 'models/gemini-3-pro', supportedGenerationMethods: [] },
+        ],
+      },
+    });
+    const live = await service.getGeminiModels();
+    expect(live.source).toBe(AiModelCatalogSource.LIVE);
+    expect(live.models).toEqual({
+      general: ['gemini-2.5-flash'],
+      image: ['gemini-3.1-flash-image'],
+    });
+    expect(queued.get).toHaveBeenCalledWith(
+      'https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000',
+      {
+        feature: AiQueueFeature.PROVIDER_SETTINGS,
+        timeout: 5000,
+        waitMs: 10000,
+      },
+    );
+    expect(JSON.stringify(queued.get.mock.calls)).not.toContain(
+      'synthetic-saved-key',
+    );
+  });
+
+  it('explica a falha do catálogo: chave recusada, sem permissão, ilegível ou provedor indisponível', async () => {
+    rows.set(AiProviderSettingsKey.OPENAI, { apiKey: 'synthetic-saved-key' });
+    rows.set(AiProviderSettingsKey.GEMINI, { apiKey: 'synthetic-saved-key' });
+    const queued = createAiQueueMock();
+    const service = new AiProvidersConfigService(
+      getter,
+      updater,
+      queued.service,
+    );
+    const status = (code: number): AxiosError =>
+      new AxiosError('x', undefined, undefined, undefined, {
+        status: code,
+        statusText: '',
+        headers: {},
+        config: { headers: new AxiosHeaders() },
+        data: {},
+      });
+    queued.get.mockRejectedValue(status(401));
+    expect((await service.getOpenAiModels()).warning).toContain(
+      'recusou a chave',
+    );
+    queued.get.mockRejectedValue(status(403));
+    expect((await service.getOpenAiModels()).warning).toContain(
+      'não tem permissão',
+    );
+    // Gemini answers 400 to an invalid key.
+    queued.get.mockRejectedValue(status(400));
+    expect((await service.getGeminiModels()).warning).toContain(
+      'recusou a chave',
+    );
+    queued.get.mockRejectedValue(status(503));
+    const unavailable = await service.getGeminiModels();
+    expect(unavailable.source).toBe(AiModelCatalogSource.FALLBACK);
+    expect(unavailable.warning).toContain('Não foi possível consultar');
+    queued.get.mockClear();
+    rows.set(AiProviderSettingsKey.OPENAI, {
+      apiKey: 'enc:v2:deadbeef:AAAA:AAAA:AAAA:AAAA',
+    });
+    expect((await service.getOpenAiModels()).warning).toContain(
+      'não pôde ser lida',
+    );
+    expect(queued.get).not.toHaveBeenCalled();
+  });
+
+  it('recusa ativar um provedor cuja chave salva está ilegível', async () => {
+    const unreadable = 'enc:v2:deadbeef:AAAA:AAAA:AAAA:AAAA';
+    rows.set(AiProviderSettingsKey.OPENAI, { apiKey: unreadable });
+    await expect(
+      updater.saveSettings({
+        llmProvider: LessonLlmProvider.OPENAI,
+        openai: {},
+        gemini: {},
+      }),
+    ).rejects.toThrow('não pôde ser lida');
+    expect(storedKey(AiProviderSettingsKey.OPENAI)).toBe(unreadable);
   });
 });

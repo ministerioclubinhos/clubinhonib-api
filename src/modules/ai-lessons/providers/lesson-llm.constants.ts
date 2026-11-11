@@ -3,6 +3,9 @@ export const LESSON_LLM_PROVIDER = Symbol('LESSON_LLM_PROVIDER');
 export const GEMINI_API_BASE_URL =
   'https://generativelanguage.googleapis.com/v1beta';
 
+/** Single page: the queue allowlist accepts exactly this query. */
+export const GEMINI_MODELS_URL = `${GEMINI_API_BASE_URL}/models?pageSize=1000`;
+
 export const DEFAULT_GEMINI_TEXT_MODEL = 'gemini-2.5-flash';
 export const DEFAULT_GEMINI_TEXT_FALLBACK_MODEL = 'gemini-2.0-flash';
 export const DEFAULT_GEMINI_IMAGE_MODEL = 'gemini-3.1-flash-image';

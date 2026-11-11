@@ -1,7 +1,7 @@
 import { AiQueueException } from 'src/shared/providers/ai-queue/ai-queue.exception';
 import { AiRequestQueueService } from 'src/shared/providers/ai-queue/ai-request-queue.service';
 import { AiQueueFeature } from 'src/shared/providers/ai-queue/enums';
-import { supportsOpenAiReasoning } from 'src/modules/ai-lessons/utils/openai-model-capabilities.utils';
+import { openAiReasoningEffort } from 'src/modules/ai-lessons/utils/openai-model-capabilities.utils';
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 import { plainToInstance } from 'class-transformer';
@@ -29,13 +29,18 @@ export class IdeaAiGatewayProvider {
     const source = `SOURCE_DATA\n${JSON.stringify(request.data)}\nEND_SOURCE_DATA`;
     const attachments = request.attachments ?? [];
     const openai = settings.llmProvider === LessonLlmProvider.OPENAI;
+    // Same rule as the Studio: omitted for models without reasoning and for
+    // the o-series when the saved effort is `none`.
+    const reasoningEffort = openAiReasoningEffort(
+      configured.generalModel,
+      settings.openai.reasoningEffort,
+    );
     const body = openai
       ? {
           model: configured.generalModel,
           store: false,
-          ...(settings.openai.reasoningEffort &&
-          supportsOpenAiReasoning(configured.generalModel)
-            ? { reasoning: { effort: settings.openai.reasoningEffort } }
+          ...(reasoningEffort
+            ? { reasoning: { effort: reasoningEffort } }
             : {}),
           input: [
             {

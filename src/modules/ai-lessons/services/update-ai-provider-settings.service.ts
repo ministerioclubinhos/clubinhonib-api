@@ -165,8 +165,17 @@ export class UpdateAiProviderSettingsService {
           current[AiProviderSettingsKey.GEMINI],
           dto.gemini,
         );
+        // The key must be readable, not merely present: a ciphertext the
+        // server cannot open would only fail at the first generation.
         const selected =
-          dto.llmProvider === LessonLlmProvider.GEMINI ? gemini : openai;
+          dto.llmProvider === LessonLlmProvider.GEMINI
+            ? this.get.geminiFromStored(gemini)
+            : this.get.openAiFromStored(openai);
+        if (selected.apiKeyUnreadable)
+          throw new AppValidationException(
+            ErrorCode.VALIDATION_ERROR,
+            'A chave salva do provedor selecionado não pôde ser lida pelo servidor. Digite a chave novamente antes de ativá-lo.',
+          );
         if (!selected.apiKey)
           throw new AppValidationException(
             ErrorCode.VALIDATION_ERROR,

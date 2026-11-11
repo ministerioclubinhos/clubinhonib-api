@@ -91,4 +91,17 @@ describe('queued provider transport', () => {
     });
     expect(httpRequest).not.toHaveBeenCalled();
   });
+
+  it('sends a GET without a body, which Google rejects', async () => {
+    await transport.execute({
+      ...request(),
+      provider: AiQueueProviderName.GEMINI,
+      method: AiQueueMethod.GET,
+      url: 'https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000',
+      body: { kind: AiQueueBodyKind.JSON, json: {} },
+    });
+    const sent = httpRequest.mock.calls[0][0] as Record<string, unknown>;
+    expect(sent).not.toHaveProperty('data');
+    expect(sent.headers).toEqual({ 'x-goog-api-key': 'current-gemini-key' });
+  });
 });

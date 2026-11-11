@@ -79,10 +79,8 @@ export const DEFAULT_GEMINI_GENERAL_MODELS = [
   'gemini-1.5-flash',
   'gemini-1.5-pro',
 ];
-export const DEFAULT_GEMINI_IMAGE_MODELS = [
-  'gemini-3.1-flash-image',
-  'imagen-3.0-generate-002',
-];
+/** Imagen is not offered: the Studio drives images through the Interactions API. */
+export const DEFAULT_GEMINI_IMAGE_MODELS = ['gemini-3.1-flash-image'];
 
 export const DEFAULT_OPENAI_TEXT_MODEL = 'gpt-6-luna';
 export const DEFAULT_OPENAI_IMAGE_MODEL = 'gpt-image-2';
@@ -113,4 +111,36 @@ export const AI_MODEL_CATALOG = {
     'instruct',
     'dall-e',
   ],
+  geminiPrefix: 'gemini-',
+  geminiNamePrefix: 'models/',
+  geminiTextMethod: 'generateContent',
+  geminiImageFragment: 'image',
+  geminiExcludedFragments: [
+    'embedding',
+    'tts',
+    'audio',
+    'live',
+    'robotics',
+    'computer-use',
+    'aqa',
+  ],
+  /** Statuses that mean the provider answered and refused the saved key. */
+  openAiRejectedKeyStatuses: [401],
+  geminiRejectedKeyStatuses: [400, 401, 403],
+  forbiddenStatus: 403,
+} as const;
+
+export const AI_MODEL_CATALOG_WARNING = {
+  missingKey: (provider: string): string =>
+    `Nenhuma chave de ${provider} salva; exibindo a lista padrão de contingência.`,
+  unreadableKey: (provider: string): string =>
+    `A chave de ${provider} salva não pôde ser lida pelo servidor. Digite a chave novamente e salve; exibindo a lista padrão de contingência.`,
+  rejectedKey: (provider: string): string =>
+    `${provider} recusou a chave salva. Confira a chave e salve novamente; exibindo a lista padrão de contingência.`,
+  forbidden: (provider: string): string =>
+    `A chave de ${provider} salva não tem permissão para listar modelos; exibindo a lista padrão de contingência.`,
+  unavailable: (provider: string): string =>
+    `Não foi possível consultar o catálogo de ${provider} agora; exibindo a lista padrão de contingência.`,
+  empty: (provider: string): string =>
+    `${provider} não retornou modelos compatíveis com o Estúdio; exibindo a lista padrão de contingência.`,
 } as const;
