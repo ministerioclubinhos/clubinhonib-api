@@ -194,8 +194,11 @@ describe('OpenAiLessonService image identity', () => {
     };
     const user = JSON.parse(
       body.input.find((item) => item.role === 'user')?.content ?? '{}',
-    ) as { adminPrompt: string };
-    expect(user.adminPrompt).toContain('Não omita Tomé');
+    ) as Record<string, unknown>;
+    expect(user).not.toHaveProperty('adminPrompt');
+    const system = body.input.find((item) => item.role === 'system')?.content;
+    expect(system).toContain('PROMPT EDITORIAL DA ETAPA');
+    expect(system).toContain('Não omita Tomé');
     expect(body.text.format.schema).toEqual(schemaFor(LessonStageType.LESSON));
     expect(body.text.format.schema).toMatchObject({
       properties: {
@@ -393,5 +396,21 @@ describe('OpenAiLessonService image identity', () => {
       expect(schema.properties.steps.maxItems).toBe(8);
       expect(schema.properties.assets.maxItems).toBe(8);
     }
+  });
+  it('pede a mensagem central e a justificativa do versículo antes do propósito e do versículo', () => {
+    const schema = schemaFor(LessonStageType.LESSON) as {
+      required: string[];
+      properties: Record<string, unknown>;
+    };
+    const order = Object.keys(schema.properties);
+    expect(schema.required).toEqual(
+      expect.arrayContaining(['centralMessage', 'verseChoice']),
+    );
+    expect(order.indexOf('centralMessage')).toBeLessThan(
+      order.indexOf('purpose'),
+    );
+    expect(order.indexOf('verseChoice')).toBeLessThan(
+      order.indexOf('memoryVerse'),
+    );
   });
 });

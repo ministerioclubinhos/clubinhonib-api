@@ -10,7 +10,11 @@ import {
   MinLength,
   ValidateIf,
 } from 'class-validator';
-import { LESSON_WEEK_NUMBER } from '../constants/lesson-workflow.constants';
+import {
+  LESSON_EDITORIAL_PURPOSE_MAX_LENGTH,
+  LESSON_EDITORIAL_PURPOSE_MIN_LENGTH,
+  LESSON_WEEK_NUMBER,
+} from '../constants/lesson-workflow.constants';
 import { LessonCategory } from '../enums/lesson.enums';
 
 export class GenerateLessonRequestDto {
@@ -54,4 +58,13 @@ export class GenerateLessonRequestDto {
   @IsString()
   @MaxLength(2000)
   specialContext?: string | null;
+
+  // Obrigatório nas duas categorias: o propósito que a lição deve ensinar.
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @MinLength(LESSON_EDITORIAL_PURPOSE_MIN_LENGTH)
+  @MaxLength(LESSON_EDITORIAL_PURPOSE_MAX_LENGTH)
+  editorialPurpose: string;
 }

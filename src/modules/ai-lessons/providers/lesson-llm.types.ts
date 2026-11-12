@@ -46,6 +46,8 @@ export type LessonLlmGenerationInput = {
   weekNumber: number | null;
   category?: LessonCategory;
   specialContext?: string | null;
+  /** Admin-defined purpose; an instruction, sent in the system prompt. */
+  editorialPurpose?: string | null;
   stage: LessonStageType;
   template: LessonTemplateContract;
   approvedUpstream: Record<string, unknown> | null;

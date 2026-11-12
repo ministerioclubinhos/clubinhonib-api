@@ -750,6 +750,7 @@ export class LessonGenerationService
         weekNumber: lesson.weekNumber,
         category: lesson.category,
         specialContext: lesson.specialContext,
+        editorialPurpose: lesson.editorialPurpose ?? null,
         stage: type,
         template,
         approvedUpstream:

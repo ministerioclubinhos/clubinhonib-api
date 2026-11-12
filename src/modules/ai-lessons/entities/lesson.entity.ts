@@ -19,6 +19,10 @@ export class LessonEntity extends BaseEntity {
   @Column({ name: 'special_context', type: 'text', nullable: true })
   specialContext: string | null;
 
+  /** Purpose / central message set by the admin; steers every generation. */
+  @Column({ name: 'editorial_purpose', type: 'text', nullable: true })
+  editorialPurpose: string | null;
+
   @Column({ type: 'varchar', length: 255 })
   theme: string;
 

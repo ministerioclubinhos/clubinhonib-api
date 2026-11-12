@@ -106,7 +106,9 @@ export function describeAiFailure(
     return result(LessonFailureCode.AI_QUEUE_UNAVAILABLE, raw);
   }
 
-  if (error instanceof BadGatewayException)
+  // A provider failure carries its own code (timeout, quota…) in the message;
+  // only a bare gateway error means the provider returned an unusable file.
+  if (error instanceof BadGatewayException && !hasUpstreamErrorPayload(raw))
     return result(
       LessonFailureCode.AI_IMAGE_INVALID,
       `${raw} A versão anterior foi preservada; gere novamente.`,
@@ -290,4 +292,17 @@ export function describeAiFailure(
     LessonFailureCode.AI_UNKNOWN_ERROR,
     'o provedor retornou um erro não reconhecido. Consulte os logs técnicos do servidor para obter o diagnóstico completo.',
   );
+}
+
+/** True when the message embeds a provider error payload such as `{"error":{"code":…}}`. */
+function hasUpstreamErrorPayload(raw: string): boolean {
+  const start = raw.indexOf('{');
+  const end = raw.lastIndexOf('}');
+  if (start < 0 || end <= start) return false;
+  try {
+    const payload = JSON.parse(raw.slice(start, end + 1)) as LessonJsonObject;
+    return Object.keys(lessonAsObject(payload.error)).length > 0;
+  } catch {
+    return false;
+  }
 }

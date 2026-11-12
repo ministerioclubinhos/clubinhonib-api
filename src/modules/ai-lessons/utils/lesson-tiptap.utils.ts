@@ -1,6 +1,7 @@
 import { LESSON_EDITORIAL_FIELD_ORDER } from '../constants/lesson-editorial.constants';
 import { LessonCategory, LessonStageType } from '../enums/lesson.enums';
 import type { LessonJsonObject } from '../types/lesson-generation.types';
+import { lessonInlineTextNodes } from './lesson-inline-text.utils';
 import {
   lessonHeaderLines,
   lessonStoryHeading,
@@ -67,7 +68,7 @@ export function lessonContentToTiptap(
       .toLocaleUpperCase('pt-BR');
   const paragraph = (text: string): LessonJsonObject => ({
     type: 'paragraph',
-    content: [{ type: 'text', text }],
+    content: lessonInlineTextNodes(text),
   });
   const blockquote = (text: string): LessonJsonObject => ({
     type: 'blockquote',

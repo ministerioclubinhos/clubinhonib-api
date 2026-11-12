@@ -173,6 +173,9 @@ export const LESSON_CONTENT_LIMITS = {
 
 /** Technical bound: keeps the value inside the integer column. */
 export const LESSON_WEEK_NUMBER = { MIN: 1, MAX: 999 } as const;
+/** Purpose or central message the admin wants the lesson to teach. */
+export const LESSON_EDITORIAL_PURPOSE_MIN_LENGTH = 10;
+export const LESSON_EDITORIAL_PURPOSE_MAX_LENGTH = 1000;
 
 export const LESSON_REVIEW_NOTE_MAX_LENGTH = 1000;
 

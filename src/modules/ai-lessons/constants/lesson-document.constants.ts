@@ -71,3 +71,8 @@ export const DOCUMENT_FALLBACK_IMAGE_RATIO = 1.5;
 
 export const YOUNGER_MEDITATION_MAX_ACTIVITIES = 2;
 export const OLDER_MEDITATION_MAX_ACTIVITIES = 3;
+
+/** `**texto**` written by the model; becomes a bold mark instead of literal asterisks. */
+export const MARKDOWN_BOLD_PATTERN = /\*\*(.+?)\*\*/g;
+/** Stray emphasis markers left after the bold spans are converted. */
+export const MARKDOWN_STRAY_BOLD_MARKER = /\*\*/g;

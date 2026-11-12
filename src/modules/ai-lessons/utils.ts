@@ -1,3 +1,8 @@
+import {
+  LESSON_VERSE_REFERENCE_EXCERPT_PREFIX,
+  LESSON_VERSE_REFERENCE_EXCERPT_SUFFIX,
+  LESSON_VERSE_REFERENCE_VERSION_SUFFIX,
+} from './constants/lesson-canonical-content.constants';
 import { LessonCategory } from './enums/lesson.enums';
 
 export function lessonString(value: unknown): string {
@@ -257,10 +262,14 @@ export function lessonStoryHeading(line: string): string | undefined {
 }
 
 export function normalizeLessonVerseReference(value: unknown): string {
-  return lessonString(value)
-    .trim()
-    .replace(/(?:\s*(?:[—–-]\s*)?\(?NVI\)?)+$/i, '')
-    .trim();
+  const withoutVersion = (text: string): string =>
+    text.replace(LESSON_VERSE_REFERENCE_VERSION_SUFFIX, '').trim();
+  // "(trecho)" marks a partial verse; the letter after the verse (8b) already says so.
+  return withoutVersion(
+    withoutVersion(lessonString(value).trim())
+      .replace(LESSON_VERSE_REFERENCE_EXCERPT_PREFIX, '')
+      .replace(LESSON_VERSE_REFERENCE_EXCERPT_SUFFIX, ''),
+  );
 }
 
 /** Verse text without the quotation marks it may already carry: the layouts add their own. */

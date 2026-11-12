@@ -8,9 +8,10 @@ export const AI_QUEUE = {
   waitMs: 15 * 60_000,
   maxWaitMs: 24 * 60 * 60_000,
   defaultRequestMs: 180_000,
-  maxRequestMs: 180_000,
+  /** Longest single provider call (the lesson text); the lock stays 30 s above it. */
+  maxRequestMs: 300_000,
   connectionMs: 5_000,
-  lockMs: 210_000,
+  lockMs: 330_000,
   stalledIntervalMs: 30_000,
   resultTtlMs: 300_000,
   terminalGraceMs: 10_000,

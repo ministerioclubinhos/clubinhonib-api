@@ -3,8 +3,8 @@ import { LessonStageType } from '../enums/lesson.enums';
 export const LESSON_SHARED_QUALITY_RULES = [
   'Use a lição aprovada como fonte das etapas derivadas: tema, propósito, personagens, acontecimentos e aplicação devem permanecer coerentes, sem acrescentar fatos bíblicos não conferidos.',
   'Não invente falas, sentimentos, intenções, referências ou páginas de manuais. Ao combinar relatos bíblicos, identifique os detalhes de cada relato sem transferi-los automaticamente para todos os personagens.',
-  'Na lição, escolha um versículo curto e contextualizado para memorização infantil. Nas etapas derivadas, preserve exatamente o texto e a referência do versículo aprovado: não escolha outro, encurte ou parafraseie.',
-  'Use linguagem concreta e acolhedora, adequada à faixa etária da etapa. Evite detalhes assustadores, violência gráfica e associar doenças, deficiência, medo ou ansiedade à possessão demoníaca.',
+  'Na lição, escolha um versículo curto (ou dois consecutivos, se um só não completar o ensino) que resuma a mensagem central da lição, para memorização infantil. Nas etapas derivadas, preserve exatamente o texto e a referência do versículo aprovado: não escolha outro, encurte ou parafraseie.',
+  'Use linguagem concreta e acolhedora, adequada à faixa etária da etapa. Evite detalhes assustadores, violência gráfica e associar doenças, deficiência, medo ou ansiedade à possessão demoníaca. Cumpra esses cuidados pela forma de escrever, sem acrescentar avisos ou ressalvas no material.',
   'Proponha aplicações práticas ligadas ao propósito; não prometa ausência de fome, doença, sofrimento ou problemas materiais. Convites de fé e orações são voluntários, sem pressão ou exposição da criança.',
   'Entregue conteúdo completo e executável, sem frases interrompidas, instruções ausentes, placeholders ou recursos mencionados mas não fornecidos. Respeite os campos, quantidades, ordem e formato de impressão específicos da etapa.',
   'Perguntas, desafios e gabaritos devem corresponder ao conteúdo efetivamente ensinado e aos recursos fornecidos. Não cobre uma fala, informação ou desfecho ausente; confira se a atividade pode ser resolvida.',

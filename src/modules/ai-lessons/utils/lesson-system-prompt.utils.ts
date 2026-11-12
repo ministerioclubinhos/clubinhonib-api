@@ -40,7 +40,7 @@ export function buildLessonSystemPrompt(
     P.singleProduct,
     P.adminPrompt,
     P.inputIsData,
-    P.nvi,
+    stage === LessonStageType.LESSON ? P.nviLesson : P.nvi,
     P.narrative,
     ...(stage === LessonStageType.LESSON_VISUALS
       ? [
@@ -61,6 +61,18 @@ export function buildLessonSystemPrompt(
       : []),
     ...(LESSON_VERSE_PRODUCT_STAGES.includes(stage) ? [P.verseProducts] : []),
     ...(input.visualConfig ? [P.visualConfig] : []),
+    ...(input.adminPrompt.trim()
+      ? [`${P.editorialPromptHeading}\n${input.adminPrompt.trim()}`]
+      : []),
+    ...(stage === LessonStageType.LESSON && input.editorialPurpose?.trim()
+      ? [`${P.editorialPurposeHeading}\n${input.editorialPurpose.trim()}`]
+      : []),
+    // Last, so the request-specific guidance is the freshest instruction.
+    ...(input.revisionInstructions?.trim()
+      ? [
+          `${P.revisionInstructionsHeading}\n${input.revisionInstructions.trim()}`,
+        ]
+      : []),
     P.output,
   ].join('\n\n');
 }
@@ -98,12 +110,15 @@ export function buildLessonUserPayload(
     category: input.category ?? LessonCategory.REGULAR,
     specialContext: input.specialContext ?? null,
     stage: input.stage,
-    adminPrompt: input.olderMeditationReview ? null : input.adminPrompt,
     approvedUpstream: input.approvedUpstream,
     previousVariants: boundedPreviousVariants(input.previousVariants ?? []),
     canonicalVerse: input.canonicalVerse ?? null,
     visualConfig: input.visualConfig ?? null,
-    revisionInstructions: input.revisionInstructions ?? null,
+    // Authoring guidance travels in the system prompt; only the independent
+    // review keeps its instructions here, next to the sheet it checks.
+    ...(input.olderMeditationReview
+      ? { revisionInstructions: input.revisionInstructions ?? null }
+      : {}),
   });
 }
 

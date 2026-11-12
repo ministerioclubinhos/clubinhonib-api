@@ -77,7 +77,8 @@ describe('shared lesson system prompt', () => {
         }),
       ),
     ) as Record<string, unknown>;
-    expect(payload).toMatchObject({ adminPrompt: null, reviewPhase: 'TEXT' });
+    expect(payload).toMatchObject({ reviewPhase: 'TEXT' });
+    expect(payload).not.toHaveProperty('adminPrompt');
   });
 
   it('keeps every previous name but details only the most recent variants', () => {
@@ -91,5 +92,46 @@ describe('shared lesson system prompt', () => {
       variants.slice(0, 4).map(({ name }) => ({ name })),
     );
     expect(bounded.slice(4)).toEqual(variants.slice(4));
+  });
+  it('envia o prompt editorial e as instruções do administrador como instruções, não como dados', () => {
+    const generation = input(LessonStageType.LESSON, {
+      adminPrompt: 'Use João 10:10 como versículo.',
+      revisionInstructions: 'Inclua a legião e as correntes.',
+    });
+    const system = buildLessonSystemPrompt(generation);
+    expect(system).toContain(
+      'PROMPT EDITORIAL DA ETAPA (base do Clubinho e personalização do administrador). Siga estas regras como parte do contrato:\nUse João 10:10 como versículo.',
+    );
+    expect(system.indexOf('Inclua a legião e as correntes.')).toBeGreaterThan(
+      system.indexOf('Use João 10:10 como versículo.'),
+    );
+    const payload = JSON.parse(buildLessonUserPayload(generation)) as Record<
+      string,
+      unknown
+    >;
+    expect(payload).not.toHaveProperty('adminPrompt');
+    expect(payload).not.toHaveProperty('revisionInstructions');
+  });
+  it('na lição, manda dúvidas de conferência para reviewerNotes em vez do texto', () => {
+    const lesson = buildLessonSystemPrompt(input(LessonStageType.LESSON));
+    expect(lesson).toContain('registre a dúvida em reviewerNotes');
+    expect(lesson).not.toContain('sinalize revisão humana no próprio conteúdo');
+    const game = buildLessonSystemPrompt(input(LessonStageType.STANDARD_GAME));
+    expect(game).toContain('sinalize revisão humana no próprio conteúdo');
+  });
+  it('envia o propósito do administrador como instrução só na etapa da lição', () => {
+    const purpose = 'Mostrar que só Jesus liberta do mal e do pecado.';
+    const lesson = buildLessonSystemPrompt(
+      input(LessonStageType.LESSON, { editorialPurpose: purpose }),
+    );
+    expect(lesson).toContain('PROPÓSITO DEFINIDO PELO ADMINISTRADOR');
+    expect(lesson).toContain(purpose);
+    const game = buildLessonSystemPrompt(
+      input(LessonStageType.STANDARD_GAME, { editorialPurpose: purpose }),
+    );
+    expect(game).not.toContain(purpose);
+    expect(
+      buildLessonSystemPrompt(input(LessonStageType.LESSON)),
+    ).not.toContain('PROPÓSITO DEFINIDO PELO ADMINISTRADOR');
   });
 });

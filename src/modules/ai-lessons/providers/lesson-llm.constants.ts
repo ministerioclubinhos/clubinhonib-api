@@ -28,6 +28,8 @@ export const PROVIDER_IMAGE = {
 
 export const PROVIDER_REQUEST = {
   textTimeoutMs: 120_000,
+  /** Item 1 writes a full 1.500–2.000-word lesson plus a self-review; 120 s was not enough. */
+  lessonTextTimeoutMs: 300_000,
   imageTimeoutMs: 180_000,
   retryJitterMs: 250,
 } as const;

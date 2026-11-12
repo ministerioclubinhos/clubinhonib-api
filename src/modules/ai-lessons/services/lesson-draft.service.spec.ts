@@ -1116,6 +1116,72 @@ describe('LessonDraftService workflow safety', () => {
     expect(failure.message).toContain('versão anterior foi preservada');
   });
 
+  it('renumera os IDs das cenas em vez de reprovar a lição gerada', () => {
+    const target = pureLessonUtils as unknown as {
+      validateCanonicalContent: (
+        lesson: LessonEntity,
+        type: LessonStageType,
+        generated: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const result = target.validateCanonicalContent(
+      { biblicalReference: 'Lucas 16:19-31' } as LessonEntity,
+      LessonStageType.LESSON,
+      {
+        story:
+          'Jesus contou a parábola. Ele ensinou que a decisão é feita nesta vida.',
+        memoryVerse: {
+          text: 'Asseguro a vocês que aquele que crê tem a vida eterna.',
+          reference: 'João 6:47',
+          version: 'NVI',
+        },
+        visualScenes: [
+          { id: 'cena-1', purpose: 'a' },
+          { id: 'scene-1', purpose: 'b' },
+          { id: 'scene-1', purpose: 'c' },
+        ],
+      },
+    );
+    expect(result.visualScenes).toEqual([
+      { id: 'scene-01', purpose: 'a' },
+      { id: 'scene-02', purpose: 'b' },
+      { id: 'scene-03', purpose: 'c' },
+    ]);
+  });
+
+  it('remove os campos internos de raciocínio antes de salvar a lição', () => {
+    const target = pureLessonUtils as unknown as {
+      validateCanonicalContent: (
+        lesson: LessonEntity,
+        type: LessonStageType,
+        generated: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const result = target.validateCanonicalContent(
+      { biblicalReference: 'Lucas 16:19-31' } as LessonEntity,
+      LessonStageType.LESSON,
+      {
+        centralMessage:
+          'O destino eterno se decide nesta vida, crendo em Jesus.',
+        verseChoice: 'João 6:47 liga crer em Jesus à vida eterna.',
+        reviewerNotes: 'Conferir a redação NVI de Lucas 16:31.',
+        story:
+          'Jesus contou a parábola. Ele ensinou que a decisão é feita nesta vida.',
+        memoryVerse: {
+          text: 'Asseguro a vocês que aquele que crê tem a vida eterna.',
+          reference: 'João 6:47',
+          version: 'NVI',
+        },
+        visualScenes: [{ id: 'scene-01' }],
+      },
+    );
+
+    expect(result).not.toHaveProperty('centralMessage');
+    expect(result).not.toHaveProperty('verseChoice');
+    expect(result).not.toHaveProperty('reviewerNotes');
+    expect(result.memoryVerse).toMatchObject({ reference: 'João 6:47' });
+  });
+
   it('mantém a referência bíblica cadastrada como valor canônico', () => {
     const target = pureLessonUtils as unknown as {
       validateCanonicalContent: (

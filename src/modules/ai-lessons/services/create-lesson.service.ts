@@ -39,6 +39,7 @@ export class CreateLessonService {
             category === LessonCategory.SPECIAL
               ? (dto.specialContext ?? null)
               : null,
+          editorialPurpose: dto.editorialPurpose,
           status: LessonStatus.DRAFT,
           createdById: userId,
           weekMaterialId: null,

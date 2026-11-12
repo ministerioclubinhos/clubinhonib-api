@@ -1,4 +1,5 @@
 import type { LessonStructuredRequest } from '../types/lesson-image-brief.types';
+import { providerTextTimeoutMs } from '../utils/provider-timeout.utils';
 import { AiQueueException } from 'src/shared/providers/ai-queue/ai-queue.exception';
 import { AiRequestQueueService } from 'src/shared/providers/ai-queue/ai-request-queue.service';
 import { AiQueueFeature } from 'src/shared/providers/ai-queue/enums';
@@ -18,6 +19,7 @@ import { OLDER_MEDITATION_REQUEST } from '../constants/older-meditation-request.
 import {
   LESSON_REVIEW_QUESTION_MIN,
   LESSON_REVIEW_QUESTION_MAX,
+  LESSON_INTERNAL_FIELD_DESCRIPTIONS,
 } from '../constants/lesson-editorial.constants';
 import {
   BadGatewayException,
@@ -258,8 +260,10 @@ export function schemaFor(
       required: [
         'title',
         'biblicalReference',
+        'centralMessage',
         'purpose',
         'songs',
+        'verseChoice',
         'memoryVerse',
         'principleExplanation',
         'story',
@@ -268,12 +272,22 @@ export function schemaFor(
         'reviewQuestions',
         'closingPrayer',
         'visualScenes',
+        'reviewerNotes',
       ],
       properties: {
         title: { type: 'string' },
         biblicalReference: { type: 'string' },
+        // Internal fields: generated before the sections they steer, never published.
+        centralMessage: {
+          type: 'string',
+          description: LESSON_INTERNAL_FIELD_DESCRIPTIONS.centralMessage,
+        },
         purpose: { type: 'string' },
         songs: STRING_ARRAY,
+        verseChoice: {
+          type: 'string',
+          description: LESSON_INTERNAL_FIELD_DESCRIPTIONS.verseChoice,
+        },
         memoryVerse: {
           type: 'object',
           additionalProperties: false,
@@ -290,7 +304,7 @@ export function schemaFor(
           description:
             category === LessonCategory.SPECIAL
               ? 'História contemporânea ilustrativa ou panorama bíblico, com cenas/cartazes, dicas participativas e conexão explícita às Escrituras, sem confundir ficção com fatos bíblicos.'
-              : 'Aula completa e participativa, com acontecimento central e desfecho de todos os relatos antes da aplicação, sem falas interrompidas, descrições de arte ou marcadores de cena.',
+              : 'Aula completa e participativa, de 900 a 1.400 palavras, com pelo menos quatro parágrafos por relato, acontecimento central e desfecho de todos os relatos antes da aplicação, sem falas interrompidas, descrições de arte, marcadores de cena ou Markdown.',
         },
         applicationAndAppeal: { type: 'string' },
         counseling: { type: 'string' },
@@ -316,6 +330,10 @@ export function schemaFor(
           },
         },
         visualScenes: { type: 'array', minItems: 3, items: ASSET_SCHEMA },
+        reviewerNotes: {
+          type: 'string',
+          description: LESSON_INTERNAL_FIELD_DESCRIPTIONS.reviewerNotes,
+        },
       },
     };
   if (
@@ -654,7 +672,7 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
           },
           {
             feature: AiQueueFeature.LESSONS,
-            timeout: PROVIDER_REQUEST.textTimeoutMs,
+            timeout: providerTextTimeoutMs(input.stage),
           },
         );
       // The same bounded 429 policy protects every stage, not only item 7.

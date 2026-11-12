@@ -1,7 +1,12 @@
 import { ConflictException } from '@nestjs/common';
 import { AppBusinessException, ErrorCode } from 'src/shared/exceptions';
 import { LESSON_GAME_MAX_STEPS } from '../constants/ai-provider-settings.constants';
-import { LESSON_NARRATIVE_INCOMPLETE_PREFIX } from '../constants/lesson-editorial.constants';
+import {
+  LESSON_INTERNAL_FIELDS,
+  LESSON_SCENE_ID_DIGITS,
+  LESSON_SCENE_ID_PREFIX,
+  LESSON_NARRATIVE_INCOMPLETE_PREFIX,
+} from '../constants/lesson-editorial.constants';
 import {
   LESSON_CANONICAL_VERSE_VERSION,
   LESSON_GAME_STAGES,
@@ -75,6 +80,7 @@ export function validateCanonicalContent(
   visualType?: string,
 ): LessonJsonObject {
   if (type === LessonStageType.LESSON) {
+    for (const field of LESSON_INTERNAL_FIELDS) delete generated[field];
     const issue = lessonNarrativeIssue(generated.story);
     if (issue)
       throw new ConflictException(
@@ -102,18 +108,14 @@ export function validateCanonicalContent(
         'A lição precisa definir um único versículo principal, com texto, referência e versão NVI.',
       );
     }
-    const scenes = Array.isArray(generated.visualScenes)
-      ? generated.visualScenes.map((item) => lessonAsObject(item))
-      : [];
-    const sceneIds = scenes.map((scene) => lessonString(scene.id).trim());
-    if (
-      sceneIds.some((id) => !/^scene-\d{2}$/.test(id)) ||
-      new Set(sceneIds).size !== sceneIds.length
-    ) {
-      throw new ConflictException(
-        'As cenas da lição precisam usar IDs únicos no formato scene-01, scene-02 e assim por diante.',
-      );
-    }
+    // Scene ids are internal (nothing else references them): renumbering in
+    // order fixes "scene-1", "cena-01" or repeats instead of failing a paid
+    // generation.
+    if (Array.isArray(generated.visualScenes))
+      generated.visualScenes = generated.visualScenes.map((item, index) => ({
+        ...lessonAsObject(item),
+        id: lessonSceneId(index),
+      }));
   }
 
   if (
@@ -239,4 +241,9 @@ export function isNewGameFromHistory(
   candidate: LessonJsonObject,
 ): boolean {
   return previousVariants.every((previous) => isNewGame(previous, candidate));
+}
+
+/** Stable internal id of the n-th visual scene (0-based): scene-01, scene-02… */
+export function lessonSceneId(index: number): string {
+  return `${LESSON_SCENE_ID_PREFIX}${String(index + 1).padStart(LESSON_SCENE_ID_DIGITS, '0')}`;
 }

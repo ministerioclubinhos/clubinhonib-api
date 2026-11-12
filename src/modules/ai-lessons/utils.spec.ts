@@ -8,6 +8,7 @@ import {
   normalizeLessonVerseReference,
   normalizeLessonDocumentHeader,
 } from './utils';
+import { isBibleReference } from './utils/lesson-canonical-content.utils';
 
 describe('AI lesson utilities', () => {
   it('separa cabeçalho salvo sem alterar o conteúdo editado e sem duplicar linhas', () => {
@@ -197,10 +198,21 @@ describe('referência do versículo', () => {
   ])('remove a versão redundante de %s', (reference) => {
     expect(normalizeLessonVerseReference(reference)).toBe('João 6:35');
   });
-  it('preserva a delimitação de trecho e não altera referências sem versão', () => {
-    expect(normalizeLessonVerseReference('João 6:35 (trecho) — NVI')).toBe(
-      'João 6:35 (trecho)',
-    );
+  it.each([
+    ['João 6:35 (trecho) — NVI', 'João 6:35'],
+    ['1 João 3:8b (trecho)', '1 João 3:8b'],
+    ['1 João 3:8b — trecho', '1 João 3:8b'],
+    ['Trecho de Hebreus 9:22', 'Hebreus 9:22'],
+  ])(
+    'retira o qualificador de trecho de %s: a letra do versículo já indica a seleção parcial',
+    (reference, expected) => {
+      expect(normalizeLessonVerseReference(reference)).toBe(expected);
+      expect(isBibleReference(normalizeLessonVerseReference(reference))).toBe(
+        true,
+      );
+    },
+  );
+  it('não altera referências sem versão nem qualificador', () => {
     expect(normalizeLessonVerseReference('Hebreus 9:22b')).toBe(
       'Hebreus 9:22b',
     );

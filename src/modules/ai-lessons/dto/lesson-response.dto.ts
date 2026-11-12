@@ -45,6 +45,7 @@ export class LessonResponseDto {
   weekNumber: number | null;
   category: LessonCategory;
   specialContext: string | null;
+  editorialPurpose: string | null;
   status: LessonStatus;
   weekMaterialId: string | null;
   publicationFailureMessage: string | null;
@@ -184,6 +185,7 @@ export const toLessonResponse = (
     weekNumber: lesson.weekNumber ?? null,
     category: lesson.category ?? LessonCategory.REGULAR,
     specialContext: lesson.specialContext ?? null,
+    editorialPurpose: lesson.editorialPurpose ?? null,
     status: lesson.status,
     weekMaterialId: lesson.weekMaterialId,
     publicationFailureMessage: lesson.publicationFailureMessage ?? null,

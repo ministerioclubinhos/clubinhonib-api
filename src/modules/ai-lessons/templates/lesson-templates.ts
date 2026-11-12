@@ -28,7 +28,7 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
   {
     [LessonStageType.LESSON]: {
       key: 'clubinho.lesson.canonical',
-      version: '4.5.0',
+      version: '4.10.1',
       stage: LessonStageType.LESSON,
       exactStructure: [
         'LIÇÃO E TÍTULO',
@@ -45,13 +45,14 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
       ],
       rules: [
         ...sharedRules,
-        'A história é uma aula desenvolvida e participativa, com instruções práticas ao professor, ensino integrado e episódios essenciais completos; não é um resumo. Descrições visuais ficam somente em visualScenes, com IDs estáveis scene-01 etc., nunca dentro de story.',
+        'A história é uma aula desenvolvida e participativa, com 900 a 1.400 palavras, pelo menos quatro parágrafos por relato, instruções práticas ao professor, ensino integrado e episódios essenciais completos; não é um resumo. Descrições visuais ficam somente em visualScenes, com IDs estáveis scene-01 etc., nunca dentro de story.',
         'Quando o tema ou a orientação indicar duas ou mais sub-histórias, informar a quantidade na abertura, desenvolver cada relato separadamente e inserir subtítulos em linhas próprias no campo story com o prefixo ### e a referência correspondente. Passagens paralelas não representam histórias distintas.',
-        'Escrever um propósito curto, claro e específico para a criança, ligado ao tema. Escolher um versículo ou trecho NVI curto, preferencialmente até 20 palavras, fácil de memorizar e diretamente contextualizado; a seleção histórica é sugestiva, salvo solicitação explícita do administrador. Preservar a ordem dos episódios sem copiar erros do exemplo.',
-        'A narrativa não pode apresentar sentimentos, intenções ou diálogos não sustentados pelas passagens como fatos bíblicos. Separar ilustrações fictícias e reconto de citações literais.',
+        'Escrever um propósito curto, claro e específico para a criança, ligado ao tema. Escolher um versículo NVI (ou dois consecutivos, somente se um só não completar o ensino) que resuma a mensagem central da lição inteira, curto para memorizar (preferencialmente até 20 palavras, nunca muito acima de 30); a seleção histórica é sugestiva, salvo solicitação explícita do administrador. Preservar a ordem dos episódios sem copiar erros do exemplo.',
+        'A narrativa não pode apresentar sentimentos, intenções ou diálogos não sustentados pelas passagens como fatos bíblicos. Separar ilustrações fictícias e reconto de citações literais pela forma de narrar, sem notas explicativas no texto.',
         'Aplicação em parágrafos distintos para quem já crê e para quem deseja seguir Jesus: atitudes concretas ligadas ao propósito, explicação simples de pecado com exemplos infantis, morte e ressurreição de Jesus, convite e oração voluntários.',
         'Revisar e corrigir a saída antes de entregar: preferir frase bíblica curta sem introdução narrativa, não duplicar NVI na referência, não atribuir títulos ausentes ao versículo, retirar especulações e incluir pelo menos dois exemplos infantis concretos de pecado na aplicação.',
-        'Regras gerais para qualquer tema: concluir cada relato antes da aplicação, preservar atribuições individuais ao harmonizar evangelhos, reduzir descrições assustadoras, manter convite voluntário e verificar que perguntas e respostas têm apoio no conteúdo ensinado.',
+        'Definir primeiro a mensagem central da lição (centralMessage, campo interno) e escolher o versículo que a resume (verseChoice, campo interno); propósito, princípio, conclusão da história, aplicação e última pergunta servem a essa mesma mensagem. A história termina com o ensino que Jesus ou a passagem quis transmitir.',
+        'Regras gerais para qualquer tema: concluir cada relato antes da aplicação, harmonizar evangelhos numa narrativa única sem transferir detalhes de um personagem a outro nem citar evangelistas no texto, reduzir descrições assustadoras, manter convite voluntário e verificar que perguntas e respostas têm apoio no conteúdo ensinado.',
         'Gerar de oito a dez perguntas com gabarito, respeitando a quantidade do exemplo correspondente. closingPrayer fica vazio salvo solicitação explícita de oração final separada.',
         'A oração de apelo deve ser revisável e nunca pode ser substituída por texto dentro de imagem.',
       ],

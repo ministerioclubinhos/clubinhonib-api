@@ -13,6 +13,7 @@ import {
 import { LessonProviderConfig } from './lesson-llm.types';
 import { AxiosError } from 'axios';
 import { schemaFor } from '../services/open-ai-lesson.service';
+import { providerTextTimeoutMs } from '../utils/provider-timeout.utils';
 import {
   buildLessonSystemPrompt,
   buildLessonUserPayload,
@@ -148,7 +149,7 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
                   ),
               },
             },
-            PROVIDER_REQUEST.textTimeoutMs,
+            providerTextTimeoutMs(input.stage),
             `texto com ${model}`,
             GEMINI_TEXT_RETRY_STATUSES,
           );

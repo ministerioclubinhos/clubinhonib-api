@@ -198,13 +198,15 @@ describe('GeminiLessonLlmProvider', () => {
       },
     });
     const contents = body.contents as Array<{ parts: Array<{ text: string }> }>;
-    const sent = JSON.parse(contents[0].parts[0].text) as {
-      adminPrompt: string;
-    };
-    expect(sent.adminPrompt).toBe(LESSON_BASE_PROMPT);
-    expect(sent.adminPrompt).toContain(
-      'Nunca copie essas descrições para story',
-    );
+    const sent = JSON.parse(contents[0].parts[0].text) as Record<
+      string,
+      unknown
+    >;
+    // The editorial prompt is an instruction: it travels in the system prompt.
+    expect(sent).not.toHaveProperty('adminPrompt');
+    const system = JSON.stringify(body.systemInstruction);
+    expect(system).toContain('PROMPT EDITORIAL DA ETAPA');
+    expect(system).toContain('Nunca copie essas descrições para story');
     expect(options.feature).toBe(AiQueueFeature.LESSONS);
     expect(options).not.toHaveProperty('headers');
   });

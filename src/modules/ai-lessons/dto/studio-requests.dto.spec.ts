@@ -1,5 +1,9 @@
 import { ArgumentMetadata, ValidationPipe } from '@nestjs/common';
-import { LESSON_CONTENT_LIMITS } from '../constants/lesson-workflow.constants';
+import {
+  LESSON_CONTENT_LIMITS,
+  LESSON_EDITORIAL_PURPOSE_MAX_LENGTH,
+  LESSON_EDITORIAL_PURPOSE_MIN_LENGTH,
+} from '../constants/lesson-workflow.constants';
 import { LessonStageType } from '../enums/lesson.enums';
 import { GenerateLessonRequestDto } from './generate-lesson-request.dto';
 import {
@@ -151,7 +155,11 @@ describe('studio request DTOs', () => {
   });
 
   it('mantém o número da semana dentro da coluna inteira', async () => {
-    const lesson = { theme: 'Tema', biblicalReference: 'João 3:16' };
+    const lesson = {
+      theme: 'Tema',
+      biblicalReference: 'João 3:16',
+      editorialPurpose: 'Mostrar o amor de Deus.',
+    };
     await expect(
       validate(GenerateLessonRequestDto, { ...lesson, weekNumber: 53 }),
     ).resolves.toMatchObject({ weekNumber: 53 });
@@ -161,5 +169,30 @@ describe('studio request DTOs', () => {
         weekNumber: 2_147_483_648,
       }),
     ).rejects.toMatchObject({ status: 400 });
+  });
+  it('exige o propósito editorial, sem espaços e dentro dos limites', async () => {
+    const lesson = {
+      theme: 'Tema',
+      biblicalReference: 'João 3:16',
+      weekNumber: 21,
+    };
+    await expect(
+      validate(GenerateLessonRequestDto, {
+        ...lesson,
+        editorialPurpose:
+          '  Mostrar que o destino eterno se decide nesta vida.  ',
+      }),
+    ).resolves.toMatchObject({
+      editorialPurpose: 'Mostrar que o destino eterno se decide nesta vida.',
+    });
+    for (const editorialPurpose of [
+      undefined,
+      '   ',
+      'x'.repeat(LESSON_EDITORIAL_PURPOSE_MIN_LENGTH - 1),
+      'x'.repeat(LESSON_EDITORIAL_PURPOSE_MAX_LENGTH + 1),
+    ])
+      await expect(
+        validate(GenerateLessonRequestDto, { ...lesson, editorialPurpose }),
+      ).rejects.toMatchObject({ status: 400 });
   });
 });

@@ -159,5 +159,14 @@ export const SERVER_AUTHORITATIVE_STAGES: readonly LessonStageType[] = [
 export const BIBLE_REFERENCE_PATTERN =
   /^\(?(?:[1-3]\s*[ªºo]?\s*)?\p{L}[\p{L}.]*(?:\s+\p{L}[\p{L}.]*)*\s+\d{1,3}(?:\s*[:.]\s*\d{1,3}[a-c]?)?(?:\s*[-–,;e]\s*\d{1,3}(?:\s*[:.]\s*\d{1,3}[a-c]?)?)*\)?$/u;
 
+/** " — NVI", "(NVI)" and repeats of it at the end of a verse reference. */
+export const LESSON_VERSE_REFERENCE_VERSION_SUFFIX =
+  /(?:\s*(?:[—–-]\s*)?\(?NVI\)?)+$/i;
+/** "(trecho)", "— trecho" or ", trecho" closing a verse reference. */
+export const LESSON_VERSE_REFERENCE_EXCERPT_SUFFIX =
+  /\s*(?:[—–,-]\s*)?\(?\s*trecho\s*\)?\s*$/i;
+/** "Trecho de …" opening a verse reference. */
+export const LESSON_VERSE_REFERENCE_EXCERPT_PREFIX = /^trecho\s+(?:de\s+)?/i;
+
 /** A trailing Bible-version token such as "NVI", "(NVI)" or "ARA". */
 export const BIBLE_VERSION_PATTERN = /^\(?(\p{Lu}{2,5})\)?$/u;
