@@ -20,6 +20,7 @@ import { getLessonTemplate } from '../templates/special-lesson-templates';
 export function buildLessonSystemPrompt(
   input: LessonLlmGenerationInput,
 ): string {
+  if (input.structuredRequest) return input.structuredRequest.system;
   if (input.olderMeditationReview)
     return [
       OLDER_MEDITATION_REVIEW_PROMPT,
@@ -81,6 +82,7 @@ export function boundedPreviousVariants(
 export function buildLessonUserPayload(
   input: LessonLlmGenerationInput,
 ): string {
+  if (input.structuredRequest) return input.structuredRequest.user;
   return JSON.stringify({
     ...(input.olderMeditationReview
       ? {
@@ -106,6 +108,7 @@ export function buildLessonUserPayload(
 }
 
 export function lessonOperationLabel(input: LessonLlmGenerationInput): string {
+  if (input.structuredRequest) return input.structuredRequest.label;
   if (input.olderMeditationReview)
     return input.olderMeditationReview.images.length
       ? 'revisão de imagens'

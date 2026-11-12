@@ -14,7 +14,9 @@ import { AppException, ErrorCode } from 'src/shared/exceptions';
 import { LESSON_EVENT_STREAM } from '../constants/lesson-workflow.constants';
 import { toLessonResponse } from '../dto/lesson-response.dto';
 import { LessonView } from '../enums/lesson-failure-code.enum';
+import { generationProgressDigest } from '../utils/lesson-generation-progress.utils';
 import { LessonDraftService } from './lesson-draft.service';
+import { LessonGenerationProgressService } from './lesson-generation-progress.service';
 
 /**
  * Server-sent snapshots of one lesson. Each tick costs a light digest query;
@@ -25,7 +27,10 @@ import { LessonDraftService } from './lesson-draft.service';
 export class LessonEventStreamService {
   private readonly connections = new Map<string, number>();
 
-  constructor(private readonly lessons: LessonDraftService) {}
+  constructor(
+    private readonly lessons: LessonDraftService,
+    private readonly progress: LessonGenerationProgressService,
+  ) {}
 
   stream(
     lessonId: string,
@@ -55,7 +60,9 @@ export class LessonEventStreamService {
     view: LessonView,
     lastDigest: string | null,
   ): Promise<{ digest: string; event: MessageEvent }> {
-    const digest = await this.lessons.getEventDigest(lessonId);
+    // The progress lives outside the database, so it joins the fingerprint.
+    const generation = await this.progress.get(lessonId);
+    const digest = `${await this.lessons.getEventDigest(lessonId)}#${generationProgressDigest(generation)}`;
     if (digest === lastDigest)
       return {
         digest,
@@ -65,7 +72,10 @@ export class LessonEventStreamService {
         },
       };
     const lesson = await this.lessons.getById(lessonId);
-    return { digest, event: { data: toLessonResponse(lesson, { view }) } };
+    return {
+      digest,
+      event: { data: toLessonResponse(lesson, { view, generation }) },
+    };
   }
 
   private acquire(key: string): () => void {

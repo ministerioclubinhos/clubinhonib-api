@@ -1,5 +1,9 @@
 import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayNotEmpty,
+  ArrayUnique,
+  IsArray,
   IsBoolean,
   IsEnum,
   IsInt,
@@ -11,6 +15,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { LESSON_IMAGE_REGENERATION } from '../constants/lesson-image-regeneration.constants';
 import {
   LESSON_REVIEW_NOTE_MAX_LENGTH,
   LESSON_VISUAL_QUANTITY,
@@ -62,6 +67,27 @@ export class StageActionRequestDto {
   @IsInt()
   @Min(1)
   lockVersion: number;
+}
+
+/**
+ * Body of `POST /lessons/:id/stages/regenerate-images`: generates again only
+ * the chosen images of the version the administrator is looking at.
+ */
+export class RegenerateStageImagesRequestDto extends StageActionRequestDto {
+  @IsArray()
+  @ArrayNotEmpty({ message: 'Escolha ao menos uma imagem para regerar.' })
+  @ArrayMaxSize(LESSON_IMAGE_REGENERATION.MAX_ASSETS)
+  @ArrayUnique()
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
+  @MaxLength(LESSON_IMAGE_REGENERATION.ASSET_ID_MAX_LENGTH, { each: true })
+  assetIds: string[];
+
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(LESSON_IMAGE_REGENERATION.INSTRUCTIONS_MAX_LENGTH)
+  instructions?: string;
 }
 
 export class CompleteStageRequestDto extends StageActionRequestDto {

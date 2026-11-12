@@ -32,7 +32,10 @@ import {
   LESSON_GENERATION_BLOCKED_STATUSES,
   LESSON_REGENERATION_LOCKED_STAGE_STATUSES,
 } from '../constants/lesson-workflow.constants';
-import { GenerateStageRequestDto } from '../dto/generate-stage-request.dto';
+import {
+  GenerateStageRequestDto,
+  RegenerateStageImagesRequestDto,
+} from '../dto/generate-stage-request.dto';
 import { LessonEntity } from '../entities/lesson.entity';
 import { LessonStageEntity } from '../entities/lesson-stage.entity';
 import {
@@ -98,6 +101,19 @@ import { AdminLessonPromptService } from './admin-lesson-prompt.service';
 import { GetLessonService } from './get-lesson.service';
 import { LessonStudioSupportService } from './lesson-studio-support.service';
 import { LessonAssetGenerationService } from './lesson-asset-generation.service';
+import { LessonImageBriefService } from './lesson-image-brief.service';
+import { withoutImageBrief } from '../utils/lesson-image-brief.utils';
+import {
+  imageRegenerationSummary,
+  imageSelectionOutdated,
+  imageBriefOriginOf,
+  isImageRegeneration,
+  planImageRegeneration,
+  regeneratesEveryImage,
+  visualChoicesOfContent,
+} from '../utils/lesson-image-regeneration.utils';
+import { LessonGenerationProgressService } from './lesson-generation-progress.service';
+import { LessonGenerationPhase } from '../enums/lesson-generation-phase.enum';
 import {
   lessonAssetListKey,
   lessonNotFound,
@@ -127,6 +143,8 @@ export class LessonGenerationService
     private readonly support: LessonStudioSupportService,
     private readonly lessons: GetLessonService,
     private readonly assets: LessonAssetGenerationService,
+    private readonly progress: LessonGenerationProgressService,
+    private readonly imageBriefs: LessonImageBriefService,
   ) {
     this.maxConcurrentGenerations = Math.max(
       1,
@@ -306,6 +324,117 @@ export class LessonGenerationService
     const { frozenAdminPrompt, frozenProvider } =
       await this.freezeGenerationContext(userId, type, header.category);
 
+    await this.openGenerationRequest(id, type, userId, (lockedStage) => ({
+      stage: type,
+      revisionInstructions: dto.revisionInstructions,
+      visualType: dto.visualType,
+      visualOrientation: dto.visualOrientation,
+      visualQuantity: dto.visualQuantity,
+      frozenProvider,
+      frozenAdminPrompt,
+      attempts: 0,
+      uploadedAssetUrls: [],
+      checkpoint: null,
+      previousState: { status: lockedStage.status },
+    }));
+    this.support.audit(LessonWorkflowAction.GENERATE_STAGE, id, userId, {
+      stage: type,
+    });
+    return this.announceGeneration(id, type, userId, dto.visualQuantity);
+  }
+
+  /**
+   * Generates again only the chosen images of the current version. The text
+   * and the other images enter the request as an already-paid checkpoint, so
+   * the regular attempt (lease, resume, progress, commit) does the rest.
+   */
+  async regenerateImages(
+    id: string,
+    dto: RegenerateStageImagesRequestDto,
+    userId: string,
+  ): Promise<LessonEntity> {
+    const { stage: type } = dto;
+    const current = await this.lessons.getById(id);
+    const stage = current.stages.find((item) => item.type === type);
+    if (!stage) throw stageNotFound();
+    if (stage.lockVersion !== dto.lockVersion) throw imageSelectionOutdated();
+    if (stage.status === LessonStageStatus.STALE)
+      throw new AppConflictException(
+        ErrorCode.LESSON_STAGE_STALE_UPSTREAM,
+        'Este item está desatualizado em relação aos anteriores. Gere o item novamente por completo.',
+      );
+    const content = lessonCurrentContent(stage);
+    const plan = planImageRegeneration(type, content, dto.assetIds);
+    const upstream = assertLessonDependency(current, type);
+    const { frozenAdminPrompt, frozenProvider } =
+      await this.freezeGenerationContext(userId, type, current.category);
+
+    await this.openGenerationRequest(id, type, userId, (lockedStage) => {
+      // The plan was built outside the lock: it only holds for that version.
+      if (
+        lockedStage.lockVersion !== dto.lockVersion ||
+        lockedStage.currentVersionId !== stage.currentVersionId
+      )
+        throw imageSelectionOutdated();
+      return {
+        stage: type,
+        ...visualChoicesOfContent(content),
+        frozenProvider,
+        frozenAdminPrompt,
+        attempts: 0,
+        // Kept images are not uploads of this request: a failure must never
+        // remove them, they belong to the version in use.
+        uploadedAssetUrls: [],
+        checkpoint: {
+          upstreamChecksum: upstream ? lessonContentChecksum(upstream) : null,
+          // Redoing every image redoes the master prompt too; redoing some
+          // keeps it, so the new images follow the same art direction.
+          content: regeneratesEveryImage(plan)
+            ? withoutImageBrief(content as LessonJsonObject)
+            : (content as LessonJsonObject),
+          responseId: '',
+          assetUrls: plan.keptAssetUrls,
+        },
+        previousState: { status: lockedStage.status },
+        regeneratedAssetIds: plan.regeneratedAssetIds,
+        imageInstructions: dto.instructions || undefined,
+      };
+    });
+    this.support.audit(LessonWorkflowAction.REGENERATE_IMAGES, id, userId, {
+      stage: type,
+      versionId: stage.currentVersionId ?? undefined,
+    });
+    return this.announceGeneration(id, type, userId, plan.totalImages);
+  }
+
+  /** Opens the progress record and wakes the worker loop. */
+  private async announceGeneration(
+    id: string,
+    type: LessonStageType,
+    userId: string,
+    expectedImages: number | undefined,
+  ): Promise<LessonEntity> {
+    const lesson = await this.lessons.getById(id);
+    // Opened before the work starts, so the clock counts from the request.
+    await this.progress.begin({
+      lessonId: id,
+      theme: lesson.theme,
+      stage: type,
+      requestedById: userId,
+      expectedImages,
+      reset: true,
+    });
+    this.kickResume();
+    return lesson;
+  }
+
+  /** Shared gate of every generation request: one per lesson, never in review. */
+  private async openGenerationRequest(
+    id: string,
+    type: LessonStageType,
+    userId: string,
+    buildRequest: (lockedStage: LessonStageEntity) => LessonGenerationRequest,
+  ): Promise<void> {
     await this.repo.runInTransaction(async (manager) => {
       const locked = await this.repo.findLessonByIdForUpdate(id, manager);
       if (!locked) throw lessonNotFound();
@@ -343,19 +472,7 @@ export class LessonGenerationService
         );
       assertPreviousStageCompleted(locked, type);
       const activeTemplate = getLessonTemplate(type, locked.category);
-      const request: LessonGenerationRequest = {
-        stage: type,
-        revisionInstructions: dto.revisionInstructions,
-        visualType: dto.visualType,
-        visualOrientation: dto.visualOrientation,
-        visualQuantity: dto.visualQuantity,
-        frozenProvider,
-        frozenAdminPrompt,
-        attempts: 0,
-        uploadedAssetUrls: [],
-        checkpoint: null,
-        previousState: { status: lockedStage.status },
-      };
+      const request = buildRequest(lockedStage);
       lockedStage.status = LessonStageStatus.GENERATING;
       await this.repo.updateStage(
         lockedStage.id,
@@ -376,11 +493,6 @@ export class LessonGenerationService
       );
       await this.support.syncLessonStatus(locked, manager);
     });
-    this.support.audit(LessonWorkflowAction.GENERATE_STAGE, id, userId, {
-      stage: type,
-    });
-    this.kickResume();
-    return this.lessons.getById(id);
   }
 
   /**
@@ -447,6 +559,7 @@ export class LessonGenerationService
           LESSON_GENERATION.LEASE_SECONDS,
         )
         .then((renewed) => {
+          if (renewed !== false) void this.progress.touch(stage.lessonId);
           if (renewed === false) {
             // Someone else owns the stage now: stop paying for this attempt.
             this.logger.warn(
@@ -491,6 +604,8 @@ export class LessonGenerationService
       .finally(() => {
         clearInterval(heartbeat);
         this.activeGenerations.delete(key);
+        // A shutdown leaves the record: the resumed attempt continues it.
+        if (!this.shuttingDown) void this.progress.finish(stage.lessonId);
         if (
           !this.shuttingDown &&
           this.activeGenerations.size < this.maxConcurrentGenerations
@@ -589,6 +704,13 @@ export class LessonGenerationService
       const stage = lesson.stages.find((item) => item.type === type);
       if (!stage) throw stageNotFound();
       stageId = stage.id;
+      await this.progress.begin({
+        lessonId: id,
+        theme: lesson.theme,
+        stage: type,
+        requestedById: userId,
+        expectedImages: request.visualQuantity,
+      });
       const isGameStage = LESSON_GAME_STAGES.includes(type);
       const previousGameVariants = isGameStage
         ? (stage.versions ?? [])
@@ -657,6 +779,12 @@ export class LessonGenerationService
         request.checkpoint.upstreamChecksum === upstreamChecksum
           ? request.checkpoint
           : null;
+      // Regenerating images never rewrites the text: without a valid
+      // checkpoint there is nothing to keep, so the request fails instead.
+      if (isImageRegeneration(request) && !checkpoint)
+        throw new ConflictException(
+          'Os itens anteriores mudaram enquanto as imagens eram regeradas. Gere o item novamente por completo.',
+        );
       if (request.checkpoint && !checkpoint)
         await persistRequest({ ...request, checkpoint: null });
 
@@ -729,6 +857,24 @@ export class LessonGenerationService
         await persistRequest({ ...request, checkpoint });
       }
 
+      // The master image prompt is written once, before any image, and kept
+      // in the checkpoint: a resumed attempt or a partial regeneration reuses
+      // it word for word.
+      const briefed = await this.imageBriefs.ensure(attemptLlm, {
+        type,
+        content: checkpoint.content,
+        canonicalLesson: approvedLessonStage
+          ? lessonCurrentContent(approvedLessonStage)
+          : null,
+        adminPrompt,
+        generationInput,
+        origin: imageBriefOriginOf(request),
+      });
+      throwIfGenerationAborted(signal);
+      if (briefed !== checkpoint.content) {
+        checkpoint = { ...checkpoint, content: briefed };
+        await persistRequest({ ...request, checkpoint });
+      }
       const textCheckpoint: LessonGenerationCheckpoint = checkpoint;
       const assetKey = lessonAssetListKey(type);
       const plannedAssets = Array.isArray(textCheckpoint.content[assetKey])
@@ -742,6 +888,17 @@ export class LessonGenerationService
         type === LessonStageType.MEDITATION_OLDER && !everyAssetStored
           ? {}
           : textCheckpoint.assetUrls;
+      let completedImages = plannedAssets.filter((asset) =>
+        Boolean(reusableAssetUrls[String(asset.id)]),
+      ).length;
+      await this.progress.advance(id, {
+        phase:
+          plannedAssets.length > 0
+            ? LessonGenerationPhase.IMAGES
+            : LessonGenerationPhase.SAVING,
+        totalImages: plannedAssets.length,
+        completedImages,
+      });
       const olderImages =
         type === LessonStageType.MEDITATION_OLDER && !everyAssetStored
           ? await createOlderMeditationImages(
@@ -762,6 +919,8 @@ export class LessonGenerationService
         {
           assetUrls: reusableAssetUrls,
           signal,
+          imageInstructions: request.imageInstructions,
+          matchKeptImages: isImageRegeneration(request),
           onUploaded: async (assetId, url) => {
             unrecordedUploads.add(url);
             storedAssetUrls = { ...storedAssetUrls, [assetId]: url };
@@ -773,10 +932,13 @@ export class LessonGenerationService
               ],
             });
             unrecordedUploads.delete(url);
+            completedImages += 1;
+            await this.progress.advance(id, { completedImages });
           },
         },
       );
       throwIfGenerationAborted(signal);
+      await this.progress.advance(id, { phase: LessonGenerationPhase.SAVING });
 
       const nextVersion =
         Math.max(
@@ -796,17 +958,23 @@ export class LessonGenerationService
         ),
         docxS3Key: null,
         pdfS3Key: null,
-        changeSummary: this.generationChangeSummary(
-          attemptSnapshot.metadata,
-          Boolean(revisionInstructions),
-          textCheckpoint.usage,
-        ),
+        changeSummary: isImageRegeneration(request)
+          ? imageRegenerationSummary(
+              request.regeneratedAssetIds?.length ?? 0,
+              plannedAssets.length,
+              attemptSnapshot.metadata,
+            )
+          : this.generationChangeSummary(
+              attemptSnapshot.metadata,
+              Boolean(revisionInstructions),
+              textCheckpoint.usage,
+            ),
         createdSource:
           nextVersion === 1
             ? LessonVersionSource.AI_GENERATED
             : LessonVersionSource.REGENERATION,
         createdById: userId,
-        openAiResponseId: textCheckpoint.responseId,
+        openAiResponseId: textCheckpoint.responseId || null,
         adminPromptSnapshot: adminPrompt,
         adminPromptChecksum: createHash('sha256')
           .update(adminPrompt)

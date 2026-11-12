@@ -100,6 +100,47 @@ describe('GeminiLessonLlmProvider', () => {
     expect(JSON.stringify(body.generationConfig)).toContain('issues');
   });
 
+  it('envia o pedido estruturado próprio no lugar do template da etapa', async () => {
+    queued.post.mockResolvedValueOnce({
+      data: {
+        responseId: 'brief',
+        candidates: [
+          {
+            finishReason: 'STOP',
+            content: { parts: [{ text: '{"artDirection":"Traço limpo"}' }] },
+          },
+        ],
+      },
+    });
+
+    const result = await provider.generateStructured(
+      {
+        name: 'clubinho_image_brief',
+        label: 'prompt mestre de imagens',
+        system: 'SISTEMA DO DIRETOR DE ARTE',
+        user: '{"licao":"dados"}',
+        schema: { type: 'object', properties: { artDirection: {} } },
+      },
+      {
+        theme: 'Tema livre',
+        biblicalReference: 'Referência',
+        weekNumber: 1,
+        stage: LessonStageType.LESSON_VISUALS,
+        template: LESSON_TEMPLATES[LessonStageType.LESSON_VISUALS],
+        approvedUpstream: null,
+        adminPrompt: 'Orientação da etapa',
+      },
+    );
+
+    const [, body] = lastPostCall();
+    expect(JSON.stringify(body.systemInstruction)).toContain(
+      'SISTEMA DO DIRETOR DE ARTE',
+    );
+    expect(JSON.stringify(body.contents)).toContain('licao');
+    expect(JSON.stringify(body.generationConfig)).toContain('artDirection');
+    expect(result.content).toEqual({ artDirection: 'Traço limpo' });
+  });
+
   it('gera conteúdo estruturado usando o schema da etapa', async () => {
     queued.post.mockResolvedValueOnce({
       data: {
@@ -293,6 +334,38 @@ describe('GeminiLessonLlmProvider', () => {
         type: 'image',
         data: Buffer.from('identity-reference').toString('base64'),
         mime_type: 'image/png',
+      },
+    ]);
+  });
+
+  it('anexa todas as imagens de referência de uma substituição', async () => {
+    queued.post.mockResolvedValueOnce({
+      data: {
+        outputImage: {
+          data: pngImageFixture('replacement').toString('base64'),
+          mimeType: 'image/png',
+        },
+      },
+    });
+
+    await provider.generateImage('Imagem refeita', 'LANDSCAPE', 'CUTOUT_KIT', {
+      data: Buffer.from('identity-reference'),
+      mimeType: 'image/png',
+      companions: [{ data: Buffer.from('neighbour'), mimeType: 'image/jpeg' }],
+    });
+
+    const [, body] = lastPostCall();
+    expect(body.input).toEqual([
+      expect.objectContaining({ type: 'text' }),
+      {
+        type: 'image',
+        data: Buffer.from('identity-reference').toString('base64'),
+        mime_type: 'image/png',
+      },
+      {
+        type: 'image',
+        data: Buffer.from('neighbour').toString('base64'),
+        mime_type: 'image/jpeg',
       },
     ]);
   });

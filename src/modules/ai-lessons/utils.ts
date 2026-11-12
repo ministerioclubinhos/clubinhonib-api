@@ -153,8 +153,12 @@ export function buildStoryVisualImagePrompt(input: {
   ].join('\n\n');
 }
 
+/**
+ * Prompt of one cutout sheet. The sheet is a closed list: the lesson text is
+ * left out on purpose, because with it (or with a reference image) the model
+ * drew the whole story on every sheet instead of only the listed elements.
+ */
 export function buildCutoutKitImagePrompt(input: {
-  completeStory: string;
   category: string;
   title?: string;
   items: JsonObject[];
@@ -168,10 +172,16 @@ export function buildCutoutKitImagePrompt(input: {
     size: item.size,
     variantOf: item.variantOf ?? undefined,
   }));
+  const labels = items
+    .map((item) => lessonString(item.label).trim())
+    .filter(Boolean)
+    .join('; ');
+  const count = items.length;
+  const closedList = `LISTA FECHADA: esta prancha contém exatamente ${count} ${count === 1 ? 'elemento' : 'elementos'} — ${labels}. Desenhe cada item da lista uma única vez. Nenhum outro personagem, animal, objeto, construção, planta ou peça de cenário pode aparecer, mesmo que faça parte da mesma história.`;
   return [
-    'FONTE CANÔNICA E EXCLUSIVA — LIÇÃO BÍBLICA COMPLETA:',
-    input.completeStory.trim(),
-    `PRANCHA DE ELEMENTOS PARA RECORTAR — CATEGORIA ${input.category}${input.title ? ` (${input.title})` : ''}. ELEMENTOS OBRIGATÓRIOS DESTA PRANCHA:`,
+    `PRANCHA DE ELEMENTOS PARA RECORTAR — CATEGORIA ${input.category}${input.title ? ` (${input.title})` : ''}.`,
+    closedList,
+    'ELEMENTOS DESTA PRANCHA:',
     JSON.stringify(items),
     'ORGANIZAÇÃO PLANEJADA:',
     [input.layoutPlan, input.proposedComposition]
@@ -187,11 +197,11 @@ export function buildCutoutKitImagePrompt(input: {
       'Mantenha a escala relativa coerente (adulto ≈ 1,0; criança ≈ 0,6; casa ≈ 3,0; árvore ≈ 2,5). Personagens de frente ou 3/4, pose neutra, corpo inteiro e pés visíveis. Multidão sem rosto como silhuetas cinza.',
       'Não escreva letras, números, legendas ou logotipos: os nomes são aplicados depois pelo sistema.',
     ].join(' '),
-    'IDENTIDADE VISUAL FIXA:',
+    'IDENTIDADE VISUAL:',
     input.hasIdentityReference
-      ? 'Use a imagem de referência anexada como identidade-mãe do kit. Preserve rigorosamente o mesmo traço artístico, paleta, proporções e, quando reaparecerem, os mesmos rostos, idades aparentes, cabelos e roupas. A referência define somente a identidade visual; os elementos desta prancha seguem a lista acima.'
+      ? 'A imagem anexada é SOMENTE um guia de estilo: copie dela o traço artístico, o contorno, a paleta, o sombreamento e as proporções. NÃO redesenhe, não copie e não reaproveite os elementos que aparecem nela — eles pertencem a outra prancha. Só quando um item da lista fechada for um personagem que também está na referência, mantenha o mesmo rosto, idade aparente, cabelo e roupa.'
       : 'Esta é a prancha-mãe do kit. Estabeleça com clareza o traço artístico, a paleta de cores, as proporções e as características (rosto, idade aparente, cabelo, roupa) que serão reutilizados nas demais pranchas.',
-    'REGRA OBRIGATÓRIA: desenhe somente os elementos listados, baseados exclusivamente na LIÇÃO BÍBLICA completa, sem inventar personagens, fatos ou objetos. Nada violento, assustador ou sexualizado.',
+    `CONFERÊNCIA FINAL OBRIGATÓRIA: a imagem deve mostrar somente ${labels} (${count} ${count === 1 ? 'elemento' : 'elementos'}). Qualquer elemento fora dessa lista deve ser removido. Nada violento, assustador ou sexualizado.`,
   ].join('\n\n');
 }
 

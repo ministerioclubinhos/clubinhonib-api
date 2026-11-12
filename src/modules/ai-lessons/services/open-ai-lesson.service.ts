@@ -1,3 +1,4 @@
+import type { LessonStructuredRequest } from '../types/lesson-image-brief.types';
 import { AiQueueException } from 'src/shared/providers/ai-queue/ai-queue.exception';
 import { AiRequestQueueService } from 'src/shared/providers/ai-queue/ai-request-queue.service';
 import { AiQueueFeature } from 'src/shared/providers/ai-queue/enums';
@@ -637,13 +638,17 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
             text: {
               format: {
                 type: 'json_schema',
-                name: `clubinho_${input.stage.toLowerCase()}`,
+                name:
+                  input.structuredRequest?.name ??
+                  `clubinho_${input.stage.toLowerCase()}`,
                 strict: true,
-                schema: schemaFor(
-                  input.stage,
-                  Boolean(input.olderMeditationReview),
-                  input.category,
-                ),
+                schema:
+                  input.structuredRequest?.schema ??
+                  schemaFor(
+                    input.stage,
+                    Boolean(input.olderMeditationReview),
+                    input.category,
+                  ),
               },
             },
           },
@@ -710,6 +715,13 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
         `Falha ao gerar ${input.stage} na OpenAI: ${detail}`,
       );
     }
+  }
+
+  generateStructured(
+    request: LessonStructuredRequest,
+    context: LessonLlmGenerationInput,
+  ): Promise<LessonLlmGenerationResult> {
+    return this.generateStage({ ...context, structuredRequest: request });
   }
 
   private maxOutputTokens(stage: LessonStageType): number {
@@ -795,6 +807,16 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
                   ? 'clubinho-identidade-visual.jpg'
                   : 'clubinho-identidade-visual.png',
               );
+              for (const [index, companion] of (
+                identityReferenceImage.companions ?? []
+              ).entries())
+                form.append(
+                  'image[]',
+                  new Blob([new Uint8Array(companion.data)], {
+                    type: companion.mimeType,
+                  }),
+                  `clubinho-referencia-${index + 2}.${companion.mimeType === 'image/jpeg' ? 'jpg' : 'png'}`,
+                );
               return this.queue.post<{ data?: Array<{ b64_json?: string }> }>(
                 OPENAI_API.imageEdits,
                 form,

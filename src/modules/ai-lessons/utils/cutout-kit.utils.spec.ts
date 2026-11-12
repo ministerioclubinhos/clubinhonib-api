@@ -357,7 +357,6 @@ describe('cutoutKitGenerationOrder / buildCutoutKitImagePrompt', () => {
 
   it('includes isolation, white background and identity rules', () => {
     const prompt = buildCutoutKitImagePrompt({
-      completeStory: story,
       category: 'CHARACTERS',
       items: [item()],
       proposedComposition: 'duas linhas',
@@ -365,7 +364,24 @@ describe('cutoutKitGenerationOrder / buildCutoutKitImagePrompt', () => {
     });
     expect(prompt).toContain('Prancha de elementos para recortar');
     expect(prompt).toContain('Fundo branco puro');
-    expect(prompt).toContain('imagem de referência anexada');
+    expect(prompt).toContain('imagem anexada é SOMENTE um guia de estilo');
     expect(prompt).toContain('Maria');
+  });
+
+  it('treats the sheet as a closed list and leaves the lesson text out', () => {
+    // Regression: with the whole story (and reference images) in the prompt,
+    // the "Animais" sheet came back with characters, scroll, house and trees.
+    const prompt = buildCutoutKitImagePrompt({
+      category: 'ANIMALS',
+      title: 'Animais',
+      items: [item({ label: 'Pomba', category: 'ANIMALS' })],
+      proposedComposition: 'uma pomba',
+      hasIdentityReference: true,
+    });
+    expect(prompt).toContain('exatamente 1 elemento — Pomba');
+    expect(prompt).toContain('NÃO redesenhe');
+    expect(prompt).toContain('deve mostrar somente Pomba (1 elemento)');
+    expect(prompt).not.toContain('LIÇÃO BÍBLICA COMPLETA');
+    expect(prompt).not.toContain(story);
   });
 });

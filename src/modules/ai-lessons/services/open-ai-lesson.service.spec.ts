@@ -259,6 +259,32 @@ describe('OpenAiLessonService image identity', () => {
     expect(form.get('image[]')).toBeInstanceOf(Blob);
   });
 
+  it('anexa todas as imagens de referência de uma substituição', async () => {
+    queued.post.mockResolvedValueOnce({
+      data: {
+        data: [{ b64_json: pngImageFixture('replacement').toString('base64') }],
+      },
+    });
+
+    await service.generateImage('Imagem refeita', 'LANDSCAPE', 'CUTOUT_KIT', {
+      data: Buffer.from('identity-reference'),
+      mimeType: 'image/png',
+      companions: [
+        { data: Buffer.from('neighbour-a'), mimeType: 'image/png' },
+        { data: Buffer.from('neighbour-b'), mimeType: 'image/jpeg' },
+      ],
+    });
+
+    const form = queued.post.mock.lastCall?.[1] as FormData;
+    const files = form.getAll('image[]') as File[];
+    expect(files).toHaveLength(3);
+    expect(files.map((file) => file.type)).toEqual([
+      'image/png',
+      'image/png',
+      'image/jpeg',
+    ]);
+  });
+
   const textService = (model: string, effort?: string) =>
     new OpenAiLessonService(
       {

@@ -28,7 +28,9 @@ Prefixo `/api/v1/lessons`. Todas as rotas exigem JWT e papel de administrador. S
 | `GET /prompt-preferences/me` | `category` | Per-admin guidance, one item per stage: `{ stage, basePrompt, customPrompt, effectivePrompt, lockVersion, updatedAt }`. `updatedAt` (2026-11-11) is when **this admin** last saved or reset the stage, `null` when never customised. |
 | `GET /` filter `weekNumber` | integer ≥ 1 | (2026-11-11) Narrows the listing to the lessons planned for that week; the app uses it to warn before creating a second lesson for the same week. |
 | `GET /dashboard` | — | `{ total, byStatus, active, recent }`. `active` (2026-11-11) lists up to 20 lessons still in the works — every status except `PUBLISHED` and `ARCHIVED` — most recently touched first, with their stages; it feeds the Studio work queue. `recent` is the last 5 of any status. |
-| `GET /:id` | `view?` = `full` (padrão) ou `compact` | Leitura pura. `compact` devolve só a versão atual de cada etapa. |
+| `POST /:id/stages/regenerate-images` | `{ stage, lockVersion, assetIds[], instructions? }` | (2026-11-12) Gera de novo só as imagens escolhidas da versão atual; texto e demais imagens são mantidos. Responde a lição com a etapa em `GENERATING`. Ver [seção 4.7](#47-regerar-imagens-escolhidas). |
+| `GET /generations/active` | — | (2026-11-12) Gerações em andamento em todo o estúdio, da mais antiga para a mais nova: `{ lessonId, theme, stage, phase, totalImages, completedImages, percent, startedAt, updatedAt }[]`. Lista vazia quando não há nenhuma ou quando o Redis do progresso está fora do ar. Ver [seção 4.6](#46-progresso-da-geração). |
+| `GET /:id` | `view?` = `full` (padrão) ou `compact` | Leitura pura. `compact` devolve só a versão atual de cada etapa. Inclui `generation`. |
 | `GET /:id/events` | `view?` | SSE; ver [seção 6](#6-eventos-sse). |
 | `DELETE /:id` | — | `{ success, message }`. Recusada (409) para lição `PUBLISHED`, `ARCHIVED`, em publicação ou com etapa em geração. |
 | `POST /:id/archive` | — | `PUBLISHED` → `ARCHIVED`. |
@@ -62,7 +64,8 @@ Provedores, prefixo `/api/v1/lessons/providers`:
 
 ### 2.1 Campos da resposta
 
-- Lição: `id`, `theme`, `biblicalReference`, `weekNumber`, `category`, `specialContext`, `status`, `weekMaterialId`, `publicationState` (`IDLE`, `PUBLISHING`, `FAILED`, `PUBLISHED`), `publicationFailureMessage`, `createdAt`, `updatedAt`, `stages[]`, `comments[]`.
+- Lição: `id`, `theme`, `biblicalReference`, `weekNumber`, `category`, `specialContext`, `status`, `weekMaterialId`, `publicationState` (`IDLE`, `PUBLISHING`, `FAILED`, `PUBLISHED`), `publicationFailureMessage`, `createdAt`, `updatedAt`, `stages[]`, `comments[]`, `generation`.
+- `generation` (2026-11-12): `{ stage, phase, totalImages, completedImages, percent, startedAt, updatedAt }` da etapa em geração, ou `null`. Vem preenchido em `GET /:id`, `GET /:id/events` e `POST /:id/stages/generate`; nas demais rotas é sempre `null`.
 - Etapa: `id`, `type`, `status`, `currentVersionId`, `lockVersion`, `failureCode`, `failureMessage`, `versions[]`.
 - Versão: `id`, `versionNumber`, `tiptapAstJson`, `structuredDataJson`, `changeSummary`, `createdAt`.
 - Observação: `id`, `sectionKey` (tipo da etapa), `commentText`, `isResolved`, `authorId`, `createdAt`.
@@ -198,6 +201,75 @@ Todas as etapas recebem a mesma política genérica de qualidade. As etapas deri
 - Toda imagem devolvida pelo provedor é validada por assinatura (PNG ou JPEG) e tamanho (até 15 MiB) antes do upload; caso contrário a etapa falha com `AI_IMAGE_INVALID`.
 - A geração de imagem na OpenAI repete uma única vez em queda de conexão (`ECONNRESET`, `EPIPE`, `EAI_AGAIN`). Retries podem gerar cobrança adicional.
 
+### 4.6 Progresso da geração
+
+Adicionado em 2026-11-12. O estado da geração continua no MySQL (etapa `GENERATING`, lease, checkpoint): é ele que decide se uma etapa está gerando e é ele que retoma o trabalho. O Redis guarda só o **andamento**, para as telas.
+
+- **Registro.** Um por lição (uma lição gera uma etapa por vez), em `<AI_QUEUE_PREFIX>:lesson-generation:<lessonId>`, com índice em `<AI_QUEUE_PREFIX>:lesson-generation:active`. Usa o mesmo `REDIS_URL` da fila de IA, em conexão própria.
+- **Fases** (`LessonGenerationPhase`): `WRITING` (texto e validações), `IMAGES` (uma imagem por vez), `SAVING` (gravação da versão).
+- **Contagem.** `totalImages` começa com a quantidade pedida (`visualQuantity`) e passa a ser a quantidade planejada quando o texto fica pronto. `completedImages` sobe a cada upload confirmado no checkpoint; imagens reaproveitadas de uma tentativa interrompida já entram contadas.
+- **Percentual.** O texto vale um passo e cada imagem outro: `(textoPronto + completedImages) / (totalImages + 1)`, limitado a 99 até a gravação terminar. Etapa sem imagens devolve `percent: null` — não há o que contar.
+- **Relógio.** `startedAt` é o momento do pedido (`POST /stages/generate`). Uma retomada da mesma etapa mantém o registro; um pedido novo o reinicia.
+- **Vida.** TTL de 120 s, renovado pelo heartbeat da lease (10 s). O registro é removido quando a tentativa termina, com sucesso ou falha. No desligamento da aplicação ele é mantido, para a tentativa retomada continuar de onde estava; se ninguém retomar, expira sozinho.
+- **Consistência.** A resposta só inclui `generation` quando o banco confirma que aquela etapa está `GENERATING`; um registro órfão nunca aparece numa lição.
+- **Degradação.** Qualquer falha do Redis é engolida: a geração segue, `generation` vem `null` e `GET /generations/active` devolve `[]`. A tela volta a mostrar só "gerando" e o tempo contado localmente.
+- **SSE.** O andamento entra no digest de `GET /:id/events`, então cada imagem pronta gera um snapshot novo.
+
+Código: `services/lesson-generation-progress.service.ts`, `providers/redis-lesson-progress.store.ts`, `utils/lesson-generation-progress.utils.ts`.
+
+### 4.7 Regerar imagens escolhidas
+
+Adicionado em 2026-11-12. `POST /:id/stages/regenerate-images` refaz uma, algumas ou todas as imagens de um item sem reescrever o texto.
+
+- **Corpo.** `stage`; `lockVersion` da etapa que o administrador está vendo; `assetIds` (1 a 20, sem repetição) com os `id` das imagens da versão atual; `instructions` opcional (até 500 caracteres), acrescentado só ao prompt das imagens refeitas.
+- **Como funciona.** O pedido entra na mesma fila de geração, com um checkpoint já preenchido: o conteúdo da versão atual como texto pago e as URLs das imagens mantidas como imagens pagas. A tentativa normal (lease, heartbeat, retomada, progresso, commit) gera só o que falta. Não há segundo caminho de execução.
+- **Resultado.** Uma versão nova (`REGENERATION`), com `changeSummary` "2 de 5 imagens regeradas via OpenAI (modelo); texto mantido". A etapa segue as regras de qualquer regeneração (volta a rascunho, itens posteriores conforme o ciclo de revisão). A versão anterior e as imagens antigas permanecem no histórico.
+- **Falha.** A etapa volta ao status anterior, com a versão anterior. Só as imagens novas desta tentativa são removidas do S3: as mantidas nunca entram em `uploadedAssetUrls`, então nenhuma falha ou descarte as alcança.
+- **Texto nunca é refeito.** Se o checkpoint deixar de valer (itens anteriores mudaram), a tentativa falha com mensagem pedindo a geração completa, em vez de reescrever o texto.
+- **Continuidade com as imagens mantidas.** Numa geração completa, a primeira imagem define a identidade e as seguintes a recebem como referência. Numa substituição parcial, cada imagem refeita recebe como referência **uma imagem que fica** (`MAX_REFERENCE_IMAGES = 1`): a que definiu a identidade (a primeira da ordem de geração), se foi mantida; senão, a vizinha mais próxima. Vale para todas as etapas com imagens. O prompt ganha o bloco `STYLE_CONTINUITY`: mesmo traço, contorno, paleta, sombreamento e proporções; rosto, roupas e aparência iguais só para o que é pedido na imagem e também aparece na referência; e a proibição de reproduzir os demais elementos da referência. Quando todas as imagens são refeitas, vale o fluxo da geração completa.
+- **Por que uma referência só.** Com três referências, o endpoint de edição de imagem fundiu o conteúdo delas: a prancha "Animais" (uma pomba) voltou com personagens, pergaminho, casa e árvores (2026-11-12). Os provedores continuam aceitando várias (`companions`), mas o estúdio envia uma.
+- **Prancha de recortes é lista fechada.** `buildCutoutKitImagePrompt` não inclui mais o texto da lição: informa a quantidade exata e os nomes dos elementos, proíbe qualquer outro (inclusive os que aparecem na referência) e repete a conferência no fim. Antes, com a história inteira no prompt e a prancha de personagens como referência, até a geração completa repetia personagens em pranchas de outras categorias. Vale para geração completa e parcial.
+- **Imagem mantida nunca é refeita.** Se uma imagem mantida não puder ser lida do S3 para servir de referência, ela continua como está e a substituição segue com as demais referências (ou sem nenhuma, com aviso em log).
+- **Limite.** A referência orienta o modelo de imagem; não é cópia garantida. Rostos e detalhes podem variar um pouco, e o resultado deve ser conferido antes de concluir o item.
+- **Recusas no pedido (nada é gerado).**
+
+| Situação | Resposta |
+|---|---|
+| `assetIds` vazio, repetido, com id que não existe na versão, ou etapa sem imagens | 400 `LESSON_9309` |
+| Alguma imagem da versão ainda sem URL | 400 `LESSON_9309` (gerar o item por completo) |
+| Meditação dos maiores com seleção parcial (as artes são um conjunto) | 400 `LESSON_9309` |
+| `lockVersion` diferente, ou versão trocada entre a leitura e o lock | 409 `LESSON_9303` |
+| Etapa `STALE` | 409 `LESSON_9308` (gerar o item por completo) |
+| Etapa em revisão/aprovada, lição em revisão ou publicada | 409 `LESSON_9306` |
+| Outra geração em andamento na lição | 409 `LESSON_9304` |
+
+Código: `LessonGenerationService.regenerateImages`, `utils/lesson-image-regeneration.utils.ts`, `constants/lesson-image-regeneration.constants.ts`.
+
+### 4.8 Prompt mestre das imagens
+
+Adicionado em 2026-11-12. Antes de gerar a primeira imagem de um item, a API pede ao provedor de texto um **prompt mestre** (`imageBrief`) e o guarda no conteúdo da versão (`structuredDataJson.imageBrief`).
+
+- **Entradas.** Regras-base do diretor de arte (`IMAGE_BRIEF_BASE_PROMPT`) + o prompt efetivo do administrador para a etapa (base da etapa + personalização, congelado no pedido) + a lição (história e versículo do item 1) + o conteúdo do item e as imagens planejadas.
+- **Formato.** `{ version, origin, planFingerprint, artDirection, cast[], settings[], parts[], createdAt }`. `cast` e `settings` são fichas `{ name, appearance }`; cada `parts[i]` é `{ assetId, prompt, cast[], settings[] }`, uma por imagem planejada, com os nomes restritos às fichas.
+- **Uso.** O prompt de cada imagem é o prompt determinístico da etapa (que continua valendo) seguido de: direção de arte, fichas de quem aparece naquela imagem e a parte daquela imagem (`withImageBriefPart`). Nenhuma imagem recebe a parte de outra.
+- **Quando é escrito.**
+
+| Situação | `origin` | Prompt mestre |
+|---|---|---|
+| Geração completa do item | `GENERATION` | Escrito logo após o texto, antes das imagens |
+| Refazer algumas imagens | — | Reutilizado como está na versão |
+| Refazer todas as imagens (`regenerate-images` com todas) | `ALL_IMAGES` | Removido do checkpoint e escrito de novo |
+| Refazer algumas em versão sem prompt mestre | `BACKFILL` | Escrito na hora e guardado |
+
+- **Validade.** `planFingerprint` é o hash das imagens planejadas (sem `url` e `identityReference`). Se uma edição manual mudar o plano, o prompt guardado deixa de valer e é reescrito na próxima geração de imagens.
+- **Checkpoint.** O prompt mestre entra no checkpoint do pedido antes da primeira imagem: uma tentativa retomada não paga por ele de novo.
+- **Falha.** Duas tentativas (`ATTEMPTS`). Resposta sem direção de arte ou sem a parte de alguma imagem é recusada. Se as duas falharem, a geração segue só com os prompts da etapa, com aviso em log; o prompt mestre nunca derruba uma geração.
+- **Provedor.** `LessonLlmProviderContract.generateStructured(request, context)`: OpenAI e Gemini enviam o system, o payload e o schema do pedido no lugar do template da etapa, com os mesmos limites, novas tentativas e contabilização das demais chamadas de texto.
+- **Referência de imagem.** Prancha do kit de recortes cuja parte não lista personagens é gerada sem imagem de referência (o estilo vem do prompt mestre); com referência, o modelo redesenhava os personagens da prancha-mãe nela.
+- **Fora do escopo.** `LESSON` (sem imagens) e `MEDITATION_OLDER` (fluxo próprio de artes e revisão).
+
+Código: `services/lesson-image-brief.service.ts`, `utils/lesson-image-brief.utils.ts`, `constants/lesson-image-brief.constants.ts`.
+
 ## 5. Conteúdo editado e prontidão
 
 O AST Tiptap editado é a fonte da prévia e da exportação. Ao salvar, o servidor reconcilia o AST com os dados estruturados:
@@ -215,7 +287,7 @@ O AST Tiptap editado é a fonte da prévia e da exportação. Ao salvar, o servi
 
 ## 6. Eventos (SSE)
 
-`GET /:id/events` envia snapshots da lição. A cada 2 s o servidor calcula um digest leve (lição, etapas e contagem de observações); o grafo completo só é carregado quando o digest muda. Sem mudança, envia um evento `heartbeat`. A conexão encerra após 90 ciclos (~180 s) para rotação. Há limite de 4 conexões por usuário e lição; acima disso a rota responde 429 (`LESSON_9311`).
+`GET /:id/events` envia snapshots da lição. A cada 2 s o servidor calcula um digest leve (lição, etapas, contagem de observações e andamento da geração); o grafo completo só é carregado quando o digest muda. Sem mudança, envia um evento `heartbeat`. A conexão encerra após 90 ciclos (~180 s) para rotação. Há limite de 4 conexões por usuário e lição; acima disso a rota responde 429 (`LESSON_9311`).
 
 ## 7. Publicação
 

@@ -28,12 +28,18 @@ import {
   ApproveStageRequestDto,
   CompleteStageRequestDto,
   GenerateStageRequestDto,
+  RegenerateStageImagesRequestDto,
   LessonViewQueryDto,
   PreviewStagePdfQueryDto,
   ReopenStageRequestDto,
   RequestStageChangesDto,
 } from '../dto/generate-stage-request.dto';
 import { LessonEventStreamService } from '../services/lesson-event-stream.service';
+import { LessonGenerationProgressService } from '../services/lesson-generation-progress.service';
+import {
+  LessonActiveGenerationResponseDto,
+  toActiveGenerationResponse,
+} from '../dto/lesson-generation-progress.dto';
 import { SaveTiptapContentDto } from '../dto/save-tiptap-content.dto';
 import { LessonStageType } from '../enums/lesson.enums';
 import { AdminLessonPromptService } from '../services/admin-lesson-prompt.service';
@@ -60,6 +66,7 @@ export class AiLessonsController {
     private readonly service: LessonDraftService,
     private readonly prompts: AdminLessonPromptService,
     private readonly eventStream: LessonEventStreamService,
+    private readonly progress: LessonGenerationProgressService,
   ) {}
   @Get('prompt-preferences/me') promptPreferences(
     @Req() req: AuthRequest,
@@ -113,12 +120,19 @@ export class AiLessonsController {
       items: result.items.map((lesson) => toLessonResponse(lesson)),
     };
   }
+  /** Generations in progress, so any screen can find them again after a reload. */
+  @Get('generations/active') async activeGenerations(): Promise<
+    LessonActiveGenerationResponseDto[]
+  > {
+    return (await this.progress.listActive()).map(toActiveGenerationResponse);
+  }
   @Get(':id') async get(
     @Param('id', ParseUUIDPipe) id: string,
     @Query() query: LessonViewQueryDto = {},
   ): Promise<LessonResponseDto> {
     return toLessonResponse(await this.service.getById(id), {
       view: query.view,
+      generation: await this.progress.get(id),
     });
   }
   @Sse(':id/events') events(
@@ -164,6 +178,18 @@ export class AiLessonsController {
   ): Promise<LessonResponseDto> {
     return toLessonResponse(
       await this.service.generateStage(id, dto, req.user.userId),
+      { generation: await this.progress.get(id) },
+    );
+  }
+  /** Generates again only the chosen images; text and the others are kept. */
+  @Post(':id/stages/regenerate-images') async regenerateImages(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RegenerateStageImagesRequestDto,
+    @Req() req: AuthRequest,
+  ): Promise<LessonResponseDto> {
+    return toLessonResponse(
+      await this.service.regenerateImages(id, dto, req.user.userId),
+      { generation: await this.progress.get(id) },
     );
   }
   @Patch(':id/stages/content') async save(

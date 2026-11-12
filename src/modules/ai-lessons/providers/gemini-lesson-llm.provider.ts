@@ -1,3 +1,4 @@
+import type { LessonStructuredRequest } from '../types/lesson-image-brief.types';
 import { AiQueueException } from 'src/shared/providers/ai-queue/ai-queue.exception';
 import { AiRequestQueueService } from 'src/shared/providers/ai-queue/ai-request-queue.service';
 import { AiQueueFeature } from 'src/shared/providers/ai-queue/enums';
@@ -138,11 +139,13 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
               ],
               generationConfig: {
                 responseMimeType: 'application/json',
-                responseJsonSchema: schemaFor(
-                  input.stage,
-                  Boolean(input.olderMeditationReview),
-                  input.category,
-                ),
+                responseJsonSchema:
+                  input.structuredRequest?.schema ??
+                  schemaFor(
+                    input.stage,
+                    Boolean(input.olderMeditationReview),
+                    input.category,
+                  ),
               },
             },
             PROVIDER_REQUEST.textTimeoutMs,
@@ -226,6 +229,13 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
     }
   }
 
+  generateStructured(
+    request: LessonStructuredRequest,
+    context: LessonLlmGenerationInput,
+  ): Promise<LessonLlmGenerationResult> {
+    return this.generateStage({ ...context, structuredRequest: request });
+  }
+
   async generateImage(
     prompt: string,
     orientation?: string,
@@ -260,11 +270,14 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
           input: identityReferenceImage
             ? [
                 { type: 'text', text: finalPrompt },
-                {
+                ...[
+                  identityReferenceImage,
+                  ...(identityReferenceImage.companions ?? []),
+                ].map((image) => ({
                   type: 'image',
-                  data: identityReferenceImage.data.toString('base64'),
-                  mime_type: identityReferenceImage.mimeType,
-                },
+                  data: image.data.toString('base64'),
+                  mime_type: image.mimeType,
+                })),
               ]
             : finalPrompt,
           response_format: {

@@ -5,6 +5,7 @@ participant Frontend
 participant "AI Lessons API" as API
 database MySQL
 queue "Fila de IA (Redis/BullMQ)" as Queue
+database "Progresso (Redis)" as Progress
 participant "Provedor salvo (OpenAI/Gemini)" as LLM
 collections S3
 participant "Materiais da semana" as Week
@@ -30,7 +31,8 @@ loop cada etapa
   Frontend -> API: POST /stages/generate
   API -> API: valida pedido (visual inválido -> 400)
   API -> MySQL: snapshot de provedor + prompt efetivo no pedido; etapa GENERATING
-  API --> Frontend: lição (sem aguardar a IA)
+  API -> Progress: abre o registro: etapa, fase WRITING, imagens pedidas, início
+  API --> Frontend: lição + generation (sem aguardar a IA)
 
   group tentativa em segundo plano (máx. 3 por pedido)
     API -> MySQL: lease com UUID da tentativa, relógio do banco (30 s, renovada a cada 10 s)
@@ -40,6 +42,12 @@ loop cada etapa
     Queue --> API: resultado
     API -> API: validação local e correções limitadas
     API -> MySQL: checkpoint do texto
+    API -> Queue: prompt mestre das imagens (base + orientações do admin + lição + plano)
+    Queue -> LLM
+    LLM --> Queue: direção de arte, fichas e uma parte por imagem
+    Queue --> API
+    API -> MySQL: checkpoint com o prompt mestre (falhou 2x -> segue sem ele)
+    API -> Progress: fase IMAGES, total e imagens já reaproveitadas
     loop cada arte
       API -> Queue: imagem
       Queue -> LLM
@@ -48,15 +56,44 @@ loop cada etapa
       API -> API: valida assinatura e tamanho (15 MiB)
       API -> S3: upload
       API -> MySQL: checkpoint da URL
+      API -> Progress: completedImages + 1
     end
+    API -> Progress: fase SAVING
     API -> MySQL: transação: lock + posse da lease + upstream inalterado -> versão + etapa
+    API -> Progress: remove o registro (sucesso ou falha)
+  end
+
+  group acompanhamento (qualquer tela, inclusive após recarregar)
+    Frontend -> API: GET /lessons/generations/active
+    API -> Progress: registros vivos (TTL 120 s, renovado a cada 10 s)
+    API --> Frontend: lição, etapa, fase, imagens prontas, percentual, início
+    Frontend -> API: GET /:id/events (SSE)
+    API -> Progress: progresso entra no digest
+    API --> Frontend: snapshot a cada imagem pronta
   end
   note right of API
     Lease perdida ou desligamento -> aborta a tentativa
     Falha -> restaura status anterior, mantém versão anterior, failureCode
     Upstream mudou -> UPSTREAM_CHANGED e remove uploads
     3 tentativas -> GENERATION_ATTEMPTS_EXHAUSTED
+    Redis do progresso fora do ar -> generation null; a geração segue
   end note
+
+  opt não gostou de uma ou mais imagens
+    Administrador -> Frontend: marca as imagens e (opcional) descreve o ajuste
+    Frontend -> API: POST /stages/regenerate-images (lockVersion, assetIds, instructions?)
+    API -> API: valida escolha (inexistente/conjunto -> 400; versão antiga -> 409)
+    API -> MySQL: pedido com checkpoint pronto: texto atual + URLs das imagens mantidas
+    note right of API
+      Algumas imagens -> reutiliza o prompt mestre da versão
+      Todas as imagens -> prompt mestre é escrito de novo
+    end note
+    note right of API
+      Segue a mesma tentativa em segundo plano:
+      só as imagens escolhidas são geradas
+      Falha -> status e versão anteriores; imagens mantidas intactas
+    end note
+  end
 
   Administrador -> Frontend: edita e salva
   Frontend -> API: PATCH /stages/content (lockVersion)

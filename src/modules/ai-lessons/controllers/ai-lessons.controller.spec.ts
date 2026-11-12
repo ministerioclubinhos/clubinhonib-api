@@ -14,6 +14,8 @@ import { LessonEntity } from '../entities/lesson.entity';
 import { LessonStageEntity } from '../entities/lesson-stage.entity';
 import { LessonVersionEntity } from '../entities/lesson-version.entity';
 import { LessonEventStreamService } from '../services/lesson-event-stream.service';
+import { LessonGenerationProgressService } from '../services/lesson-generation-progress.service';
+import { MemoryLessonProgressStore } from '../testing/memory-lesson-progress.store';
 import { LessonView } from '../enums/lesson-failure-code.enum';
 import { LESSON_EVENT_STREAM } from '../constants/lesson-workflow.constants';
 import { ErrorCode } from 'src/shared/exceptions';
@@ -56,15 +58,21 @@ describe('AiLessonsController', () => {
   };
 
   let controller: AiLessonsController;
+  let progressStore: MemoryLessonProgressStore;
+  let progress: LessonGenerationProgressService;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    progressStore = new MemoryLessonProgressStore();
+    progress = new LessonGenerationProgressService(progressStore);
     controller = new AiLessonsController(
       lessonsService as unknown as LessonDraftService,
       promptsService as unknown as AdminLessonPromptService,
       new LessonEventStreamService(
         lessonsService as unknown as LessonDraftService,
+        progress,
       ),
+      progress,
     );
   });
 

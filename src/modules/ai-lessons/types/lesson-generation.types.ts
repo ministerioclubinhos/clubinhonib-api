@@ -46,6 +46,13 @@ export interface LessonGenerationRequest {
   uploadedAssetUrls?: string[];
   checkpoint?: LessonGenerationCheckpoint | null;
   previousState?: LessonStagePreviousState;
+  /**
+   * Set when only some images are generated again: the text and the other
+   * images of the current version are kept through the checkpoint.
+   */
+  regeneratedAssetIds?: string[];
+  /** Administrator's note applied to the regenerated images only. */
+  imageInstructions?: string;
 }
 
 export interface LessonVisualConfig {
@@ -123,6 +130,13 @@ export interface LessonAssetCheckpointHooks {
   assetUrls: Record<string, string>;
   onUploaded: (assetId: string, url: string) => Promise<void>;
   signal?: AbortSignal;
+  /** Added to the prompt of every image this run generates. */
+  imageInstructions?: string;
+  /**
+   * The run replaces some images of a set that stays in use: every new image
+   * takes the kept ones as reference, and no kept image is ever redone.
+   */
+  matchKeptImages?: boolean;
 }
 
 export interface LessonActiveGeneration {

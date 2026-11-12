@@ -1,3 +1,4 @@
+import type { LessonStructuredRequest } from '../types/lesson-image-brief.types';
 import { AiRequestQueueService } from 'src/shared/providers/ai-queue/ai-request-queue.service';
 import { Injectable } from '@nestjs/common';
 import { GetAiProviderSettingsService } from '../services/get-ai-provider-settings.service';
@@ -112,6 +113,16 @@ export class ConfiguredLessonLlmProvider implements LessonLlmProviderContract {
     input: LessonLlmGenerationInput,
   ): Promise<LessonLlmGenerationResult> {
     return (await this.selected()).generateStage(input);
+  }
+
+  async generateStructured(
+    request: LessonStructuredRequest,
+    context: LessonLlmGenerationInput,
+  ): Promise<LessonLlmGenerationResult> {
+    const provider = await this.selected();
+    if (!provider.generateStructured)
+      throw new Error('Provedor sem suporte a pedido estruturado.');
+    return provider.generateStructured(request, context);
   }
 
   async generateImage(

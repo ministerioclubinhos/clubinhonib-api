@@ -38,6 +38,16 @@ import {
   lessonAsObject,
   lessonCurrentContent,
 } from '../utils/lesson-workflow.utils';
+import {
+  keptReferenceIds,
+  withImageInstructions,
+  withStyleContinuity,
+} from '../utils/lesson-image-regeneration.utils';
+import {
+  imageBriefPart,
+  readImageBrief,
+  withImageBriefPart,
+} from '../utils/lesson-image-brief.utils';
 import { buildManualWorkImagePrompt } from '../utils/manual-work-image.utils';
 import { buildMeditationActivityImagePrompt } from '../utils/meditation-image.utils';
 import {
@@ -98,6 +108,31 @@ export class LessonAssetGenerationService {
     ).length;
     const completedByIndex = new Map<number, LessonJsonObject>();
     const usedUrls: string[] = [];
+    // The master prompt of the version: reused as stored, never rewritten here.
+    const brief = readImageBrief(type, content);
+    // Replacing some images of a set that stays in use: each new image is
+    // generated against the kept ones, whatever the stage.
+    const matchKept = Boolean(hooks?.matchKeptImages) && pendingCount > 0;
+    const orderedIds = generationOrder.map((index) => String(assets[index].id));
+    const keptIds = new Set(orderedIds.filter((id) => Boolean(reusable[id])));
+    const storedReferences = new Map<
+      string,
+      Promise<LessonImageReference | undefined>
+    >();
+    const keptReference = async (
+      targetId: string,
+    ): Promise<LessonImageReference | undefined> => {
+      const files: LessonImageReference[] = [];
+      for (const id of keptReferenceIds(orderedIds, targetId, keptIds)) {
+        const url = reusable[id];
+        if (!storedReferences.has(url))
+          storedReferences.set(url, this.storedIdentityReference(url));
+        const file = await storedReferences.get(url);
+        if (file) files.push(file);
+      }
+      const [main, ...companions] = files;
+      return main ? { ...main, companions } : undefined;
+    };
     for (const [position, assetIndex] of generationOrder.entries()) {
       throwIfGenerationAborted(hooks?.signal);
       const asset = assets[assetIndex];
@@ -110,21 +145,15 @@ export class LessonAssetGenerationService {
         reusedUrl &&
         usesIdentityReference &&
         position === 0 &&
-        pendingCount > 0
+        pendingCount > 0 &&
+        // A kept image is never redone, even when it cannot be read back.
+        !matchKept
       ) {
         // Later images still need the identity reference of the stored one.
-        try {
-          const stored = await this.s3.downloadOwned(
-            reusedUrl,
-            LESSON_GENERATED_IMAGE_MAX_BYTES,
-          );
-          identityReferenceImage = {
-            data: stored,
-            mimeType: lessonUploadImageMetadata(stored).mimeType,
-          };
-        } catch (error: unknown) {
+        identityReferenceImage = await this.storedIdentityReference(reusedUrl);
+        if (!identityReferenceImage) {
           this.logger.warn(
-            `Imagem de identidade ${assetId} não pôde ser reutilizada; será gerada novamente: ${String(error)}`,
+            `Imagem de identidade ${assetId} não pôde ser reutilizada; será gerada novamente.`,
           );
           reusedUrl = undefined;
         }
@@ -138,26 +167,49 @@ export class LessonAssetGenerationService {
         });
         continue;
       }
+      const prepared = preparedImages?.get(assetId);
+      const continuity =
+        matchKept && !prepared ? await keptReference(assetId) : undefined;
+      if (matchKept && !prepared && !continuity)
+        this.logger.warn(
+          `Imagem ${assetId} será regerada sem referência das imagens mantidas (nenhuma pôde ser lida).`,
+        );
+      const part = imageBriefPart(brief, assetId);
+      // A cutout sheet without characters gains nothing from a reference image
+      // and loses a lot: the model redraws the reference's elements on it.
+      const referenceAllowed = !(isCutoutKit && part && part.cast.length === 0);
+      const reference = referenceAllowed
+        ? (continuity ?? identityReferenceImage)
+        : undefined;
+      const basePrompt = this.assetImagePrompt({
+        type,
+        lesson,
+        content,
+        asset,
+        assetIndex,
+        isCutoutKit,
+        completeStory,
+        canonicalLesson,
+        hasIdentityReference: Boolean(reference),
+      });
       const buffer =
-        preparedImages?.get(assetId) ??
+        prepared ??
         (await this.generateAssetImage(
           llmProvider,
-          this.assetImagePrompt({
-            type,
-            lesson,
-            content,
-            asset,
-            assetIndex,
-            isCutoutKit,
-            completeStory,
-            canonicalLesson,
-            hasIdentityReference: Boolean(identityReferenceImage),
-          }),
+          withImageInstructions(
+            continuity && reference
+              ? withStyleContinuity(
+                  withImageBriefPart(basePrompt, brief, assetId),
+                )
+              : withImageBriefPart(basePrompt, brief, assetId),
+            hooks?.imageInstructions,
+          ),
           type,
           lesson,
           visualConfig,
           isCutoutKit,
-          identityReferenceImage,
+          reference,
+          Boolean(continuity && reference),
         ));
       const image = assertLessonUploadImage(buffer);
       if (usesIdentityReference && position === 0)
@@ -185,6 +237,27 @@ export class LessonAssetGenerationService {
     return attachOwnedAssetUrls({ ...content, [key]: completed }, usedUrls);
   }
 
+  /** A stored image as identity reference; undefined when it cannot be read. */
+  private async storedIdentityReference(
+    url: string,
+  ): Promise<LessonImageReference | undefined> {
+    try {
+      const stored = await this.s3.downloadOwned(
+        url,
+        LESSON_GENERATED_IMAGE_MAX_BYTES,
+      );
+      return {
+        data: stored,
+        mimeType: lessonUploadImageMetadata(stored).mimeType,
+      };
+    } catch (error: unknown) {
+      this.logger.warn(
+        `Imagem de referência não pôde ser lida: ${String(error)}`,
+      );
+      return undefined;
+    }
+  }
+
   private assetImagePrompt(params: {
     type: LessonStageType;
     lesson: LessonEntity;
@@ -199,7 +272,6 @@ export class LessonAssetGenerationService {
     const { type, lesson, content, asset, assetIndex, completeStory } = params;
     if (params.isCutoutKit)
       return buildCutoutKitImagePrompt({
-        completeStory,
         category: lessonString(asset.category),
         title: lessonString(asset.title),
         items: Array.isArray(asset.items)
@@ -265,6 +337,8 @@ export class LessonAssetGenerationService {
     visualConfig: LessonJsonObject,
     isCutoutKit: boolean,
     identityReferenceImage: LessonImageReference | undefined,
+    /** A replacement always carries its references, whatever the stage. */
+    forceReference = false,
   ): Promise<Buffer> {
     const orientation = lessonString(visualConfig.orientation);
     const visualType = lessonString(visualConfig.type);
@@ -289,7 +363,7 @@ export class LessonAssetGenerationService {
         imagePrompt,
         orientation,
         visualType,
-        undefined,
+        forceReference ? identityReferenceImage : undefined,
         LessonImagePurpose.MANUAL_COLORING,
       );
     if (lesson.category === LessonCategory.SPECIAL)

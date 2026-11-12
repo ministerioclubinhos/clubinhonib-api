@@ -1,5 +1,6 @@
 import { LessonCategory, LessonStageType } from '../enums/lesson.enums';
 import { LessonTemplateContract } from '../templates/lesson-templates';
+import type { LessonStructuredRequest } from '../types/lesson-image-brief.types';
 
 export enum LessonImagePurpose {
   MEDITATION_ACTIVITY = 'MEDITATION_ACTIVITY',
@@ -65,9 +66,25 @@ export type LessonLlmGenerationInput = {
     orientation: string;
     quantity: number;
   } | null;
+  /**
+   * Replaces the stage template: the provider sends this system text, user
+   * payload and schema, keeping its own retries, limits and accounting.
+   */
+  structuredRequest?: LessonStructuredRequest;
+};
+
+/** One stored image handed to the provider as a visual reference. */
+export type LessonImageReferenceFile = {
+  data: Buffer;
+  mimeType: string;
 };
 
 export type LessonImageReference = {
+  /**
+   * Other images of the same set, sent along with the main reference so a
+   * replacement matches the style and faces of what stays in use.
+   */
+  companions?: LessonImageReferenceFile[];
   data: Buffer;
   mimeType: 'image/jpeg' | 'image/png';
 };
@@ -112,6 +129,15 @@ export interface LessonLlmProviderContract {
     purpose?: LessonImagePurpose,
     context?: LessonImageContext,
   ): Promise<Buffer>;
+
+  /**
+   * A structured text call outside the stage templates (the master image
+   * prompt). `context` carries the lesson fields the provider logs.
+   */
+  generateStructured?(
+    request: LessonStructuredRequest,
+    context: LessonLlmGenerationInput,
+  ): Promise<LessonLlmGenerationResult>;
 
   createAttemptProvider?(
     frozen?: LessonAttemptProviderMetadata,

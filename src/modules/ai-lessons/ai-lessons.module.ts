@@ -32,6 +32,10 @@ import { AiLessonsRepository } from './repositories/ai-lessons.repository';
 import { AdminLessonPromptRepository } from './repositories/admin-lesson-prompt.repository';
 import { ConfiguredLessonLlmProvider } from './providers/configured-lesson-llm.provider';
 import { LESSON_LLM_PROVIDER } from './providers/lesson-llm.constants';
+import { LESSON_PROGRESS_STORE } from './constants/lesson-generation-progress.constants';
+import { RedisLessonProgressStore } from './providers/redis-lesson-progress.store';
+import { LessonGenerationProgressService } from './services/lesson-generation-progress.service';
+import { LessonImageBriefService } from './services/lesson-image-brief.service';
 
 @Module({
   imports: [
@@ -57,6 +61,9 @@ import { LESSON_LLM_PROVIDER } from './providers/lesson-llm.constants';
     GetLessonPublicationService,
     LessonStudioSupportService,
     LessonAssetGenerationService,
+    { provide: LESSON_PROGRESS_STORE, useClass: RedisLessonProgressStore },
+    LessonGenerationProgressService,
+    LessonImageBriefService,
     CreateLessonService,
     LessonGenerationService,
     UpdateLessonContentService,

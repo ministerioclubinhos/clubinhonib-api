@@ -15,6 +15,9 @@ import { GetLessonPublicationService } from '../services/get-lesson-publication.
 import { LessonAssetGenerationService } from '../services/lesson-asset-generation.service';
 import { LessonDraftService } from '../services/lesson-draft.service';
 import { LessonGenerationService } from '../services/lesson-generation.service';
+import { LessonGenerationProgressService } from '../services/lesson-generation-progress.service';
+import { LessonImageBriefService } from '../services/lesson-image-brief.service';
+import { MemoryLessonProgressStore } from './memory-lesson-progress.store';
 import { LessonStudioSupportService } from '../services/lesson-studio-support.service';
 import { PdfLibreOfficeService } from '../services/pdf-libreoffice.service';
 import { PublishLessonService } from '../services/publish-lesson.service';
@@ -27,6 +30,8 @@ export interface LessonStudioServices {
   support: LessonStudioSupportService;
   assets: LessonAssetGenerationService;
   generation: LessonGenerationService;
+  progress: LessonGenerationProgressService;
+  progressStore: MemoryLessonProgressStore;
   content: UpdateLessonContentService;
   review: UpdateLessonReviewService;
   pdfExport: ExportLessonPdfService;
@@ -53,6 +58,8 @@ export function createLessonStudio(
   const lessons = new GetLessonService(repo);
   const support = new LessonStudioSupportService(repo, s3, media);
   const assets = new LessonAssetGenerationService(s3);
+  const progressStore = new MemoryLessonProgressStore();
+  const progress = new LessonGenerationProgressService(progressStore);
   const generation = new LessonGenerationService(
     repo,
     llm,
@@ -61,6 +68,8 @@ export function createLessonStudio(
     support,
     lessons,
     assets,
+    progress,
+    new LessonImageBriefService(),
   );
   const content = new UpdateLessonContentService(repo, support, lessons);
   const pdfExport = new ExportLessonPdfService(docx, pdf, lessons);
@@ -96,6 +105,8 @@ export function createLessonStudio(
     support,
     assets,
     generation,
+    progress,
+    progressStore,
     content,
     review,
     pdfExport,

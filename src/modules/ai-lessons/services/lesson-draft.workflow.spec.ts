@@ -1,3 +1,9 @@
+import { LessonImageBriefOrigin } from '../enums/lesson-image-brief.enum';
+import { readImageBrief } from '../utils/lesson-image-brief.utils';
+import { LESSON_IMAGE_REGENERATION } from '../constants/lesson-image-regeneration.constants';
+import type { RegenerateStageImagesRequestDto } from '../dto/generate-stage-request.dto';
+import { LessonGenerationPhase } from '../enums/lesson-generation-phase.enum';
+import type { LessonGenerationProgress } from '../types/lesson-generation-progress.types';
 import { ConfigService } from '@nestjs/config';
 import { WeekMaterialsPageCreateService } from 'src/modules/pages/week-material-page/services/create-week-material.service';
 import { WeekMaterialsPageGetService } from 'src/modules/pages/week-material-page/services/get-week-material.service';
@@ -118,6 +124,7 @@ describe('LessonDraftService studio workflow', () => {
   const llm = {
     generateStage: jest.fn(),
     generateImage: jest.fn(),
+    generateStructured: jest.fn(),
     createAttemptProvider: jest.fn(),
   };
   const s3 = {
@@ -1036,6 +1043,635 @@ describe('LessonDraftService studio workflow', () => {
         'Geração via Gemini (text-model-x; imagens: image-model; 321 tokens)',
       );
       expect(s3.delete).not.toHaveBeenCalled();
+    });
+
+    it('publica o progresso: texto, imagens geradas e gravação', async () => {
+      const lesson = makeLesson(
+        LessonStatus.IN_PROGRESS,
+        LessonStageStatus.PRODUCER_APPROVED,
+        { [LessonStageType.MANUAL_WORK]: LessonStageStatus.GENERATING },
+      );
+      stageOf(lesson, LessonStageType.MANUAL_WORK).generationLeaseOwner =
+        'token-5';
+      stageOf(lesson, LessonStageType.LESSON).versions[0].structuredDataJson = {
+        memoryVerse: {
+          text: 'Deus amou o mundo.',
+          reference: 'João 3:16',
+          version: 'NVI',
+        },
+      };
+      repo.findLessonById.mockResolvedValue(lesson);
+      const seen: Array<LessonGenerationProgress | null> = [];
+      llm.generateStage.mockImplementation(async () => {
+        seen.push(await studio.progress.get(LESSON_ID));
+        return {
+          content: { printableAssets: [{ id: 'manual', prompt: 'Arte' }] },
+          responseId: 'resp-5',
+        };
+      });
+      llm.generateImage.mockImplementation(async () => {
+        seen.push(await studio.progress.get(LESSON_ID));
+        return PNG;
+      });
+      s3.upload.mockResolvedValue(ASSET_URL);
+      repo.saveVersion.mockImplementation((version: Record<string, unknown>) =>
+        Promise.resolve({ ...version, id: 'version-new' }),
+      );
+
+      await internals().executeStageGeneration(
+        LESSON_ID,
+        { stage: LessonStageType.MANUAL_WORK, frozenAdminPrompt: 'PROMPT' },
+        USER_ID,
+        'token-5',
+      );
+
+      expect(seen[0]).toMatchObject({
+        stage: LessonStageType.MANUAL_WORK,
+        phase: LessonGenerationPhase.WRITING,
+        completedImages: 0,
+      });
+      expect(seen[1]).toMatchObject({
+        phase: LessonGenerationPhase.IMAGES,
+        totalImages: 1,
+        completedImages: 0,
+      });
+      expect(await studio.progress.get(LESSON_ID)).toMatchObject({
+        phase: LessonGenerationPhase.SAVING,
+        totalImages: 1,
+        completedImages: 1,
+      });
+    });
+
+    it('conclui a geração mesmo com o armazenamento de progresso fora do ar', async () => {
+      const lesson = makeLesson(
+        LessonStatus.IN_PROGRESS,
+        LessonStageStatus.PRODUCER_APPROVED,
+        { [LessonStageType.MANUAL_WORK]: LessonStageStatus.GENERATING },
+      );
+      const stage = stageOf(lesson, LessonStageType.MANUAL_WORK);
+      stage.generationLeaseOwner = 'token-6';
+      stageOf(lesson, LessonStageType.LESSON).versions[0].structuredDataJson = {
+        memoryVerse: {
+          text: 'Deus amou o mundo.',
+          reference: 'João 3:16',
+          version: 'NVI',
+        },
+      };
+      repo.findLessonById.mockResolvedValue(lesson);
+      studio.progressStore.failure = new Error('redis fora do ar');
+      llm.generateStage.mockResolvedValue({
+        content: { printableAssets: [{ id: 'manual', prompt: 'Arte' }] },
+        responseId: 'resp-6',
+      });
+      llm.generateImage.mockResolvedValue(PNG);
+      s3.upload.mockResolvedValue(ASSET_URL);
+      repo.saveVersion.mockImplementation((version: Record<string, unknown>) =>
+        Promise.resolve({ ...version, id: 'version-new' }),
+      );
+
+      await internals().executeStageGeneration(
+        LESSON_ID,
+        { stage: LessonStageType.MANUAL_WORK, frozenAdminPrompt: 'PROMPT' },
+        USER_ID,
+        'token-6',
+      );
+
+      expect(stage.currentVersionId).toBe('version-new');
+    });
+  });
+
+  describe('regeneração de imagens escolhidas', () => {
+    const TYPE = LessonStageType.VERSE_FIXATION;
+    const urlOf = (id: string) => ASSET_URL.replace('manual', `fix-${id}`);
+    const NEW_URL = ASSET_URL.replace('manual', 'fix-new');
+    const lessonWithImages = (
+      status: LessonStageStatus = LessonStageStatus.DRAFT,
+      type: LessonStageType = TYPE,
+    ) => {
+      const lesson = makeLesson(
+        LessonStatus.IN_PROGRESS,
+        LessonStageStatus.PRODUCER_APPROVED,
+        { [type]: status },
+      );
+      const key =
+        type === LessonStageType.MEDITATION_OLDER
+          ? 'printableAssets'
+          : 'assets';
+      stageOf(lesson, type).versions[0].structuredDataJson = {
+        name: 'Corrida do versículo',
+        [key]: ['1', '2', '3'].map((id) => ({
+          id,
+          prompt: `Arte ${id}`,
+          url: urlOf(id),
+        })),
+      };
+      repo.findLessonById.mockResolvedValue(lesson);
+      return lesson;
+    };
+    const body = (
+      assetIds: string[],
+      extra: Partial<RegenerateStageImagesRequestDto> = {},
+    ): RegenerateStageImagesRequestDto => ({
+      stage: TYPE,
+      lockVersion: 1,
+      assetIds,
+      ...extra,
+    });
+
+    it('guarda o texto e as imagens mantidas como trabalho já pago', async () => {
+      const lesson = lessonWithImages();
+
+      await service.regenerateImages(
+        LESSON_ID,
+        body(['2'], { instructions: 'Sem texto na arte' }),
+        USER_ID,
+      );
+
+      const stage = stageOf(lesson, TYPE);
+      expect(stage.status).toBe(LessonStageStatus.GENERATING);
+      expect(stage.generationRequestJson).toMatchObject({
+        stage: TYPE,
+        attempts: 0,
+        // Kept images are never listed as uploads of the request.
+        uploadedAssetUrls: [],
+        regeneratedAssetIds: ['2'],
+        imageInstructions: 'Sem texto na arte',
+        previousState: { status: LessonStageStatus.DRAFT },
+        checkpoint: {
+          responseId: '',
+          assetUrls: { '1': urlOf('1'), '3': urlOf('3') },
+        },
+      });
+      expect(await studio.progress.get(LESSON_ID)).toMatchObject({
+        stage: TYPE,
+        totalImages: 3,
+      });
+    });
+
+    it('gera só a imagem escolhida, sem reescrever o texto, e cria versão nova', async () => {
+      const lesson = lessonWithImages();
+      await service.regenerateImages(
+        LESSON_ID,
+        body(['2'], { instructions: 'Sem texto na arte' }),
+        USER_ID,
+      );
+      const stage = stageOf(lesson, TYPE);
+      stage.generationLeaseOwner = 'token-r1';
+      s3.downloadOwned.mockResolvedValue(PNG);
+      llm.generateImage.mockResolvedValue(PNG);
+      s3.upload.mockResolvedValue(NEW_URL);
+      repo.saveVersion.mockImplementation((version: Record<string, unknown>) =>
+        Promise.resolve({ ...version, id: 'version-new' }),
+      );
+
+      await internals().executeStageGeneration(
+        LESSON_ID,
+        stage.generationRequestJson as LessonGenerationRequest,
+        USER_ID,
+        'token-r1',
+      );
+
+      expect(llm.generateStage).not.toHaveBeenCalled();
+      expect(llm.generateImage).toHaveBeenCalledTimes(1);
+      const [prompt, , , reference] = llm.generateImage.mock.calls[0] as [
+        string,
+        unknown,
+        unknown,
+        { data: Buffer } | undefined,
+      ];
+      expect(prompt).toContain('Sem texto na arte');
+      // The first image stays, so the new one copies its characters.
+      expect(s3.downloadOwned).toHaveBeenCalledWith(
+        urlOf('1'),
+        expect.any(Number),
+      );
+      expect(reference?.data).toEqual(PNG);
+      const saved = (
+        repo.saveVersion.mock.calls[0] as [
+          {
+            changeSummary: string;
+            structuredDataJson: { assets: Array<{ id: string; url: string }> };
+          },
+        ]
+      )[0];
+      expect(saved.structuredDataJson.assets.map((asset) => asset.url)).toEqual(
+        [urlOf('1'), NEW_URL, urlOf('3')],
+      );
+      expect(saved.changeSummary).toBe(
+        '1 de 3 imagem regerada via Gemini (image-model); texto mantido',
+      );
+      expect(s3.delete).not.toHaveBeenCalled();
+      expect(stage.currentVersionId).toBe('version-new');
+    });
+
+    it('ao regerar a primeira imagem, usa como referência uma imagem que ficou', async () => {
+      const lesson = lessonWithImages();
+      await service.regenerateImages(LESSON_ID, body(['1']), USER_ID);
+      const stage = stageOf(lesson, TYPE);
+      stage.generationLeaseOwner = 'token-r2';
+      s3.downloadOwned.mockResolvedValue(PNG);
+      llm.generateImage.mockResolvedValue(PNG);
+      s3.upload.mockResolvedValue(NEW_URL);
+      repo.saveVersion.mockImplementation((version: Record<string, unknown>) =>
+        Promise.resolve({ ...version, id: 'version-new' }),
+      );
+
+      await internals().executeStageGeneration(
+        LESSON_ID,
+        stage.generationRequestJson as LessonGenerationRequest,
+        USER_ID,
+        'token-r2',
+      );
+
+      expect(s3.downloadOwned).toHaveBeenCalledWith(
+        urlOf('2'),
+        expect.any(Number),
+      );
+      expect(llm.generateImage).toHaveBeenCalledTimes(1);
+    });
+
+    it('envia as imagens mantidas como referência e pede o mesmo estilo e os mesmos rostos', async () => {
+      const lesson = lessonWithImages();
+      await service.regenerateImages(LESSON_ID, body(['2']), USER_ID);
+      const stage = stageOf(lesson, TYPE);
+      stage.generationLeaseOwner = 'token-r4';
+      s3.downloadOwned.mockResolvedValue(PNG);
+      llm.generateImage.mockResolvedValue(PNG);
+      s3.upload.mockResolvedValue(NEW_URL);
+      repo.saveVersion.mockImplementation((version: Record<string, unknown>) =>
+        Promise.resolve({ ...version, id: 'version-new' }),
+      );
+
+      await internals().executeStageGeneration(
+        LESSON_ID,
+        stage.generationRequestJson as LessonGenerationRequest,
+        USER_ID,
+        'token-r4',
+      );
+
+      const [prompt, , , reference] = llm.generateImage.mock.calls[0] as [
+        string,
+        unknown,
+        unknown,
+        { data: Buffer; companions?: Array<{ data: Buffer }> },
+      ];
+      expect(prompt).toContain(LESSON_IMAGE_REGENERATION.STYLE_CONTINUITY);
+      // A single reference: with several, the provider merged them into one picture.
+      expect(reference.companions).toHaveLength(0);
+      expect(
+        s3.downloadOwned.mock.calls.map((call: unknown[]) => call[0]),
+      ).toEqual([urlOf('1')]);
+    });
+
+    it('nunca refaz uma imagem mantida, mesmo quando ela não pode ser lida como referência', async () => {
+      const lesson = lessonWithImages();
+      await service.regenerateImages(LESSON_ID, body(['2']), USER_ID);
+      const stage = stageOf(lesson, TYPE);
+      stage.generationLeaseOwner = 'token-r5';
+      s3.downloadOwned.mockRejectedValue(new Error('s3 fora do ar'));
+      llm.generateImage.mockResolvedValue(PNG);
+      s3.upload.mockResolvedValue(NEW_URL);
+      repo.saveVersion.mockImplementation((version: Record<string, unknown>) =>
+        Promise.resolve({ ...version, id: 'version-new' }),
+      );
+
+      await internals().executeStageGeneration(
+        LESSON_ID,
+        stage.generationRequestJson as LessonGenerationRequest,
+        USER_ID,
+        'token-r5',
+      );
+
+      expect(llm.generateImage).toHaveBeenCalledTimes(1);
+      const saved = (
+        repo.saveVersion.mock.calls[0] as [
+          { structuredDataJson: { assets: Array<{ url: string }> } },
+        ]
+      )[0];
+      expect(saved.structuredDataJson.assets.map((asset) => asset.url)).toEqual(
+        [urlOf('1'), NEW_URL, urlOf('3')],
+      );
+    });
+
+    it('a geração completa não recebe o pedido de continuidade', async () => {
+      const lesson = makeLesson(
+        LessonStatus.IN_PROGRESS,
+        LessonStageStatus.PRODUCER_APPROVED,
+        { [LessonStageType.MANUAL_WORK]: LessonStageStatus.GENERATING },
+      );
+      stageOf(lesson, LessonStageType.MANUAL_WORK).generationLeaseOwner =
+        'token-r6';
+      stageOf(lesson, LessonStageType.LESSON).versions[0].structuredDataJson = {
+        memoryVerse: {
+          text: 'Deus amou o mundo.',
+          reference: 'João 3:16',
+          version: 'NVI',
+        },
+      };
+      repo.findLessonById.mockResolvedValue(lesson);
+      llm.generateStage.mockResolvedValue({
+        content: { printableAssets: [{ id: 'manual', prompt: 'Arte' }] },
+        responseId: 'resp-r6',
+      });
+      llm.generateImage.mockResolvedValue(PNG);
+      s3.upload.mockResolvedValue(ASSET_URL);
+      repo.saveVersion.mockImplementation((version: Record<string, unknown>) =>
+        Promise.resolve({ ...version, id: 'version-new' }),
+      );
+
+      await internals().executeStageGeneration(
+        LESSON_ID,
+        { stage: LessonStageType.MANUAL_WORK, frozenAdminPrompt: 'PROMPT' },
+        USER_ID,
+        'token-r6',
+      );
+
+      const [prompt] = llm.generateImage.mock.calls[0] as [string];
+      expect(prompt).not.toContain(LESSON_IMAGE_REGENERATION.STYLE_CONTINUITY);
+      expect(s3.downloadOwned).not.toHaveBeenCalled();
+    });
+
+    const briefAnswer = (cast: string[] = ['Ana']) => ({
+      content: {
+        artDirection: 'Traço limpo, contorno marrom, paleta terrosa.',
+        cast: [
+          { name: 'Ana', appearance: 'Menina de 8 anos, vestido amarelo.' },
+        ],
+        settings: [],
+        parts: ['1', '2', '3'].map((assetId) => ({
+          assetId,
+          prompt: `Parte mestre da imagem ${assetId}, com a cena completa.`,
+          cast,
+          settings: [],
+        })),
+      },
+      responseId: 'resp-brief',
+    });
+    const runRegeneration = async (
+      lesson: ReturnType<typeof lessonWithImages>,
+      token: string,
+    ) => {
+      const stage = stageOf(lesson, TYPE);
+      stage.generationLeaseOwner = token;
+      s3.downloadOwned.mockResolvedValue(PNG);
+      llm.generateImage.mockResolvedValue(PNG);
+      s3.upload.mockResolvedValue(NEW_URL);
+      repo.saveVersion.mockImplementation((version: Record<string, unknown>) =>
+        Promise.resolve({ ...version, id: 'version-new' }),
+      );
+      await internals().executeStageGeneration(
+        LESSON_ID,
+        stage.generationRequestJson as LessonGenerationRequest,
+        USER_ID,
+        token,
+      );
+      return (
+        repo.saveVersion.mock.calls[0] as [
+          { structuredDataJson: Record<string, unknown> },
+        ]
+      )[0].structuredDataJson;
+    };
+
+    it('escreve o prompt mestre antes das imagens e manda a cada imagem só a sua parte', async () => {
+      const lesson = lessonWithImages();
+      llm.generateStructured.mockResolvedValue(briefAnswer());
+      await service.regenerateImages(LESSON_ID, body(['2']), USER_ID);
+
+      const saved = await runRegeneration(lesson, 'token-b1');
+
+      expect(llm.generateStructured).toHaveBeenCalledTimes(1);
+      const [prompt] = llm.generateImage.mock.calls[0] as [string];
+      expect(prompt).toContain('Traço limpo, contorno marrom');
+      expect(prompt).toContain('- Ana: Menina de 8 anos');
+      expect(prompt).toContain('Parte mestre da imagem 2');
+      expect(prompt).not.toContain('Parte mestre da imagem 1');
+      // Stored with the version, so the next regeneration reuses it.
+      expect(readImageBrief(TYPE, saved)?.origin).toBe(
+        LessonImageBriefOrigin.BACKFILL,
+      );
+    });
+
+    it('ao refazer algumas imagens reutiliza o prompt mestre guardado, sem reescrevê-lo', async () => {
+      const lesson = lessonWithImages();
+      llm.generateStructured.mockResolvedValue(briefAnswer());
+      await service.regenerateImages(LESSON_ID, body(['2']), USER_ID);
+      const saved = await runRegeneration(lesson, 'token-b2');
+      const stored = readImageBrief(TYPE, saved);
+
+      // A second round over the version that now carries the brief.
+      const stage = stageOf(lesson, TYPE);
+      stage.versions = [
+        { ...stage.versions[0], id: 'version-new', structuredDataJson: saved },
+      ];
+      stage.currentVersionId = 'version-new';
+      stage.status = LessonStageStatus.DRAFT;
+      stage.generationRequestJson = null;
+      llm.generateStructured.mockClear();
+      llm.generateImage.mockClear();
+      repo.saveVersion.mockClear();
+      await service.regenerateImages(
+        LESSON_ID,
+        body(['3'], { lockVersion: stage.lockVersion }),
+        USER_ID,
+      );
+      const again = await runRegeneration(lesson, 'token-b3');
+
+      expect(llm.generateStructured).not.toHaveBeenCalled();
+      expect(readImageBrief(TYPE, again)).toEqual(stored);
+      const [prompt] = llm.generateImage.mock.calls[0] as [string];
+      expect(prompt).toContain('Parte mestre da imagem 3');
+    });
+
+    it('ao refazer todas as imagens reescreve o prompt mestre', async () => {
+      const lesson = lessonWithImages();
+      llm.generateStructured.mockResolvedValue(briefAnswer());
+      await service.regenerateImages(LESSON_ID, body(['2']), USER_ID);
+      const saved = await runRegeneration(lesson, 'token-b4');
+      const stage = stageOf(lesson, TYPE);
+      stage.versions = [
+        { ...stage.versions[0], id: 'version-new', structuredDataJson: saved },
+      ];
+      stage.currentVersionId = 'version-new';
+      stage.status = LessonStageStatus.DRAFT;
+      stage.generationRequestJson = null;
+      llm.generateStructured.mockClear();
+      repo.saveVersion.mockClear();
+
+      await service.regenerateImages(
+        LESSON_ID,
+        body(['1', '2', '3'], { lockVersion: stage.lockVersion }),
+        USER_ID,
+      );
+      const again = await runRegeneration(lesson, 'token-b5');
+
+      expect(llm.generateStructured).toHaveBeenCalledTimes(1);
+      expect(readImageBrief(TYPE, again)?.origin).toBe(
+        LessonImageBriefOrigin.ALL_IMAGES,
+      );
+    });
+
+    it('prancha de recortes sem personagens é gerada sem imagem de referência', async () => {
+      const KIT = LessonStageType.LESSON_VISUALS;
+      const lesson = makeLesson(
+        LessonStatus.IN_PROGRESS,
+        LessonStageStatus.PRODUCER_APPROVED,
+        { [KIT]: LessonStageStatus.DRAFT },
+      );
+      stageOf(lesson, LessonStageType.LESSON).versions[0].structuredDataJson = {
+        story: 'Jesus chamou uma criança e a pôs no meio deles.',
+      };
+      stageOf(lesson, KIT).versions[0].structuredDataJson = {
+        visualConfig: {
+          type: LessonVisualType.CUTOUT_KIT,
+          orientation: LessonVisualOrientation.LANDSCAPE,
+          quantity: 4,
+        },
+        assets: [
+          { id: 'kit-01', category: 'CHARACTERS', items: [{ label: 'Jesus' }] },
+          { id: 'kit-02', category: 'ANIMALS', items: [{ label: 'Pomba' }] },
+          {
+            id: 'kit-03',
+            category: 'CHARACTERS',
+            items: [{ label: 'Criança' }],
+          },
+        ].map((asset) => ({ ...asset, prompt: 'Arte', url: urlOf(asset.id) })),
+      };
+      repo.findLessonById.mockResolvedValue(lesson);
+      llm.generateStructured.mockResolvedValue({
+        content: {
+          artDirection: 'Traço limpo, contorno marrom, paleta terrosa.',
+          cast: [
+            { name: 'Jesus', appearance: 'Homem de túnica bege.' },
+            { name: 'Criança', appearance: 'Menino de túnica clara.' },
+          ],
+          settings: [],
+          parts: [
+            { assetId: 'kit-01', cast: ['Jesus'] },
+            { assetId: 'kit-02', cast: [] },
+            { assetId: 'kit-03', cast: ['Criança'] },
+          ].map((part) => ({
+            ...part,
+            prompt: `Parte mestre da prancha ${part.assetId}, isolada.`,
+            settings: [],
+          })),
+        },
+        responseId: 'resp-brief',
+      });
+      await service.regenerateImages(
+        LESSON_ID,
+        { stage: KIT, lockVersion: 1, assetIds: ['kit-02', 'kit-03'] },
+        USER_ID,
+      );
+      const stage = stageOf(lesson, KIT);
+      stage.generationLeaseOwner = 'token-b7';
+      s3.downloadOwned.mockResolvedValue(PNG);
+      llm.generateImage.mockResolvedValue(PNG);
+      s3.upload.mockResolvedValue(NEW_URL);
+      repo.saveVersion.mockImplementation((version: Record<string, unknown>) =>
+        Promise.resolve({ ...version, id: 'version-new' }),
+      );
+
+      await internals().executeStageGeneration(
+        LESSON_ID,
+        stage.generationRequestJson as LessonGenerationRequest,
+        USER_ID,
+        'token-b7',
+      );
+
+      const calls = llm.generateImage.mock.calls as Array<
+        [string, unknown, unknown, unknown]
+      >;
+      const dove = calls.find(([prompt]) => prompt.includes('kit-02'));
+      const child = calls.find(([prompt]) => prompt.includes('kit-03'));
+      // Regression: with a reference, the dove sheet came back full of characters.
+      expect(dove?.[3]).toBeUndefined();
+      expect(dove?.[0]).not.toContain(
+        LESSON_IMAGE_REGENERATION.STYLE_CONTINUITY,
+      );
+      expect(dove?.[0]).not.toContain('Jesus chamou uma criança');
+      // A sheet with characters still follows the kept identity image.
+      expect(child?.[3]).toBeDefined();
+    });
+
+    it('gera as imagens mesmo quando o prompt mestre não pôde ser escrito', async () => {
+      const lesson = lessonWithImages();
+      llm.generateStructured.mockRejectedValue(new Error('fora do ar'));
+      await service.regenerateImages(LESSON_ID, body(['2']), USER_ID);
+
+      const saved = await runRegeneration(lesson, 'token-b6');
+
+      expect(llm.generateImage).toHaveBeenCalledTimes(1);
+      expect(readImageBrief(TYPE, saved)).toBeNull();
+    });
+
+    it('uma falha devolve o item ao estado anterior e não apaga nenhuma imagem mantida', async () => {
+      const lesson = lessonWithImages(LessonStageStatus.PRODUCER_APPROVED);
+      await service.regenerateImages(LESSON_ID, body(['2', '3']), USER_ID);
+      const stage = stageOf(lesson, TYPE);
+      stage.generationLeaseOwner = 'token-r3';
+      s3.downloadOwned.mockResolvedValue(PNG);
+      llm.generateImage.mockRejectedValue(new Error('provedor fora do ar'));
+
+      await internals().executeStageGeneration(
+        LESSON_ID,
+        stage.generationRequestJson as LessonGenerationRequest,
+        USER_ID,
+        'token-r3',
+      );
+
+      expect(stage.status).toBe(LessonStageStatus.PRODUCER_APPROVED);
+      expect(stage.currentVersionId).toBe(`version-${TYPE}`);
+      expect(stage.failureMessage).toBeTruthy();
+      expect(repo.saveVersion).not.toHaveBeenCalled();
+      expect(s3.delete).not.toHaveBeenCalled();
+    });
+
+    it('recusa a escolha feita sobre uma versão que já mudou', async () => {
+      lessonWithImages();
+
+      await expect(
+        service.regenerateImages(
+          LESSON_ID,
+          body(['2'], { lockVersion: 7 }),
+          USER_ID,
+        ),
+      ).rejects.toMatchObject({ code: ErrorCode.LESSON_STAGE_LOCK_CONFLICT });
+    });
+
+    it('recusa imagem inexistente e item desatualizado, sem abrir geração', async () => {
+      const lesson = lessonWithImages();
+      await expect(
+        service.regenerateImages(LESSON_ID, body(['9']), USER_ID),
+      ).rejects.toMatchObject({ code: ErrorCode.LESSON_INVALID_REQUEST });
+
+      stageOf(lesson, TYPE).status = LessonStageStatus.STALE;
+      await expect(
+        service.regenerateImages(LESSON_ID, body(['2']), USER_ID),
+      ).rejects.toMatchObject({ code: ErrorCode.LESSON_STAGE_STALE_UPSTREAM });
+      expect(stageOf(lesson, TYPE).generationRequestJson).toBeNull();
+    });
+
+    it('recusa regerar durante a revisão, como a geração completa', async () => {
+      lessonWithImages(LessonStageStatus.APPROVED);
+
+      await expect(
+        service.regenerateImages(LESSON_ID, body(['2']), USER_ID),
+      ).rejects.toMatchObject({ code: ErrorCode.LESSON_INVALID_STATE });
+    });
+
+    it('na meditação dos maiores só aceita regerar o conjunto inteiro', async () => {
+      lessonWithImages(
+        LessonStageStatus.DRAFT,
+        LessonStageType.MEDITATION_OLDER,
+      );
+
+      await expect(
+        service.regenerateImages(
+          LESSON_ID,
+          { ...body(['2']), stage: LessonStageType.MEDITATION_OLDER },
+          USER_ID,
+        ),
+      ).rejects.toMatchObject({ code: ErrorCode.LESSON_INVALID_REQUEST });
     });
   });
 

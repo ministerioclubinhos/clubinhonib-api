@@ -1,10 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { GenerateLessonRequestDto } from '../dto/generate-lesson-request.dto';
-import { GenerateStageRequestDto } from '../dto/generate-stage-request.dto';
+import {
+  GenerateStageRequestDto,
+  RegenerateStageImagesRequestDto,
+} from '../dto/generate-stage-request.dto';
 import { QueryLessonsDto } from '../dto/query-lessons.dto';
 import { SaveTiptapContentDto } from '../dto/save-tiptap-content.dto';
 import { LessonEntity } from '../entities/lesson.entity';
-import { LessonStageType, LessonStatus } from '../enums/lesson.enums';
+import { LessonStageType } from '../enums/lesson.enums';
 import type {
   LessonDashboard,
   LessonDraftPage,
@@ -66,6 +69,14 @@ export class LessonDraftService {
     userId: string,
   ): Promise<LessonEntity> {
     return this.generation.generateStage(id, dto, userId);
+  }
+
+  regenerateImages(
+    id: string,
+    dto: RegenerateStageImagesRequestDto,
+    userId: string,
+  ): Promise<LessonEntity> {
+    return this.generation.regenerateImages(id, dto, userId);
   }
 
   saveContent(

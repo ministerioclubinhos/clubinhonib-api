@@ -7,6 +7,12 @@ import {
   LessonStageType,
   LessonStatus,
 } from '../enums/lesson.enums';
+import type { LessonGenerationProgress } from '../types/lesson-generation-progress.types';
+import { generationOfLesson } from '../utils/lesson-generation-progress.utils';
+import {
+  LessonGenerationProgressResponseDto,
+  toGenerationProgressResponse,
+} from './lesson-generation-progress.dto';
 import {
   LessonPublicationState,
   LessonView,
@@ -47,6 +53,8 @@ export class LessonResponseDto {
   updatedAt: Date;
   stages: LessonStageResponseDto[];
   comments: LessonCommentResponseDto[];
+  /** Live progress of the stage being generated; null when none or unknown. */
+  generation: LessonGenerationProgressResponseDto | null;
 }
 
 export class LessonCommentResponseDto {
@@ -113,6 +121,7 @@ export class LessonDeleteResponseDto {
 
 export interface ToLessonResponseOptions {
   view?: LessonView;
+  generation?: LessonGenerationProgress | null;
 }
 
 const mapVersion = (
@@ -167,6 +176,7 @@ export const toLessonResponse = (
   options?: ToLessonResponseOptions,
 ): LessonResponseDto => {
   const view = options?.view ?? LessonView.FULL;
+  const generation = generationOfLesson(lesson, options?.generation);
   return {
     id: lesson.id,
     theme: lesson.theme,
@@ -189,5 +199,6 @@ export const toLessonResponse = (
       authorId: comment.authorId,
       createdAt: comment.createdAt,
     })),
+    generation: generation ? toGenerationProgressResponse(generation) : null,
   };
 };
