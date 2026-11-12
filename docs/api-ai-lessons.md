@@ -312,3 +312,40 @@ Regras substituídas, mantidas aqui porque explicam conteúdos já salvos:
 - **Reconciliação manual de publicação:** antes das leases de publicação, uma falha após criar a página exigia intervenção operacional.
 - **Lease `workerId:uuid`:** valores antigos de 73 caracteres não cabiam em `generation_lease_owner`; pedidos presos por eles são retomados pelo mecanismo atual.
 - **`apiKey` na query de modelos e chaves em DTOs públicos:** removidos.
+
+## Cutout kit: elements without story evidence (2026-11-11)
+
+`storyEvidence` may be empty only on neutral `SKY_AND_NATURE` items or on items
+flagged `extra`. The model sometimes returns a context element (e.g. a dove)
+with no evidence and without the flag, which used to reject the whole kit —
+after two paid calls (the generation and its automatic correction).
+
+`markUnsupportedCutoutItemsAsExtra` now runs before `validateCutoutKit` and
+flags such items as `extra: true`. It only covers MISSING evidence: a quote that
+is not literally in the lesson still fails validation, because there the model
+asserted something false about the text.
+
+### Deterministic repairs before validation (2026-11-11, second pass)
+
+A second failure in the same lesson ("O storyEvidence do elemento "Jesus"
+precisa ser um trecho literal") showed the same pattern: a paid generation plus
+a paid automatic correction, rejected for something with a computable answer.
+`validateLessonGeneration` now runs three repairs on a cutout kit, in order,
+before `validateCutoutKit`:
+
+1. `normalizeCutoutKitStructure` — renumbers sheets (`kit-01`…), fills an
+   invalid item size with `MEDIUM`, and rebuilds `coverageChecklist` from the
+   categories the kit actually holds.
+2. `repairCutoutStoryEvidence` — a quote that is not in the lesson is replaced
+   by the real sentence that mentions the element; if the lesson never mentions
+   it, the false quote is dropped and the item becomes `extra`.
+3. `markUnsupportedCutoutItemsAsExtra` — an item with no evidence becomes
+   `extra`.
+
+Quote matching (`isLiteralStoryEvidence`) ignores punctuation, quote style,
+accents and case, and accepts a quote abbreviated with reticences when every
+part is in the lesson.
+
+Still rejected, because they are about content: wrong number of sheets, no
+characters, no scenery/buildings, no sky items, too few extras for the number of
+sheets, missing label/description/layout plan.

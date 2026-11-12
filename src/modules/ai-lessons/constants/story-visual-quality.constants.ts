@@ -169,3 +169,19 @@ export const CUTOUT_ITEM_SIZES: readonly string[] = [
 ];
 export const CUTOUT_COVERAGE_COVERED = 'COVERED';
 export const CUTOUT_COVERAGE_NOT_APPLICABLE = 'NOT_APPLICABLE';
+
+/** Menor pedaço de citação (em caracteres comparáveis) que prova alguma coisa. */
+export const CUTOUT_EVIDENCE_MIN_FRAGMENT = 6;
+
+/** Menor palavra de um rótulo usada para achar o elemento na lição. */
+export const CUTOUT_LABEL_MIN_TERM = 4;
+
+/** Tamanho máximo da frase da lição usada como evidência consertada. */
+export const CUTOUT_EVIDENCE_MAX_LENGTH = 240;
+
+/** Tamanho assumido quando a IA devolve um elemento sem tamanho válido. */
+export const CUTOUT_DEFAULT_ITEM_SIZE = 'MEDIUM';
+
+/** Justificativa de uma categoria sem elementos que a IA não justificou. */
+export const CUTOUT_DEFAULT_NOT_APPLICABLE_JUSTIFICATION =
+  'A lição não cita elementos desta categoria.';

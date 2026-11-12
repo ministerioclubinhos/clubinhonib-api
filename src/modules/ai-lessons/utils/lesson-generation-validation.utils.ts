@@ -21,7 +21,12 @@ import type {
   LessonVisualConfig,
 } from '../types/lesson-generation.types';
 import { lessonString, normalizeLessonVerseReference } from '../utils';
-import { validateCutoutKit } from './cutout-kit.utils';
+import {
+  markUnsupportedCutoutItemsAsExtra,
+  normalizeCutoutKitStructure,
+  repairCutoutStoryEvidence,
+  validateCutoutKit,
+} from './cutout-kit.utils';
 import { lessonAsObject, lessonCurrentContent } from './lesson-workflow.utils';
 
 export function validateVisualConfig(
@@ -119,7 +124,16 @@ export function validateCanonicalContent(
       (stage) => stage.type === LessonStageType.LESSON,
     );
     const source = sourceStage ? lessonCurrentContent(sourceStage) : null;
-    validateCutoutKit(generated, lessonString(source?.story).trim());
+    // Elemento sem evidência na lição é um extra que a IA não marcou: corrige
+    // aqui em vez de reprovar o kit inteiro por isso.
+    const story = lessonString(source?.story).trim();
+    // Antes de reprovar: citação que não confere vira a frase real da lição,
+    // e elemento sem apoio no texto vira extra. Reprovar aqui custava duas
+    // chamadas pagas e não entregava nada.
+    normalizeCutoutKitStructure(generated);
+    repairCutoutStoryEvidence(generated, story);
+    markUnsupportedCutoutItemsAsExtra(generated);
+    validateCutoutKit(generated, story);
   }
 
   if (
