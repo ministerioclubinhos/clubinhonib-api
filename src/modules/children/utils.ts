@@ -7,6 +7,8 @@
 import { AppForbiddenException, ErrorCode } from 'src/shared/exceptions';
 import { AccessContext, UserRole } from 'src/core/auth/auth.types';
 
+import { PHONE_SEARCH_PATTERN } from './constants';
+
 /**
  * Só administrador exclui uma criança.
  *
@@ -110,11 +112,14 @@ export function assertCanUnlinkChildClub(context: AccessContext): void {
 /**
  * Trecho do telefone a procurar, só com os dígitos.
  *
- * O telefone é gravado sem máscara; quem busca digita `(92) 99999`. Sem
- * dígito algum não há o que comparar com o telefone, e a busca fica só por
- * nome.
+ * O telefone é gravado sem máscara; quem busca digita `(92) 99999`. Só vale
+ * quando o texto é um telefone — dígitos e pontuação de máscara. Com letra no
+ * meio é busca por nome: sem essa trava, "Ana 3" casava com todo telefone que
+ * tivesse um 3.
  */
 export function phoneSearchDigits(search: string): string | null {
+  if (!PHONE_SEARCH_PATTERN.test(search.trim())) return null;
+
   const digits = search.replace(/\D/g, '');
   return digits.length > 0 ? digits : null;
 }

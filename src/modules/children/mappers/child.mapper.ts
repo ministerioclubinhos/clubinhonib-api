@@ -1,3 +1,4 @@
+import { toRecordAuthor } from 'src/shared/record-author/record-author.util';
 import { AddressEntity } from 'src/modules/addresses/entities/address.entity/address.entity';
 import { toAcceptedChristShort } from 'src/modules/accepted-christs/mappers';
 
@@ -69,6 +70,8 @@ export const toChildResponseDto = (entity: ChildEntity): ChildResponseDto => ({
   isActive: entity.isActive,
   club: toClub(entity),
   address: toAddressDto(entity.address),
+  createdBy: toRecordAuthor(entity.createdBy),
+  updatedBy: toRecordAuthor(entity.updatedBy),
   createdAt: toIsoDateTime(entity.createdAt),
   updatedAt: toIsoDateTime(entity.updatedAt),
 });

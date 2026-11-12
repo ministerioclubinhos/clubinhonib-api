@@ -13,6 +13,7 @@ import { ClubEntity } from '../../clubs/entities/club.entity';
 import { AuthContextService } from 'src/core/auth/services/auth-context.service';
 import { UserRole } from 'src/core/auth/auth.types';
 import { assertCanCreateChildWithoutClub, toDateOnly } from '../utils';
+import { recordAuthorRef } from 'src/shared/record-author/record-author.util';
 import { todayInAppTimezone } from 'src/shared/calendar-day/calendar-day.util';
 
 @Injectable()
@@ -54,6 +55,8 @@ export class CreateChildrenService {
       joinedAt: toDateOnly(dto.joinedAt),
       isActive: dto.isActive !== undefined ? dto.isActive : true,
       deactivatedAt: dto.isActive === false ? todayInAppTimezone() : null,
+      createdBy: recordAuthorRef(ctx.userId),
+      updatedBy: recordAuthorRef(ctx.userId),
     });
 
     if (dto.clubId) {

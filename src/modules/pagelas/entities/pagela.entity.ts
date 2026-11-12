@@ -1,3 +1,4 @@
+import { UserEntity } from 'src/core/user/entities/user.entity';
 import { BaseEntity } from 'src/shared/share-entity/base.entity';
 import { Entity, Column, ManyToOne, JoinColumn, Unique } from 'typeorm';
 import { ChildEntity } from 'src/modules/children/entities/child.entity';
@@ -40,4 +41,17 @@ export class PagelaEntity extends BaseEntity {
   })
   @JoinColumn({ name: 'teacher_profile_id' })
   teacher?: TeacherProfileEntity | null;
+
+  /**
+   * Quem lançou a pagela. `null` em registros anteriores a esta coluna ou
+   * quando o usuário foi excluído depois.
+   */
+  @ManyToOne(() => UserEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'created_by_user_id' })
+  createdBy?: UserEntity | null;
+
+  /** Quem fez a última alteração na pagela. */
+  @ManyToOne(() => UserEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'updated_by_user_id' })
+  updatedBy?: UserEntity | null;
 }

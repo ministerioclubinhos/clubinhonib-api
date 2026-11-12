@@ -27,6 +27,8 @@ export interface PagelaCreateData {
   didMeditation: boolean;
   recitedVerse: boolean;
   notes: string | null;
+  /** Usuário que está lançando. */
+  createdByUserId: string | null;
 }
 
 /** Campos que a edição pode alterar. Ausente significa "não mexer". */
@@ -39,6 +41,8 @@ export interface PagelaUpdateData {
   recitedVerse?: boolean;
   notes?: string | null;
   teacherProfileId?: string | null;
+  /** Usuário que está alterando. */
+  updatedByUserId: string | null;
 }
 
 /**

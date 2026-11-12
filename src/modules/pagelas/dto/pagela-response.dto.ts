@@ -1,3 +1,5 @@
+import { RecordAuthorDto } from 'src/shared/record-author/record-author.dto';
+
 /** Contrato de resposta de `/pagelas`. */
 export class PagelaResponseDto {
   id: string;
@@ -11,6 +13,10 @@ export class PagelaResponseDto {
   didMeditation: boolean;
   recitedVerse: boolean;
   notes: string | null;
+  /** Quem lançou; `null` em registros antigos. */
+  createdBy: RecordAuthorDto | null;
+  /** Quem alterou por último. */
+  updatedBy: RecordAuthorDto | null;
   createdAt: string;
   updatedAt: string;
 }

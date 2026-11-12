@@ -144,7 +144,12 @@ describe('casos de uso de pagelas', () => {
 
       expect(weekService.resolveForCreation).toHaveBeenCalledWith(createDto);
       expect(repo.createOne).toHaveBeenCalledWith(
-        expect.objectContaining({ year: 2026, week: 5 }),
+        expect.objectContaining({
+          year: 2026,
+          week: 5,
+          // Quem lançou fica gravado na pagela.
+          createdByUserId: 'admin-1',
+        }),
       );
     });
 
@@ -212,7 +217,12 @@ describe('casos de uso de pagelas', () => {
 
       expect(repo.updateOne).toHaveBeenCalledWith(
         'pagela-1',
-        expect.objectContaining({ year: undefined, week: undefined }),
+        expect.objectContaining({
+          year: undefined,
+          week: undefined,
+          // Quem alterou fica gravado na pagela.
+          updatedByUserId: 'admin-1',
+        }),
       );
     });
 

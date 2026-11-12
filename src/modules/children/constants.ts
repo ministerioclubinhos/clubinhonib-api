@@ -66,3 +66,8 @@ export const CHILD_DECIDED_DECISIONS: readonly DecisionType[] = [
   DecisionType.ACCEPTED,
   DecisionType.RECONCILED,
 ];
+
+/**
+ * Texto de busca que é um telefone: só dígitos e a pontuação de uma máscara.
+ */
+export const PHONE_SEARCH_PATTERN = /^[\d\s()+.-]+$/;

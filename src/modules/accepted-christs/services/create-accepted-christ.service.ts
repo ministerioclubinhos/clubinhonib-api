@@ -65,6 +65,7 @@ export class CreateAcceptedChristService {
       childId: child.id,
       decision: dto.decision,
       notes: dto.notes ?? null,
+      createdByUserId: context.userId ?? null,
     });
 
     // Só o identificador entra no registro: a decisão de uma criança e a

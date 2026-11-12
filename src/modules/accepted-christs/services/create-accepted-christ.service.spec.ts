@@ -77,6 +77,8 @@ describe('CreateAcceptedChristService', () => {
       childId: 'child-1',
       decision: DecisionType.ACCEPTED,
       notes: 'Conversou depois da aula.',
+      // Quem registrou fica gravado junto com a decisão.
+      createdByUserId: 'user-1',
     });
     expect(result).toMatchObject({ id: 'decision-1', childId: 'child-1' });
     expect(result).not.toHaveProperty('child');

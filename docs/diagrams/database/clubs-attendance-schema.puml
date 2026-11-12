@@ -39,6 +39,8 @@ entity "children" as e_child {
   name : varchar(255)
   isActive : boolean
   deactivatedAt : date?
+  created_by_user_id : UUID? <<FK users>>
+  updated_by_user_id : UUID? <<FK users>>
 }
 
 entity "pagelas" as e_pagela {
@@ -46,6 +48,8 @@ entity "pagelas" as e_pagela {
   --
   child_id : UUID <<FK>>
   teacher_profile_id : UUID? <<FK>>
+  created_by_user_id : UUID? <<FK users>>
+  updated_by_user_id : UUID? <<FK users>>
   year + week : smallint <<UQ>>
 }
 
@@ -53,6 +57,7 @@ entity "accepted_christs" as e_accepted {
   * id : UUID <<PK>>
   --
   child_id : UUID <<FK>>
+  created_by_user_id : UUID? <<FK users>>
   decision : enum?
 }
 

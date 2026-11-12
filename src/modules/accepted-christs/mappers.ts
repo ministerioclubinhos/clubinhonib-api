@@ -1,3 +1,4 @@
+import { toRecordAuthor } from 'src/shared/record-author/record-author.util';
 import { AcceptedChristResponseDto } from './dtos/accepted-christ-response.dto';
 import { AcceptedChristShortDto } from './dtos/accepted-christ-short.dto';
 import { AcceptedChristEntity } from './entities/accepted-christ.entity';
@@ -17,6 +18,7 @@ export function toAcceptedChristResponse(
     decision: entity.decision,
     childId,
     notes: entity.notes ?? null,
+    createdBy: toRecordAuthor(entity.createdBy),
     createdAt: toIsoString(entity.createdAt),
     updatedAt: toIsoString(entity.updatedAt),
   };
@@ -29,6 +31,7 @@ export function toAcceptedChristShort(
   return {
     id: entity.id,
     decision: entity.decision,
+    createdBy: toRecordAuthor(entity.createdBy),
     createdAt: toIsoString(entity.createdAt),
     updatedAt: toIsoString(entity.updatedAt),
   };

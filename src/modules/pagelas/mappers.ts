@@ -1,3 +1,4 @@
+import { toRecordAuthor } from 'src/shared/record-author/record-author.util';
 import { PagelaEntity } from './entities/pagela.entity';
 import { PagelaResponseDto } from './dto/pagela-response.dto';
 
@@ -19,6 +20,8 @@ export function toPagelaResponse(pagela: PagelaEntity): PagelaResponseDto {
     didMeditation: pagela.didMeditation,
     recitedVerse: pagela.recitedVerse,
     notes: pagela.notes ?? null,
+    createdBy: toRecordAuthor(pagela.createdBy),
+    updatedBy: toRecordAuthor(pagela.updatedBy),
     createdAt: toIsoString(pagela.createdAt),
     updatedAt: toIsoString(pagela.updatedAt),
   };

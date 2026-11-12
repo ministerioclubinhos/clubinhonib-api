@@ -159,6 +159,10 @@ ever refused.
 | `year` different from the period in progress | `400 VAL_4005` |
 | `week` below 1 or above the current academic week (future week) | `400 VAL_4005` |
 
+**Authorship**: every pagela stores who created it and who last edited it,
+read from the session token. `PagelaResponseDto` carries `createdBy` and
+`updatedBy` as `{ id, name } | null` (`null` on records older than the columns).
+
 **Inactive children** (`isActive = false`) do not receive pagelas and their
 pagelas are not edited: `409 CHILD_7003`. Reactivate the child first.
 

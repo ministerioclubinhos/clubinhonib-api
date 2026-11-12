@@ -26,7 +26,15 @@ describe('mappers de decisão', () => {
       const response = toAcceptedChristResponse(entity, 'child-1');
 
       expect(Object.keys(response).sort()).toEqual(
-        ['childId', 'createdAt', 'decision', 'id', 'notes', 'updatedAt'].sort(),
+        [
+          'childId',
+          'createdAt',
+          'createdBy',
+          'decision',
+          'id',
+          'notes',
+          'updatedAt',
+        ].sort(),
       );
     });
 
@@ -56,7 +64,7 @@ describe('mappers de decisão', () => {
       const short = toAcceptedChristShort(entity);
 
       expect(Object.keys(short).sort()).toEqual(
-        ['createdAt', 'decision', 'id', 'updatedAt'].sort(),
+        ['createdAt', 'createdBy', 'decision', 'id', 'updatedAt'].sort(),
       );
     });
   });

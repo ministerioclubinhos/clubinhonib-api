@@ -50,6 +50,25 @@ totals only.
   migration still has to be generated (`migration:generate`) from a database
   that does not have the column yet.
 
+### 1.0.1. Authorship of records (2026-11-11)
+
+**Rule**: the database records who wrote each record, taken from the session
+token — never from the request body.
+
+| Table | Columns | Filled when |
+|---|---|---|
+| `pagelas` | `created_by_user_id`, `updated_by_user_id` | created / edited |
+| `accepted_christs` | `created_by_user_id` | decision registered |
+| `children` | `created_by_user_id`, `updated_by_user_id` | created / edited, activated or deactivated |
+
+All are nullable FKs to `users` with `ON DELETE SET NULL`: records older than
+the columns have no author, and deleting a user does not delete what she wrote.
+Responses expose `createdBy` / `updatedBy` as `{ id, name } | null`
+(`RecordAuthorDto`, `src/shared/record-author`); only id and name are selected.
+
+- ⚠️ Like `deactivatedAt`, these columns exist locally through
+  `DB_SYNCHRONIZE=true`; the versioned migration still has to be generated.
+
 ### 1.1. `isActive` Field in Child Entity
 
 **Rule**: All children must have an `isActive` field (boolean) indicating if the child is still active in the club.

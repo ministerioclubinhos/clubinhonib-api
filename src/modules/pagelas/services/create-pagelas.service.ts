@@ -44,6 +44,7 @@ export class CreatePagelasService {
       didMeditation: dto.didMeditation,
       recitedVerse: dto.recitedVerse,
       notes: dto.notes ?? null,
+      createdByUserId: context.userId ?? null,
     });
 
     this.logger.log(

@@ -1,3 +1,4 @@
+import { UserEntity } from 'src/core/user/entities/user.entity';
 import { BaseEntity } from 'src/shared/share-entity/base.entity';
 import {
   Entity,
@@ -66,4 +67,17 @@ export class ChildEntity extends BaseEntity {
 
   @OneToMany(() => AcceptedChristEntity, (ac) => ac.child, { cascade: true })
   acceptedChrists: AcceptedChristEntity[];
+
+  /**
+   * Quem cadastrou a criança. `null` em cadastros anteriores a esta coluna ou
+   * quando o usuário foi excluído depois.
+   */
+  @ManyToOne(() => UserEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'created_by_user_id' })
+  createdBy?: UserEntity | null;
+
+  /** Quem fez a última alteração no cadastro (edição, ativar ou desativar). */
+  @ManyToOne(() => UserEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'updated_by_user_id' })
+  updatedBy?: UserEntity | null;
 }

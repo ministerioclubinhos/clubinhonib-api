@@ -49,6 +49,7 @@ export class UpdatePagelasService {
       recitedVerse: dto.recitedVerse,
       notes: dto.notes,
       teacherProfileId: dto.teacherProfileId,
+      updatedByUserId: context.userId ?? null,
     };
     const updated = await this.pagelasRepository.updateOne(id, data);
 

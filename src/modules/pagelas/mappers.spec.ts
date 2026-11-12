@@ -29,6 +29,7 @@ describe('toPagelaResponse (contrato de resposta)', () => {
       [
         'childId',
         'createdAt',
+        'createdBy',
         'didMeditation',
         'id',
         'notes',
@@ -37,6 +38,7 @@ describe('toPagelaResponse (contrato de resposta)', () => {
         'referenceDate',
         'teacherProfileId',
         'updatedAt',
+        'updatedBy',
         'week',
         'year',
       ].sort(),
@@ -68,5 +70,16 @@ describe('toPagelaResponse (contrato de resposta)', () => {
     expect(response.updatedAt).toBe('2026-01-02T00:00:00.000Z');
     // A data do encontro é dia de calendário, e sai como veio.
     expect(response.referenceDate).toBe('2026-03-07');
+  });
+
+  it('leva só o id e o nome de quem lançou e de quem alterou', () => {
+    const response = toPagelaResponse({
+      ...pagela,
+      createdBy: { id: 'user-1', name: 'Ana', password: 'segredo' },
+      updatedBy: null,
+    } as unknown as typeof pagela);
+
+    expect(response.createdBy).toEqual({ id: 'user-1', name: 'Ana' });
+    expect(response.updatedBy).toBeNull();
   });
 });

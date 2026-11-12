@@ -36,6 +36,8 @@ export interface SortedPaginatedRows<T> extends PaginatedRows<T> {
 
 import { phoneSearchDigits } from '../utils';
 
+import { recordAuthorSelection } from 'src/shared/record-author/record-author.util';
+
 @Injectable()
 export class ChildrenRepository {
   constructor(
@@ -46,10 +48,17 @@ export class ChildrenRepository {
   ) {}
 
   private baseQB(): SelectQueryBuilder<ChildEntity> {
-    return this.repo
-      .createQueryBuilder('c')
-      .leftJoinAndSelect('c.club', 'club')
-      .leftJoinAndSelect('c.address', 'addr');
+    return (
+      this.repo
+        .createQueryBuilder('c')
+        .leftJoinAndSelect('c.club', 'club')
+        .leftJoinAndSelect('c.address', 'addr')
+        // Só id e nome de quem cadastrou e de quem alterou.
+        .leftJoin('c.createdBy', 'createdBy')
+        .addSelect(recordAuthorSelection('createdBy'))
+        .leftJoin('c.updatedBy', 'updatedBy')
+        .addSelect(recordAuthorSelection('updatedBy'))
+    );
   }
   private applyRoleFilter(
     qb: SelectQueryBuilder<ChildEntity>,
@@ -184,6 +193,7 @@ export class ChildrenRepository {
       .createQueryBuilder('c')
       .leftJoin('c.club', 'club')
       .leftJoin('c.acceptedChrists', 'acceptedChrists')
+      .leftJoin('acceptedChrists.createdBy', 'decisionAuthor')
       .select([
         'c.id',
         'c.name',
@@ -196,6 +206,8 @@ export class ChildrenRepository {
         'acceptedChrists.decision',
         'acceptedChrists.createdAt',
         'acceptedChrists.updatedAt',
+        'decisionAuthor.id',
+        'decisionAuthor.name',
       ]);
 
     if (q.searchString) {

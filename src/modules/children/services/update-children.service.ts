@@ -17,6 +17,7 @@ import { toChildResponseDto } from '../mappers/child.mapper';
 import { ClubEntity } from '../../clubs/entities/club.entity';
 import { AuthContextService } from 'src/core/auth/services/auth-context.service';
 import { UserRole } from 'src/core/auth/auth.types';
+import { recordAuthorRef } from 'src/shared/record-author/record-author.util';
 import { todayInAppTimezone } from 'src/shared/calendar-day/calendar-day.util';
 import {
   assertCanChangeChildClub,
@@ -110,6 +111,7 @@ export class UpdateChildrenService {
       }
     }
 
+    entity.updatedBy = recordAuthorRef(ctx.userId);
     await this.childrenRepo.save(entity);
     const reloaded = await this.childrenRepo.findOneForResponse(id, ctx);
     return toChildResponseDto(reloaded!);
@@ -132,6 +134,7 @@ export class UpdateChildrenService {
       today: todayInAppTimezone(),
     });
     entity.isActive = !entity.isActive;
+    entity.updatedBy = recordAuthorRef(ctx.userId);
     await this.childrenRepo.save(entity);
 
     const reloaded = await this.childrenRepo.findOneForResponse(id, ctx);

@@ -24,6 +24,11 @@ import {
 } from '../utils';
 import { UserRole } from 'src/core/auth/auth.types';
 
+import {
+  recordAuthorRef,
+  recordAuthorSelection,
+} from 'src/shared/record-author/record-author.util';
+
 @Injectable()
 export class PagelasRepository {
   constructor(
@@ -40,12 +45,19 @@ export class PagelasRepository {
   ) {}
 
   private baseQB(): SelectQueryBuilder<PagelaEntity> {
-    return this.pagelaRepo
-      .createQueryBuilder('pagela')
-      .leftJoin('pagela.child', 'child')
-      .addSelect(['child.id'])
-      .leftJoin('pagela.teacher', 'teacher')
-      .addSelect(['teacher.id']);
+    return (
+      this.pagelaRepo
+        .createQueryBuilder('pagela')
+        .leftJoin('pagela.child', 'child')
+        .addSelect(['child.id'])
+        .leftJoin('pagela.teacher', 'teacher')
+        .addSelect(['teacher.id'])
+        // Só id e nome de quem lançou e de quem alterou.
+        .leftJoin('pagela.createdBy', 'createdBy')
+        .addSelect(recordAuthorSelection('createdBy'))
+        .leftJoin('pagela.updatedBy', 'updatedBy')
+        .addSelect(recordAuthorSelection('updatedBy'))
+    );
   }
 
   /**
@@ -275,9 +287,12 @@ export class PagelasRepository {
         didMeditation: data.didMeditation,
         recitedVerse: data.recitedVerse,
         notes: data.notes,
+        createdBy: recordAuthorRef(data.createdByUserId),
+        updatedBy: recordAuthorRef(data.createdByUserId),
       });
 
-      return this.saveOrFailOnDuplicate(txPagela, entity);
+      const saved = await this.saveOrFailOnDuplicate(txPagela, entity);
+      return this.reloadForResponse(txPagela, saved.id);
     });
   }
 
@@ -330,8 +345,34 @@ export class PagelasRepository {
         }
       }
 
-      return this.saveOrFailOnDuplicate(txPagela, entity);
+      entity.updatedBy = recordAuthorRef(data.updatedByUserId);
+
+      const saved = await this.saveOrFailOnDuplicate(txPagela, entity);
+      return this.reloadForResponse(txPagela, saved.id);
     });
+  }
+
+  /**
+   * Relê a pagela recém-gravada com o nome de quem lançou e alterou.
+   *
+   * A gravação só leva o id do usuário; a resposta precisa do nome.
+   */
+  private async reloadForResponse(
+    repository: Repository<PagelaEntity>,
+    id: string,
+  ): Promise<PagelaEntity> {
+    return repository
+      .createQueryBuilder('pagela')
+      .leftJoin('pagela.child', 'child')
+      .addSelect(['child.id'])
+      .leftJoin('pagela.teacher', 'teacher')
+      .addSelect(['teacher.id'])
+      .leftJoin('pagela.createdBy', 'createdBy')
+      .addSelect(recordAuthorSelection('createdBy'))
+      .leftJoin('pagela.updatedBy', 'updatedBy')
+      .addSelect(recordAuthorSelection('updatedBy'))
+      .where('pagela.id = :id', { id })
+      .getOneOrFail();
   }
 
   async deleteById(id: string): Promise<void> {

@@ -860,3 +860,8 @@ Registra que uma criança aceitou ou se reconciliou com Jesus.
 - **Recorte por papel**: contexto sem papel ou sem usuário não devolve criança
   alguma (antes devolvia todas).
 - **Criança desativada**: não recebe pagela nem decisão (`409 CHILD_7003`).
+- **Autoria**: `ChildResponseDto` traz `createdBy` e `updatedBy`
+  (`{ id, name } | null`): quem cadastrou e quem alterou por último — edição,
+  ativar ou desativar. As decisões trazem `createdBy`, tanto em
+  `AcceptedChristResponseDto` quanto no recorte curto de `/children/simple`.
+  O autor vem do token da sessão, nunca do corpo.

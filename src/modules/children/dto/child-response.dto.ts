@@ -1,3 +1,4 @@
+import { RecordAuthorDto } from 'src/shared/record-author/record-author.dto';
 import { AcceptedChristShortDto } from 'src/modules/accepted-christs/dtos/accepted-christ-short.dto';
 
 import { ChildSortField, SortOrder } from '../constants';
@@ -48,6 +49,10 @@ export class ChildResponseDto {
   isActive: boolean;
   club: ChildClubDto | null;
   address: AddressResponseDto | null;
+  /** Quem cadastrou; `null` em cadastros antigos. */
+  createdBy: RecordAuthorDto | null;
+  /** Quem alterou por último (edição, ativar ou desativar). */
+  updatedBy: RecordAuthorDto | null;
   createdAt: string;
   updatedAt: string;
 }

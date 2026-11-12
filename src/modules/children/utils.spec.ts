@@ -154,6 +154,11 @@ describe('busca por telefone', () => {
   it('sem dígito não há busca por telefone', () => {
     expect(phoneSearchDigits('Ana Clara')).toBeNull();
   });
+
+  it('nome com número no meio é busca por nome, não por telefone', () => {
+    expect(phoneSearchDigits('Criança m3x1')).toBeNull();
+    expect(phoneSearchDigits('Ana 3')).toBeNull();
+  });
 });
 
 describe('cadastro sem clubinho', () => {
