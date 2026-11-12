@@ -100,6 +100,7 @@ export class AiLessonsController {
     const result = await this.service.getDashboard();
     return {
       ...result,
+      active: result.active.map((lesson) => toLessonResponse(lesson)),
       recent: result.recent.map((lesson) => toLessonResponse(lesson)),
     };
   }

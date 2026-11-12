@@ -69,6 +69,8 @@ export class LessonListResponseDto {
 export class LessonDashboardResponseDto {
   total: number;
   byStatus: Record<LessonStatus, number>;
+  /** Lessons still in the works (not published, not archived), newest first. */
+  active: LessonResponseDto[];
   recent: LessonResponseDto[];
 }
 

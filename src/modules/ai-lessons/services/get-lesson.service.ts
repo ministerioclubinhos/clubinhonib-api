@@ -7,7 +7,15 @@ import {
   LessonStatus,
 } from '../enums/lesson.enums';
 import { AiLessonsRepository } from '../repositories/ai-lessons.repository';
-import type { LessonDraftPage } from '../types/lesson-generation.types';
+import {
+  LESSON_DASHBOARD_ACTIVE_LIMIT,
+  LESSON_DASHBOARD_FINISHED_STATUSES,
+  LESSON_DASHBOARD_RECENT_LIMIT,
+} from '../constants/lesson-repository.constants';
+import type {
+  LessonDashboard,
+  LessonDraftPage,
+} from '../types/lesson-generation.types';
 import { normalizeLessonDocumentHeader } from '../utils';
 import { lessonEventDigest } from '../utils/lesson-event-digest.utils';
 import { lessonNotFound } from '../utils/lesson-studio-errors.utils';
@@ -30,22 +38,25 @@ export class GetLessonService {
     };
   }
 
-  async getDashboard(): Promise<{
-    total: number;
-    byStatus: Record<LessonStatus, number>;
-    recent: LessonEntity[];
-  }> {
-    const rows = await this.repo.getDashboardStatusCounts();
+  async getDashboard(): Promise<LessonDashboard<LessonEntity>> {
+    const [rows, active, recent] = await Promise.all([
+      this.repo.getDashboardStatusCounts(),
+      this.repo.findLessonsOutsideStatuses(
+        LESSON_DASHBOARD_FINISHED_STATUSES,
+        LESSON_DASHBOARD_ACTIVE_LIMIT,
+      ),
+      this.repo.findRecentLessons(LESSON_DASHBOARD_RECENT_LIMIT),
+    ]);
     const byStatus = Object.fromEntries(
       Object.values(LessonStatus).map((status) => [status, 0]),
     ) as Record<LessonStatus, number>;
     rows.forEach((row) => {
       byStatus[row.status] = Number(row.count);
     });
-    const recent = await this.repo.findRecentLessons(5);
     return {
       total: Object.values(byStatus).reduce((sum, count) => sum + count, 0),
       byStatus,
+      active,
       recent,
     };
   }

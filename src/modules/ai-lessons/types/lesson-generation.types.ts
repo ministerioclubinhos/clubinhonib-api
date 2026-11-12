@@ -1,6 +1,7 @@
 import {
   LessonStageStatus,
   LessonStageType,
+  LessonStatus,
   LessonVisualOrientation,
   LessonVisualType,
 } from '../enums/lesson.enums';
@@ -145,4 +146,17 @@ export interface LessonEventDigestSource {
     failureMessage: string | null;
   }>;
   commentCount: number;
+}
+
+/**
+ * What the Studio dashboard shows.
+ *
+ * `active` is every lesson still in the works (not published, not archived),
+ * most recently touched first; `recent` is the last few of any status.
+ */
+export interface LessonDashboard<TLesson> {
+  total: number;
+  byStatus: Record<LessonStatus, number>;
+  active: TLesson[];
+  recent: TLesson[];
 }

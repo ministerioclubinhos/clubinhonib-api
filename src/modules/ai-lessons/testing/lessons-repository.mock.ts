@@ -36,6 +36,7 @@ export function createLessonsRepositoryMock(): LessonsRepositoryMock {
     findDraftsPaginated: jest.fn(),
     getDashboardStatusCounts: jest.fn(),
     findRecentLessons: jest.fn(),
+    findLessonsOutsideStatuses: jest.fn(),
     removeLesson: jest.fn(),
     createStage: jest.fn(),
     saveStage: jest.fn(),

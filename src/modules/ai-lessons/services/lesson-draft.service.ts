@@ -6,6 +6,7 @@ import { SaveTiptapContentDto } from '../dto/save-tiptap-content.dto';
 import { LessonEntity } from '../entities/lesson.entity';
 import { LessonStageType, LessonStatus } from '../enums/lesson.enums';
 import type {
+  LessonDashboard,
   LessonDraftPage,
   LessonPdfFile,
   LessonPublicationPreview,
@@ -47,11 +48,7 @@ export class LessonDraftService {
     return this.lessons.getDrafts(query);
   }
 
-  getDashboard(): Promise<{
-    total: number;
-    byStatus: Record<LessonStatus, number>;
-    recent: LessonEntity[];
-  }> {
+  getDashboard(): Promise<LessonDashboard<LessonEntity>> {
     return this.lessons.getDashboard();
   }
 

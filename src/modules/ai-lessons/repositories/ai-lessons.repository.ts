@@ -190,6 +190,20 @@ export class AiLessonsRepository {
       .getMany();
   }
 
+  /** Lessons still in the works, most recently touched first. */
+  async findLessonsOutsideStatuses(
+    excluded: readonly LessonStatus[],
+    limit: number,
+  ): Promise<LessonEntity[]> {
+    return this.lessonsRepo
+      .createQueryBuilder('lesson')
+      .leftJoinAndSelect('lesson.stages', 'stages')
+      .where('lesson.status NOT IN (:...excluded)', { excluded })
+      .orderBy('lesson.updatedAt', 'DESC')
+      .take(limit)
+      .getMany();
+  }
+
   async removeLesson(
     lesson: LessonEntity,
     manager?: EntityManager,
