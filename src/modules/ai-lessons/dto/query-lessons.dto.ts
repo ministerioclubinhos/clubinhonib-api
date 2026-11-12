@@ -46,6 +46,9 @@ export class QueryLessonsDto {
   @IsEnum(LessonStatus, { each: true })
   statuses?: LessonStatus[];
 
+  /** Lessons planned for this week number; used to warn about a repeated week. */
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) weekNumber?: number;
+
   @IsOptional() @IsString() @MaxLength(200) search?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) page = 1;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(50) limit = 10;

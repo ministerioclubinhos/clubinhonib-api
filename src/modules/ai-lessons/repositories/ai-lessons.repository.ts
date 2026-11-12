@@ -140,8 +140,17 @@ export class AiLessonsRepository {
   async findDraftsPaginated(
     params: QueryLessonsDto,
   ): Promise<{ items: LessonEntity[]; total: number }> {
-    const { status, statuses, category, search, page, limit, sort, order } =
-      params;
+    const {
+      status,
+      statuses,
+      category,
+      weekNumber,
+      search,
+      page,
+      limit,
+      sort,
+      order,
+    } = params;
 
     const query = this.lessonsRepo
       .createQueryBuilder('lesson')
@@ -158,6 +167,9 @@ export class AiLessonsRepository {
     }
     if (category) {
       query.andWhere('lesson.category = :category', { category });
+    }
+    if (weekNumber !== undefined) {
+      query.andWhere('lesson.weekNumber = :weekNumber', { weekNumber });
     }
     if (search?.trim()) {
       query.andWhere(

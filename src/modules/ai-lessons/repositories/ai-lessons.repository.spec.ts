@@ -142,6 +142,44 @@ describe('AiLessonsRepository relation binding', () => {
     );
   });
 
+  it('filtra pela semana quando ela é informada, e só então', async () => {
+    const build = () => ({
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      addOrderBy: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
+    });
+    const base = {
+      page: 1,
+      limit: 10,
+      sort: LessonSortField.UPDATED_AT,
+      order: SortOrder.DESC,
+    };
+    const withWeek = build();
+    (
+      mockLessonsRepo as unknown as { createQueryBuilder: jest.Mock }
+    ).createQueryBuilder = jest.fn().mockReturnValue(withWeek);
+
+    await repository.findDraftsPaginated({ ...base, weekNumber: 12 });
+
+    expect(withWeek.andWhere).toHaveBeenCalledWith(
+      'lesson.weekNumber = :weekNumber',
+      { weekNumber: 12 },
+    );
+
+    const withoutWeek = build();
+    (
+      mockLessonsRepo as unknown as { createQueryBuilder: jest.Mock }
+    ).createQueryBuilder = jest.fn().mockReturnValue(withoutWeek);
+
+    await repository.findDraftsPaginated(base);
+
+    expect(withoutWeek.andWhere).not.toHaveBeenCalled();
+  });
+
   describe('leases', () => {
     type SetValues = Record<string, unknown>;
     const updateBuilder = (affected: number) => {
