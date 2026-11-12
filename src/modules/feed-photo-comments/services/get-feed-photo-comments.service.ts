@@ -62,8 +62,15 @@ export class GetFeedPhotoCommentsService {
     return actor;
   }
 
+  async isFeatureEnabled(
+    key: FeatureFlagKeys,
+    role?: UserRole,
+  ): Promise<boolean> {
+    return this.flags.isEnabled(key, role);
+  }
+
   async requireFeature(key: FeatureFlagKeys, role?: UserRole): Promise<void> {
-    if (!(await this.flags.isEnabled(key, role)))
+    if (!(await this.isFeatureEnabled(key, role)))
       throw new AppForbiddenException(
         ErrorCode.FEATURE_DISABLED,
         'Este recurso está temporariamente indisponível.',

@@ -27,6 +27,16 @@ export enum FeatureFlagKeys {
    */
   CLUB_WEEKLY_SUMMARY = 'club_weekly_summary',
   PAGELAS = 'pagelas',
+  /**
+   * A central de notificações nova (sininho). Desligada, o frontend volta ao
+   * sininho anterior e a API recusa a fachada `/notifications`; o histórico e
+   * os estados de leitura continuam intactos.
+   */
+  NOTIFICATION_CENTER_V2 = 'notification_center_v2',
+  /** Permite oferecer o som dos avisos no site. Cada pessoa ainda precisa ligá-lo. */
+  NOTIFICATION_SOUND = 'notification_sound',
+  /** Permite oferecer as notificações do navegador. Cada pessoa ainda precisa permitir. */
+  BROWSER_NOTIFICATIONS = 'browser_notifications',
 
   /**
    * Uma chave por e-mail que a aplicação dispara.

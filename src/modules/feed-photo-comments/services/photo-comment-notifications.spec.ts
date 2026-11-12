@@ -53,7 +53,10 @@ describe('Photo comment notification inbox', () => {
   });
   it('only lists the current owner and exposes an explicit safe DTO with unread count', async () => {
     const result = await get.findMine(query, 'owner');
-    expect(repo.findPage).toHaveBeenCalledWith('owner', query);
+    expect(repo.findPage).toHaveBeenCalledWith('owner', {
+      ...query,
+      unreadOnly: false,
+    });
     expect(repo.countUnread).toHaveBeenCalledWith('owner');
     expect(result).toMatchObject({
       page: 2,

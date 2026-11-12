@@ -1,5 +1,16 @@
 # 📋 Compilation of Implemented Rules
 
+## Notification center (bell)
+
+`/notifications/me` is a facade over existing notice sources, gated by
+`notification_center_v2` (seeded for admins). The recipient always comes from
+the session; foreign/missing notices return 404. Lists are lean (no comment
+text or reason), filters run in SQL before pagination, and `unreadCount` is
+independent of filters. Bulk read updates only a locked snapshot of unread ids
+in one transaction. A disabled source flag omits the source. Sound and browser
+notification flags (`notification_sound`, `browser_notifications`) start off.
+See [notifications.md](notifications.md).
+
 ## Feed photo comments
 
 Active users can submit comments on individual feed photos and videos. Every new comment

@@ -1,11 +1,23 @@
 import { Injectable } from '@nestjs/common';
 import { FeatureFlagKeys } from 'src/core/feature-flags/enums/feature-flag-keys.enum';
+import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import { PhotoCommentNotificationsRepository } from '../repositories/photo-comment-notifications.repository';
 import { GetFeedPhotoCommentsService } from './get-feed-photo-comments.service';
-import { PhotoCommentNotificationsPageDto } from '../dto/photo-comment-notification.dto';
+import {
+  PhotoCommentNotificationDto,
+  PhotoCommentNotificationsPageDto,
+  PhotoCommentNotificationSummaryDto,
+} from '../dto/photo-comment-notification.dto';
 import { QueryPhotoCommentsDto } from '../dto/query-photo-comments.dto';
-import { PhotoCommentActor } from '../types';
-import { toPhotoCommentNotification } from '../utils';
+import {
+  PhotoCommentActor,
+  PhotoCommentInboxAccess,
+  PhotoCommentNotificationPageQuery,
+} from '../types';
+import {
+  toPhotoCommentNotification,
+  toPhotoCommentNotificationRecent,
+} from '../utils';
 
 @Injectable()
 export class GetPhotoCommentNotificationsService {
@@ -23,14 +35,36 @@ export class GetPhotoCommentNotificationsService {
     return actor;
   }
 
+  /**
+   * Usado pela central comum: conta inativa continua sendo erro
+   * (`USER_INACTIVE`), mas a origem desligada por flag apenas fica
+   * indisponível, para a central omiti-la sem falhar.
+   */
+  async resolveInboxAccess(userId: string): Promise<PhotoCommentInboxAccess> {
+    const actor = await this.comments.requireActiveActor(userId);
+    const available = await this.comments.isFeatureEnabled(
+      FeatureFlagKeys.CLUBINHO_FEED,
+      actor.role,
+    );
+    return { actor, available };
+  }
+
   async findMine(
     query: QueryPhotoCommentsDto,
     userId: string,
   ): Promise<PhotoCommentNotificationsPageDto> {
     const actor = await this.requireActor(userId);
+    return this.findPageFor(actor.userId, { ...query, unreadOnly: false });
+  }
+
+  /** Página da inbox de um destinatário cujo acesso já foi verificado. */
+  async findPageFor(
+    recipientId: string,
+    query: PhotoCommentNotificationPageQuery,
+  ): Promise<PhotoCommentNotificationsPageDto> {
     const [[rows, total], unreadCount] = await Promise.all([
-      this.repository.findPage(actor.userId, query),
-      this.repository.countUnread(actor.userId),
+      this.repository.findPage(recipientId, query),
+      this.repository.countUnread(recipientId),
     ]);
     const page = new PhotoCommentNotificationsPageDto(
       rows.map(toPhotoCommentNotification),
@@ -40,5 +74,31 @@ export class GetPhotoCommentNotificationsService {
     );
     page.unreadCount = unreadCount;
     return page;
+  }
+
+  async findOneFor(
+    id: string,
+    recipientId: string,
+  ): Promise<PhotoCommentNotificationDto> {
+    const notice = await this.repository.findOwned(id, recipientId);
+    if (!notice)
+      throw new AppNotFoundException(
+        ErrorCode.RESOURCE_NOT_FOUND,
+        'Notificação não encontrada.',
+      );
+    return toPhotoCommentNotification(notice);
+  }
+
+  async summarizeFor(
+    recipientId: string,
+  ): Promise<PhotoCommentNotificationSummaryDto> {
+    const [aggregate, recent] = await Promise.all([
+      this.repository.aggregate(recipientId),
+      this.repository.findRecentUnread(recipientId),
+    ]);
+    return {
+      ...aggregate,
+      recentUnread: recent.map(toPhotoCommentNotificationRecent),
+    };
   }
 }

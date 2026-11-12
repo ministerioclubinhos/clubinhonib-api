@@ -12,3 +12,15 @@ export class PhotoCommentNotificationDto {
 export class PhotoCommentNotificationsPageDto extends Paginated<PhotoCommentNotificationDto> {
   unreadCount: number;
 }
+
+export class PhotoCommentNotificationRecentDto {
+  id: string;
+  createdAt: string;
+}
+
+export class PhotoCommentNotificationSummaryDto {
+  total: number;
+  unreadCount: number;
+  lastChangedAt: string | null;
+  recentUnread: PhotoCommentNotificationRecentDto[];
+}

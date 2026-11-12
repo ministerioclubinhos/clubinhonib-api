@@ -44,5 +44,10 @@ import { PhotoCommentNotificationsRepository } from './repositories/photo-commen
     PhotoCommentNotificationsRepository,
     CreatePhotoCommentRejectionEmailService,
   ],
+  /** Contratos públicos consumidos pela central de notificações. */
+  exports: [
+    GetPhotoCommentNotificationsService,
+    UpdatePhotoCommentNotificationsService,
+  ],
 })
 export class FeedPhotoCommentsModule {}

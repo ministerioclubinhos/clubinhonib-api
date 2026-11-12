@@ -96,6 +96,14 @@ Only the active recipient can list or mark notices read; both routes require
 `createdAt` and nullable `readAt`. The list also returns the total unread count,
 independently of pagination. Read updates preserve the first timestamp.
 
+The notification center facade (`/notifications/me`, see
+[notifications.md](notifications.md)) consumes this inbox through the exported
+`GetPhotoCommentNotificationsService`/`UpdatePhotoCommentNotificationsService`
+contracts (`resolveInboxAccess`, `findPageFor`, `findOneFor`, `summarizeFor`,
+`markReadFor`, `markAllReadFor`). There, a disabled `clubinho_feed` omits the
+source instead of failing; the legacy routes above keep returning
+`FEATURE_DISABLED`.
+
 The mobile and desktop navigation bell polls every 30 seconds and refreshes on
 focus/open. It combines existing profile alerts with private photo notices.
 Opening a notice shows its full text and reason; “Entendi” persists its read

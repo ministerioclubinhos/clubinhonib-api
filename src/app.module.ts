@@ -27,6 +27,7 @@ import { ContactModule } from './modules/contacts/contact.module';
 import { EventModule } from './modules/pages/event-page/event.module';
 import { CommentModule } from './modules/comments/comment.module';
 import { FeedPhotoCommentsModule } from './modules/feed-photo-comments/feed-photo-comments.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { DocumentModule } from './modules/documents/documents.module';
 import { IdeasPageModule } from './modules/pages/ideas-page/ideas-page.module';
 import { InformativeModule } from './modules/informatives/informative.module';
@@ -77,6 +78,7 @@ import { AiLessonsModule } from './modules/ai-lessons/ai-lessons.module';
     EventModule,
     CommentModule,
     FeedPhotoCommentsModule,
+    NotificationsModule,
     DocumentModule,
     IdeasPageModule,
     InformativeModule,

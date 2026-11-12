@@ -151,6 +151,31 @@ export const DEFAULT_FEATURE_FLAGS = [
     targetRoles: ['admin', 'coordinator'],
   },
   {
+    key: 'notification_center_v2',
+    name: 'Central de Notificações',
+    description:
+      'Sininho novo com histórico, filtros e leitura em lote. Desligada, volta o sininho anterior sem perder avisos nem leituras.',
+    enabled: true,
+    /* Liberação controlada: começa pelos administradores. */
+    targetRoles: ['admin'],
+  },
+  {
+    key: 'notification_sound',
+    name: 'Som dos avisos',
+    description:
+      'Oferece o toque curto para novos avisos no site. Cada pessoa liga ou desliga o som no próprio navegador.',
+    enabled: false,
+    targetRoles: [],
+  },
+  {
+    key: 'browser_notifications',
+    name: 'Notificações do navegador',
+    description:
+      'Oferece o aviso do navegador enquanto o site está aberto. Pede permissão só quando a pessoa clica.',
+    enabled: false,
+    targetRoles: [],
+  },
+  {
     key: 'special_family_day',
     name: 'Dia Especial da Família',
     description:
