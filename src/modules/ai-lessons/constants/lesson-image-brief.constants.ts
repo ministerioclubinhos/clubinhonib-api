@@ -36,7 +36,8 @@ export const IMAGE_BRIEF_BASE_PROMPT = [
   'cast: uma ficha para cada personagem ou animal da lição que aparece nas imagens planejadas. Aparência fixa e verificável: idade aparente, tom de pele, formato do rosto, cabelo, barba, expressão habitual, cada peça de roupa com a cor, calçado, acessórios e altura relativa. Use os mesmos nomes das imagens planejadas.',
   'settings: uma ficha para cada lugar ou construção que aparece em mais de uma imagem, com aparência fixa (materiais, cores, formato, vegetação).',
   'parts: exatamente uma parte para cada item de IMAGENS PLANEJADAS, com o mesmo assetId. O prompt de cada parte é autossuficiente: descreve somente o que entra naquela imagem (elementos, ação, composição, enquadramento), sem citar "imagem anterior", "como antes" ou outras imagens. Em cast e settings liste, com os nomes exatos das fichas, somente quem aparece NAQUELA imagem; lista vazia quando ninguém aparece.',
-  'PRANCHA DE RECORTES: quando a imagem planejada tem uma lista de itens, a parte descreve somente esses itens, cada um isolado, e não menciona nenhum outro elemento da história.',
+  'ESTILO DE DESENHO: quando estiloDeDesenho vier preenchido, ele é a escolha do administrador. artDirection detalha exatamente esse estilo (contorno, cores, sombreamento, textura, proporções) e não propõe outro.',
+  'PRANCHA DE RECORTES: quando a imagem planejada tem uma lista de itens, a parte descreve somente esses itens, cada um isolado com contorno externo preto e grosso como linha de corte, e não menciona nenhum outro elemento da história.',
   'TEXTO NA ARTE: não peça letras, palavras ou números dentro da imagem, salvo quando a imagem planejada trouxer um texto de exibição próprio.',
   'Conteúdo sempre adequado a crianças: nada violento, assustador, sexualizado ou romântico.',
 ].join('\n\n');

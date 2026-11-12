@@ -1,3 +1,5 @@
+import { LEGACY_LESSON_VISUAL_STYLE } from '../constants/lesson-visual-style.constants';
+import { resolveLessonVisualStyle } from './story-visual-mode.utils';
 import { LessonImageBriefOrigin } from '../enums/lesson-image-brief.enum';
 import {
   AppBusinessException,
@@ -84,7 +86,7 @@ export function visualChoicesOfContent(
   content: LessonJsonObject | null,
 ): Pick<
   LessonGenerationRequest,
-  'visualType' | 'visualOrientation' | 'visualQuantity'
+  'visualType' | 'visualOrientation' | 'visualQuantity' | 'visualStyle'
 > {
   const config = lessonAsObject(content?.visualConfig);
   return {
@@ -93,6 +95,11 @@ export function visualChoicesOfContent(
       config.orientation as LessonGenerationRequest['visualOrientation'],
     visualQuantity:
       typeof config.quantity === 'number' ? config.quantity : undefined,
+    // Versions made before styles existed keep the style they were drawn in.
+    visualStyle: resolveLessonVisualStyle(
+      config.style,
+      LEGACY_LESSON_VISUAL_STYLE,
+    ),
   };
 }
 

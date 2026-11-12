@@ -3,6 +3,7 @@ import {
   LessonStageType,
   LessonStatus,
   LessonVisualOrientation,
+  LessonVisualStyle,
   LessonVisualType,
 } from '../enums/lesson.enums';
 import { LessonFailureCode } from '../enums/lesson-failure-code.enum';
@@ -39,6 +40,7 @@ export interface LessonGenerationRequest {
   visualType?: LessonVisualType;
   visualOrientation?: LessonVisualOrientation;
   visualQuantity?: number;
+  visualStyle?: LessonVisualStyle;
   frozenProvider?: LessonAttemptProviderMetadata;
   frozenAdminPrompt?: string;
   attempts?: number;
@@ -59,6 +61,7 @@ export interface LessonVisualConfig {
   type: LessonVisualType;
   orientation: LessonVisualOrientation;
   quantity: number;
+  style: LessonVisualStyle;
 }
 
 export interface LessonCanonicalVerse {

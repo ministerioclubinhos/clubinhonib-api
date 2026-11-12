@@ -29,3 +29,7 @@ export const LESSON_STAGE_QUALITY_RULES: Record<LessonStageType, string> = {
   [LessonStageType.MANUAL_WORK]:
     'Explique como realizar a atividade com o desenho fornecido e sua relação com a lição. Garanta áreas adequadas para colorir, margens para impressão e recorte seguro com ajuda de adulto quando necessário; não dependa de peças ou materiais ausentes.',
 };
+
+/** Stage review of the weekly story visuals as complete scenes. */
+export const REGULAR_SCENE_VISUALS_QUALITY_RULE =
+  'Confira que os trechos, juntos, reproduzem a LIÇÃO BÍBLICA inteira na ordem, sem omissão nem repetição, e que cada cena mostra um acontecimento diferente, com os mesmos personagens consistentes e sem elementos ou acontecimentos sem apoio na lição.';

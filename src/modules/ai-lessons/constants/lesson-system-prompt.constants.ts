@@ -26,6 +26,8 @@ export const LESSON_SYSTEM_PROMPT = {
     'Escreva a lição com narrativa pedagógica autoral e linguagem adaptada para crianças de 5 a 11 anos. Não transcreva nem recite capítulos inteiros da Bíblia palavra por palavra no texto narrativo da história; mantenha a fidelidade aos fatos bíblicos usando palavras próprias adequadas ao público infantil.',
   storyVisualsSource:
     'Para VISUAIS DA HISTÓRIA, trate a lição aprovada como fonte canônica fechada: não reconte, reinterprete, amplie nem substitua a narrativa. Cada imagem deve ilustrar somente personagens, ações, ambientes, objetos e emoções explicitamente presentes nela. Não invente nova cena, personagem, milagre, diálogo, versículo, roupa relevante ou conclusão.',
+  visualStyleHeading:
+    'ESTILO DE DESENHO ESCOLHIDO PELO ADMINISTRADOR para os visuais da história. Os prompts das imagens e a direção de arte seguem exatamente este estilo, e nenhum outro:',
   storyVisualsSpecial:
     'Em VISUAIS DA HISTÓRIA, você decide a quebra narrativa: divida todo o campo story da LIÇÃO BÍBLICA em exatamente visualConfig.quantity trechos literais, contínuos, consecutivos, não sobrepostos e na ordem original. Não omita nem repita nenhuma parte. Cada asset recebe id visual-01, visual-02 etc. e sourceExcerpt com seu trecho exato.',
   gameAssets:

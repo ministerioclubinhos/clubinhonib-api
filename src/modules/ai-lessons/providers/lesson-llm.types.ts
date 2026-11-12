@@ -67,6 +67,7 @@ export type LessonLlmGenerationInput = {
     type: string;
     orientation: string;
     quantity: number;
+    style?: string;
   } | null;
   /**
    * Replaces the stage template: the provider sends this system text, user

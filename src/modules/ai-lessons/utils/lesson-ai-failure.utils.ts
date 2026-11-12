@@ -106,6 +106,12 @@ export function describeAiFailure(
     return result(LessonFailureCode.AI_QUEUE_UNAVAILABLE, raw);
   }
 
+  if (/conteúdo estruturado inválido|resposta sem conteúdo/i.test(raw))
+    return result(
+      LessonFailureCode.AI_CONTENT_INVALID,
+      'a IA devolveu uma resposta fora do formato esperado. A versão anterior foi preservada; gere novamente.',
+    );
+
   // A provider failure carries its own code (timeout, quota…) in the message;
   // only a bare gateway error means the provider returned an unusable file.
   if (error instanceof BadGatewayException && !hasUpstreamErrorPayload(raw))

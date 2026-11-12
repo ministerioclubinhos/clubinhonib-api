@@ -1,3 +1,4 @@
+import { lessonVisualStylePrompt } from './story-visual-mode.utils';
 import { createHash } from 'node:crypto';
 import {
   IMAGE_BRIEF_BASE_PROMPT,
@@ -185,6 +186,10 @@ export function buildImageBriefRequest(
       item: source.stage,
       orientacoesDoAdministrador: source.adminGuidance,
       configuracaoVisual: source.visualConfig,
+      estiloDeDesenho:
+        String(source.stage) === String(LessonStageType.LESSON_VISUALS)
+          ? lessonVisualStylePrompt(source.visualConfig?.style)
+          : null,
       conteudoDoItem: JSON.stringify(source.stageContent).slice(
         0,
         LESSON_IMAGE_BRIEF.MAX_STAGE_CONTENT_LENGTH,

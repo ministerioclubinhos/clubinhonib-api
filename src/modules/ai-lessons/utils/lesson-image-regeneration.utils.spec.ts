@@ -109,6 +109,8 @@ describe('apoio à regeneração de imagens', () => {
       visualType: 'CUTOUT_KIT',
       visualOrientation: 'PORTRAIT',
       visualQuantity: 5,
+      // Versions saved before styles existed keep the illustrated style.
+      visualStyle: 'ILLUSTRATED',
     });
     expect(visualChoicesOfContent({}).visualQuantity).toBeUndefined();
   });

@@ -223,3 +223,28 @@ export function serializeTemplate(contract: LessonTemplateContract): string {
 export function templateChecksum(contract: LessonTemplateContract): string {
   return createHash('sha256').update(serializeTemplate(contract)).digest('hex');
 }
+
+/**
+ * Story visuals of a weekly lesson as complete scenes (the alternative to the
+ * cutout kit): one full illustration per literal excerpt of the story.
+ */
+export const REGULAR_SCENE_VISUALS_TEMPLATE: LessonTemplateContract = {
+  key: 'clubinho.lesson-visuals.scenes',
+  version: '1.0.0',
+  stage: LessonStageType.LESSON_VISUALS,
+  exactStructure: [
+    'CENAS COMPLETAS DA HISTÓRIA, NA ORDEM',
+    'TRECHO LITERAL DE CADA CENA',
+    'PERSONAGENS E CONSISTÊNCIA',
+    'TEXTO ALTERNATIVO',
+  ],
+  rules: [
+    ...sharedRules,
+    'Estes são exclusivamente visuais de apoio para o professor contar a história; não são visuais de memorização do versículo.',
+    'O produto são cenas completas: cada imagem ilustra um trecho da LIÇÃO BÍBLICA com ambiente, personagens e a ação principal, em enquadramento claro para o professor mostrar à distância. Não gere pranchas de recorte.',
+    'Divida toda a LIÇÃO BÍBLICA em exatamente visualConfig.quantity trechos literais, contínuos, consecutivos e sem sobreposição; cada asset (visual-01, visual-02 e assim por diante) traz em sourceExcerpt o seu trecho exato.',
+    'Ilustre somente o que o trecho narra. Orientações ao professor entre parênteses e perguntas às crianças não são cena.',
+    'Personagens mantêm o mesmo rosto, roupa e traço em todas as cenas; a primeira cena estabelece a identidade visual.',
+    'Sem texto, legenda, balão ou número dentro da imagem; nada violento, assustador ou sexualizado.',
+  ],
+};

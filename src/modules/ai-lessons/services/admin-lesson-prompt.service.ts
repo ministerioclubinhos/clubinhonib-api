@@ -2,12 +2,15 @@ import { getLessonTemplate } from '../templates/special-lesson-templates';
 import { ConflictException, Injectable } from '@nestjs/common';
 import {
   LESSON_SHARED_QUALITY_RULES,
+  REGULAR_SCENE_VISUALS_QUALITY_RULE,
   LESSON_STAGE_QUALITY_RULES,
 } from '../constants/lesson-quality.constants';
 import {
   ADMIN_PROMPT_CONFLICT,
   LESSON_STAGE_BASE_PROMPTS,
+  REGULAR_SCENE_VISUALS_BASE_PROMPT,
 } from '../constants/lesson-base-prompts.constants';
+import { isCutoutKitVisuals } from '../utils/story-visual-mode.utils';
 import { AdminLessonPromptView } from '../types/admin-lesson-prompt.types';
 
 export { AdminLessonPromptView };
@@ -43,6 +46,8 @@ export class AdminLessonPromptService {
     adminId: string,
     stage: LessonStageType,
     category: LessonCategory = LessonCategory.REGULAR,
+    /** Story visuals only: the chosen format picks the kit or the scenes base. */
+    visualType?: string | null,
   ): Promise<string> {
     const saved = await this.promptsRepo.findByAdminIdAndStage(
       adminId,
@@ -52,7 +57,12 @@ export class AdminLessonPromptService {
     const activeCustom = saved?.customPrompt?.trim()
       ? saved.customPrompt
       : null;
-    return this.composeEffectivePrompt(stage, activeCustom, category);
+    return this.composeEffectivePrompt(
+      stage,
+      activeCustom,
+      category,
+      visualType,
+    );
   }
 
   async save(
@@ -205,9 +215,15 @@ export class AdminLessonPromptService {
   private basePrompt(
     stage: LessonStageType,
     category: LessonCategory = LessonCategory.REGULAR,
+    visualType?: string | null,
   ): string {
     if (category === LessonCategory.SPECIAL)
       return getLessonTemplate(stage, category).rules.join('\n\n');
+    if (
+      stage === LessonStageType.LESSON_VISUALS &&
+      !isCutoutKitVisuals(category, visualType)
+    )
+      return `${REGULAR_SCENE_VISUALS_BASE_PROMPT}\n\nCRITÉRIOS GERAIS DE QUALIDADE PARA TODAS AS ETAPAS\n${LESSON_SHARED_QUALITY_RULES.join('\n')}\n\nREVISÃO ESPECÍFICA DA ETAPA\n${REGULAR_SCENE_VISUALS_QUALITY_RULE}`;
     return `${LESSON_STAGE_BASE_PROMPTS[stage]}\n\nCRITÉRIOS GERAIS DE QUALIDADE PARA TODAS AS ETAPAS\n${LESSON_SHARED_QUALITY_RULES.join('\n')}\n\nREVISÃO ESPECÍFICA DA ETAPA\n${LESSON_STAGE_QUALITY_RULES[stage]}`;
   }
 
@@ -215,8 +231,9 @@ export class AdminLessonPromptService {
     stage: LessonStageType,
     customPrompt: string | null,
     category: LessonCategory = LessonCategory.REGULAR,
+    visualType?: string | null,
   ): string {
-    const basePrompt = this.basePrompt(stage, category);
+    const basePrompt = this.basePrompt(stage, category, visualType);
     if (!customPrompt) return basePrompt;
     return `${basePrompt}\n\nORIENTAÇÃO COMPLEMENTAR DO ADMINISTRADOR\n${customPrompt}\n\nA orientação complementar não substitui estrutura, fidelidade bíblica, segurança infantil, formato de impressão ou critérios editoriais obrigatórios acima.`;
   }

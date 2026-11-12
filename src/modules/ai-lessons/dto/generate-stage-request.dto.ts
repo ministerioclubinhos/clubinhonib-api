@@ -23,6 +23,7 @@ import {
 import {
   LessonStageType,
   LessonVisualOrientation,
+  LessonVisualStyle,
   LessonVisualType,
 } from '../enums/lesson.enums';
 import { LessonView } from '../enums/lesson-failure-code.enum';
@@ -56,6 +57,11 @@ export class GenerateStageRequestDto {
   @Min(LESSON_VISUAL_QUANTITY.MIN)
   @Max(LESSON_VISUAL_QUANTITY.MAX)
   visualQuantity?: number;
+
+  /** Drawing style of the story visuals; defaults to the illustrated style. */
+  @IsOptional()
+  @IsEnum(LessonVisualStyle)
+  visualStyle?: LessonVisualStyle;
 }
 
 /** Stage action bound to the version the user is looking at. */

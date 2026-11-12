@@ -1,3 +1,4 @@
+import { withLessonVisualStyle } from '../utils/story-visual-mode.utils';
 import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import {
@@ -342,6 +343,8 @@ export class LessonAssetGenerationService {
   ): Promise<Buffer> {
     const orientation = lessonString(visualConfig.orientation);
     const visualType = lessonString(visualConfig.type);
+    if (type === LessonStageType.LESSON_VISUALS)
+      imagePrompt = withLessonVisualStyle(imagePrompt, visualConfig.style);
     if (isCutoutKit)
       return llmProvider.generateImage(
         imagePrompt,

@@ -1,3 +1,4 @@
+import { LessonStageType } from '../enums/lesson.enums';
 export const LESSON_LLM_PROVIDER = Symbol('LESSON_LLM_PROVIDER');
 
 export const GEMINI_API_BASE_URL =
@@ -28,8 +29,12 @@ export const PROVIDER_IMAGE = {
 
 export const PROVIDER_REQUEST = {
   textTimeoutMs: 120_000,
-  /** Item 1 writes a full 1.500–2.000-word lesson plus a self-review; 120 s was not enough. */
-  lessonTextTimeoutMs: 300_000,
+  /**
+   * Items whose answer is long: the full lesson (1.500–2.000 words plus a
+   * self-review) and the story visuals (kit inventory with evidence, or the
+   * whole story split in excerpts). 120 s was not enough for either.
+   */
+  longTextTimeoutMs: 300_000,
   imageTimeoutMs: 180_000,
   retryJitterMs: 250,
 } as const;
@@ -63,6 +68,13 @@ export const PROVIDER_TIMEOUT_NETWORK_CODES = [
   'ETIMEDOUT',
 ] as const;
 export const PROVIDER_TIMEOUT_FAILURE_CODE = 'deadline_exceeded';
+/** Characters kept from each end of an unreadable structured answer in the log. */
+export const PROVIDER_JSON_DIAGNOSTIC_EDGE = 160;
+/** Stages that get `PROVIDER_REQUEST.longTextTimeoutMs`. */
+export const LONG_TEXT_STAGES: readonly LessonStageType[] = [
+  LessonStageType.LESSON,
+  LessonStageType.LESSON_VISUALS,
+];
 
 export enum LessonImageOrientation {
   PORTRAIT = 'PORTRAIT',

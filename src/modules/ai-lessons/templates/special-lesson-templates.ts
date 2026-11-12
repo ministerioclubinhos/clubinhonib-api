@@ -4,7 +4,12 @@ import {
 } from '../constants/lesson-editorial.constants';
 import { LESSON_SHARED_QUALITY_RULES } from '../constants/lesson-quality.constants';
 import { LessonCategory, LessonStageType } from '../enums/lesson.enums';
-import { LESSON_TEMPLATES, LessonTemplateContract } from './lesson-templates';
+import { isCutoutKitVisuals } from '../utils/story-visual-mode.utils';
+import {
+  LESSON_TEMPLATES,
+  LessonTemplateContract,
+  REGULAR_SCENE_VISUALS_TEMPLATE,
+} from './lesson-templates';
 
 const specialQualityRules = LESSON_SHARED_QUALITY_RULES.map((rule) =>
   rule.replace(
@@ -49,10 +54,16 @@ const specialVisuals: LessonTemplateContract = {
 export function getLessonTemplate(
   stage: LessonStageType,
   category?: LessonCategory,
+  visualType?: string | null,
 ): LessonTemplateContract {
   if (category === LessonCategory.SPECIAL) {
     if (stage === LessonStageType.LESSON) return specialLesson;
     if (stage === LessonStageType.LESSON_VISUALS) return specialVisuals;
   }
+  if (
+    stage === LessonStageType.LESSON_VISUALS &&
+    !isCutoutKitVisuals(category, visualType)
+  )
+    return REGULAR_SCENE_VISUALS_TEMPLATE;
   return LESSON_TEMPLATES[stage];
 }

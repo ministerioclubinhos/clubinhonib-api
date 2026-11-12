@@ -1,10 +1,11 @@
+import { CUTOUT_CUT_LINE_RULE } from '../constants/lesson-visual-style.constants';
 import { LessonImagePurpose } from '../providers/lesson-llm.types';
 
 export function lessonImageTextPolicy(purpose?: LessonImagePurpose): string {
   if (purpose === LessonImagePurpose.MANUAL_COLORING)
     return 'Imagem para pintar: somente contornos pretos, interiores brancos e fundo branco puro. Sem cores, cinza, sombras, texturas, preenchimentos, letras ou logotipos.';
   if (purpose === LessonImagePurpose.CUTOUT_SHEET)
-    return 'Sem letras, números, logotipos ou legendas. Elementos isolados em fundo branco puro.';
+    return `Sem letras, números, logotipos ou legendas. Elementos isolados em fundo branco puro. ${CUTOUT_CUT_LINE_RULE}`;
   return purpose === LessonImagePurpose.MEDITATION_ACTIVITY
     ? 'Letras, números e rótulos curtos são permitidos somente quando indispensáveis ao enigma descrito, em português e legíveis. Não acrescente texto editorial, logotipos, marcas nem gabarito.'
     : 'Sem letras, palavras, números, logotipos ou marcas.';

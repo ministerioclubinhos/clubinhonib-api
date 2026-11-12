@@ -77,6 +77,16 @@ export enum LessonVisualType {
   INTERACTIVE_COLORING = 'INTERACTIVE_COLORING',
 }
 
+/** Drawing style of the story visuals, independent of the format (kit or scenes). */
+export enum LessonVisualStyle {
+  /** Cute cartoon for young children (big heads and eyes, bright colours): the default. */
+  CUTE_CARTOON = 'CUTE_CARTOON',
+  /** Soft children's-book painting: the style used before styles could be chosen. */
+  ILLUSTRATED = 'ILLUSTRATED',
+  /** Bold black outline and flat colours, like the manual kits of the archive. */
+  CLASSIC_CARTOON = 'CLASSIC_CARTOON',
+}
+
 export enum CutoutCategory {
   CHARACTERS = 'CHARACTERS',
   ANIMALS = 'ANIMALS',

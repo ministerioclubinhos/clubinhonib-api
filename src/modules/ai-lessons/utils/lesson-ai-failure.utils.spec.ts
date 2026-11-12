@@ -25,4 +25,14 @@ describe('describeAiFailure', () => {
     );
     expect(failure.code).toBe(LessonFailureCode.AI_IMAGE_INVALID);
   });
+  it('classifica JSON malformado como conteúdo inválido, não como imagem', () => {
+    const failure = describeAiFailure(
+      LessonStageType.LESSON_VISUALS,
+      new BadGatewayException(
+        'OpenAI retornou conteúdo estruturado inválido (JSON malformado).',
+      ),
+      { provider: 'OpenAI' },
+    );
+    expect(failure.code).toBe(LessonFailureCode.AI_CONTENT_INVALID);
+  });
 });

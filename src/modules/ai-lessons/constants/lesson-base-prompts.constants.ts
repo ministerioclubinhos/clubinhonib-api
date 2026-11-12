@@ -30,10 +30,11 @@ CONTINUIDADE VISUAL
 - Crie antes uma ficha mental consistente para cada personagem: faixa etária, pele, cabelo, roupa, cores, acessórios e expressão típica.
 - Preserve esses atributos em todas as pranchas. Não troque roupa, idade, etnia ou traço sem motivo narrativo.
 - Preserve época e ambiente bíblicos. Evite objetos modernos, arquitetura incompatível, estereótipos e símbolos religiosos anacrônicos.
-- Use estilo de ilustração bíblica infantil, acolhedor e expressivo, com cores claras, luminosas e suaves, contornos nítidos e contraste suficiente para impressão e recorte.
+- Siga o ESTILO DE DESENHO escolhido pelo administrador, descrito no prompt de sistema, sempre com contornos nítidos e contraste suficiente para impressão e recorte.
 
 REGRAS DE ARTE
 - Nunca coloque palavras, versículos, legendas, balões, números, marcas, molduras ou logotipos dentro da imagem gerada; as legendas são aplicadas depois pelo sistema.
+- Cada elemento tem linha de corte: contorno externo preto, grosso e contínuo em volta de toda a silhueta, para recortar com tesoura.
 - Elementos grandes e bem separados, com margem para recorte e longe das bordas. Nunca encolha um elemento para caber: reorganize as pranchas e descreva o tamanho relativo em layoutPlan.
 - Não represente Deus Pai fisicamente. Trate cenas sensíveis com reverência e adequação infantil.
 - Não altere fatos, diálogos ou ênfase teológica já aprovados na lição.
@@ -140,3 +141,27 @@ export const ADMIN_PROMPT_CONFLICT = {
   reset:
     'O prompt foi alterado em outra sessão. Recarregue antes de redefinir.',
 } as const;
+
+/** Base prompt of the story visuals when a weekly lesson chooses complete scenes instead of the kit. */
+export const REGULAR_SCENE_VISUALS_BASE_PROMPT = `Produza somente os VISUAIS DA HISTÓRIA da lição aprovada como CENAS COMPLETAS do Clubinho Bíblico NIB. Estes visuais auxiliam o professor a contar a narrativa e são diferentes dos visuais de fixação do versículo.
+
+OBJETIVO
+- Entregue uma ilustração completa por trecho da LIÇÃO BÍBLICA aprovada: ambiente, personagens e a ação principal daquele momento, com enquadramento claro para o professor mostrar à distância. Não gere pranchas de recorte nem elementos soltos.
+- As cenas destinam-se a crianças de 5 a 11 anos e devem permanecer apropriadas para essa idade, sem sexualização, romance, violência gráfica ou elementos assustadores desnecessários.
+
+CONFIGURAÇÃO ESCOLHIDA PELO ADMINISTRADOR
+- Respeite exatamente a quantidade de 4 a 10 cenas e a orientação recebidas em visualConfig. Não escolha valores diferentes.
+- Use ids sequenciais visual-01, visual-02 e assim por diante.
+- Divida toda a LIÇÃO BÍBLICA em trechos literais, contínuos, consecutivos e sem sobreposição, um por cena, em sourceExcerpt. Juntos, os trechos reproduzem a história inteira, sem omitir, repetir ou reescrever nada.
+- Escolha os cortes nos momentos que mudam a cena (lugar, personagem ou ação principal), para cada imagem mostrar um acontecimento diferente.
+
+CONTINUIDADE VISUAL
+- Crie antes uma ficha consistente para cada personagem: faixa etária, pele, cabelo, roupa, cores, acessórios e expressão típica, e preserve-a em todas as cenas.
+- Preserve época e ambiente bíblicos. Evite objetos modernos, arquitetura incompatível, estereótipos e símbolos religiosos anacrônicos.
+- Siga o ESTILO DE DESENHO escolhido pelo administrador, descrito no prompt de sistema, com contraste suficiente para impressão.
+
+REGRAS DE ARTE
+- Nunca coloque palavras, versículos, legendas, balões, números, marcas, molduras ou logotipos dentro da imagem.
+- Ilustre somente o que o trecho narra; orientações ao professor entre parênteses e perguntas às crianças não são cena.
+- Não represente Deus Pai fisicamente. Trate cenas sensíveis com reverência e adequação infantil, sem detalhes assustadores.
+- A lição aprovada é a única fonte narrativa: não altere fatos, diálogos ou ênfase teológica nem preencha lacunas criativamente.`;

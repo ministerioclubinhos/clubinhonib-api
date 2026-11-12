@@ -11,6 +11,10 @@ import { OlderMeditationReviewPhase } from '../enums/older-meditation.enums';
 import { LessonLlmGenerationInput } from '../providers/lesson-llm.types';
 import { serializeTemplate } from '../templates/lesson-templates';
 import { getLessonTemplate } from '../templates/special-lesson-templates';
+import {
+  isCutoutKitVisuals,
+  lessonVisualStylePrompt,
+} from './story-visual-mode.utils';
 
 /**
  * System prompt shared by OpenAI and Gemini. Only the rules of the requested
@@ -45,12 +49,13 @@ export function buildLessonSystemPrompt(
     ...(stage === LessonStageType.LESSON_VISUALS
       ? [
           P.storyVisualsSource,
-          special
-            ? P.storyVisualsSpecial
-            : cutoutKitPromptRules(
+          isCutoutKitVisuals(input.category, input.visualConfig?.type)
+            ? cutoutKitPromptRules(
                 input.visualConfig?.quantity ??
                   LESSON_PROMPT_LIMITS.cutoutDefaultQuantity,
-              ),
+              )
+            : P.storyVisualsSpecial,
+          `${P.visualStyleHeading}\n${lessonVisualStylePrompt(input.visualConfig?.style)}`,
         ]
       : []),
     ...(LESSON_GAME_STAGES.includes(stage)

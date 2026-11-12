@@ -1,5 +1,10 @@
 import type { LessonStructuredRequest } from '../types/lesson-image-brief.types';
+import {
+  parseProviderJsonObject,
+  providerJsonDiagnostic,
+} from '../utils/provider-json.utils';
 import { providerTextTimeoutMs } from '../utils/provider-timeout.utils';
+import { isCutoutKitVisuals } from '../utils/story-visual-mode.utils';
 import { AiQueueException } from 'src/shared/providers/ai-queue/ai-queue.exception';
 import { AiRequestQueueService } from 'src/shared/providers/ai-queue/ai-request-queue.service';
 import { AiQueueFeature } from 'src/shared/providers/ai-queue/enums';
@@ -250,6 +255,8 @@ export function schemaFor(
   stage: LessonStageType,
   reviewOlder = false,
   category: LessonCategory = LessonCategory.REGULAR,
+  /** Story visuals: the chosen format (kit or scenes) decides the schema. */
+  visualType?: string | null,
 ): Record<string, unknown> {
   if (stage === LessonStageType.MEDITATION_OLDER && reviewOlder)
     return OLDER_MEDITATION_REVIEW_SCHEMA;
@@ -338,7 +345,7 @@ export function schemaFor(
     };
   if (
     stage === LessonStageType.LESSON_VISUALS &&
-    category !== LessonCategory.SPECIAL
+    isCutoutKitVisuals(category, visualType)
   )
     return CUTOUT_KIT_SCHEMA;
   if (stage === LessonStageType.LESSON_VISUALS)
@@ -666,6 +673,7 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
                     input.stage,
                     Boolean(input.olderMeditationReview),
                     input.category,
+                    input.visualConfig?.type,
                   ),
               },
             },
@@ -694,10 +702,10 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
         throw new BadGatewayException(
           `OpenAI recusou a geração: ${JSON.stringify({ error: { code: 'content_blocked' } })}`,
         );
-      const block = blocks.find(
-        (item) => item.type === OPENAI_API.textBlock || item.text,
-      );
-      const raw = response.data.output_text ?? block?.text;
+      const textBlocks = blocks
+        .filter((item) => item.type === OPENAI_API.textBlock || item.text)
+        .map((item) => item.text ?? '');
+      const raw = response.data.output_text ?? textBlocks.join('');
       if (!raw || !response.data.id)
         throw new BadGatewayException(
           'OpenAI retornou resposta sem conteúdo ou identificador.',
@@ -707,7 +715,10 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
         `[OpenAI Response] Etapa '${input.stage}' gerada em ${elapsed}ms | Response ID: ${response.data.id}`,
       );
       return {
-        content: this.parseStructured(raw),
+        content: this.parseStructured(
+          [response.data.output_text, textBlocks.join(''), ...textBlocks],
+          input.stage,
+        ),
         responseId: response.data.id,
         usage: {
           model,
@@ -750,14 +761,16 @@ export class OpenAiLessonService implements LessonLlmProviderContract {
       : OPENAI_MAX_OUTPUT_TOKENS.default;
   }
 
-  private parseStructured(raw: string): Record<string, unknown> {
-    try {
-      const parsed: unknown = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed))
-        return parsed as Record<string, unknown>;
-    } catch {
-      // Reported below with a stable message.
-    }
+  private parseStructured(
+    candidates: ReadonlyArray<string | undefined>,
+    stage: LessonStageType,
+  ): Record<string, unknown> {
+    const parsed = parseProviderJsonObject(candidates);
+    if (parsed) return parsed;
+    // The raw answer is not stored anywhere else: this line is what explains the failure.
+    this.logger.error(
+      `[OpenAI Error] Etapa '${stage}' devolveu JSON ilegível: ${providerJsonDiagnostic(candidates.slice(2).filter((text): text is string => typeof text === 'string'))}`,
+    );
     throw new BadGatewayException(
       'OpenAI retornou conteúdo estruturado inválido (JSON malformado).',
     );

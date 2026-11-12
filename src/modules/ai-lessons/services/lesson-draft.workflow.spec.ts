@@ -633,7 +633,8 @@ describe('LessonDraftService studio workflow', () => {
           LESSON_ID,
           {
             stage: LessonStageType.LESSON_VISUALS,
-            visualType: LessonVisualType.STORY_SEQUENCE,
+            // Weekly lessons accept the kit or complete scenes, nothing else.
+            visualType: LessonVisualType.CHARACTER_AND_EMOTION,
             visualOrientation: LessonVisualOrientation.LANDSCAPE,
             visualQuantity: 6,
           },

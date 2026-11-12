@@ -322,7 +322,12 @@ export class LessonGenerationService
     if (type === LessonStageType.LESSON_VISUALS)
       validateVisualConfig(dto, header.category);
     const { frozenAdminPrompt, frozenProvider } =
-      await this.freezeGenerationContext(userId, type, header.category);
+      await this.freezeGenerationContext(
+        userId,
+        type,
+        header.category,
+        dto.visualType,
+      );
 
     await this.openGenerationRequest(id, type, userId, (lockedStage) => ({
       stage: type,
@@ -330,6 +335,7 @@ export class LessonGenerationService
       visualType: dto.visualType,
       visualOrientation: dto.visualOrientation,
       visualQuantity: dto.visualQuantity,
+      visualStyle: dto.visualStyle,
       frozenProvider,
       frozenAdminPrompt,
       attempts: 0,
@@ -367,7 +373,12 @@ export class LessonGenerationService
     const plan = planImageRegeneration(type, content, dto.assetIds);
     const upstream = assertLessonDependency(current, type);
     const { frozenAdminPrompt, frozenProvider } =
-      await this.freezeGenerationContext(userId, type, current.category);
+      await this.freezeGenerationContext(
+        userId,
+        type,
+        current.category,
+        visualChoicesOfContent(content).visualType,
+      );
 
     await this.openGenerationRequest(id, type, userId, (lockedStage) => {
       // The plan was built outside the lock: it only holds for that version.
@@ -471,8 +482,12 @@ export class LessonGenerationService
             : 'Este item está em revisão. Devolva o item com um pedido de ajustes antes de gerar novamente.',
         );
       assertPreviousStageCompleted(locked, type);
-      const activeTemplate = getLessonTemplate(type, locked.category);
       const request = buildRequest(lockedStage);
+      const activeTemplate = getLessonTemplate(
+        type,
+        locked.category,
+        request.visualType ?? null,
+      );
       lockedStage.status = LessonStageStatus.GENERATING;
       await this.repo.updateStage(
         lockedStage.id,
@@ -504,6 +519,7 @@ export class LessonGenerationService
     userId: string,
     type: LessonStageType,
     category: LessonCategory,
+    visualType?: string | null,
   ): Promise<{
     frozenAdminPrompt: string;
     frozenProvider?: LessonAttemptProviderMetadata;
@@ -513,6 +529,7 @@ export class LessonGenerationService
         userId,
         type,
         category,
+        visualType,
       );
       const snapshot = await this.resolveAttemptProvider();
       return { frozenAdminPrompt, frozenProvider: snapshot.metadata };
@@ -729,7 +746,11 @@ export class LessonGenerationService
       const upstreamChecksum = upstream
         ? lessonContentChecksum(upstream)
         : null;
-      const template = getLessonTemplate(type, lesson.category);
+      const template = getLessonTemplate(
+        type,
+        lesson.category,
+        request.visualType ?? null,
+      );
       const visualConfig =
         type === LessonStageType.LESSON_VISUALS
           ? validateVisualConfig(request, lesson.category)
@@ -740,7 +761,12 @@ export class LessonGenerationService
       const attemptLlm = attemptSnapshot.provider;
       const adminPrompt =
         request.frozenAdminPrompt ??
-        (await this.adminPrompts.effective(userId, type, lesson.category));
+        (await this.adminPrompts.effective(
+          userId,
+          type,
+          lesson.category,
+          visualConfig?.type,
+        ));
       const approvedLessonStage = lesson.stages.find(
         (item) => item.type === LessonStageType.LESSON,
       );

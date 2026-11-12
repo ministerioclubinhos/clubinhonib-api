@@ -146,6 +146,7 @@ export class GeminiLessonLlmProvider implements LessonLlmProviderContract {
                     input.stage,
                     Boolean(input.olderMeditationReview),
                     input.category,
+                    input.visualConfig?.type,
                   ),
               },
             },

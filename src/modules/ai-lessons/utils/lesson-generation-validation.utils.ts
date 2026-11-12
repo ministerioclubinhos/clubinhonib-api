@@ -19,7 +19,9 @@ import {
   LessonStageType,
   LessonVisualType,
 } from '../enums/lesson.enums';
+import { REGULAR_STORY_VISUAL_TYPES } from '../constants/lesson-visual-style.constants';
 import { lessonNarrativeIssue } from '../lessonNarrative.utils';
+import { resolveLessonVisualStyle } from './story-visual-mode.utils';
 import type {
   LessonGenerationRequest,
   LessonJsonObject,
@@ -37,7 +39,7 @@ import { lessonAsObject, lessonCurrentContent } from './lesson-workflow.utils';
 export function validateVisualConfig(
   dto: Pick<
     LessonGenerationRequest,
-    'visualType' | 'visualOrientation' | 'visualQuantity'
+    'visualType' | 'visualOrientation' | 'visualQuantity' | 'visualStyle'
   >,
   category?: LessonCategory | null,
 ): LessonVisualConfig {
@@ -56,10 +58,10 @@ export function validateVisualConfig(
       ErrorCode.LESSON_INVALID_REQUEST,
       'Escolha o tipo pedagógico, a orientação e a quantidade de 4 a 10 imagens.',
     );
-  if (!isSpecial && visualType !== LessonVisualType.CUTOUT_KIT)
+  if (!isSpecial && !REGULAR_STORY_VISUAL_TYPES.includes(visualType))
     throw new AppBusinessException(
       ErrorCode.LESSON_INVALID_REQUEST,
-      'Os visuais da lição agora são gerados como kit de recortes (CUTOUT_KIT).',
+      'Na lição semanal, os visuais da história são um kit de recortes (CUTOUT_KIT) ou cenas completas (STORY_SEQUENCE).',
     );
   if (isSpecial && visualType === LessonVisualType.CUTOUT_KIT)
     throw new AppBusinessException(
@@ -70,6 +72,7 @@ export function validateVisualConfig(
     type: visualType,
     orientation: dto.visualOrientation,
     quantity: dto.visualQuantity,
+    style: resolveLessonVisualStyle(dto.visualStyle),
   };
 }
 

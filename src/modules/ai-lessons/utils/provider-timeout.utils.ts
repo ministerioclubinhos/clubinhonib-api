@@ -1,9 +1,12 @@
 import { LessonStageType } from '../enums/lesson.enums';
-import { PROVIDER_REQUEST } from '../providers/lesson-llm.constants';
+import {
+  LONG_TEXT_STAGES,
+  PROVIDER_REQUEST,
+} from '../providers/lesson-llm.constants';
 
-/** Text deadline of a stage: the lesson is far longer than any other item. */
+/** Text deadline of a stage: the lesson and the story visuals answer far more text. */
 export function providerTextTimeoutMs(stage: LessonStageType): number {
-  return stage === LessonStageType.LESSON
-    ? PROVIDER_REQUEST.lessonTextTimeoutMs
+  return LONG_TEXT_STAGES.includes(stage)
+    ? PROVIDER_REQUEST.longTextTimeoutMs
     : PROVIDER_REQUEST.textTimeoutMs;
 }

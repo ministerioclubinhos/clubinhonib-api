@@ -157,7 +157,7 @@ export function cutoutKitPromptRules(quantity: number): string {
     'Cada item tem label (legenda aplicada depois pelo sistema), description, category, size (LARGE, MEDIUM ou SMALL), storyEvidence (trecho literal da lição que justifica o item; vazio apenas para itens neutros de SKY_AND_NATURE ou extras), variantOf quando for variante (mesmo elemento com outro estado ou pose) e extra true quando for acréscimo além do básico.',
     'Elementos grandes e nítidos para o professor recortar e mostrar à distância: nunca encolha um elemento para caber. Se não couber, reorganize as pranchas e descreva em layoutPlan o tamanho relativo de cada elemento. Não gere elementos minúsculos.',
     'Escala coerente: adulto ≈ 1,0; criança ≈ 0,6; casa ≈ 3,0; árvore ≈ 2,5. Personagens mantêm o mesmo rosto, roupa e traço em todas as pranchas. Nada violento, assustador ou sexualizado e nenhum elemento sem apoio na lição, salvo os neutros de SKY_AND_NATURE.',
-    'Preencha coverageChecklist com as 6 categorias (CHARACTERS, ANIMALS, BUILDINGS, SCENERY, SKY_AND_NATURE, OBJECTS), marcando COVERED ou NOT_APPLICABLE com justificativa. Prompts de imagem não pedem legendas nem texto dentro da arte.',
+    'Preencha coverageChecklist com as 6 categorias (CHARACTERS, ANIMALS, BUILDINGS, SCENERY, SKY_AND_NATURE, OBJECTS), marcando COVERED ou NOT_APPLICABLE com justificativa. Prompts de imagem não pedem legendas nem texto dentro da arte e pedem, em cada elemento, contorno externo preto e grosso como linha de corte.',
   ].join(' ');
 }
 
