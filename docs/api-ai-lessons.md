@@ -25,6 +25,7 @@ Prefixo `/api/v1/lessons`. Todas as rotas exigem JWT e papel de administrador. S
 | --- | --- | --- |
 | `POST /` | `theme` (3–255), `biblicalReference` (3–500), `category?`, `weekNumber`, `specialContext?` | 201. Cria a lição e suas etapas (8 ou 3) em uma transação. |
 | `GET /` | `status?`, `statuses?` (lista separada por vírgula), `category?`, `search?` (≤ 200), `page`, `limit` (1–50), `sort` (`createdAt`, `updatedAt`, `theme`, `weekNumber`), `order` | `{ items, total, page, limit, totalPages }`. Não carrega versões nem comentários. `%` e `_` da busca são tratados literalmente. |
+| `GET /prompt-preferences/me` | `category` | Per-admin guidance, one item per stage: `{ stage, basePrompt, customPrompt, effectivePrompt, lockVersion, updatedAt }`. `updatedAt` (2026-11-11) is when **this admin** last saved or reset the stage, `null` when never customised. |
 | `GET /dashboard` | — | `{ total, byStatus, active, recent }`. `active` (2026-11-11) lists up to 20 lessons still in the works — every status except `PUBLISHED` and `ARCHIVED` — most recently touched first, with their stages; it feeds the Studio work queue. `recent` is the last 5 of any status. |
 | `GET /:id` | `view?` = `full` (padrão) ou `compact` | Leitura pura. `compact` devolve só a versão atual de cada etapa. |
 | `GET /:id/events` | `view?` | SSE; ver [seção 6](#6-eventos-sse). |

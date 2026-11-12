@@ -196,6 +196,9 @@ export class AdminLessonPromptService {
         category,
       ),
       lockVersion: entity?.lockVersion ?? null,
+      updatedAt: entity?.updatedAt
+        ? new Date(entity.updatedAt).toISOString()
+        : null,
     };
   }
 

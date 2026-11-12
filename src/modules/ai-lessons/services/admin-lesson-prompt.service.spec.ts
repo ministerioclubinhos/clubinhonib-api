@@ -133,6 +133,30 @@ describe('AdminLessonPromptService', () => {
     ).toBeNull();
   });
 
+  it('informa quando o administrador salvou a orientação, e nada para quem nunca personalizou', async () => {
+    const [untouched] = await service.list('admin-1');
+    expect(untouched.updatedAt).toBeNull();
+
+    const savedAt = new Date('2026-11-11T15:30:00.000Z');
+    records.push(
+      Object.assign(new AdminLessonPromptEntity(), {
+        id: 'prompt-9',
+        adminId: 'admin-1',
+        stage: LessonStageType.LESSON,
+        customPrompt: 'Use frases curtas e exemplos do dia a dia.',
+        lockVersion: 1,
+        updatedAt: savedAt,
+      }),
+    );
+
+    const [mine] = await service.list('admin-1');
+    const [theirs] = await service.list('admin-2');
+    expect(mine.updatedAt).toBe(savedAt.toISOString());
+    // A orientação é pessoal: outro administrador não a recebe.
+    expect(theirs.updatedAt).toBeNull();
+    expect(theirs.customPrompt).toBeNull();
+  });
+
   it('fornece referências reais e mantém a aula participativa mesmo com personalização', async () => {
     await service.save(
       'admin-a',
