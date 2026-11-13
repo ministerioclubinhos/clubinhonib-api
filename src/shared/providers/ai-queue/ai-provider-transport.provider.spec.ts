@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { ConfigService } from '@nestjs/config';
 import { GetAiProviderSettingsService } from 'src/modules/ai-lessons/services/get-ai-provider-settings.service';
 import { AiProviderTransportProvider } from './ai-provider-transport.provider';
 import {
@@ -18,8 +19,10 @@ describe('queued provider transport', () => {
     getInternalOpenAiSettings: jest.fn(),
     getInternalGeminiSettings: jest.fn(),
   };
+  const liveConfig = { get: jest.fn(() => undefined) };
   const transport = new AiProviderTransportProvider(
     settings as unknown as GetAiProviderSettingsService,
+    liveConfig as unknown as ConfigService,
   );
   const request = (): AiQueueRequest => ({
     provider: AiQueueProviderName.OPENAI,

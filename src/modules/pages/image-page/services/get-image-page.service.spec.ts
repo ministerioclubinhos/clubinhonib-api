@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { AppNotFoundException } from 'src/shared/exceptions';
 import { RouteType } from 'src/modules/routes/route-page.entity';
+import { ImageSectionCelebrationsRepository } from '../repositories/image-section-celebrations.repository';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { ImagePageRepository } from '../repositories/image-page.repository';
 import { ImagePageEntity } from '../entity/Image-page.entity';
@@ -54,18 +55,24 @@ describe('ImagePageGetService', () => {
     findSectionsPaginated: jest.fn(),
   };
   const mediaItemProcessor = { findManyMediaItemsByTargets: jest.fn() };
+  const celebrations = { findBySections: jest.fn() };
 
   let service: ImagePageGetService;
 
   beforeEach(async () => {
     jest.clearAllMocks();
     mediaItemProcessor.findManyMediaItemsByTargets.mockResolvedValue([]);
+    celebrations.findBySections.mockResolvedValue([]);
 
     const moduleRef = await Test.createTestingModule({
       providers: [
         ImagePageGetService,
         { provide: ImagePageRepository, useValue: imagePageRepository },
         { provide: MediaItemProcessor, useValue: mediaItemProcessor },
+        {
+          provide: ImageSectionCelebrationsRepository,
+          useValue: celebrations,
+        },
       ],
     }).compile();
 
@@ -180,6 +187,38 @@ describe('ImagePageGetService', () => {
 
       expect(result).toMatchObject({ page: 2, limit: 3, total: 10 });
       expect(result.sections).toHaveLength(1);
+    });
+
+    it('soma as celebrações da página em uma única consulta', async () => {
+      celebrations.findBySections.mockResolvedValue([
+        { sectionId: 's1', userId: 'u1', userName: 'Ana' },
+        { sectionId: 's1', userId: 'me', userName: 'Eu' },
+      ]);
+
+      const result = await service.findSectionsPaginated(
+        'a',
+        query,
+        false,
+        'me',
+      );
+
+      expect(celebrations.findBySections).toHaveBeenCalledTimes(1);
+      expect(celebrations.findBySections).toHaveBeenCalledWith(['s1']);
+      expect(result.sections[0]).toMatchObject({
+        celebrationCount: 2,
+        celebrators: ['Ana', 'Eu'],
+        celebratedByMe: true,
+      });
+    });
+
+    it('sem celebração, a seção vem zerada', async () => {
+      const result = await service.findSectionsPaginated('a', query, false);
+
+      expect(result.sections[0]).toMatchObject({
+        celebrationCount: 0,
+        celebrators: [],
+        celebratedByMe: false,
+      });
     });
 
     it('falha quando a galeria não existe', async () => {

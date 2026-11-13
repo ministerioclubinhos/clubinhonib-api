@@ -6,7 +6,10 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['eslint.config.mjs'],
+    // Migrations saem do `typeorm migration:generate` e não podem ser editadas
+    // (AI_DATABASE_CHANGE_REQUIREMENTS.md). Fora do lint, o `npm run lint`
+    // (que roda com --fix) não reformata o arquivo gerado.
+    ignores: ['eslint.config.mjs', 'src/database/migrations/**'],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,

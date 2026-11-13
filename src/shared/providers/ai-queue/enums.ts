@@ -26,3 +26,13 @@ export enum AiQueueFailure {
   /** The selected provider has no readable API key. */
   CREDENTIAL_MISSING = 'AI_QUEUE_CREDENTIAL_MISSING',
 }
+
+/**
+ * Modo do transporte de IA. `fake` nunca chama o provedor: devolve respostas
+ * determinísticas no formato esperado (testes E2E e desenvolvimento sem gastar
+ * tokens). Ignorado em produção.
+ */
+export enum AiProviderMode {
+  LIVE = 'live',
+  FAKE = 'fake',
+}

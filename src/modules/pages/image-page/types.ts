@@ -27,3 +27,17 @@ export type ImagePageSortField = (typeof IMAGE_PAGE_SORT_FIELDS)[number];
 
 /** Direção da ordenação. */
 export type ImagePageSortOrder = 'ASC' | 'DESC';
+
+/** Uma celebração lida do banco, só com o que a resposta usa. */
+export interface CelebrationRow {
+  sectionId: string;
+  userId: string;
+  userName: string;
+}
+
+/** Celebrações agrupadas de uma seção. */
+export interface CelebrationSummary {
+  count: number;
+  names: string[];
+  celebratedByMe: boolean;
+}

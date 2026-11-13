@@ -105,3 +105,28 @@ export const LOCAL_REDIS = {
 
 /** Exact query allowed on the Gemini model list (single page, no key). */
 export const AI_QUEUE_GEMINI_MODELS_QUERY = '?pageSize=1000';
+
+/** Variável de ambiente que escolhe o modo do transporte de IA. */
+export const AI_PROVIDER_MODE_ENV = 'AI_PROVIDER_MODE';
+/** Texto usado nas respostas simuladas quando não há o que ecoar. */
+export const AI_FAKE_TEXT = 'Resposta simulada (AI_PROVIDER_MODE=fake).';
+/** PNG 1×1 transparente devolvido pelas rotas de imagem no modo simulado. */
+export const AI_FAKE_PNG_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aR1sAAAAASUVORK5CYII=';
+export const AI_FAKE_MODELS = {
+  text: 'fake-text-model',
+  image: 'fake-image-model',
+} as const;
+/**
+ * Booleanos com valor fixo no modo simulado, escolhidos para o caminho mais
+ * conservador: a guarda aprova o que não mudou, fotos são tratadas como tendo
+ * pessoas e documentos como tendo visuais essenciais (nada é editado).
+ */
+export const AI_FAKE_BOOLEANS: Readonly<Record<string, boolean>> = {
+  preservesEssence: true,
+  containsPeople: true,
+  hasEssentialVisuals: true,
+};
+/** Marcadores dos dados de origem que os pedidos de IA embutem no texto. */
+export const AI_SOURCE_DATA_START = 'SOURCE_DATA\n';
+export const AI_SOURCE_DATA_END = '\nEND_SOURCE_DATA';

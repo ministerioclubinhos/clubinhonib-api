@@ -4,9 +4,7 @@ import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { ImagePageRepository } from '../repositories/image-page.repository';
 import { ImagePageEntity } from '../entity/Image-page.entity';
-import { ImageSectionCelebrationEntity } from '../entity/Image-section-celebration.entity';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { ImageSectionCelebrationsRepository } from '../repositories/image-section-celebrations.repository';
 import { Paginated } from 'src/shared/dto/paginated.dto';
 import { ImagePageResponseDto } from '../dto/image-page-response.dto';
 import { ImagePageSummaryDto } from '../dto/image-page-summary.dto';
@@ -18,7 +16,11 @@ import {
   toImagePageSummary,
   toPaginatedSectionsResponse,
 } from '../mappers';
-import { collectSectionIds, groupMediaBySection } from '../utils';
+import {
+  collectSectionIds,
+  groupMediaBySection,
+  summarizeCelebrations,
+} from '../utils';
 import { MediaBySection } from '../types';
 import {
   IMAGE_PAGES_DEFAULT_LIMIT,
@@ -33,7 +35,7 @@ export class ImagePageGetService {
   constructor(
     private readonly imagePageRepository: ImagePageRepository,
     private readonly mediaItemProcessor: MediaItemProcessor,
-    @InjectRepository(ImageSectionCelebrationEntity) private readonly celebrationRepo: Repository<ImageSectionCelebrationEntity>,
+    private readonly celebrations: ImageSectionCelebrationsRepository,
   ) {}
 
   async findFeedPhotoContext(
@@ -147,24 +149,13 @@ export class ImagePageGetService {
       sections.map((section) => section.id),
     );
 
-    const sectionIds = sections.map((section) => section.id);
-    const celebrationsBySection = new Map<string, string[]>();
-    if (sectionIds.length > 0) {
-      const rows = await this.celebrationRepo
-        .createQueryBuilder('c')
-        .innerJoin('c.user', 'user')
-        .select('c.sectionId', 'sectionId')
-        .addSelect('user.name', 'userName')
-        .addSelect('c.userId', 'userId')
-        .where('c.sectionId IN (:...ids)', { ids: sectionIds })
-        .orderBy('c.createdAt', 'ASC')
-        .getRawMany<{ sectionId: string; userName: string }>();
-      for (const row of rows) {
-        const names = celebrationsBySection.get(row.sectionId) ?? [];
-        names.push(row.userName);
-        celebrationsBySection.set(row.sectionId, names);
-      }
-    }
+    // Uma consulta para as celebrações da página inteira, e não uma por seção.
+    const celebrations = summarizeCelebrations(
+      await this.celebrations.findBySections(
+        sections.map((section) => section.id),
+      ),
+      currentUserId,
+    );
     const response = toPaginatedSectionsResponse(
       page,
       sections,
@@ -174,14 +165,10 @@ export class ImagePageGetService {
       total,
     );
     for (const item of response.sections) {
-      const sectionRows = sectionIds.includes(item.id) ? await this.celebrationRepo
-        .createQueryBuilder('c').innerJoin('c.user', 'user')
-        .select('c.sectionId', 'sectionId').addSelect('user.name', 'userName').addSelect('c.userId', 'userId')
-        .where('c.sectionId = :sectionId', { sectionId: item.id }).orderBy('c.createdAt', 'ASC')
-        .getRawMany<{ sectionId: string; userName: string; userId: string }>() : [];
-      item.celebrationCount = sectionRows.length;
-      item.celebrators = sectionRows.map((row) => row.userName);
-      item.celebratedByMe = Boolean(currentUserId && sectionRows.some((row) => row.userId === currentUserId));
+      const summary = celebrations.get(item.id);
+      item.celebrationCount = summary?.count ?? 0;
+      item.celebrators = summary?.names ?? [];
+      item.celebratedByMe = summary?.celebratedByMe ?? false;
     }
     return response;
   }

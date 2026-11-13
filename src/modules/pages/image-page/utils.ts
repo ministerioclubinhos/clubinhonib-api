@@ -3,7 +3,13 @@ import { validate } from 'class-validator';
 import { AppValidationException, ErrorCode } from 'src/shared/exceptions';
 import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 import { ImageSectionEntity } from './entity/Image-section.entity';
-import { MediaBySection, MulterFilesDict, SectionSyncPlan } from './types';
+import {
+  CelebrationRow,
+  CelebrationSummary,
+  MediaBySection,
+  MulterFilesDict,
+  SectionSyncPlan,
+} from './types';
 
 /** Indexa os arquivos enviados pelo nome do campo multipart. */
 export function buildFilesDict(
@@ -99,4 +105,25 @@ export async function parseAndValidatePayload<T extends object>(
   }
 
   return dto;
+}
+
+/** Agrupa as celebrações por seção, preservando a ordem de chegada. */
+export function summarizeCelebrations(
+  rows: CelebrationRow[],
+  currentUserId: string | null,
+): Map<string, CelebrationSummary> {
+  const bySection = new Map<string, CelebrationSummary>();
+  for (const row of rows) {
+    const summary = bySection.get(row.sectionId) ?? {
+      count: 0,
+      names: [],
+      celebratedByMe: false,
+    };
+    summary.count++;
+    summary.names.push(row.userName);
+    if (currentUserId && row.userId === currentUserId)
+      summary.celebratedByMe = true;
+    bySection.set(row.sectionId, summary);
+  }
+  return bySection;
 }

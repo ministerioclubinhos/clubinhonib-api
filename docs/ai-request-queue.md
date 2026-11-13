@@ -39,6 +39,29 @@ ENV_FILE=env/local.env npm run redis:local:ensure
 
 **A API sobe mesmo sem Redis.** A fila valida a configuração na inicialização; se o Redis não responder, a API registra o erro, mantém as rotas de IA degradadas (`AI_QUEUE_9201`) e tenta levantar a fila novamente a cada 10 s. Durante a operação, uma submissão aguarda até 5 s pela reconexão antes de falhar. Em produção, provisione o Redis e configure o mesmo namespace e a mesma concorrência em todas as réplicas; `run.sh` é conveniência local.
 
+## Modo simulado (`AI_PROVIDER_MODE=fake`)
+
+O transporte da fila (`AiProviderTransportProvider`) é o único ponto que chama
+OpenAI/Gemini. Com `AI_PROVIDER_MODE=fake` ele valida a rota como sempre, mas
+**não faz rede, não lê a chave e não gasta tokens**: devolve uma resposta no
+formato do provedor (`fake-ai-response.utils.ts`).
+
+- JSON: gerado a partir do schema do pedido (`text.format.schema` na OpenAI,
+  `responseJsonSchema`/`responseSchema` no Gemini). Campos que também existem
+  no bloco `SOURCE_DATA` do pedido voltam iguais; por isso uma ideia
+  "melhorada" no modo simulado é idêntica ao original e passa nas guardas.
+- Booleanos conservadores: `preservesEssence: true`, `containsPeople: true`,
+  `hasEssentialVisuals: true` (nenhuma foto ou documento é editado).
+- Imagens: PNG 1×1. Listas de modelos: `fake-text-model` e `fake-image-model`.
+- Respostas trazem o cabeçalho `x-ai-provider-mode: fake`.
+- `GET /health` informa `aiProviderMode` (`live` ou `fake`).
+- Em `NODE_ENV=production` o valor é ignorado (sempre `live`).
+
+Uso: `AI_PROVIDER_MODE=fake ./run.sh local`. É obrigatório para os E2E do app,
+que recusam rodar contra `aiProviderMode=live`. Não rode, ao mesmo tempo, outra
+API em modo real contra o mesmo banco e Redis: os workers dela podem assumir os
+pedidos e chamar o provedor de verdade.
+
 ## Execução, falha e retenção
 
 - Os destinos são restritos às APIs HTTPS suportadas de OpenAI/Gemini. Redirecionamentos, URLs com credenciais, query strings e destinos arbitrários são rejeitados.

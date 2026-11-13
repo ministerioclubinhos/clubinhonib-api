@@ -1,3 +1,5 @@
+import { AiProviderMode } from 'src/shared/providers/ai-queue/enums';
+
 /** Contrato da sonda de saúde (`GET /health`). */
 export class HealthResponseDto {
   status: 'ok';
@@ -7,4 +9,6 @@ export class HealthResponseDto {
   uptime: number;
   /** `'unknown'` quando `ENVIRONMENT` não está definida. */
   environment: string;
+  /** `fake`: respostas de IA simuladas, sem chamar provedor nem gastar tokens. */
+  aiProviderMode: AiProviderMode;
 }

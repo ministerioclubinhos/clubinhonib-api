@@ -51,3 +51,9 @@ export const IMAGE_PAGE_SORT_COLUMNS = {
 
 /** Tamanho máximo do texto de busca. */
 export const IMAGE_PAGE_SEARCH_MAX_LENGTH = 200;
+
+/** Resposta de celebração quando não há o que alternar. */
+export const EMPTY_CELEBRATION = {
+  celebrated: false,
+  celebrationCount: 0,
+} as const;

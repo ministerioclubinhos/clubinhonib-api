@@ -7,6 +7,7 @@ import {
 } from 'src/shared/media/media-item/media-item.entity';
 import { AuthContextService } from 'src/core/auth/services/auth-context.service';
 import { ImageController } from './image-page.controller';
+import { UpdateImageSectionCelebrationService } from './services/update-image-section-celebration.service';
 import { ImagePageCreateService } from './services/create-image-page.service';
 import { ImagePageGetService } from './services/get-image-page.service';
 import { ImagePageUpdateService } from './services/update-image-page.service';
@@ -50,7 +51,8 @@ describe('ImageController', () => {
     findOne: jest.fn(),
     findSectionsPaginated: jest.fn(),
   };
-  const authContext = { isLoggedIn: jest.fn() };
+  const authContext = { isLoggedIn: jest.fn(), getUserId: jest.fn() };
+  const celebrationService = { toggle: jest.fn() };
 
   let controller: ImageController;
   const file = { fieldname: 'image_0' } as Express.Multer.File;
@@ -67,6 +69,10 @@ describe('ImageController', () => {
         { provide: ImagePageUpdateService, useValue: updateService },
         { provide: ImagePageDeleteService, useValue: deleteService },
         { provide: AuthContextService, useValue: authContext },
+        {
+          provide: UpdateImageSectionCelebrationService,
+          useValue: celebrationService,
+        },
       ],
     }).compile();
 
@@ -112,6 +118,7 @@ describe('ImageController', () => {
 
   it('resolve a visibilidade da sessão antes de paginar as seções', async () => {
     authContext.isLoggedIn.mockResolvedValue(true);
+    authContext.getUserId.mockResolvedValue('me');
     getService.findSectionsPaginated.mockResolvedValue({ sections: [] });
     const query = Object.assign(new QueryImageSectionsDto(), {
       page: 1,
@@ -121,15 +128,18 @@ describe('ImageController', () => {
     await controller.getPaginatedSections(ID, query, request);
 
     expect(authContext.isLoggedIn).toHaveBeenCalledWith(request);
+    // O usuário logado decide `celebratedByMe` em cada seção.
     expect(getService.findSectionsPaginated).toHaveBeenCalledWith(
       ID,
       query,
       true,
+      'me',
     );
   });
 
   it('esconde seções privadas de quem não está logado', async () => {
     authContext.isLoggedIn.mockResolvedValue(false);
+    authContext.getUserId.mockResolvedValue(null);
     getService.findSectionsPaginated.mockResolvedValue({ sections: [] });
 
     await controller.getPaginatedSections(
@@ -142,6 +152,7 @@ describe('ImageController', () => {
       ID,
       expect.anything(),
       false,
+      null,
     );
   });
 
@@ -167,5 +178,21 @@ describe('ImageController', () => {
     await controller.remove(ID);
 
     expect(deleteService.removePage).toHaveBeenCalledWith(ID);
+  });
+
+  it('delega a celebração ao serviço com o usuário da sessão', async () => {
+    authContext.getUserId.mockResolvedValue('me');
+    celebrationService.toggle.mockResolvedValue({
+      celebrated: true,
+      celebrationCount: 1,
+      celebrators: ['Eu'],
+    });
+
+    await expect(controller.toggleCelebration(ID, request)).resolves.toEqual({
+      celebrated: true,
+      celebrationCount: 1,
+      celebrators: ['Eu'],
+    });
+    expect(celebrationService.toggle).toHaveBeenCalledWith(ID, 'me');
   });
 });
