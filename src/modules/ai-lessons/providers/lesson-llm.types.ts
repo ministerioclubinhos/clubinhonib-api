@@ -6,6 +6,8 @@ export enum LessonImagePurpose {
   MEDITATION_ACTIVITY = 'MEDITATION_ACTIVITY',
   MANUAL_COLORING = 'MANUAL_COLORING',
   CUTOUT_SHEET = 'CUTOUT_SHEET',
+  /** Fun-game infographic: short Portuguese labels are part of the art. */
+  GAME_SUMMARY = 'GAME_SUMMARY',
 }
 
 export enum LessonLlmProvider {

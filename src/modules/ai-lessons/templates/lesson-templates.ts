@@ -1,7 +1,10 @@
 import { LESSON_SHARED_QUALITY_RULES } from '../constants/lesson-quality.constants';
 import { createHash } from 'node:crypto';
 import { LessonStageType } from '../enums/lesson.enums';
-import { LESSON_GAME_MAX_STEPS } from '../constants/ai-provider-settings.constants';
+import {
+  LESSON_FUN_GAME_LIMITS,
+  LESSON_GAME_MAX_STEPS,
+} from '../constants/ai-provider-settings.constants';
 
 export type LessonTemplateContract = {
   key: string;
@@ -80,7 +83,7 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
     },
     [LessonStageType.STANDARD_GAME]: {
       key: 'clubinho.standard-game.canonical',
-      version: '3.2.0',
+      version: '4.2.0',
       stage: LessonStageType.STANDARD_GAME,
       exactStructure: [
         'NOME DA BRINCADEIRA',
@@ -96,17 +99,18 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
       ],
       rules: [
         ...sharedRules,
-        'A brincadeira deve ser segura, exequível e adequada ao espaço infantil.',
-        'A dinâmica deve combinar 2 ou 3 elementos lúdicos, manter todas as crianças ativas e evitar filas, eliminação, espera longa, questionário ou encenação passiva.',
-        'A regra central deve servir de 5 a 11 anos, com simplificação para 5 a 7 e desafio opcional para 8 a 11 anos.',
-        'Criar exatamente um visual instrucional para cada passo da brincadeira, na mesma ordem, demonstrando como executar a instrução em vez de gerar decoração genérica.',
-        GAME_STEP_LIMIT_RULE,
-        'Visuais de apoio não podem conter texto; as instruções são exibidas como legenda e compostas pelo renderer.',
+        'A brincadeira divertida é recreação de verdade, no estilo gincana: mecânica física e de ação (correr, pular, mirar, arremessar, equilibrar, puxar, estourar, buscar), inspirada em clássicos como estoura balão, pescaria, tiro ao alvo, cabo de guerra, pênalti, corrida do saco, ovo na colher e boliche de garrafa.',
+        'Equipes, rodadas, placar e vencedor são bem-vindos; todos comemoram no fim. A ligação com a lição é leve: nome, tema e o princípio bíblico depois de brincar.',
+        'Proibido como mecânica principal: desenhar, gestos ou mímica parados, apontar cartazes, quiz, reflexão, encenação ou atividade de mesa.',
+        'A brincadeira deve ser segura e exequível; a regra central serve de 5 a 11 anos, com simplificação para 5 a 7 e desafio extra para 8 a 11 anos.',
+        'A entrega é um documento simples explicando a brincadeira e UMA única imagem (id compilado-01) com o compilado de tudo: materiais, preparação do espaço, o passo a passo em painéis na ordem de leitura e o encerramento. A imagem mostra crianças genéricas e alegres fazendo cada ação, em clima de gincana; não criar uma imagem por passo nem personagens ou cenas bíblicas.',
+        `Documento curto, de uma página A4: de 3 a ${LESSON_FUN_GAME_LIMITS.maxSteps} passos de uma frase, até ${LESSON_FUN_GAME_LIMITS.maxMaterials} materiais, até ${LESSON_FUN_GAME_LIMITS.maxRules} regras curtas, uma frase por adaptação e por objetivo. Sem repetir informação entre seções.`,
+        'Exceção à regra de textos do renderer: o compilado-01 traz o título, as faixas, os passos numerados e o encerramento escritos na própria arte.',
       ],
     },
     [LessonStageType.VERSE_VISUALS]: {
       key: 'clubinho.verse-visuals.canonical',
-      version: '1.1.1',
+      version: '1.4.1',
       stage: LessonStageType.VERSE_VISUALS,
       exactStructure: [
         'VISUAIS DO VERSÍCULO',
@@ -121,7 +125,7 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
         'Dividir todo o texto do versículo em trechos curtos, consecutivos e semanticamente completos, sem omitir, repetir, alterar ou reordenar palavras.',
         'Criar uma imagem mnemônica para cada trecho e acrescentar obrigatoriamente uma última imagem dedicada somente à referência bíblica.',
         'A quantidade é determinada pela melhor quebra pedagógica do versículo; o cartão final não contém o texto do versículo.',
-        'Cartões tipográficos finais em A4 paisagem no padrão da Semana 7: a própria imagem gerada contém o texto exato, extragrande e arredondado em aproximadamente 95% da área, sem sobreposição posterior, usando uma paleta única de no máximo três cores em toda a sequência.',
+        'Cartões tipográficos finais em A4 paisagem, sem borda branca: a própria imagem gerada contém o texto exato, extragrande e arredondado em aproximadamente 90% da área, e só as sobras recebem detalhes minúsculos e variados ligados ao sentido do trecho, em quantidade decidida pelo espaço livre, pelo estilo e pela semântica, somando no máximo 10% da imagem, sem nunca diminuir o texto; fundo e paleta única de no máximo três cores escolhidos a partir do versículo e mantidos em toda a sequência.',
       ],
     },
     [LessonStageType.VERSE_FIXATION]: {

@@ -59,7 +59,15 @@ export function buildLessonSystemPrompt(
         ]
       : []),
     ...(LESSON_GAME_STAGES.includes(stage)
-      ? [P.gameAssets, P.gameFun, P.gameHistory]
+      ? [
+          stage === LessonStageType.STANDARD_GAME
+            ? P.standardGameAsset
+            : P.gameAssets,
+          stage === LessonStageType.STANDARD_GAME
+            ? P.standardGameFun
+            : P.gameFun,
+          P.gameHistory,
+        ]
       : []),
     ...(stage === LessonStageType.VERSE_VISUALS
       ? [P.verseVisualsSplit, P.verseVisualsCard]

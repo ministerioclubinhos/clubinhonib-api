@@ -62,6 +62,8 @@ export const DOCUMENT_IMAGE_BOXES = {
   headerLeft: { width: 190, height: 95 },
   headerRight: { width: 190, height: 95 },
   landscapeFull: { width: 1070, height: 758 },
+  /** A4 landscape at 96 dpi, one pixel short so the image never spills to a new page. */
+  landscapeBleed: { width: 1122, height: 792 },
   landscapeWithText: { width: 984, height: 620 },
   portraitFull: { width: 760, height: 1074 },
 } as const;

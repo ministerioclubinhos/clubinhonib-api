@@ -91,6 +91,16 @@ export const DEFAULT_OPENAI_REASONING_EFFORT = 'none';
 export const LESSON_GAME_MAX_STEPS = 8;
 
 /**
+ * The fun game (item 3) is a one-page document plus one compiled image: its
+ * lists are short and its steps fit the six stops of the infographic.
+ */
+export const LESSON_FUN_GAME_LIMITS = {
+  maxSteps: 6,
+  maxMaterials: 6,
+  maxRules: 4,
+} as const;
+
+/**
  * Live catalog filter. Only families the Studio can drive are offered:
  * structured text through the Responses API and base64 PNG images (DALL·E
  * rejects the size/quality/output_format/edit parameters the Studio sends).

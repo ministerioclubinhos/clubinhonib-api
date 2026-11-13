@@ -236,6 +236,41 @@ export function buildGameInstructionImagePrompt(input: {
   ].join('\n\n');
 }
 
+/** The fun game's single image: an infographic that compiles the whole game. */
+export function buildGameSummaryImagePrompt(input: {
+  game: JsonObject;
+  proposedComposition: string;
+}): string {
+  const steps = Array.isArray(input.game.steps) ? input.game.steps : [];
+  return [
+    'CRIE UM INFOGRÁFICO INFANTIL VERTICAL (RETRATO, FOLHA A4) QUE COMPILA UMA ÚNICA BRINCADEIRA.',
+    'BRINCADEIRA COMPLETA E APROVADA:',
+    JSON.stringify({
+      name: input.game.name,
+      objective: input.game.objective,
+      materials: input.game.materials,
+      preparation: input.game.preparation,
+      steps: input.game.steps,
+      rulesAndSafety: input.game.rulesAndSafety,
+    }),
+    'COMPOSIÇÃO VISUAL PROPOSTA:',
+    input.proposedComposition.trim(),
+    `ESTRUTURA OBRIGATÓRIA, DE CIMA PARA BAIXO: (1) o nome da brincadeira como título grande e colorido no topo; (2) uma faixa "MATERIAIS" com ícones simples de cada material; (3) uma faixa "PREPARAÇÃO" mostrando como montar o espaço; (4) um caminho com exatamente ${steps.length} paradas numeradas em ordem (bandeirinhas ou círculos com os números 1 a ${steps.length}), cada parada com um título curto do passo e um ícone ou desenho simples da ação, ligadas por setas; (5) um quadro final de destaque com a regra de encerramento ou como o grupo vence.`,
+    `TEXTO NA IMAGEM (OBRIGATÓRIO, nenhuma faixa ou placa em branco): título "${typeof input.game.name === 'string' ? input.game.name.trim() : ''}"; faixas "MATERIAIS", "PREPARAÇÃO" e "COMO BRINCAR"; em cada parada, o número dentro do círculo ou bandeirinha e, ao lado, um título curto do passo sem repetir o número (no máximo 5 palavras, resumindo o passo correspondente); no quadro final, uma frase curta de encerramento. Escreva em português do Brasil com ortografia e acentuação corretas; não invente palavras e não escreva parágrafos.`,
+    'ESTILO: ilustração infantil alegre, com contornos de caneta e cores vivas e claras, fundo de campo ou parque suave, placas de madeira, faixas coloridas e ícones simples. Cartões e faixas organizados, com bastante respiro e leitura fácil.',
+    'CRIANÇAS BRINCANDO (OBRIGATÓRIO): em cada parada do passo a passo e no quadro final, mostre crianças genéricas de 5 a 11 anos, diversas, em traço infantil simples, fazendo a ação com expressões de alegria, empolgação e torcida (correndo, pulando, arremessando, comemorando). O clima é de festa e gincana, como um cartaz de recreação: cores vivas, movimento, linhas de ação, confetes ou bandeirinhas. Não faça um infográfico só de objetos.',
+    'É uma única brincadeira: não mostre várias brincadeiras, horários nem programação do dia. Sem personagens bíblicos e sem cenas da história. Nada violento, assustador ou perigoso.',
+  ].join('\n\n');
+}
+
+/** First and last characters of a verse card, so no neighbouring punctuation leaks in. */
+export function verseCardEdgeRule(displayText: string): string {
+  const text = displayText.trim();
+  const chars = Array.from(text);
+  if (!chars.length) return '';
+  return `O texto começa com "${chars[0]}" e termina com "${chars[chars.length - 1]}". Não acrescente vírgula, ponto ou qualquer sinal que não esteja no texto obrigatório, nem no início nem no fim.`;
+}
+
 export function buildVerseVisualImagePrompt(input: {
   fullVerse: string;
   verseReference: string;
@@ -247,13 +282,15 @@ export function buildVerseVisualImagePrompt(input: {
     `VERSÍCULO COMPLETO NVI, PARA CONTEXTO: "${input.fullVerse.trim()}"`,
     `REFERÊNCIA COMPLETA: "${input.verseReference.trim()}"`,
     `TEXTO OBRIGATÓRIO QUE DEVE APARECER DENTRO DA IMAGEM, EXATAMENTE ASSIM, SEM ALTERAR, OMITIR OU ACRESCENTAR NENHUM CARACTERE: "${input.displayText.trim()}".`,
-    'IDENTIDADE VISUAL DE REFERÊNCIA: material infantil vibrante, alegre e luminoso, com fundo azul/ciano, degradês, raios de luz, nuvens estilizadas, brilhos e pequenas formas somente nas bordas.',
+    verseCardEdgeRule(input.displayText),
+    'IDENTIDADE VISUAL: material infantil vibrante, alegre e luminoso. O fundo e a paleta NÃO são fixos e não devem ser azul com nuvens por padrão: escolha-os a partir do sentido do versículo completo (por exemplo, tons de pergaminho e terra para a Lei e os Profetas, céu noturno para estrelas, verdes para a criação, tons quentes para amor e alegria). Fundo simples — cor chapada, degradê suave ou textura leve — com bom contraste para o texto. Mantenha o mesmo fundo e a mesma paleta em todos os cartões da sequência.',
     'PALETA OBRIGATÓRIA: use no máximo 3 cores em toda a imagem, incluindo texto, fundo, contornos, sombras e detalhes. É permitido variar apenas luminosidade e saturação dessas mesmas 3 cores. Não introduza uma quarta cor. Preserve exatamente a mesma paleta de 3 cores em todos os cartões da sequência.',
-    'Mantenha 95% da área central livre de elementos, com contraste suficiente para receber tipografia extragrande e arredondada, usando somente a paleta definida, com contorno e sombra suaves.',
-    'Use somente detalhes abstratos pequenos nas extremidades ou cantos. Eles emolduram o texto sem competir com ele.',
-    'O texto deve ocupar aproximadamente 95% da imagem e ser o protagonista absoluto: tipografia infantil extragrande e arredondada. Distribua no máximo as mesmas 3 cores entre palavras ou blocos, sem alternar uma cor diferente para cada letra.',
-    'PROIBIDO: pessoas, personagens, rostos, animais, cenários, paisagens, salas, construções, objetos reconhecíveis, cenas bíblicas, outras letras, outras palavras, outros números, símbolos religiosos, molduras pesadas ou elementos competindo com o texto.',
+    'PROPORÇÃO 90/10, NESTA ORDEM: (1) PRIMEIRO o texto — tipografia infantil extragrande e arredondada que ocupa cerca de 90% da imagem, com a caixa do texto indo de uma lateral à outra e de cima a baixo, deixando só uns 5% de folga em cada borda; contorno e sombra numa das cores da paleta (nunca contorno branco); no máximo as mesmas 3 cores entre palavras ou blocos, sem uma cor diferente para cada letra. (2) DEPOIS os detalhes, somente nas sobras.',
+    'DETALHES (no máximo 10% da imagem, somados): desenhos MINÚSCULOS — cada um com no máximo 3% da largura da imagem — encaixados apenas nas sobras. A quantidade NÃO é fixa: decida pelo espaço que o texto deixou livre (trecho curto deixa mais sobra, trecho longo deixa menos), pelo estilo e pelo sentido do trecho. Sobras ficam em: cantos, folga das bordas e vãos entre as linhas e no fim das linhas curtas. Eles remetem ao sentido DESTE trecho e do versículo (ex.: ouvido e ondas de som para "ouvir", pergaminho e tábuas da Lei para "Moisés e os Profetas", coração para "amor", estrela para "luz"), misturados com brilhos e pontinhos da mesma paleta; varie os desenhos, sem repetir o mesmo ícone em todos os cantos. No cartão da referência, Bíblia aberta, marcador de página e brilhos. NUNCA diminua o texto para abrir espaço a detalhes: se não couber, use menos detalhes. Nenhum detalhe toca ou cobre as letras.',
+    'SEM BORDA BRANCA: nada de moldura, margem, faixa ou contorno branco ao redor do cartão ou das letras; o fundo vai até as bordas.',
+    'PROIBIDO: pessoas, personagens, rostos, cenas e paisagens completas, cenas bíblicas, outras letras, palavras ou números, logotipos, molduras ou detalhes grandes que disputem espaço com o texto.',
     `Referência estética secundária, sem contrariar as regras: ${input.proposedComposition.trim()}`,
+    'Se a referência estética citar outro texto, outra pontuação ou um trecho vizinho do versículo, ignore: dentro da imagem vale somente o TEXTO OBRIGATÓRIO acima.',
   ].join('\n\n');
 }
 

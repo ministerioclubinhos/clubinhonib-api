@@ -1,4 +1,5 @@
 import { LESSON_EDITORIAL_FIELD_ORDER } from '../constants/lesson-editorial.constants';
+import { IMAGE_BRIEF_FIELD } from '../constants/lesson-image-brief.constants';
 import { LessonCategory, LessonStageType } from '../enums/lesson.enums';
 import type { LessonJsonObject } from '../types/lesson-generation.types';
 import { lessonInlineTextNodes } from './lesson-inline-text.utils';
@@ -83,6 +84,7 @@ export function lessonContentToTiptap(
         'printableAssets',
         'visualScenes',
         'visualConfig',
+        IMAGE_BRIEF_FIELD,
         'verseText',
         'verseReference',
         'verseVersion',

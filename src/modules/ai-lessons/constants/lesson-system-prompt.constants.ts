@@ -32,6 +32,10 @@ export const LESSON_SYSTEM_PROMPT = {
     'Em VISUAIS DA HISTÓRIA, você decide a quebra narrativa: divida todo o campo story da LIÇÃO BÍBLICA em exatamente visualConfig.quantity trechos literais, contínuos, consecutivos, não sobrepostos e na ordem original. Não omita nem repita nenhuma parte. Cada asset recebe id visual-01, visual-02 etc. e sourceExcerpt com seu trecho exato.',
   gameAssets:
     'Na BRINCADEIRA, gere exatamente um visual de instrução para cada item de steps, na mesma ordem. Cada asset usa id instrucao-01, instrucao-02 etc., stepNumber sequencial e instruction como cópia literal do passo correspondente. A imagem demonstra visualmente como executar esse passo; não gere decoração genérica nem texto dentro da arte.',
+  standardGameAsset:
+    'Na BRINCADEIRA DIVERTIDA, o documento explica a brincadeira e assets tem exatamente UM item, id compilado-01: uma imagem-resumo que compila toda a brincadeira — materiais, preparação do espaço, o passo a passo em painéis na ordem de leitura e o encerramento. Cada parada mostra crianças genéricas e alegres fazendo a ação, em clima de festa e gincana. Não gere uma imagem por passo, nem personagens ou cenas bíblicas, nem decoração genérica.',
+  standardGameFun:
+    'Na BRINCADEIRA DIVERTIDA, diversão é o critério número um: é gincana/recreação com ação física (correr, pular, mirar, arremessar, equilibrar, puxar, estourar, buscar), desafio com tempo, equipes, rodadas e placar, como estoura balão, pescaria, tiro ao alvo, cabo de guerra, pênalti, corrida do saco ou boliche de garrafa. A ligação com a lição fica no nome, no tema e no princípio bíblico, não na mecânica. Reprove a própria ideia se ela for desenho, gestos parados, quiz, reflexão, encenação ou algo que caiba numa sala com as crianças sentadas.',
   gameFun:
     'Na BRINCADEIRA, diversão é requisito verificável: combine 2 ou 3 mecânicas lúdicas, mantenha todas as crianças ativas, evite filas, eliminação, espera longa, questionário e encenação passiva. A mesma regra central atende de 5 a 11 anos, com simplificação concreta para 5 a 7 e desafio opcional para 8 a 11 anos.',
   gameHistory:
@@ -39,7 +43,7 @@ export const LESSON_SYSTEM_PROMPT = {
   verseVisualsSplit:
     'Para VISUAIS DO VERSÍCULO, use canonicalVerse.text e canonicalVerse.reference completos. Você decide a quantidade da melhor divisão semântica do texto, entre uma e nove partes; elas devem reconstruí-lo exatamente. Depois acrescente obrigatoriamente um último item isolado contendo somente a referência completa.',
   verseVisualsCard:
-    'Em VISUAIS DO VERSÍCULO, a própria imagem gerada é o cartão final e já deve conter o trecho exato em tipografia infantil extragrande, ocupando aproximadamente 95% da área. Não dependa de texto aplicado posteriormente. Siga a identidade da Semana 7 com fundo azul/ciano, raios, nuvens e brilhos somente nas bordas, sem pessoas, personagens, animais, cenas ou objetos reconhecíveis.',
+    'Em VISUAIS DO VERSÍCULO, a própria imagem gerada é o cartão final e já deve conter o trecho exato em tipografia infantil extragrande, ocupando aproximadamente 90% da área; depois, só nas sobras, entram desenhos minúsculos e variados que remetem ao sentido do trecho, em quantidade decidida pelo espaço livre, pelo estilo e pela semântica (sem número fixo), somando no máximo 10% da imagem; nunca diminua o texto para caber detalhes. Não dependa de texto aplicado posteriormente. O fundo e a paleta são escolhidos a partir do sentido do versículo (não azul com nuvens por padrão), iguais em toda a sequência, indo até as bordas e sem contorno ou moldura branca; sem pessoas, personagens ou cenas.',
   verseProducts:
     'VISUAIS DO VERSÍCULO e FIXAÇÃO DO VERSÍCULO são produtos distintos: o primeiro é uma sequência de imagens mnemônicas; o segundo é uma dinâmica ou brincadeira divertida.',
   visualConfig:

@@ -1284,7 +1284,7 @@ describe('LessonDraftService workflow safety', () => {
     ).toThrow(ConflictException);
   });
 
-  it('aceita um visual instrucional para cada passo da brincadeira', () => {
+  it('aceita a brincadeira divertida com uma única imagem de compilado', () => {
     const target = pureLessonUtils as unknown as {
       validateCanonicalContent: (
         lesson: LessonEntity,
@@ -1296,14 +1296,10 @@ describe('LessonDraftService workflow safety', () => {
       steps: ['Forme uma roda.', 'Passe a bola para a criança ao lado.'],
       assets: [
         {
-          id: 'instrucao-01',
-          stepNumber: 1,
-          instruction: 'Forme uma roda.',
-        },
-        {
-          id: 'instrucao-02',
-          stepNumber: 2,
-          instruction: 'Passe a bola para a criança ao lado.',
+          id: 'compilado-01',
+          purpose: 'Resumo',
+          prompt: 'Infográfico',
+          altText: 'Resumo',
         },
       ],
     };
@@ -1317,7 +1313,46 @@ describe('LessonDraftService workflow safety', () => {
     ).toBe(generated);
   });
 
-  it('rejeita visual da brincadeira desconectado do passo correspondente', () => {
+  it('rejeita brincadeira divertida longa demais para uma página', () => {
+    const target = pureLessonUtils as unknown as {
+      validateCanonicalContent: (
+        lesson: LessonEntity,
+        type: LessonStageType,
+        generated: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const compiled = [
+      {
+        id: 'compilado-01',
+        purpose: 'Resumo',
+        prompt: 'Infográfico',
+        altText: 'Resumo',
+      },
+    ];
+    expect(() =>
+      target.validateCanonicalContent(
+        {} as LessonEntity,
+        LessonStageType.STANDARD_GAME,
+        {
+          steps: ['1', '2', '3', '4', '5', '6', '7'],
+          assets: compiled,
+        },
+      ),
+    ).toThrow('documento de uma página');
+    expect(() =>
+      target.validateCanonicalContent(
+        {} as LessonEntity,
+        LessonStageType.STANDARD_GAME,
+        {
+          steps: ['1', '2', '3'],
+          rulesAndSafety: ['a', 'b', 'c', 'd', 'e'],
+          assets: compiled,
+        },
+      ),
+    ).toThrow('documento de uma página');
+  });
+
+  it('rejeita a brincadeira divertida com uma imagem por passo em vez do compilado', () => {
     const target = pureLessonUtils as unknown as {
       validateCanonicalContent: (
         lesson: LessonEntity,
@@ -2095,9 +2130,10 @@ describe('LessonDraftService workflow safety', () => {
             steps: ['Forme uma roda.'],
             assets: [
               {
-                id: 'instrucao-01',
-                stepNumber: 1,
-                instruction: 'Forme uma roda.',
+                id: 'compilado-01',
+                purpose: 'Resumo',
+                prompt: 'Infográfico',
+                altText: 'Resumo',
               },
             ],
           },

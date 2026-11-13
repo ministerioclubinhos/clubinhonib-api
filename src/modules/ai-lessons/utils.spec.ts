@@ -141,16 +141,42 @@ describe('AI lesson utilities', () => {
       proposedComposition: 'Cores suaves e alegres.',
     });
 
-    expect(prompt).toContain('95% da área central livre');
+    expect(prompt).toContain('PROPORÇÃO 90/10');
+    expect(prompt).toContain('ocupa cerca de 90% da imagem');
+    expect(prompt).toContain('remetem ao sentido DESTE trecho');
+    expect(prompt).toContain('desenhos MINÚSCULOS');
+    expect(prompt).toContain('A quantidade NÃO é fixa');
+    expect(prompt).not.toMatch(/de \d+ a \d+ (pequenos )?desenhos/);
+    expect(prompt).toContain('NUNCA diminua o texto');
+    expect(prompt).toContain('PRIMEIRO o texto');
+    expect(prompt).toContain('sem repetir o mesmo ícone');
+    expect(prompt).toContain('SEM BORDA BRANCA');
+    expect(prompt).toContain('nunca contorno branco');
+    expect(prompt).toContain('não devem ser azul com nuvens por padrão');
+    expect(prompt).not.toContain('nuvens estilizadas');
+    expect(prompt).not.toContain('95%');
     expect(prompt).toContain('pessoas, personagens');
-    expect(prompt).toContain('objetos reconhecíveis');
     expect(prompt).toContain('DEVE APARECER DENTRO DA IMAGEM');
-    expect(prompt).toContain('95% da imagem');
     expect(prompt).toContain('VERSÍCULO COMPLETO NVI');
     expect(prompt).toContain('João 11:25');
     expect(prompt).toContain('no máximo 3 cores em toda a imagem');
     expect(prompt).toContain('mesma paleta de 3 cores em todos os cartões');
-    expect(prompt).toContain('sem alternar uma cor diferente para cada letra');
+    expect(prompt).toContain('sem uma cor diferente para cada letra');
+  });
+});
+
+describe('cartão do versículo sem pontuação vizinha', () => {
+  it('fixa o primeiro e o último caractere e ignora texto citado na composição', () => {
+    const prompt = buildVerseVisualImagePrompt({
+      fullVerse: 'Se não ouvem a Moisés e aos Profetas, não acreditarão',
+      verseReference: 'Lucas 16:31a',
+      displayText: 'não acreditarão',
+      proposedComposition:
+        'Texto exato “, não acreditarão”, incluindo a vírgula inicial.',
+    });
+    expect(prompt).toContain('O texto começa com "n" e termina com "o"');
+    expect(prompt).toContain('Não acrescente vírgula, ponto');
+    expect(prompt).toContain('vale somente o TEXTO OBRIGATÓRIO');
   });
 });
 

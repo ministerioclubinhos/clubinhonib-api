@@ -285,12 +285,11 @@ describe('AdminLessonPromptService', () => {
       ).customPrompt,
     ).toBe('Texto da sessão atual, suficientemente longo.');
     expect(reset.effectivePrompt).toBe(reset.basePrompt);
-    expect(reset.basePrompt).toContain('crianças realmente queiram brincar');
+    expect(reset.basePrompt).toContain('pedindo "de novo!"');
     expect(reset.basePrompt).toContain('5 a 7 anos');
     expect(reset.basePrompt).toContain('8 a 11 anos');
-    expect(reset.basePrompt).toContain(
-      'espera superior a aproximadamente 30 segundos',
-    );
+    expect(reset.basePrompt).toContain('ninguém fica parado assistindo');
+    expect(reset.basePrompt).toContain('estoura balão');
   });
 
   it('trata como conflito a gravação condicional que não alterou nenhuma linha', async () => {

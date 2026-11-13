@@ -44,10 +44,12 @@ import {
   lessonOperationLabel,
 } from '../utils/lesson-system-prompt.utils';
 import { decodeProviderImage } from '../utils/provider-image.utils';
+import { LESSON_GAME_SUMMARY_ASSET_ID } from '../constants/lesson-workflow.constants';
 import {
   DEFAULT_OPENAI_IMAGE_MODEL,
   DEFAULT_OPENAI_IMAGE_QUALITY,
   DEFAULT_OPENAI_TEXT_MODEL,
+  LESSON_FUN_GAME_LIMITS,
   LESSON_GAME_MAX_STEPS,
 } from '../constants/ai-provider-settings.constants';
 import {
@@ -234,6 +236,22 @@ const GAME_INSTRUCTION_ASSET_SCHEMA = {
     altText: { type: 'string' },
   },
 } as const;
+/** The fun game has a single image that compiles the whole game. */
+const GAME_SUMMARY_ASSET_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['id', 'purpose', 'prompt', 'altText'],
+  properties: {
+    id: { type: 'string', enum: [LESSON_GAME_SUMMARY_ASSET_ID] },
+    purpose: { type: 'string' },
+    prompt: {
+      type: 'string',
+      description:
+        'Composição de UMA imagem-resumo que compila toda a brincadeira: materiais, preparação do espaço, passo a passo em painéis na ordem de leitura e encerramento.',
+    },
+    altText: { type: 'string' },
+  },
+} as const;
 const FIXATION_ASSET_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -379,33 +397,70 @@ export function schemaFor(
         'assets',
       ],
       properties: {
-        name: { type: 'string' },
-        objective: { type: 'string' },
+        name: { type: 'string', description: 'Até 5 palavras.' },
+        objective: {
+          type: 'string',
+          description: 'Uma frase curta (até 25 palavras).',
+        },
         funMechanics: {
           type: 'array',
           minItems: 2,
           maxItems: 3,
-          items: { type: 'string' },
+          items: {
+            type: 'string',
+            description: 'Até 6 palavras, ex.: "Corrida de revezamento".',
+          },
         },
-        materials: STRING_ARRAY,
-        preparation: { type: 'string' },
-        steps: GAME_STEPS_SCHEMA,
-        rulesAndSafety: STRING_ARRAY,
+        materials: {
+          type: 'array',
+          minItems: 1,
+          maxItems: LESSON_FUN_GAME_LIMITS.maxMaterials,
+          items: {
+            type: 'string',
+            description: 'Item com quantidade, até 8 palavras.',
+          },
+        },
+        preparation: {
+          type: 'string',
+          description: 'No máximo 2 frases curtas (até 40 palavras).',
+        },
+        steps: {
+          type: 'array',
+          minItems: 3,
+          maxItems: LESSON_FUN_GAME_LIMITS.maxSteps,
+          items: {
+            type: 'string',
+            description: 'Uma frase de comando, até 20 palavras.',
+          },
+        },
+        rulesAndSafety: {
+          type: 'array',
+          minItems: 1,
+          maxItems: LESSON_FUN_GAME_LIMITS.maxRules,
+          items: {
+            type: 'string',
+            description:
+              'Regra curta, até 15 palavras; inclui a duração e como se vence.',
+          },
+        },
         ageAdaptations: {
           type: 'object',
           additionalProperties: false,
           required: ['ages5To7', 'ages8To11'],
           properties: {
-            ages5To7: { type: 'string' },
-            ages8To11: { type: 'string' },
+            ages5To7: { type: 'string', description: 'Uma frase curta.' },
+            ages8To11: { type: 'string', description: 'Uma frase curta.' },
           },
         },
-        biblicalPrinciple: { type: 'string' },
+        biblicalPrinciple: {
+          type: 'string',
+          description: 'Até 2 frases curtas para o professor dizer depois.',
+        },
         assets: {
           type: 'array',
           minItems: 1,
-          maxItems: LESSON_GAME_MAX_STEPS,
-          items: GAME_INSTRUCTION_ASSET_SCHEMA,
+          maxItems: 1,
+          items: GAME_SUMMARY_ASSET_SCHEMA,
         },
       },
     };

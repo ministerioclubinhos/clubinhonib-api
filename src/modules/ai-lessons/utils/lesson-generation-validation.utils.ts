@@ -1,6 +1,9 @@
 import { ConflictException } from '@nestjs/common';
 import { AppBusinessException, ErrorCode } from 'src/shared/exceptions';
-import { LESSON_GAME_MAX_STEPS } from '../constants/ai-provider-settings.constants';
+import {
+  LESSON_FUN_GAME_LIMITS,
+  LESSON_GAME_MAX_STEPS,
+} from '../constants/ai-provider-settings.constants';
 import {
   LESSON_INTERNAL_FIELDS,
   LESSON_SCENE_ID_DIGITS,
@@ -10,6 +13,7 @@ import {
 import {
   LESSON_CANONICAL_VERSE_VERSION,
   LESSON_GAME_STAGES,
+  LESSON_GAME_SUMMARY_ASSET_ID,
   LESSON_MEDITATION_STAGES,
   LESSON_VISUAL_QUANTITY,
 } from '../constants/lesson-workflow.constants';
@@ -191,6 +195,28 @@ export function validateCanonicalContent(
       throw new ConflictException(
         `A brincadeira pode ter no máximo ${LESSON_GAME_MAX_STEPS} passos, cada um com seu visual instrucional.`,
       );
+    if (type === LessonStageType.STANDARD_GAME) {
+      const list = (value: unknown): unknown[] =>
+        Array.isArray(value) ? value : [];
+      if (
+        steps.length > LESSON_FUN_GAME_LIMITS.maxSteps ||
+        list(generated.materials).length >
+          LESSON_FUN_GAME_LIMITS.maxMaterials ||
+        list(generated.rulesAndSafety).length > LESSON_FUN_GAME_LIMITS.maxRules
+      )
+        throw new ConflictException(
+          `A brincadeira divertida é um documento de uma página: no máximo ${LESSON_FUN_GAME_LIMITS.maxSteps} passos, ${LESSON_FUN_GAME_LIMITS.maxMaterials} materiais e ${LESSON_FUN_GAME_LIMITS.maxRules} regras.`,
+        );
+      if (
+        !steps.length ||
+        assets.length !== 1 ||
+        lessonString(assets[0].id).trim() !== LESSON_GAME_SUMMARY_ASSET_ID
+      )
+        throw new ConflictException(
+          'A brincadeira divertida precisa ter o passo a passo no documento e exatamente uma imagem com o compilado de toda a brincadeira.',
+        );
+      return generated;
+    }
     const invalid =
       !steps.length ||
       assets.length !== steps.length ||

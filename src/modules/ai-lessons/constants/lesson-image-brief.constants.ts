@@ -2,6 +2,12 @@ import { LessonStageType } from '../enums/lesson.enums';
 
 export const IMAGE_BRIEF_FIELD = 'imageBrief';
 
+/**
+ * Heading the editable document received when the brief leaked into it.
+ * Versions saved before the fix still carry it; it is stripped on read.
+ */
+export const IMAGE_BRIEF_LEAKED_HEADING = 'IMAGE BRIEF';
+
 export const LESSON_IMAGE_BRIEF = {
   VERSION: 1,
   SCHEMA_NAME: 'clubinho_image_brief',
@@ -38,7 +44,8 @@ export const IMAGE_BRIEF_BASE_PROMPT = [
   'parts: exatamente uma parte para cada item de IMAGENS PLANEJADAS, com o mesmo assetId. O prompt de cada parte é autossuficiente: descreve somente o que entra naquela imagem (elementos, ação, composição, enquadramento), sem citar "imagem anterior", "como antes" ou outras imagens. Em cast e settings liste, com os nomes exatos das fichas, somente quem aparece NAQUELA imagem; lista vazia quando ninguém aparece.',
   'ESTILO DE DESENHO: quando estiloDeDesenho vier preenchido, ele é a escolha do administrador. artDirection detalha exatamente esse estilo (contorno, cores, sombreamento, textura, proporções) e não propõe outro.',
   'PRANCHA DE RECORTES: quando a imagem planejada tem uma lista de itens, a parte descreve somente esses itens, cada um isolado com contorno externo preto e grosso como linha de corte, e não menciona nenhum outro elemento da história.',
-  'TEXTO NA ARTE: não peça letras, palavras ou números dentro da imagem, salvo quando a imagem planejada trouxer um texto de exibição próprio.',
+  'TEXTO NA ARTE: não peça letras, palavras ou números dentro da imagem, salvo quando a imagem planejada trouxer um texto de exibição próprio. Exceção: o compilado da brincadeira (assetId compilado-01) é um infográfico com texto — a parte dele pede o título da brincadeira, os nomes das faixas (MATERIAIS, PREPARAÇÃO, COMO BRINCAR), os passos numerados com títulos curtos e a frase de encerramento escritos na arte, e mostra crianças genéricas e alegres fazendo cada ação, em clima de festa e gincana (nunca um infográfico só de objetos; personagens bíblicos ficam de fora).',
+  'CARTÕES DO VERSÍCULO: quando a imagem planejada traz displayText, a parte cita esse texto exatamente como está, caractere por caractere. Nunca acrescente a pontuação de um trecho vizinho (por exemplo, a vírgula que termina o trecho anterior) nem comente pontuação.',
   'Conteúdo sempre adequado a crianças: nada violento, assustador, sexualizado ou romântico.',
 ].join('\n\n');
 

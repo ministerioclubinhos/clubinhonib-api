@@ -6,6 +6,8 @@ export function lessonImageTextPolicy(purpose?: LessonImagePurpose): string {
     return 'Imagem para pintar: somente contornos pretos, interiores brancos e fundo branco puro. Sem cores, cinza, sombras, texturas, preenchimentos, letras ou logotipos.';
   if (purpose === LessonImagePurpose.CUTOUT_SHEET)
     return `Sem letras, números, logotipos ou legendas. Elementos isolados em fundo branco puro. ${CUTOUT_CUT_LINE_RULE}`;
+  if (purpose === LessonImagePurpose.GAME_SUMMARY)
+    return 'Infográfico com texto: escreva em português do Brasil, legível e com ortografia correta, o título da brincadeira, os nomes das faixas, os números e títulos curtos dos passos e a frase de encerramento pedidos a seguir. Nenhuma faixa, placa ou etiqueta pode ficar em branco. Sem logotipos ou marcas.';
   return purpose === LessonImagePurpose.MEDITATION_ACTIVITY
     ? 'Letras, números e rótulos curtos são permitidos somente quando indispensáveis ao enigma descrito, em português e legíveis. Não acrescente texto editorial, logotipos, marcas nem gabarito.'
     : 'Sem letras, palavras, números, logotipos ou marcas.';

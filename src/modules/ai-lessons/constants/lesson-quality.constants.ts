@@ -17,7 +17,7 @@ export const LESSON_STAGE_QUALITY_RULES: Record<LessonStageType, string> = {
   [LessonStageType.LESSON_VISUALS]:
     'Cubra todos os elementos essenciais de cada sub-história aprovada, respeitando a quantidade de pranchas solicitada. Vincule cada item ao trecho literal da narrativa em storyEvidence; mantenha personagens consistentes entre as pranchas e não crie elementos ou acontecimentos sem apoio na lição.',
   [LessonStageType.STANDARD_GAME]:
-    'Forneça materiais acessíveis, preparação, passos em ordem, regras, duração e critério claro de encerramento. Explique a ligação prática com o propósito da lição. Inclua adaptações para 5–7 e 8–11 anos, participação de todos e segurança sem eliminação ou constrangimento.',
+    'Entregue uma brincadeira de recreação realmente divertida, com ação física, desafio e energia (estilo gincana), materiais baratos, preparação, passos em ordem, regras, placar ou critério claro de encerramento e duração. A ligação com a lição fica no nome, no tema e no princípio bíblico. Inclua adaptações para 5–7 e 8–11 anos, todos jogando quase o tempo todo e segurança básica.',
   [LessonStageType.VERSE_VISUALS]:
     'Confira que a concatenação dos trechos reproduz integralmente o versículo aprovado, sem omissão, repetição ou troca de palavras; encerre com a referência. Preserve a legibilidade e a diagramação exigidas para os cartões tipográficos.',
   [LessonStageType.VERSE_FIXATION]:

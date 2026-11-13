@@ -83,6 +83,8 @@ import { buildYoungerMeditationSheet } from '../utils/younger-meditation-layout.
 import { editedYoungerMeditation } from '../utils/younger-meditation-content.utils';
 import { downloadSafeImageBuffer } from '../utils/asset-url.utils';
 import { reconcileStageStructuredContent } from '../utils/lesson-canonical-content.utils';
+import { isGameSummaryAssetList } from '../utils/lesson-game-summary.utils';
+import { withoutLeakedImageBrief } from '../utils/lesson-image-brief-document.utils';
 import {
   lessonHeaderLines,
   lessonString,
@@ -337,29 +339,74 @@ export class DocxExporterService implements OnApplicationBootstrap {
     const visualConfig = this.object(visualStage.visualConfig);
     const portraitVisuals =
       visualConfig.orientation === String(LessonVisualOrientation.PORTRAIT);
-    const [landscapePages, portraitVisualPages, supplementaryPages] =
-      await Promise.all([
-        this.landscapeAssetPages(
-          [
-            ...(portraitVisuals
-              ? []
-              : [{ stage: visualStage, imageOnly: true }]),
-            { stage: gameStage, imageOnly: false },
-            { stage: verseVisualStage, imageOnly: true },
-            { stage: fixationStage, imageOnly: false },
-          ],
-          loadImage,
-        ),
-        portraitVisuals
-          ? this.portraitAssetPages(visualStage, loadImage)
-          : Promise.resolve([]),
-        this.supplementaryPortraitPages(
-          youngerMeditation,
-          olderMeditation,
-          manualWork,
-          loadImage,
-        ),
-      ]);
+    // The compiled fun-game infographic is a portrait page; older games keep
+    // one landscape page per step.
+    const gameSummary = isGameSummaryAssetList(gameStage.assets);
+    const [
+      storyLandscapePages,
+      gamePages,
+      verseCardPages,
+      laterLandscapePages,
+      portraitVisualPages,
+      supplementaryPages,
+    ] = await Promise.all([
+      this.landscapeAssetPages(
+        portraitVisuals ? [] : [{ stage: visualStage, imageOnly: true }],
+        loadImage,
+      ),
+      gameSummary
+        ? this.portraitAssetPages(gameStage, loadImage)
+        : this.landscapeAssetPages(
+            [{ stage: gameStage, imageOnly: false }],
+            loadImage,
+          ),
+      // Verse cards are full-bleed: the art reaches every edge of the sheet.
+      this.bleedLandscapePages(verseVisualStage, loadImage),
+      this.landscapeAssetPages(
+        [{ stage: fixationStage, imageOnly: false }],
+        loadImage,
+      ),
+      portraitVisuals
+        ? this.portraitAssetPages(visualStage, loadImage)
+        : Promise.resolve([]),
+      this.supplementaryPortraitPages(
+        youngerMeditation,
+        olderMeditation,
+        manualWork,
+        loadImage,
+      ),
+    ]);
+    const landscapeSection = (page: LessonDocumentBlock[]) => ({
+      properties: {
+        page: {
+          size: { orientation: PageOrientation.LANDSCAPE },
+          margin: { top: 120, bottom: 120, left: 120, right: 120 },
+        },
+      },
+      children: page,
+    });
+    const bleedSection = (page: LessonDocumentBlock[]) => ({
+      properties: {
+        page: {
+          size: { orientation: PageOrientation.LANDSCAPE },
+          margin: {
+            top: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            header: 0,
+            footer: 0,
+          },
+        },
+      },
+      children: page,
+    });
+    const portraitSection = (page: LessonDocumentBlock[]) => ({
+      properties: {
+        page: { margin: { top: 120, bottom: 120, left: 120, right: 120 } },
+      },
+      children: page,
+    });
     const sections = [
       ...(bodyElements.length
         ? [
@@ -373,15 +420,10 @@ export class DocxExporterService implements OnApplicationBootstrap {
             },
           ]
         : []),
-      ...landscapePages.map((page) => ({
-        properties: {
-          page: {
-            size: { orientation: PageOrientation.LANDSCAPE },
-            margin: { top: 120, bottom: 120, left: 120, right: 120 },
-          },
-        },
-        children: page,
-      })),
+      ...storyLandscapePages.map(landscapeSection),
+      ...gamePages.map(gameSummary ? portraitSection : landscapeSection),
+      ...verseCardPages.map(bleedSection),
+      ...laterLandscapePages.map(landscapeSection),
       ...portraitVisualPages.map((page) => ({
         properties: {
           page: { margin: { top: 120, bottom: 120, left: 120, right: 120 } },
@@ -486,7 +528,9 @@ export class DocxExporterService implements OnApplicationBootstrap {
 
   private stageDocument(value: unknown): Json | null {
     const wrapper = this.object(value);
-    const document = this.object(wrapper.tiptapAstJson);
+    const document = withoutLeakedImageBrief(
+      this.object(wrapper.tiptapAstJson),
+    );
     return document.type === 'doc' ? document : null;
   }
 
@@ -1207,6 +1251,40 @@ export class DocxExporterService implements OnApplicationBootstrap {
     ]);
     return [youngerPage, olderPage, manualPage].filter(
       (page): page is LessonDocumentBlock[] => page !== null,
+    );
+  }
+
+  /** One verse card per landscape sheet, edge to edge, with no white margin. */
+  private async bleedLandscapePages(
+    stage: Json,
+    loadImage: LessonImageLoader,
+  ): Promise<Paragraph[][]> {
+    return Promise.all(
+      this.requiredAssets(stage.assets ?? stage.printableAssets).map(
+        async (asset) => {
+          const image = await loadImage(String(asset.url));
+          const fitted = fitImageInBox(
+            image,
+            DOCUMENT_IMAGE_BOXES.landscapeBleed,
+          );
+          return [
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 0, after: 0, line: 240 },
+              children: [
+                new ImageRun({
+                  data: image,
+                  transformation: {
+                    width: fitted.width,
+                    height: fitted.height,
+                  },
+                  type: fitted.type,
+                }),
+              ],
+            }),
+          ];
+        },
+      ),
     );
   }
 

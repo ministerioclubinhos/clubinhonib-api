@@ -27,6 +27,7 @@ import type {
 } from '../types/lesson-canonical-content.types';
 import { lessonString, normalizeLessonVerseReference } from '../utils';
 import { preserveServerOwnedAssetsOnManualSave } from './lesson-asset-ownership.utils';
+import { isGameSummaryAssetList } from './lesson-game-summary.utils';
 import { editedOlderMeditation } from './older-meditation-content.utils';
 import { editedYoungerMeditation } from './younger-meditation-content.utils';
 
@@ -530,7 +531,12 @@ function reconcileGameStructuredContent(
   const steps = Array.isArray(next.steps)
     ? next.steps.map((step) => lessonString(step))
     : [];
-  if (Array.isArray(next.assets) && steps.length === next.assets.length) {
+  // The compiled game image is not tied to a step: only per-step images follow edits.
+  if (
+    Array.isArray(next.assets) &&
+    !isGameSummaryAssetList(next.assets) &&
+    steps.length === next.assets.length
+  ) {
     next.assets = (next.assets as unknown[]).map((raw, index) => ({
       ...asObject(raw),
       stepNumber: index + 1,
@@ -670,6 +676,13 @@ function assertGameReady(canonical: JsonObject): void {
     throw new ConflictException(
       'A brincadeira precisa manter ao menos um passo no PASSO A PASSO.',
     );
+  }
+  if (isGameSummaryAssetList(assets)) {
+    if (!lessonString(assets[0].url).trim())
+      throw new ConflictException(
+        'A brincadeira precisa ter a imagem com o compilado gerada antes da conclusão ou publicação.',
+      );
+    return;
   }
   if (assets.length > 0 && steps.length !== assets.length) {
     throw new ConflictException(

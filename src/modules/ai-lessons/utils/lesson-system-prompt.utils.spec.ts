@@ -29,7 +29,12 @@ describe('shared lesson system prompt', () => {
     expect(lesson).not.toContain('KIT DE RECORTES');
 
     const game = buildLessonSystemPrompt(input(LessonStageType.STANDARD_GAME));
-    expect(game).toContain('Na BRINCADEIRA, diversão é requisito verificável');
+    expect(game).toContain(
+      'Na BRINCADEIRA DIVERTIDA, diversão é o critério número um',
+    );
+    expect(game).not.toContain(
+      'Na BRINCADEIRA, diversão é requisito verificável',
+    );
     expect(game).not.toContain('KIT DE RECORTES');
 
     const verse = buildLessonSystemPrompt(input(LessonStageType.VERSE_VISUALS));

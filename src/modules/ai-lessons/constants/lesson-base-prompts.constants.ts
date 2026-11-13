@@ -40,37 +40,38 @@ REGRAS DE ARTE
 - Não altere fatos, diálogos ou ênfase teológica já aprovados na lição.
 - A lição aprovada é a única fonte narrativa. Use somente seus personagens, ambientes, ações e objetos; não preencha lacunas criativamente nem repense a história.
 - Não crie cartões, palavras, símbolos mnemônicos ou imagens para o versículo nesta etapa.`,
-  [LessonStageType.STANDARD_GAME]: `Produza somente a BRINCADEIRA NORMAL da semana, seguindo o padrão dos materiais manuais do Clubinho Bíblico NIB.
+  [LessonStageType.STANDARD_GAME]: `Produza somente a BRINCADEIRA DIVERTIDA da semana, seguindo o padrão dos materiais manuais do Clubinho Bíblico NIB.
 
-CONTRATO PEDAGÓGICO
-- A brincadeira precisa reforçar o tema e o princípio da lição aprovada; não pode ser apenas uma competição com um versículo colado ao final.
-- Crie uma experiência que as crianças realmente queiram brincar, e não uma explicação, encenação passiva, questionário ou tarefa escolar disfarçada de jogo.
-- Use uma combinação simples de 2 ou 3 elementos lúdicos adequados ao tema: movimento, missão cooperativa, descoberta, surpresa, faz de conta, imitação, ritmo, construção, busca ou desafio coletivo. Não acumule mecânicas demais.
-- Estruture a experiência com início que desperte curiosidade, ação principal dinâmica e final marcante. O professor deve conseguir explicar a regra central em até 1 minuto.
-- Mantenha todas as crianças participando na maior parte do tempo. Evite filas demoradas, turnos longos, crianças apenas assistindo e espera superior a aproximadamente 30 segundos.
-- Planeje para crianças de 5 a 11 anos juntas. A regra central deve funcionar para todas; inclua uma simplificação concreta para 5 a 7 anos e um desafio adicional opcional para 8 a 11 anos, sem separar ou constranger ninguém.
-- Prefira cooperação, escolhas, pequenas conquistas e repetição prazerosa. Se houver pontuação, ela é secundária; ninguém é eliminado e o grupo sempre chega a uma conclusão positiva.
-- Dê à brincadeira um nome curto, alegre e convidativo. Use linguagem oral, comandos curtos e ações fáceis de imaginar.
-- Priorize materiais baratos, comuns, reutilizáveis e de preparação realista.
+O QUE É A BRINCADEIRA DIVERTIDA
+- É o momento de recreação do Clubinho: gincana, desafio, correria e risada. As crianças têm de sair suadas, rindo e pedindo "de novo!". Pense em festa junina, gincana de escola e brincadeira de quintal — não em aula.
+- Inspire-se no repertório clássico de recreação infantil e crie uma versão própria ou adapte um clássico: estoura balão no pé, pescaria, tiro ao alvo com bolinha, cabo de guerra, pênalti, corrida do saco, ovo na colher, boliche de garrafa PET, batata quente, caça ao tesouro, corrida de revezamento, morto-vivo, coelhinho sai da toca, circuito de obstáculos, transporte de água com copo furado, bexiga entre as costas.
+- A mecânica principal é FÍSICA e DE AÇÃO: correr, pular, mirar, arremessar, equilibrar, puxar, buscar, estourar, encher, derrubar. Desafios com tempo, contagem regressiva, surpresa e reviravolta são bem-vindos.
+- Equipes e competição saudável são bem-vindas: placar, rodadas, vencedor e prêmio simbólico (salva de palmas, medalha de papel). No fim, todos comemoram juntos.
+- A ligação com a lição é LEVE: aparece no nome, no tema/enfeite (ex.: "pescadores de homens" numa pescaria, "muralhas de Jericó" num boliche de garrafas) e numa frase curta no PRINCÍPIO BÍBLICO depois de brincar. A mecânica não precisa ensinar o conteúdo.
+- Regra central explicável em até 1 minuto. Todas as crianças jogam ao mesmo tempo ou em rodadas rápidas; ninguém fica parado assistindo por muito tempo. Se alguém sair numa rodada, volta na seguinte ou vira juiz/torcida.
+- Planeje para crianças de 5 a 11 anos juntas, com uma simplificação concreta para 5 a 7 anos e um desafio extra para 8 a 11 anos.
+- Nome curto, alegre e com cara de gincana. Linguagem oral e comandos curtos e animados.
+- Materiais baratos e fáceis: balões, bolas, corda, baldes, copos plásticos, garrafas PET, fita crepe, jornal, colheres, sacos, cones improvisados.
 
-ESTRUTURA OBRIGATÓRIA
-1. NOME curto e memorável.
-2. OBJETIVO pedagógico e objetivo da dinâmica.
-3. MATERIAIS com quantidades ou regra de cálculo por criança/equipe.
-4. PREPARAÇÃO do espaço e dos materiais antes da chegada das crianças.
-5. COMO BRINCAR em passos numerados, sem saltos lógicos.
-6. REGRAS, duração total entre 10 e 15 minutos, forma de dividir grupos, critério de encerramento e maneiras de manter todos ativos.
-7. SEGURANÇA e adaptação para espaço pequeno, criança tímida ou criança com mobilidade reduzida.
-8. ADAPTAÇÕES POR IDADE: simplificação para 5 a 7 anos e desafio opcional para 8 a 11 anos.
-9. PRINCÍPIO BÍBLICO: roteiro curto para o professor conectar a experiência à lição depois da atividade, sem transformar a brincadeira em sermão.
-10. VISUAIS DE APOIO: crie exatamente uma imagem instrucional para cada passo, na mesma ordem. Cada imagem deve demonstrar visualmente como executar sua instrução; não gere imagens meramente decorativas.
+ESTRUTURA OBRIGATÓRIA — DOCUMENTO CURTO, QUE CABE EM UMA PÁGINA A4
+O professor lê em 1 minuto e já sai brincando. Frases curtas, sem repetir a mesma informação em duas seções, sem explicações longas.
+1. NOME: até 5 palavras, com cara de gincana.
+2. OBJETIVO: uma frase.
+3. MECÂNICAS DIVERTIDAS: 2 ou 3 itens de até 6 palavras.
+4. MATERIAIS: até 6 itens curtos, com quantidade.
+5. PREPARAÇÃO: no máximo 2 frases.
+6. COMO BRINCAR: de 3 a 6 passos, cada um uma frase de comando.
+7. REGRAS E SEGURANÇA: até 4 regras curtas, incluindo a duração (10 a 15 minutos) e como se vence.
+8. ADAPTAÇÕES POR IDADE: uma frase para 5 a 7 anos e uma para 8 a 11 anos.
+9. PRINCÍPIO BÍBLICO: até 2 frases curtas para o professor dizer depois de brincar.
+10. VISUAL DE APOIO: crie UMA única imagem-resumo que compile toda a brincadeira — materiais, preparação do espaço, a sequência do passo a passo em painéis na ordem de leitura e o encerramento —, para o professor entender a dinâmica de relance. Mostre crianças genéricas e alegres fazendo cada ação, em clima de festa e gincana. Não crie uma imagem por passo, nem cenas da história bíblica; não gere imagem meramente decorativa nem um infográfico só de objetos.
 
 REGRAS
-- Não proponha corrida perigosa, contato físico forçado, eliminação humilhante, alimento sem alerta de alergia, venda nos olhos sem assistência ou materiais cortantes para crianças.
-- Não dependa de leitura avançada quando puder haver crianças pequenas.
-- Não use como mecânica principal apenas ouvir uma explicação, responder perguntas, passar um objeto em sequência ou representar literalmente a história. Transforme o conteúdo em uma ação lúdica com decisões e participação simultânea.
-- Se houver equipes, evite que a vitória seja apresentada como sinal de maior fé ou favor de Deus.
-- As imagens de apoio devem usar cores claras e suaves, sempre em composição horizontal/paisagem adequada a uma folha A4. Não devem conter texto gerado; palavras, números, cartões e linhas de corte serão compostos pelo renderer para manter ortografia e impressão corretas.`,
+- PROIBIDO como mecânica principal: desenhar, colorir, fazer gestos ou mímica parados, apontar para cartazes, responder perguntas, quiz, reflexão, ouvir explicação, encenar a história, atividade de mesa ou "andar tranquilamente". Se a brincadeira couber dentro de uma sala de aula sentada, ela está errada.
+- Segurança básica: espaço livre de obstáculos, nada cortante, sem alimento sem alerta de alergia, sem venda nos olhos sem assistência, puxões e corridas só em piso seguro e sem empurrar.
+- Não dependa de leitura quando houver crianças pequenas.
+- A vitória de uma equipe nunca é apresentada como sinal de maior fé ou favor de Deus.
+- A imagem-resumo é um infográfico vertical (retrato, A4), colorido e alegre, com o título da brincadeira, as faixas MATERIAIS, PREPARAÇÃO e COMO BRINCAR, os passos numerados com títulos curtos e o encerramento escritos em português correto.`,
   [LessonStageType.VERSE_VISUALS]: `Produza somente os VISUAIS DO VERSÍCULO PRINCIPAL, como uma sequência mnemônica imprimível. Esta etapa não é uma brincadeira e não é a dinâmica de fixação.
 
 FONTE FECHADA
@@ -83,13 +84,13 @@ SEQUÊNCIA VISUAL OBRIGATÓRIA
 - Crie um cartão tipográfico para cada trecho. A quantidade não é informada pelo administrador: derive-a da quebra semântica mais pedagógica, entre uma e nove imagens de conteúdo.
 - Depois de decidir a quantidade de trechos, acrescente sempre uma última imagem exclusiva para a referência bíblica. Nessa última peça, displayText e a imagem devem conter somente a referência completa; nunca misture referência e texto do versículo.
 - Informe a justificativa pedagógica da quebra e, em cada item, a ordem, o trecho exato, a finalidade, o conceito visual e o texto alternativo.
-- O texto exato do trecho é o protagonista absoluto e deve ser gerado dentro da própria imagem, ocupando aproximadamente 95% da composição final.
+- O texto exato do trecho é o protagonista absoluto e deve ser gerado dentro da própria imagem, ocupando aproximadamente 90% da composição final; os outros 10% são de pequenos detalhes ligados ao sentido do trecho.
 
 ARTE E IMPRESSÃO
-- Fundo infantil vibrante no padrão visual da Semana 7: azul/ciano luminoso, degradês, raios, nuvens estilizadas, brilhos e pequenas formas apenas nas bordas; centro livre para o texto dominante.
+- Fundo infantil vibrante, escolhido a partir do sentido do versículo (não use azul com nuvens por padrão), simples e com bom contraste, indo até as bordas: sem moldura, margem ou contorno branco.
 - Defina uma única paleta de no máximo três cores para toda a sequência. Texto, fundo, contornos, sombras e detalhes devem usar somente essas três cores, permitindo apenas variações de luminosidade e saturação. Não escolha uma cor diferente para cada letra e não altere a paleta entre cartões.
-- Não inclua pessoas, personagens, animais, cenários, paisagens, construções, objetos reconhecíveis ou cenas bíblicas. Admita somente pequenos detalhes abstratos nos cantos ou extremidades.
-- Gere dentro da imagem somente o trecho exato ou a referência exata solicitada, em tipografia infantil extragrande e arredondada, limitada à mesma paleta de três cores, com contorno e sombra suaves. Não acrescente nenhuma outra letra, palavra, número, moldura pesada ou logotipo.
+- Não inclua pessoas, personagens, cenas, paisagens completas ou cenas bíblicas. Em cada cartão, primeiro o texto ocupa cerca de 90% da imagem; depois, só nas sobras (cantos, bordas e vãos entre as linhas), entram desenhos minúsculos e variados, em quantidade decidida pelo espaço livre, pelo estilo e pelo sentido do trecho (sem número fixo), que remetem ao sentido do trecho (ex.: ouvido para "ouvir", pergaminho para "Moisés e os Profetas") e pequenos brilhos da mesma paleta, somando no máximo 10% da imagem, sem tocar nas letras. Nunca diminua o texto para caber detalhes.
+- Gere dentro da imagem somente o trecho exato ou a referência exata solicitada, em tipografia infantil extragrande e arredondada, limitada à mesma paleta de três cores, com contorno e sombra suaves numa cor da paleta (nunca branco). Não acrescente nenhuma outra letra, palavra, número, moldura pesada ou logotipo.
 - Preserve adequação para crianças de 5 a 11 anos e fidelidade bíblica NVI. Não inclua sexualização, romance, violência gráfica ou elementos assustadores.`,
   [LessonStageType.VERSE_FIXATION]: `Produza somente uma BRINCADEIRA SUPER DIVERTIDA DE FIXAÇÃO DO VERSÍCULO, no mesmo padrão completo da Brincadeira Normal do Clubinho Bíblico NIB. Esta etapa é diferente dos Visuais do Versículo já produzidos.
 

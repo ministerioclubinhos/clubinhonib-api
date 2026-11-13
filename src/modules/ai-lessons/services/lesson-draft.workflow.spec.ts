@@ -2136,9 +2136,10 @@ describe('LessonDraftService studio workflow', () => {
           steps: ['Forme uma roda.'],
           assets: [
             {
-              id: 'instrucao-01',
-              stepNumber: 1,
-              instruction: 'Forme uma roda.',
+              id: 'compilado-01',
+              purpose: 'Resumo',
+              prompt: 'Infográfico',
+              altText: 'Resumo',
             },
           ],
         },

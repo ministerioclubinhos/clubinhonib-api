@@ -1,3 +1,4 @@
+import { padToA4Proportion } from '../utils/a4-image.utils';
 import { withLessonVisualStyle } from '../utils/story-visual-mode.utils';
 import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
@@ -25,10 +26,13 @@ import type {
 import {
   buildCutoutKitImagePrompt,
   buildGameInstructionImagePrompt,
+  buildGameSummaryImagePrompt,
   buildStoryVisualImagePrompt,
   buildVerseVisualImagePrompt,
   lessonString,
 } from '../utils';
+import { LessonImageOrientation } from '../providers/lesson-llm.constants';
+import { VERSE_CARD_A4_RULE } from '../constants/lesson-visual-style.constants';
 import { cutoutKitGenerationOrder } from '../utils/cutout-kit.utils';
 import { attachOwnedAssetUrls } from '../utils/lesson-asset-ownership.utils';
 import {
@@ -294,6 +298,11 @@ export class LessonAssetGenerationService {
         proposedComposition: lessonString(asset.prompt),
         hasIdentityReference: params.hasIdentityReference,
       });
+    if (type === LessonStageType.STANDARD_GAME)
+      return buildGameSummaryImagePrompt({
+        game: content,
+        proposedComposition: lessonString(asset.prompt),
+      });
     if (LESSON_GAME_STAGES.includes(type))
       return buildGameInstructionImagePrompt({
         game: content,
@@ -330,7 +339,43 @@ export class LessonAssetGenerationService {
     return lessonString(asset.prompt);
   }
 
-  private generateAssetImage(
+  /** Verse cards are full-bleed A4 pages: extended, never cropped, to its proportion. */
+  private async generateAssetImage(
+    llmProvider: LessonLlmProviderContract,
+    imagePrompt: string,
+    type: LessonStageType,
+    lesson: LessonEntity,
+    visualConfig: LessonJsonObject,
+    isCutoutKit: boolean,
+    identityReferenceImage: LessonImageReference | undefined,
+    forceReference = false,
+  ): Promise<Buffer> {
+    if (type === LessonStageType.VERSE_VISUALS)
+      return padToA4Proportion(
+        await this.requestAssetImage(
+          llmProvider,
+          `${imagePrompt}\n\n${VERSE_CARD_A4_RULE}`,
+          type,
+          lesson,
+          visualConfig,
+          isCutoutKit,
+          identityReferenceImage,
+          forceReference,
+        ),
+      );
+    return this.requestAssetImage(
+      llmProvider,
+      imagePrompt,
+      type,
+      lesson,
+      visualConfig,
+      isCutoutKit,
+      identityReferenceImage,
+      forceReference,
+    );
+  }
+
+  private requestAssetImage(
     llmProvider: LessonLlmProviderContract,
     imagePrompt: string,
     type: LessonStageType,
@@ -360,6 +405,15 @@ export class LessonAssetGenerationService {
         visualType,
         identityReferenceImage,
         LessonImagePurpose.MEDITATION_ACTIVITY,
+      );
+    // The compiled game infographic is a portrait A4 page with its own style.
+    if (type === LessonStageType.STANDARD_GAME)
+      return llmProvider.generateImage(
+        imagePrompt,
+        String(LessonImageOrientation.PORTRAIT),
+        visualType,
+        undefined,
+        LessonImagePurpose.GAME_SUMMARY,
       );
     if (type === LessonStageType.MANUAL_WORK)
       return llmProvider.generateImage(

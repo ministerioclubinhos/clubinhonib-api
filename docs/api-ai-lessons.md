@@ -166,8 +166,8 @@ Versões dos templates:
 | --- | --- |
 | `LESSON` | 4.10.1 |
 | `LESSON_VISUALS` | 3.0.1 |
-| `STANDARD_GAME` | 3.2.0 |
-| `VERSE_VISUALS` | 1.1.1 |
+| `STANDARD_GAME` | 4.2.0 |
+| `VERSE_VISUALS` | 1.4.1 |
 | `VERSE_FIXATION` | 2.2.0 |
 | `MEDITATION_YOUNGER` | 1.3.0 |
 | `MEDITATION_OLDER` | 2.0.1 |
@@ -190,9 +190,9 @@ O cabeçalho apresenta blocos separados: `LIÇÃO <semana>`, `TÍTULO` e o tema,
 - **Linha de corte (kit de recortes):** toda prancha pede, em cada elemento, contorno externo preto, grosso e contínuo em volta da silhueta, para recortar com tesoura, com os elementos separados e fundo branco (`CUTOUT_CUT_LINE_RULE`, aplicada na política de imagem da prancha, no prompt-base do kit e no diretor de arte).
 - `SPECIAL`: mantém os cartazes de cena (`STORY_SEQUENCE` e demais) e rejeita `CUTOUT_KIT`. A IA divide a narrativa completa em exatamente `visualQuantity` trechos literais, contínuos e consecutivos; a primeira cena estabelece a identidade visual e todas as seguintes a recebem como referência.
 
-**Brincadeira (item 3) e fixação do versículo (item 5).** Cada passo tem exatamente um visual instrucional, na mesma ordem; o máximo é de **8 passos**, validado no schema e localmente. A brincadeira dura de 10 a 15 minutos, sem eliminação nem filas, com simplificação para 5–7 anos e desafio para 8–11. Ao regenerar, os nomes de todas as versões anteriores e as oito últimas variantes completas vão à IA como referências negativas; se a resposta repetir uma dinâmica, há uma segunda tentativa automática, e nova repetição é rejeitada.
+**Brincadeira (item 3) e fixação do versículo (item 5).** As duas têm no máximo **8 passos**, validado no schema e localmente. A brincadeira divertida (item 3) é recreação no estilo gincana (ação física, equipes, placar; ligação com a lição só no nome, no tema e no princípio bíblico) e um documento de **uma página** — de 3 a 6 passos de uma frase, até 6 materiais, até 4 regras, uma frase por adaptação —, validado no schema e localmente, mais **uma única imagem** (`assets` com exatamente um item, id `compilado-01`): um infográfico vertical que compila nome, materiais, preparação, passo a passo numerado e encerramento, gerado em retrato e exportado em página retrato, com texto escrito na arte e crianças genéricas brincando. O brief de imagem (`imageBrief`) é interno: não entra no documento editável e é removido das versões antigas na leitura e na exportação. Na fixação do versículo (item 5), cada passo continua com exatamente um visual instrucional, na mesma ordem. Brincadeiras antigas com uma imagem por passo continuam válidas para conclusão, publicação e exportação. A brincadeira dura de 10 a 15 minutos, sem eliminação nem filas, com simplificação para 5–7 anos e desafio para 8–11. Ao regenerar, os nomes de todas as versões anteriores e as oito últimas variantes completas vão à IA como referências negativas; se a resposta repetir uma dinâmica, há uma segunda tentativa automática, e nova repetição é rejeitada.
 
-**Visuais do versículo (item 4).** A IA escolhe de uma a nove partes para o texto e acrescenta uma última parte só com a referência; o backend recompõe cada `displayText` a partir das palavras do versículo NVI aprovado. O texto faz parte da própria arte (tipografia infantil extragrande); não há texto sobreposto pelo frontend ou pelo PDF.
+**Visuais do versículo (item 4).** A IA escolhe de uma a nove partes para o texto e acrescenta uma última parte só com a referência; o backend recompõe cada `displayText` a partir das palavras do versículo NVI aprovado. O texto faz parte da própria arte (tipografia infantil extragrande); não há texto sobreposto pelo frontend ou pelo PDF. O texto ocupa cerca de 90% do cartão e só as sobras (no máximo 10% da imagem) recebem desenhos minúsculos e variados ligados ao sentido do trecho, em quantidade decidida pelo espaço livre, pelo estilo e pela semântica (sem número fixo), sem nunca diminuir o texto; fundo e paleta (até 3 cores, iguais na sequência) são escolhidos a partir do versículo, sem padrão fixo. Os cartões são sem borda: a imagem é estendida em cima e embaixo até a proporção A4 (nunca recortada) e cada cartão ocupa uma página paisagem sem margem no PDF/DOCX.
 
 **Meditação dos menores (item 6).** Folha A4 retrato com duas cópias idênticas, moldura preta, faixa de título, destaque amarelo no versículo e oração em faixa cinza. O gabarito fica fora da folha. Se o conteúdo não cabe na folha, a exportação responde 422 em vez de cortar o texto.
 

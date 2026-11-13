@@ -75,6 +75,12 @@ export const LESSON_GAME_STAGES: readonly LessonStageType[] = [
   LessonStageType.VERSE_FIXATION,
 ];
 
+/**
+ * The fun game (item 3) is a simple document plus ONE image that compiles the
+ * whole game; only the verse fixation keeps one instructional image per step.
+ */
+export const LESSON_GAME_SUMMARY_ASSET_ID = 'compilado-01';
+
 export const LESSON_MEDITATION_STAGES: readonly LessonStageType[] = [
   LessonStageType.MEDITATION_YOUNGER,
   LessonStageType.MEDITATION_OLDER,

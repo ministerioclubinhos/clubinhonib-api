@@ -385,17 +385,34 @@ describe('OpenAiLessonService image identity', () => {
     );
   });
 
-  it('bounds the number of game steps, one paid image each', () => {
-    for (const stage of [
-      LessonStageType.STANDARD_GAME,
-      LessonStageType.VERSE_FIXATION,
-    ]) {
-      const schema = schemaFor(stage) as {
-        properties: Record<string, { maxItems?: number }>;
+  it('bounds the number of game steps; only the fixation pays one image per step', () => {
+    const steps = (stage: LessonStageType) =>
+      (
+        schemaFor(stage) as {
+          properties: Record<string, { maxItems?: number }>;
+        }
+      ).properties;
+    // The fun game is a one-page document: six steps, the six stops of its image.
+    expect(steps(LessonStageType.STANDARD_GAME).steps.maxItems).toBe(6);
+    expect(steps(LessonStageType.VERSE_FIXATION).steps.maxItems).toBe(8);
+    expect(steps(LessonStageType.VERSE_FIXATION).assets.maxItems).toBe(8);
+  });
+
+  it('pede uma única imagem de compilado para a brincadeira divertida', () => {
+    const schema = schemaFor(LessonStageType.STANDARD_GAME) as {
+      properties: {
+        assets: {
+          minItems: number;
+          maxItems: number;
+          items: { properties: { id: { enum: string[] } } };
+        };
       };
-      expect(schema.properties.steps.maxItems).toBe(8);
-      expect(schema.properties.assets.maxItems).toBe(8);
-    }
+    };
+    expect(schema.properties.assets.minItems).toBe(1);
+    expect(schema.properties.assets.maxItems).toBe(1);
+    expect(schema.properties.assets.items.properties.id.enum).toEqual([
+      'compilado-01',
+    ]);
   });
   it('pede a mensagem central e a justificativa do versículo antes do propósito e do versículo', () => {
     const schema = schemaFor(LessonStageType.LESSON) as {

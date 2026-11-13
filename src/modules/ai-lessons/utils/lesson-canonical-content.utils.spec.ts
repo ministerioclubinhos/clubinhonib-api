@@ -609,4 +609,82 @@ describe('canonical reconciliation — verse, sections and questions (BE03)', ()
       ),
     ).not.toThrow();
   });
+
+  describe('brincadeira divertida com imagem de compilado', () => {
+    const game = (url: string) => ({
+      name: 'Missão Resgate',
+      steps: [
+        'Forme duas equipes.',
+        'Leve as ovelhas ao aprisco.',
+        'Comemore juntos.',
+      ],
+      assets: [
+        {
+          id: 'compilado-01',
+          purpose: 'Resumo da brincadeira',
+          prompt: 'Infográfico',
+          altText: 'Resumo',
+          url,
+        },
+      ],
+    });
+
+    it('aceita uma única imagem com qualquer quantidade de passos', () => {
+      expect(() =>
+        assertStageReadyForCompletionOrPublication(
+          LessonStageType.STANDARD_GAME,
+          game(
+            'https://studio-bucket.s3.us-east-1.amazonaws.com/compilado.png',
+          ),
+        ),
+      ).not.toThrow();
+    });
+
+    it('exige a imagem do compilado gerada', () => {
+      expect(() =>
+        assertStageReadyForCompletionOrPublication(
+          LessonStageType.STANDARD_GAME,
+          game(''),
+        ),
+      ).toThrow(ConflictException);
+    });
+
+    it('não amarra o compilado a um passo quando o texto é editado', () => {
+      const editedAst = {
+        type: 'doc',
+        content: [
+          {
+            type: 'heading',
+            attrs: { level: 2 },
+            content: [{ type: 'text', text: 'PASSO A PASSO' }],
+          },
+          {
+            type: 'bulletList',
+            content: [
+              {
+                type: 'listItem',
+                content: [
+                  {
+                    type: 'paragraph',
+                    content: [{ type: 'text', text: 'Passo único revisado' }],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+      const reconciled = reconcileStageStructuredContent(
+        LessonStageType.STANDARD_GAME,
+        game('https://studio-bucket.s3.us-east-1.amazonaws.com/compilado.png'),
+        undefined,
+        editedAst,
+      );
+      expect(reconciled.steps).toEqual(['Passo único revisado']);
+      const [asset] = reconciled.assets as Record<string, unknown>[];
+      expect(asset.id).toBe('compilado-01');
+      expect(asset.stepNumber).toBeUndefined();
+      expect(asset.instruction).toBeUndefined();
+    });
+  });
 });

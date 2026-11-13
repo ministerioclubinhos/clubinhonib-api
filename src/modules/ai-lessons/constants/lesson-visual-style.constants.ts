@@ -25,3 +25,17 @@ export const LESSON_VISUAL_STYLE_PROMPTS: Record<LessonVisualStyle, string> = {
 /** Every cutout piece carries a scissors line, whatever the drawing style. */
 export const CUTOUT_CUT_LINE_RULE =
   'LINHA DE CORTE: cada elemento tem um contorno externo preto, grosso e contínuo (bem mais grosso que os traços internos) acompanhando toda a silhueta, para o professor recortar com tesoura. Silhueta simples e fechada, sem partes finas soltas; elementos separados por espaço branco, sem se tocar nem se sobrepor; fundo branco puro.';
+
+/** Long side over short side of an A4 sheet (297 × 210 mm). */
+export const A4_ASPECT_RATIO = Math.SQRT2;
+/** Images this close to A4 are left untouched. */
+export const A4_ASPECT_TOLERANCE = 0.01;
+/** Edge pixels dropped before a full-bleed card is extended to A4. */
+export const A4_PAD_EDGE_TRIM_PX = 4;
+
+/**
+ * Verse cards are full-bleed: the background reaches every edge and is
+ * extended (never cropped) to the A4 proportion, so the text keeps its margin.
+ */
+export const VERSE_CARD_A4_RULE =
+  'FOLHA A4 SEM BORDA: o cartão será impresso numa folha A4 paisagem, de ponta a ponta; o fundo será estendido em cima e embaixo até a proporção do A4. O fundo vai até todas as bordas, sem moldura, margem ou faixa branca, e é contínuo nas bordas de cima e de baixo (sem desenhos cortados ali). Mantenha o texto a pelo menos 5% de todas as bordas, porque a impressora perde alguns milímetros.';

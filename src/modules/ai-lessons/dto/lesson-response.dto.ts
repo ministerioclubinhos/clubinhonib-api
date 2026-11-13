@@ -17,6 +17,7 @@ import {
   LessonPublicationState,
   LessonView,
 } from '../enums/lesson-failure-code.enum';
+import { withoutLeakedImageBrief } from '../utils/lesson-image-brief-document.utils';
 
 export class LessonVersionResponseDto {
   id: string;
@@ -130,7 +131,7 @@ const mapVersion = (
 ): LessonVersionResponseDto => ({
   id: version.id,
   versionNumber: version.versionNumber,
-  tiptapAstJson: version.tiptapAstJson,
+  tiptapAstJson: withoutLeakedImageBrief(version.tiptapAstJson),
   structuredDataJson: version.structuredDataJson,
   changeSummary: version.changeSummary,
   createdAt: version.createdAt,
