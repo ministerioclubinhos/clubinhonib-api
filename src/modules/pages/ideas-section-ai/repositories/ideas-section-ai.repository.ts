@@ -10,6 +10,8 @@ import {
   IdeaAiEnhancementStatus,
   IdeaAiErrorCode,
 } from '../enums/ideas-section-ai.enums';
+import { IdeaAiProgress } from '../types';
+import { leaseExpression } from '../utils';
 @Injectable()
 export class IdeasSectionAiRepository {
   constructor(private readonly db: DataSource) {}
@@ -51,6 +53,9 @@ export class IdeasSectionAiRepository {
       order: { attempt: 'DESC' },
     });
   }
+  findAttempt(id: string, manager = this.db.manager): Promise<Attempt | null> {
+    return manager.findOne(Attempt, { where: { id } });
+  }
   mediaResults(
     ids: string[],
     manager = this.db.manager,
@@ -84,8 +89,9 @@ export class IdeasSectionAiRepository {
     await manager.delete(Choice, { sectionId });
     await manager.save(Choice, data);
   }
-  async cancel(sectionId: string, manager: EntityManager): Promise<void> {
-    await manager.update(
+  /** Cancels the active attempt; returns whether one existed. */
+  async cancel(sectionId: string, manager: EntityManager): Promise<boolean> {
+    const result = await manager.update(
       Attempt,
       { sectionId, status: In(IDEA_AI_ACTIVE) },
       {
@@ -97,6 +103,7 @@ export class IdeasSectionAiRepository {
         finishedAt: new Date(),
       },
     );
+    return Boolean(result.affected);
   }
   async clearCurrent(sectionId: string, manager: EntityManager): Promise<void> {
     await manager.update(
@@ -105,54 +112,103 @@ export class IdeasSectionAiRepository {
       { currentResultSectionId: null },
     );
   }
-  /** Atomic compare-and-swap: crashed leases are reclaimable; live ones are never stolen. */
+  /**
+   * Atomic compare-and-swap: crashed leases are reclaimable; live ones are
+   * never stolen. Lease times use the database clock on both sides, so a
+   * timezone or clock skew between app and MySQL cannot shorten or extend a
+   * lease. A crashed attempt is reclaimed at most `maxClaims` times; after
+   * that it is closed as STALLED instead of looping (and billing) forever.
+   */
   async claim(owner: string): Promise<Attempt | null> {
-    const candidate = await this.db
-      .getRepository(Attempt)
-      .createQueryBuilder('a')
-      .where(
-        'a.status = :pending OR (a.status = :processing AND a.leaseExpiresAt < CURRENT_TIMESTAMP)',
-        {
-          pending: IdeaAiEnhancementStatus.PENDING,
-          processing: IdeaAiEnhancementStatus.PROCESSING,
-        },
-      )
-      .orderBy('a.requestedAt', 'ASC')
-      .getOne();
-    if (!candidate) return null;
-    const changed = await this.db
-      .getRepository(Attempt)
-      .createQueryBuilder()
-      .update()
-      .set({
-        status: IdeaAiEnhancementStatus.PROCESSING,
-        leaseOwner: owner,
-        leaseExpiresAt: new Date(Date.now() + IDEA_AI.leaseMs),
-        startedAt: new Date(),
-      })
-      .where('id = :id', { id: candidate.id })
-      .andWhere(
-        '(status = :pending OR (status = :processing AND lease_expires_at < CURRENT_TIMESTAMP))',
-        {
-          pending: IdeaAiEnhancementStatus.PENDING,
-          processing: IdeaAiEnhancementStatus.PROCESSING,
-        },
-      )
-      .execute();
-    return changed.affected === 1
-      ? {
-          ...candidate,
-          leaseOwner: owner,
+    for (let guard = 0; guard < IDEA_AI.maxClaims + 1; guard++) {
+      const candidate = await this.db
+        .getRepository(Attempt)
+        .createQueryBuilder('a')
+        .where(
+          'a.status = :pending OR (a.status = :processing AND a.leaseExpiresAt < CURRENT_TIMESTAMP)',
+          {
+            pending: IdeaAiEnhancementStatus.PENDING,
+            processing: IdeaAiEnhancementStatus.PROCESSING,
+          },
+        )
+        .orderBy('a.requestedAt', 'ASC')
+        .getOne();
+      if (!candidate) return null;
+      if (candidate.claimCount >= IDEA_AI.maxClaims) {
+        await this.stall(candidate.id);
+        continue;
+      }
+      const changed = await this.db
+        .getRepository(Attempt)
+        .createQueryBuilder()
+        .update()
+        .set({
           status: IdeaAiEnhancementStatus.PROCESSING,
-        }
-      : null;
+          leaseOwner: owner,
+          leaseExpiresAt: () => leaseExpression(),
+          startedAt: () => 'CURRENT_TIMESTAMP',
+          claimCount: () => 'claim_count + 1',
+        })
+        .where('id = :id', { id: candidate.id })
+        .andWhere(
+          '(status = :pending OR (status = :processing AND lease_expires_at < CURRENT_TIMESTAMP))',
+          {
+            pending: IdeaAiEnhancementStatus.PENDING,
+            processing: IdeaAiEnhancementStatus.PROCESSING,
+          },
+        )
+        .execute();
+      return changed.affected === 1
+        ? {
+            ...candidate,
+            leaseOwner: owner,
+            claimCount: candidate.claimCount + 1,
+            status: IdeaAiEnhancementStatus.PROCESSING,
+          }
+        : null;
+    }
+    return null;
   }
-  async renew(id: string, owner: string): Promise<boolean> {
+  /** Closes an attempt that keeps crashing the worker. */
+  async stall(id: string): Promise<boolean> {
     const result = await this.db
       .getRepository(Attempt)
       .createQueryBuilder()
       .update()
-      .set({ leaseExpiresAt: new Date(Date.now() + IDEA_AI.leaseMs) })
+      .set({
+        status: IdeaAiEnhancementStatus.FAILED,
+        errorCode: IdeaAiErrorCode.STALLED,
+        activeSectionId: null,
+        leaseOwner: null,
+        leaseExpiresAt: null,
+        finishedAt: () => 'CURRENT_TIMESTAMP',
+      })
+      .where(
+        'id = :id AND status = :processing AND lease_expires_at < CURRENT_TIMESTAMP',
+        { id, processing: IdeaAiEnhancementStatus.PROCESSING },
+      )
+      .execute();
+    return result.affected === 1;
+  }
+  /** Extends the lease and, optionally, records progress for the reviewer. */
+  async renew(
+    id: string,
+    owner: string,
+    progress?: IdeaAiProgress,
+  ): Promise<boolean> {
+    const result = await this.db
+      .getRepository(Attempt)
+      .createQueryBuilder()
+      .update()
+      .set({
+        leaseExpiresAt: () => leaseExpression(),
+        ...(progress
+          ? {
+              progressDone: progress.done,
+              progressTotal: progress.total,
+            }
+          : {}),
+      })
       .where(
         'id = :id AND lease_owner = :owner AND status = :status AND lease_expires_at > CURRENT_TIMESTAMP',
         { id, owner, status: IdeaAiEnhancementStatus.PROCESSING },
@@ -174,6 +230,19 @@ export class IdeasSectionAiRepository {
         { id, owner, status: IdeaAiEnhancementStatus.PROCESSING },
       )
       .getOne();
+  }
+  /** Makes a finished result the one the reviewer compares and publishes. */
+  async setCurrent(
+    sectionId: string,
+    enhancementId: string,
+    manager: EntityManager,
+  ): Promise<void> {
+    await this.clearCurrent(sectionId, manager);
+    await manager.update(
+      Attempt,
+      { id: enhancementId, sectionId },
+      { currentResultSectionId: sectionId },
+    );
   }
   async deleteHistory(
     sectionId: string,

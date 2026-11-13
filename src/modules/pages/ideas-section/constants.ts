@@ -59,3 +59,7 @@ export const IDEAS_SHARE_VIDEO_FORMATS = {
   'video/mp4': ['mp4'],
   'video/webm': ['webm'],
 } as const;
+
+/** Limites do texto da ideia, no envio, na revisão e na versão da IA. */
+export const IDEAS_SECTION_TITLE_MAX_LENGTH = 120;
+export const IDEAS_SECTION_DESCRIPTION_MAX_LENGTH = 2000;

@@ -7,6 +7,10 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { IdeasSectionMediaItemDto } from './ideas-section-media-item.dto';
+import {
+  IDEAS_SECTION_DESCRIPTION_MAX_LENGTH,
+  IDEAS_SECTION_TITLE_MAX_LENGTH,
+} from '../constants';
 
 /**
  * Ideia enviada pela base.
@@ -17,14 +21,14 @@ import { IdeasSectionMediaItemDto } from './ideas-section-media-item.dto';
 export class CreateIdeasSectionDto {
   @IsString({ message: 'O campo "title" deve ser uma string.' })
   @IsNotEmpty({ message: 'O título da ideia é obrigatório.' })
-  @MaxLength(120, {
+  @MaxLength(IDEAS_SECTION_TITLE_MAX_LENGTH, {
     message: 'O título da ideia deve ter no máximo 120 caracteres.',
   })
   title: string;
 
   @IsString({ message: 'O campo "description" deve ser uma string.' })
   @IsNotEmpty({ message: 'A descrição da ideia é obrigatória.' })
-  @MaxLength(2000, {
+  @MaxLength(IDEAS_SECTION_DESCRIPTION_MAX_LENGTH, {
     message: 'A descrição da ideia deve ter no máximo 2000 caracteres.',
   })
   description: string;

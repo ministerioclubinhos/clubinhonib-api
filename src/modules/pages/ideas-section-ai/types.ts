@@ -1,6 +1,7 @@
 import { InternalAiProviderSettings } from 'src/modules/ai-lessons/types/ai-provider-settings.types';
 import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 import {
+  IdeaAiErrorCode,
   IdeaAiMediaStatus,
   IdeaAiSkipReason,
 } from './enums/ideas-section-ai.enums';
@@ -24,10 +25,17 @@ export interface IdeaAiGuard {
   approved: boolean;
   violations: string[];
 }
+/** Text guard with a verdict per field, so one bad field keeps the other. */
+export interface IdeaAiTextGuard extends IdeaAiGuard {
+  fields?: {
+    title: IdeaAiGuard;
+    description: IdeaAiGuard;
+  };
+}
 export interface IdeaAiTextResult {
   title: string | null;
   description: string | null;
-  guard: IdeaAiGuard;
+  guard: IdeaAiTextGuard;
 }
 export interface IdeaAiArtifact {
   buffer: Buffer;
@@ -39,6 +47,7 @@ export interface IdeaAiMediaResult {
   status: IdeaAiMediaStatus;
   skipReason?: IdeaAiSkipReason;
   guard?: IdeaAiGuard;
+  errorCode?: IdeaAiErrorCode;
   artifact?: IdeaAiArtifact;
   editable?: IdeaAiArtifact;
 }
@@ -46,6 +55,8 @@ export interface IdeaAiProcessContext {
   settings: InternalAiProviderSettings;
   source: MediaItemEntity;
   imageIndex: number;
+  /** Admin guidance for this attempt (documents only; images stay literal). */
+  instructions: string | null;
 }
 export interface IdeaAiProviderResponse {
   output?: Array<{ content?: Array<{ type?: string; text?: string }> }>;
@@ -80,4 +91,17 @@ export interface StagedIdeaAiMedia {
   result: IdeaAiMediaResult;
   url: string | null;
   editableUrl: string | null;
+}
+
+export interface IdeaAiProgress {
+  done: number;
+  total: number;
+}
+
+/** What a new attempt redoes and which result fills in the rest. */
+export interface IdeaAiAttemptTarget {
+  includeText: boolean;
+  /** null = every snapshot media. */
+  mediaIds: string[] | null;
+  baseEnhancementId: string | null;
 }

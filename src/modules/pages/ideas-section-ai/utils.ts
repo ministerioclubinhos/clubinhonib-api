@@ -1,7 +1,18 @@
 import { Readable } from 'node:stream';
-import { IdeaAiArtifact, IdeaAiGuard } from './types';
+import { IdeaAiArtifact, IdeaAiGuard, IdeaAiTextGuard } from './types';
 import type { EnhancedIdeaDocumentDto } from './dto/enhanced-idea.dto';
 import { IdeaDocumentBlockType } from './enums/enhanced-idea.enums';
+import {
+  IDEA_AI,
+  IDEA_AI_ADMIN_INSTRUCTIONS_PREFIX,
+  IDEA_AI_TEXT_FIELD_LABELS,
+  IDEA_AI_UNCOUNTED_ERRORS,
+} from './constants';
+import { IdeaAiErrorCode } from './enums/ideas-section-ai.enums';
+import { InternalAiProviderSettings } from 'src/modules/ai-lessons/types/ai-provider-settings.types';
+import { LessonLlmProvider } from 'src/modules/ai-lessons/providers/lesson-llm.types';
+import { MediaType } from 'src/shared/media/media-item/media-item.entity';
+import { AiQueueException } from 'src/shared/providers/ai-queue/ai-queue.exception';
 export function checkIdeaEssence(
   original: string,
   enhanced: string,
@@ -105,4 +116,157 @@ export function checkIdeaDocumentStructure(
       );
   }
   return { approved: !violations.length, violations: [...new Set(violations)] };
+}
+
+/** Lease deadline computed by MySQL, compared with MySQL's own clock. */
+export function leaseExpression(): string {
+  return `DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ${Math.round(IDEA_AI.leaseMs / 1000)} SECOND)`;
+}
+
+/** Trims admin instructions; blank becomes undefined. */
+export function trimIdeaAiInstructions({ value }: { value: unknown }): unknown {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+/** Prompt suffix carrying the admin guidance, if any. */
+export function withAdminInstructions(
+  instructions: string,
+  admin: string | null,
+): string {
+  return admin
+    ? `${instructions}\n${IDEA_AI_ADMIN_INSTRUCTIONS_PREFIX} ${admin}`
+    : instructions;
+}
+
+/** Infra failures and cancellations do not consume one of the attempts. */
+export function countsTowardIdeaAiLimit(attempt: {
+  errorCode: IdeaAiErrorCode | null;
+}): boolean {
+  return !(
+    attempt.errorCode !== null &&
+    IDEA_AI_UNCOUNTED_ERRORS.includes(attempt.errorCode)
+  );
+}
+
+/** Maps any worker exception to a sanitized, persisted error code. */
+export function ideaAiErrorCodeFrom(error: unknown): IdeaAiErrorCode {
+  if (error instanceof AiQueueException)
+    return IdeaAiErrorCode.QUEUE_UNAVAILABLE;
+  if (error instanceof Error) {
+    const known = Object.values(IdeaAiErrorCode).find(
+      (code) => String(code) === error.message,
+    );
+    if (known) return known;
+  }
+  return IdeaAiErrorCode.PROVIDER_REQUEST_FAILED;
+}
+
+/** Provider, key and text model must exist before an attempt is queued. */
+export function ideaAiProviderReady(
+  settings: InternalAiProviderSettings,
+): boolean {
+  const provider = String(settings.llmProvider);
+  if (
+    provider !== String(LessonLlmProvider.OPENAI) &&
+    provider !== String(LessonLlmProvider.GEMINI)
+  )
+    return false;
+  const configured = settings[settings.llmProvider];
+  return Boolean(configured?.apiKey && configured.generalModel);
+}
+
+/** Palavras-chave de um texto: minúsculas, sem pontuação, com tamanho mínimo. */
+function ideaKeywords(text: string): Set<string> {
+  return new Set(
+    (text.toLocaleLowerCase('pt-BR').match(/[\p{L}\p{N}]+/gu) ?? []).filter(
+      (word) => word.length >= IDEA_AI.preservationMinWordLength,
+    ),
+  );
+}
+
+/**
+ * Quanto do original continua na versão da IA (0–1): fração das palavras-chave
+ * do original presentes na proposta. Mede "upgrade" contra "reescrita": a
+ * ordem pode mudar, o vocabulário de quem escreveu precisa ficar.
+ */
+export function ideaWordPreservation(
+  original: string,
+  enhanced: string,
+): number {
+  const before = ideaKeywords(original);
+  if (!before.size) return 1;
+  const after = ideaKeywords(enhanced);
+  let kept = 0;
+  for (const word of before) if (after.has(word)) kept++;
+  return kept / before.size;
+}
+
+/** Violação quando a proposta deixou de ser reconhecível como o original. */
+export function checkIdeaPreservation(
+  original: string,
+  enhanced: string,
+  minimum: number,
+): string | null {
+  const kept = ideaWordPreservation(original, enhanced);
+  return kept < minimum
+    ? `A versão se afastou demais do original (${Math.round(kept * 100)}% das palavras-chave mantidas; mínimo ${Math.round(minimum * 100)}%). A melhoria deve ser um upgrade, não outro texto.`
+    : null;
+}
+
+/** Deterministic guard for one text field, including its length limit. */
+export function checkIdeaTextField(
+  original: string,
+  enhanced: string,
+  maxLength: number,
+  minPreservation: number = IDEA_AI.minTextPreservation,
+): IdeaAiGuard {
+  const guard = checkIdeaEssence(original, enhanced);
+  const violations = [...guard.violations];
+  const drift = checkIdeaPreservation(original, enhanced, minPreservation);
+  if (drift) violations.push(drift);
+  const length = enhanced.trim().length;
+  if (!length || length > maxLength)
+    violations.push(`O texto deve ter entre 1 e ${maxLength} caracteres.`);
+  return { approved: !violations.length, violations: [...new Set(violations)] };
+}
+
+/**
+ * Merges per-field checks with the judge. The judge sees both fields at once,
+ * so its rejection applies to every field it evaluated.
+ */
+export function combineIdeaTextGuard(
+  title: IdeaAiGuard,
+  description: IdeaAiGuard,
+  judged: IdeaAiGuard,
+): IdeaAiTextGuard {
+  const apply = (field: IdeaAiGuard): IdeaAiGuard =>
+    field.approved && !judged.approved
+      ? { approved: false, violations: judged.violations }
+      : field;
+  const fields = { title: apply(title), description: apply(description) };
+  const label = (name: string, field: IdeaAiGuard) =>
+    field.violations.map((v) => `${name}: ${v}`);
+  return {
+    approved: fields.title.approved && fields.description.approved,
+    violations: [
+      ...new Set([
+        ...label(IDEA_AI_TEXT_FIELD_LABELS.title, fields.title),
+        ...label(IDEA_AI_TEXT_FIELD_LABELS.description, fields.description),
+      ]),
+    ],
+    fields,
+  };
+}
+
+/** Whitespace-insensitive: reflowing a paragraph is not an edit. */
+export function isIdeaTextEdited(base: string, final: string): boolean {
+  const normalize = (text: string) => text.replace(/\s+/g, ' ').trim();
+  return normalize(base) !== normalize(final);
+}
+
+/** Vídeo (upload ou link) nunca passa pela melhoria por IA. */
+export function isIdeaAiVideo(media: { mediaType: MediaType }): boolean {
+  return media.mediaType === MediaType.VIDEO;
 }

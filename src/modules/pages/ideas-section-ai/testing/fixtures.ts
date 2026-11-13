@@ -11,6 +11,7 @@ import { IdeasSectionAiEnhancementEntity } from '../entities/ideas-section-ai-en
 import {
   IdeaAiDecision,
   IdeaAiEnhancementStatus,
+  IdeaAiScope,
   IdeaSubmissionSnapshotSource,
 } from '../enums/ideas-section-ai.enums';
 export const settings: InternalAiProviderSettings = {
@@ -92,5 +93,13 @@ export const attempt: IdeasSectionAiEnhancementEntity = Object.assign(
     descriptionDecision: IdeaAiDecision.PENDING,
     textGuard: null,
     currentResultSectionId: null,
+    scope: IdeaAiScope.FULL,
+    includeText: true,
+    targetMediaIds: null,
+    baseEnhancementId: null,
+    instructions: null,
+    claimCount: 1,
+    progressTotal: 2,
+    progressDone: 0,
   },
 );

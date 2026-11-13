@@ -24,6 +24,14 @@ class "ideas_section_ai_enhancements" as attempt {
   lease_expires_at : datetime
   enhanced_title : varchar
   enhanced_description : text
+  scope : FULL | TEXT | MEDIA | FAILED
+  include_text : bool
+  target_media_ids : json nullable
+  base_enhancement_id : UUID nullable
+  instructions : varchar(500) nullable
+  claim_count : int
+  progress_done / progress_total : int
+  error_code : enum (incl. STALLED, SNAPSHOT_MISSING,\nQUEUE_UNAVAILABLE)
 }
 class "ideas_section_ai_media_enhancements" as result {
   * enhancement_id : UUID
@@ -32,6 +40,8 @@ class "ideas_section_ai_media_enhancements" as result {
   editable_media_id : UUID <<RESTRICT>>
   status : enum
   guard : json
+  error_code : enum nullable
+  carried_over : bool
 }
 class "ideas_section_ai_publication_choices" as choice {
   * section_id : UUID
@@ -39,6 +49,7 @@ class "ideas_section_ai_publication_choices" as choice {
   enhancement_id : UUID
   source_media_id : UUID <<RESTRICT>>
   decision : enum
+  edited : bool
 }
 section ||--o| snapshot : CASCADE
 snapshot ||--o{ source : CASCADE
@@ -46,6 +57,7 @@ media ||--o{ source : protected source
 section ||--o{ attempt : CASCADE
 snapshot ||--o{ attempt : CASCADE
 attempt ||--o{ result : CASCADE
+attempt |o--o{ attempt : base (carried items)
 media ||--o{ result : source / PDF / DOCX / image
 section ||--o{ choice : CASCADE
 attempt |o--o{ choice : SET NULL

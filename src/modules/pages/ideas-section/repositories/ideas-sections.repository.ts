@@ -12,6 +12,11 @@ import { IdeasSectionEntity } from 'src/modules/pages/ideas-page/entities/ideas-
 import { IdeasPageEntity } from 'src/modules/pages/ideas-page/entities/ideas-page.entity';
 
 import { QueryIdeasSectionsDto } from '../dto/query-ideas-sections.dto';
+import { IdeasSectionAiEnhancementEntity } from '../../ideas-section-ai/entities/ideas-section-ai-enhancement.entity';
+import {
+  IdeaAiEnhancementStatus,
+  IdeaAiQueueFilter,
+} from '../../ideas-section-ai/enums/ideas-section-ai.enums';
 import {
   IDEAS_SECTIONS_DEFAULT_LIMIT,
   IDEAS_SECTIONS_DEFAULT_PAGE,
@@ -134,6 +139,8 @@ export class IdeasSectionsRepository {
       );
     }
 
+    if (query.aiStatus) this.applyAiFilter(qb, query.aiStatus);
+
     qb.orderBy(IDEAS_SECTION_SORT_COLUMNS[sort], order)
       .skip((page - 1) * limit)
       .take(limit);
@@ -141,6 +148,53 @@ export class IdeasSectionsRepository {
     const [items, total] = await qb.getManyAndCount();
 
     return { items, total };
+  }
+
+  /**
+   * Recorte da fila pelo estado da IA, em subconsultas sobre as tentativas:
+   * a página continua sendo resolvida no banco.
+   */
+  private applyAiFilter(
+    qb: SelectQueryBuilder<IdeasSectionEntity>,
+    filter: IdeaAiQueueFilter,
+  ): void {
+    const attempts = (alias: string, where: string) =>
+      qb
+        .subQuery()
+        .select('1')
+        .from(IdeasSectionAiEnhancementEntity, alias)
+        .where(where)
+        .getQuery();
+    const active = attempts('active', 'active.activeSectionId = section.id');
+    if (filter === IdeaAiQueueFilter.NONE) {
+      qb.andWhere(
+        `NOT EXISTS ${attempts('any', 'any.sectionId = section.id')}`,
+      );
+      return;
+    }
+    if (filter === IdeaAiQueueFilter.PROCESSING) {
+      qb.andWhere(`EXISTS ${active}`);
+      return;
+    }
+    if (filter === IdeaAiQueueFilter.READY) {
+      qb.andWhere(
+        `EXISTS ${attempts('result', 'result.currentResultSectionId = section.id')}`,
+      ).andWhere(`NOT EXISTS ${active}`);
+      return;
+    }
+    const latest = qb
+      .subQuery()
+      .select('MAX(latest.attempt)')
+      .from(IdeasSectionAiEnhancementEntity, 'latest')
+      .where('latest.sectionId = section.id')
+      .getQuery();
+    qb.andWhere(
+      `EXISTS ${attempts(
+        'failed',
+        `failed.sectionId = section.id AND failed.status = :aiFailed AND failed.attempt = ${latest}`,
+      )}`,
+      { aiFailed: IdeaAiEnhancementStatus.FAILED },
+    );
   }
 
   /** Quantas ideias aguardam decisão da administração. */

@@ -3,6 +3,7 @@ import { BaseEntity } from 'src/shared/share-entity/base.entity';
 import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 import {
   IdeaAiDecision,
+  IdeaAiErrorCode,
   IdeaAiMediaKind,
   IdeaAiMediaStatus,
   IdeaAiSkipReason,
@@ -89,4 +90,17 @@ export class IdeasSectionAiMediaEnhancementEntity extends BaseEntity {
     default: IdeaAiDecision.PENDING,
   })
   decision: IdeaAiDecision;
+
+  /** Motivo técnico de uma falha deste material. */
+  @Column({
+    name: 'error_code',
+    type: 'enum',
+    enum: IdeaAiErrorCode,
+    nullable: true,
+  })
+  errorCode: IdeaAiErrorCode | null;
+
+  /** Resultado aproveitado da tentativa base, sem nova chamada à IA. */
+  @Column({ name: 'carried_over', type: 'boolean', default: false })
+  carriedOver: boolean;
 }

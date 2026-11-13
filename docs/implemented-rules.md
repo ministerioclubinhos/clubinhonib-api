@@ -825,9 +825,18 @@ run the generated migration normally against the existing production schema.
 ### Shared idea AI review
 
 - Original submissions are captured once; legacy capture is explicitly labelled. Every retry reads that snapshot.
-- Automatic enqueue is controlled only at submission. Manual admin enqueue ignores that flag and enforces one active job and three total attempts.
+- `idea_ai_enhancement` turns the whole AI flow on or off: automatic enqueue at submission, manual requests/regenerations (`403 FEATURE_DISABLED` when off) and worker processing. Review, cancellation, restore and publishing existing results do not depend on it. Locally, `./run.sh local` ensures it exists and is on.
+- Automatic enqueue requires a configured provider (otherwise skipped and logged). Manual admin enqueue requires a configured provider (`400 IDEA_AI_8623`), enforces one active job and up to five counted attempts, and is refused for published ideas.
+- Cancellations and infrastructure failures (missing provider, queue outage, stalled worker, missing snapshot) never consume an attempt.
+- Admins can regenerate everything, only the text, chosen documents/images, or only what failed, with optional instructions subordinate to the essence rules. Untargeted items are carried over from the current result without new LLM calls; a redone item that fails keeps the previous approved version; a partial attempt replaces the current result only if something it redid succeeded.
+- Admins can cancel the active attempt and restore an earlier finished result as current.
+- A crashed attempt is reclaimed at most three times, then closed as `STALLED`. Lease times use the database clock. Progress per item is exposed.
+- Text guard verdicts are per field: a rejected description no longer discards an approved title.
+- Enhancement is an upgrade, never a replacement: prompts keep the teacher's words, idea and tone; text and documents must keep at least 70% of the original keywords (60% for titles), otherwise the proposal is rejected and the original kept; the judge rejects lost central idea or originality.
 - Failed retries retain the previous completed result. Every publication decision identifies the current attempt; removed materials stay removed from publication and preserved in the original.
-- Publishing during processing requires explicit original-only confirmation, invalidates the lease and prevents late application. No AI operation publishes automatically.
+- The published title/description are the reviewed text sent by the admin (edits to the chosen version are kept and recorded as `edited`).
+- Publishing during processing requires explicit confirmation, cancels the attempt (uncounted) and publishes the reviewed draft as sent, preventing late application. No AI operation publishes automatically.
+- The admin queue can be filtered by AI state (ready, processing, failed, none).
 - People receive no generative image edits; videos are skipped. Essential document visuals stay original. Guard failures are visible to administrators.
 - Original and historical artifacts survive edits and publication. Deleting the idea or its containing page cleans history transactionally, with reference-checked S3 cleanup after commit.
 - See [API, worker and rollout details](api-ideas-enhancement.md).

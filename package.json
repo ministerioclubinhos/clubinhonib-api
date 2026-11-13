@@ -35,7 +35,8 @@
     "db:local:migration:status": "cross-env ENV_FILE=env/local.env node --require ts-node/register/transpile-only --require tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:show",
     "db:local:migration:revert": "cross-env ENV_FILE=env/local.env node --require ts-node/register/transpile-only --require tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:revert",
     "diagrams:generate": "node scripts/generate-diagrams.js",
-    "redis:local:ensure": "node --require ts-node/register/transpile-only --require tsconfig-paths/register scripts/redis-local/ensure-redis.ts"
+    "redis:local:ensure": "node --require ts-node/register/transpile-only --require tsconfig-paths/register scripts/redis-local/ensure-redis.ts",
+    "feature-flags:local:ensure-idea-ai": "node --require ts-node/register/transpile-only --require tsconfig-paths/register scripts/feature-flags-local/ensure-idea-ai-flag.ts"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.1127.0",

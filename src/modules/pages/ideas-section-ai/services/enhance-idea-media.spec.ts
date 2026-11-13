@@ -24,7 +24,7 @@ describe('document and image enhancement policies', () => {
   };
   let documents: EnhanceIdeaDocumentService;
   let images: EnhanceIdeaImageService;
-  const context = { source, settings, imageIndex: 0 };
+  const context = { source, settings, imageIndex: 0, instructions: null };
   beforeEach(async () => {
     jest.resetAllMocks();
     const buffer = Buffer.from('file');
@@ -76,6 +76,33 @@ describe('document and image enhancement policies', () => {
     expect(renderer.render.mock.invocationCallOrder[0]).toBeGreaterThan(
       guard.verify.mock.invocationCallOrder[0],
     );
+  });
+  it('rejects a document rewritten into another text before calling the judge', async () => {
+    renderer.inspect.mockResolvedValue({
+      text: 'Separe bolas coloridas e forme equipes para a gincana do Bom Pastor.',
+      numpages: 1,
+    });
+    gateway.json.mockResolvedValue({
+      title: '',
+      sections: [
+        {
+          heading: '',
+          blocks: [
+            { text: 'Proponha uma dinâmica divertida ao grupo.', items: [] },
+          ],
+        },
+      ],
+      hasEssentialVisuals: false,
+    });
+    await expect(documents.enhance(context)).resolves.toMatchObject({
+      status: IdeaAiMediaStatus.REJECTED_BY_GUARD,
+      guard: {
+        approved: false,
+        violations: [expect.stringContaining('afastou demais do original')],
+      },
+    });
+    expect(guard.verify).not.toHaveBeenCalled();
+    expect(renderer.render).not.toHaveBeenCalled();
   });
   it('preserves documents with essential drawings and templates', async () => {
     gateway.json.mockResolvedValue({ hasEssentialVisuals: true });

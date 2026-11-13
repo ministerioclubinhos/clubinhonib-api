@@ -55,4 +55,34 @@ export enum IdeaAiErrorCode {
   GUARD_REJECTED = 'GUARD_REJECTED',
   LIMIT_REACHED = 'LIMIT_REACHED',
   CANCELLED = 'CANCELLED',
+  /** O processamento derrubou o worker repetidas vezes; não é reivindicado de novo. */
+  STALLED = 'STALLED',
+  /** A ideia ficou sem o snapshot do envio original. */
+  SNAPSHOT_MISSING = 'SNAPSHOT_MISSING',
+  /** A fila compartilhada de IA estava indisponível. */
+  QUEUE_UNAVAILABLE = 'QUEUE_UNAVAILABLE',
+}
+
+/** O que uma tentativa refaz. */
+export enum IdeaAiScope {
+  /** Texto e todas as mídias, a partir do original. */
+  FULL = 'FULL',
+  /** Só título e descrição; as mídias vêm do resultado vigente. */
+  TEXT = 'TEXT',
+  /** Só as mídias escolhidas; o resto vem do resultado vigente. */
+  MEDIA = 'MEDIA',
+  /** Só o que falhou ou foi reprovado pela guarda no resultado vigente. */
+  FAILED = 'FAILED',
+}
+
+/** Filtro da fila da administração pelo estado da IA. */
+export enum IdeaAiQueueFilter {
+  /** Há resultado para revisar e nada em andamento. */
+  READY = 'READY',
+  /** Na fila ou processando. */
+  PROCESSING = 'PROCESSING',
+  /** A última tentativa falhou ou travou. */
+  FAILED = 'FAILED',
+  /** Nenhuma tentativa até agora. */
+  NONE = 'NONE',
 }

@@ -11,6 +11,7 @@ import {
   IdeaAiMediaStatus,
 } from '../enums/ideas-section-ai.enums';
 import { UpdateIdeasSectionDto } from '../../ideas-section/dto/update-ideas-section.dto';
+import { IdeasSectionMediaType } from '../../ideas-section/entities/ideas-section-media-type.enum';
 describe('publication choices', () => {
   const manager = {} as EntityManager;
   const repo = {
@@ -89,26 +90,34 @@ describe('publication choices', () => {
     ).rejects.toMatchObject({ status: 409 });
     expect(repo.cancel).not.toHaveBeenCalled();
   });
-  it('explicit original publication cancels the lease and uses immutable source content', async () => {
+  it('explicit original publication cancels the attempt and keeps the admin edits', async () => {
     repo.attempts.mockResolvedValue([attempt]);
+    const edited = {
+      ...input(),
+      title: 'Título revisado',
+      description: 'Descrição revisada',
+      medias: [{ ...source, mediaType: IdeasSectionMediaType.DOCUMENT }],
+      ignoreAiEnhancement: true,
+    };
+    const prepared = await service.prepare(section.id, edited, manager, true);
+    expect(repo.cancel).toHaveBeenCalledWith(section.id, manager);
+    expect(prepared.dto).toBe(edited);
+    expect(repo.replaceChoices).not.toHaveBeenCalled();
+  });
+  it('publishes the reviewed text and records which chosen versions were edited', async () => {
+    const original = JSON.stringify(snapshot);
     const prepared = await service.prepare(
       section.id,
-      { ...input(), ignoreAiEnhancement: true },
+      {
+        ...input(),
+        title: ' Gincana melhorada ',
+        description: 'Descrição ajustada à mão',
+      },
       manager,
       true,
     );
-    expect(repo.cancel).toHaveBeenCalledWith(section.id, manager);
-    expect(prepared.dto).toMatchObject({
-      title: snapshot.submittedTitle,
-      description: snapshot.submittedDescription,
-      medias: [expect.objectContaining({ url: source.url })],
-    });
-  });
-  it('projects mixed choices, preserving source and binding choices to the attempt', async () => {
-    const original = JSON.stringify(snapshot);
-    const prepared = await service.prepare(section.id, input(), manager, true);
     expect(prepared.dto.title).toBe('Gincana melhorada');
-    expect(prepared.dto.description).toBe(snapshot.submittedDescription);
+    expect(prepared.dto.description).toBe('Descrição ajustada à mão');
     expect(prepared.dto.medias[0].url).toBe('https://bucket/improved.pdf');
     expect(repo.replaceChoices).toHaveBeenCalledWith(
       section.id,
@@ -116,7 +125,9 @@ describe('publication choices', () => {
         expect.objectContaining({
           enhancementId: attempt.id,
           choiceKey: 'TITLE',
+          edited: false,
         }),
+        expect.objectContaining({ choiceKey: 'DESCRIPTION', edited: true }),
       ]),
       manager,
     );
@@ -125,6 +136,11 @@ describe('publication choices', () => {
       manager,
       expect.not.objectContaining({ id: source.id }),
     );
+  });
+  it('saves edits without decisions untouched', async () => {
+    const plain = { ...input(), aiDecisions: undefined };
+    const prepared = await service.prepare(section.id, plain, manager, false);
+    expect(prepared.dto).toBe(plain);
   });
   it('rejects choices referring to another attempt or another idea media', async () => {
     const wrong = input();

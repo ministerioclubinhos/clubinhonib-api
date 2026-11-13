@@ -5,35 +5,73 @@ import { IdeaEssenceGuardService } from './idea-essence-guard.service';
 import { EnhancedIdeaTextDto } from '../dto/enhanced-idea.dto';
 import { IDEA_TEXT_SCHEMA } from '../schemas';
 import { IdeaAiTextResult } from '../types';
+import {
+  checkIdeaTextField,
+  combineIdeaTextGuard,
+  withAdminInstructions,
+} from '../utils';
+import { IDEA_AI, IDEA_AI_TEXT_INSTRUCTIONS } from '../constants';
+import {
+  IDEAS_SECTION_DESCRIPTION_MAX_LENGTH,
+  IDEAS_SECTION_TITLE_MAX_LENGTH,
+} from '../../ideas-section/constants';
+
 @Injectable()
 export class EnhanceIdeaTextService {
   constructor(
     private readonly gateway: IdeaAiGatewayProvider,
     private readonly guard: IdeaEssenceGuardService,
   ) {}
+
+  /**
+   * Rewrites title and description, then guards each field on its own: a
+   * rejected description no longer throws away a good title. The LLM judge
+   * runs once over whatever passed the deterministic checks.
+   */
   async enhance(
     settings: InternalAiProviderSettings,
     title: string,
     description: string,
+    instructions: string | null = null,
   ): Promise<IdeaAiTextResult> {
     const result = await this.gateway.json(
       settings,
       {
         schema: IDEA_TEXT_SCHEMA,
-        instructions:
-          'Corrija título (1–120 caracteres) e descrição. Organize somente as informações existentes. Texto simples, sem HTML. Retorne title, description e changes.',
+        instructions: withAdminInstructions(
+          IDEA_AI_TEXT_INSTRUCTIONS,
+          instructions,
+        ),
         data: { title, description },
       },
       EnhancedIdeaTextDto,
     );
-    const guard = await this.guard.verify(
-      settings,
-      `${title}\n${description}`,
-      `${result.title}\n${result.description}`,
+    const titleGuard = checkIdeaTextField(
+      title,
+      result.title,
+      IDEAS_SECTION_TITLE_MAX_LENGTH,
+      IDEA_AI.minTitlePreservation,
     );
+    const descriptionGuard = checkIdeaTextField(
+      description,
+      result.description,
+      IDEAS_SECTION_DESCRIPTION_MAX_LENGTH,
+    );
+    let judged = { approved: true, violations: [] as string[] };
+    if (titleGuard.approved || descriptionGuard.approved)
+      judged = await this.guard.verify(
+        settings,
+        `${title}\n${description}`,
+        `${titleGuard.approved ? result.title : title}\n${
+          descriptionGuard.approved ? result.description : description
+        }`,
+      );
+    const guard = combineIdeaTextGuard(titleGuard, descriptionGuard, judged);
     return {
-      title: guard.approved ? result.title : null,
-      description: guard.approved ? result.description : null,
+      title: guard.fields?.title.approved ? result.title : null,
+      description: guard.fields?.description.approved
+        ? result.description
+        : null,
       guard,
     };
   }

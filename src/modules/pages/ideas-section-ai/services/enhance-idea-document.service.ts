@@ -8,10 +8,15 @@ import {
   IdeaAiMediaStatus,
   IdeaAiSkipReason,
 } from '../enums/ideas-section-ai.enums';
-import { IDEA_AI } from '../constants';
+import { IDEA_AI, IDEA_AI_DOCUMENT_INSTRUCTIONS } from '../constants';
 import { IDEA_DOCUMENT_SCHEMA } from '../schemas';
 import { EnhancedIdeaDocumentDto } from '../dto/enhanced-idea.dto';
-import { ideaDocumentText, checkIdeaDocumentStructure } from '../utils';
+import {
+  ideaDocumentText,
+  checkIdeaDocumentStructure,
+  checkIdeaPreservation,
+  withAdminInstructions,
+} from '../utils';
 @Injectable()
 export class EnhanceIdeaDocumentService {
   constructor(
@@ -23,6 +28,7 @@ export class EnhanceIdeaDocumentService {
   async enhance({
     settings,
     source,
+    instructions,
   }: IdeaAiProcessContext): Promise<IdeaAiMediaResult> {
     const skipped = (skipReason: IdeaAiSkipReason): IdeaAiMediaResult => ({
       sourceMediaId: source.id,
@@ -54,8 +60,10 @@ export class EnhanceIdeaDocumentService {
       {
         schema: IDEA_DOCUMENT_SCHEMA,
         attachments: [attachment],
-        instructions:
-          'Revise sem mudar número, ordem e conteúdo de seções e atividades. Retorne title, sections[{heading,blocks[{type,text,items}]}], hasEssentialVisuals e preservedFacts. Use text vazio/items vazio quando não aplicável. Se houver desenhos, moldes, imagens ou tabelas essenciais que não podem ser reproduzidos em texto, hasEssentialVisuals deve ser true.',
+        instructions: withAdminInstructions(
+          IDEA_AI_DOCUMENT_INSTRUCTIONS,
+          instructions,
+        ),
         data: { extractedText: original.text },
       },
       EnhancedIdeaDocumentDto,
@@ -66,6 +74,13 @@ export class EnhanceIdeaDocumentService {
     if (text.length > IDEA_AI.maxCharacters)
       return skipped(IdeaAiSkipReason.TOO_LARGE);
     const structure = checkIdeaDocumentStructure(original.text, result);
+    const drift = checkIdeaPreservation(
+      original.text,
+      text,
+      IDEA_AI.minTextPreservation,
+    );
+    if (drift) structure.violations.push(drift);
+    structure.approved = !structure.violations.length;
     if (!structure.approved)
       return {
         sourceMediaId: source.id,

@@ -793,11 +793,16 @@ New shared-idea media validation returns `400` with the existing error envelope 
 | Code | HTTP | Meaning |
 | --- | --- | --- |
 | `IDEA_AI_8620` | 409 | An attempt is active; wait or explicitly publish the original |
-| `IDEA_AI_8621` | 409 | Three-attempt limit reached |
+| `IDEA_AI_8621` | 409 | Counted attempt limit (5) reached |
 | `IDEA_AI_8622` | 409 | Choices refer to an obsolete enhancement |
+| `IDEA_AI_8623` | 400 | AI provider, key or text model not configured |
+| `IDEA_AI_8624` | 409 | The idea is already published |
+| `IDEA_AI_8625` | 400 | Invalid regeneration scope (no current result, unknown/unsupported media, nothing failed) |
+| `IDEA_AI_8626` | 409 | No active attempt to cancel |
+| `IDEA_AI_8627` | 404 | The attempt has no result to restore |
 | `VALIDATION_ERROR` | 422 | An AI publication choice has no available approved result |
 
-Worker errors are sanitized `errorCode` values on attempts, not failed submission responses: `PROVIDER_NOT_CONFIGURED`, `PROVIDER_REQUEST_FAILED`, `INVALID_PROVIDER_RESPONSE`, `GUARD_REJECTED`, `LIMIT_REACHED`, `CANCELLED`. The teacher's persisted submission and the previous successful result remain available. See [shared idea enhancement](api-ideas-enhancement.md).
+Worker errors are sanitized `errorCode` values on attempts and media results, not failed submission responses: `PROVIDER_NOT_CONFIGURED`, `PROVIDER_REQUEST_FAILED`, `INVALID_PROVIDER_RESPONSE`, `GUARD_REJECTED`, `LIMIT_REACHED`, `CANCELLED`, `STALLED`, `SNAPSHOT_MISSING`, `QUEUE_UNAVAILABLE`. The last five, with `CANCELLED`, do not count toward the attempt limit. The teacher's persisted submission and the previous successful result remain available. See [shared idea enhancement](api-ideas-enhancement.md).
 
 ## Fila de requisições de IA (AI_QUEUE_92xx)
 

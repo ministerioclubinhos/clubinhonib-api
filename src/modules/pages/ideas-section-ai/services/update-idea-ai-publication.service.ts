@@ -25,6 +25,7 @@ import {
 } from '../enums/ideas-section-ai.enums';
 import { IDEA_AI_ACTIVE } from '../constants';
 import { IdeaAiPublicationPreparation } from '../types';
+import { isIdeaTextEdited } from '../utils';
 @Injectable()
 export class UpdateIdeaAiPublicationService {
   constructor(
@@ -68,9 +69,14 @@ export class UpdateIdeaAiPublicationService {
         ErrorCode.IDEA_AI_ENHANCEMENT_IN_PROGRESS,
         'A IA ainda está trabalhando. Confirme a publicação com o original para continuar.',
       );
-    if (originalOnly) await this.repo.cancel(sectionId, manager);
-    const decisions = originalOnly ? undefined : input.aiDecisions;
-    if (!originalOnly && !decisions) return { dto: input, existingMedia };
+    // "Publicar original" cancela a IA e publica o que a revisão enviou: as
+    // edições de texto e de materiais da administração não são descartadas.
+    if (originalOnly) {
+      await this.repo.cancel(sectionId, manager);
+      return { dto: input, existingMedia };
+    }
+    const decisions = input.aiDecisions;
+    if (!decisions) return { dto: input, existingMedia };
     const current = history.find((a) => a.currentResultSectionId === sectionId);
     if (decisions && (!current || decisions.enhancementId !== current.id))
       throw new AppConflictException(
@@ -104,11 +110,9 @@ export class UpdateIdeaAiPublicationService {
       ...snapshot.medias.map((m) => m.url),
       ...results.map((r) => r.enhancedMedia?.url),
     ]);
-    const selected: IdeasSectionMediaItemDto[] = originalOnly
-      ? []
-      : input.medias.filter(
-          (m) => !sourceUrls.has(m.url) || Boolean(m.fieldKey),
-        );
+    const selected: IdeasSectionMediaItemDto[] = input.medias.filter(
+      (m) => !sourceUrls.has(m.url) || Boolean(m.fieldKey),
+    );
     for (const choice of mediaDecisions) {
       const original = snapshot.medias.find(
         (m) => m.sourceMediaId === choice.sourceMediaId,
@@ -148,6 +152,16 @@ export class UpdateIdeaAiPublicationService {
       selected.push(this.toInput(projection));
     }
     const enhancementId = current?.id ?? null;
+    const baseTitle =
+      titleDecision === IdeaAiDecision.ENHANCED
+        ? current!.enhancedTitle!
+        : snapshot.submittedTitle;
+    const baseDescription =
+      descriptionDecision === IdeaAiDecision.ENHANCED
+        ? current!.enhancedDescription!
+        : snapshot.submittedDescription;
+    const title = input.title.trim();
+    const description = input.description.trim();
     await this.repo.replaceChoices(
       sectionId,
       [
@@ -157,6 +171,7 @@ export class UpdateIdeaAiPublicationService {
           field: IdeaAiPublicationField.TITLE,
           decision: titleDecision,
           enhancementId,
+          edited: isIdeaTextEdited(baseTitle, title),
         },
         {
           sectionId,
@@ -164,6 +179,7 @@ export class UpdateIdeaAiPublicationService {
           field: IdeaAiPublicationField.DESCRIPTION,
           decision: descriptionDecision,
           enhancementId,
+          edited: isIdeaTextEdited(baseDescription, description),
         },
         ...mediaDecisions.map((c) => ({
           sectionId,
@@ -198,14 +214,9 @@ export class UpdateIdeaAiPublicationService {
       dto: {
         ...input,
         medias: selected,
-        title:
-          titleDecision === IdeaAiDecision.ENHANCED
-            ? current!.enhancedTitle!
-            : snapshot.submittedTitle,
-        description:
-          descriptionDecision === IdeaAiDecision.ENHANCED
-            ? current!.enhancedDescription!
-            : snapshot.submittedDescription,
+        // O texto final é o que a revisão enviou, já com as edições.
+        title,
+        description,
       },
     };
   }

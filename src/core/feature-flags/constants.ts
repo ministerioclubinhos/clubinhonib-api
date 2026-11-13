@@ -52,9 +52,9 @@ export const RETIRED_FEATURE_FLAGS = [
 export const DEFAULT_FEATURE_FLAGS = [
   {
     key: 'idea_ai_enhancement',
-    name: 'Melhoria automática das ideias por IA',
+    name: 'Melhoria das ideias por IA',
     description:
-      'Inicia a melhoria após novos envios. A revisão e o reprocessamento manual continuam disponíveis quando desligada.',
+      'Liga todo o fluxo de IA das ideias: melhoria automática no envio, pedidos e regenerações da coordenação e o processamento da fila. Desligada, nada é enviado à IA; resultados já gerados continuam na revisão e podem ser publicados.',
     enabled: false,
     targetRoles: [],
   },

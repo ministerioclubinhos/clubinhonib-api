@@ -106,9 +106,11 @@ export class CreateIdeasSectionService {
 
       void Promise.resolve()
         .then(() => this.enhancements.enqueueAutomatic(section.id))
-        .catch(() =>
+        .catch((error: unknown) =>
           this.logger.warn(
-            `Falha ao enfileirar melhoria da ideia ${section.id}. Reprocessamento manual disponível.`,
+            `Falha ao enfileirar melhoria da ideia ${section.id} (${
+              error instanceof Error ? error.message : 'erro desconhecido'
+            }). Reprocessamento manual disponível.`,
           ),
         );
       return toIdeasSectionResponse(section, mediaItems);

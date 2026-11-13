@@ -33,6 +33,8 @@ describe('durable idea processing', () => {
     saveMediaResult: jest.fn(),
     clearCurrent: jest.fn(),
     saveAttempt: jest.fn(),
+    findAttempt: jest.fn(),
+    mediaResults: jest.fn(),
   };
   const text = { enhance: jest.fn() };
   const documents = { enhance: jest.fn() };
@@ -50,6 +52,7 @@ describe('durable idea processing', () => {
     repo.renew.mockResolvedValue(true);
     repo.lockSection.mockResolvedValue(section);
     repo.owned.mockResolvedValue(attempt);
+    repo.mediaResults.mockResolvedValue([]);
     text.enhance.mockResolvedValue({
       title: 'Gincana revisada',
       description: section.description,
@@ -94,6 +97,7 @@ describe('durable idea processing', () => {
       expect.anything(),
       snapshot.submittedTitle,
       snapshot.submittedDescription,
+      null,
     );
     expect(repo.saveAttempt).toHaveBeenCalledWith(
       expect.objectContaining({

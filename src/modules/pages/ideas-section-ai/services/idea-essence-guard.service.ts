@@ -5,6 +5,7 @@ import { IdeaAiAttachment, IdeaAiGuard } from '../types';
 import { checkIdeaEssence } from '../utils';
 import { IDEA_JUDGE_SCHEMA } from '../schemas';
 import { IdeaEssenceJudgeDto } from '../dto/enhanced-idea.dto';
+import { IDEA_AI_JUDGE_INSTRUCTIONS } from '../constants';
 @Injectable()
 export class IdeaEssenceGuardService {
   constructor(private readonly gateway: IdeaAiGatewayProvider) {}
@@ -21,8 +22,7 @@ export class IdeaEssenceGuardService {
       {
         schema: IDEA_JUDGE_SCHEMA,
         attachments,
-        instructions:
-          'Julgue com rigor a preservação de TODAS as informações, nomes, quantidades, atividades, materiais, ordem e número de etapas/seções. Não aprove alterações de essência. Para imagens compare também textos, proporção, objetos e rostos. Retorne preservesEssence e violations em português. A primeira imagem é original, a segunda é a proposta.',
+        instructions: IDEA_AI_JUDGE_INSTRUCTIONS,
         data: { original, enhanced },
       },
       IdeaEssenceJudgeDto,

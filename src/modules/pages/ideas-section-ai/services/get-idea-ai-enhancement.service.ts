@@ -5,9 +5,17 @@ import { IdeaAiDetailDto } from '../dto/idea-ai-response.dto';
 import { IdeaAiEnhancementStatus } from '../enums/ideas-section-ai.enums';
 import { toIdeaAiAttempt } from '../mappers';
 import { toIdeasSectionMediaResponse } from '../../ideas-section/mappers';
+import { GetAiProviderSettingsService } from 'src/modules/ai-lessons/services/get-ai-provider-settings.service';
+import { countsTowardIdeaAiLimit, ideaAiProviderReady } from '../utils';
+import { GetFeatureFlagsService } from 'src/core/feature-flags/services/get-feature-flags.service';
+import { FeatureFlagKeys } from 'src/core/feature-flags/enums/feature-flag-keys.enum';
 @Injectable()
 export class GetIdeaAiEnhancementService {
-  constructor(private readonly repo: IdeasSectionAiRepository) {}
+  constructor(
+    private readonly repo: IdeasSectionAiRepository,
+    private readonly settings: GetAiProviderSettingsService,
+    private readonly flags: GetFeatureFlagsService,
+  ) {}
   async summaries(
     ids: string[],
   ): Promise<Map<string, IdeaAiEnhancementStatus>> {
@@ -18,10 +26,12 @@ export class GetIdeaAiEnhancementService {
     return result;
   }
   async get(sectionId: string): Promise<IdeaAiDetailDto> {
-    const [snapshot, attempts, choices] = await Promise.all([
+    const [snapshot, attempts, choices, settings, enabled] = await Promise.all([
       this.repo.snapshot(sectionId),
       this.repo.attempts([sectionId]),
       this.repo.publicationChoices(sectionId),
+      this.settings.getInternalSettings(),
+      this.flags.isSwitchedOn(FeatureFlagKeys.IDEA_AI_ENHANCEMENT, false),
     ]);
     const medias = await this.repo.mediaResults(attempts.map((a) => a.id));
     const active = attempts.find((a) => IDEA_AI_ACTIVE.includes(a.status));
@@ -30,12 +40,16 @@ export class GetIdeaAiEnhancementService {
     );
     return {
       maxAttempts: IDEA_AI.maxAttempts,
+      attemptsUsed: attempts.filter(countsTowardIdeaAiLimit).length,
+      providerReady: ideaAiProviderReady(settings),
+      enabled,
       publicationChoices: choices.map(
-        ({ field, sourceMediaId, enhancementId, decision }) => ({
+        ({ field, sourceMediaId, enhancementId, decision, edited }) => ({
           field,
           sourceMediaId,
           enhancementId,
           decision,
+          edited,
         }),
       ),
       snapshot: snapshot
@@ -49,9 +63,11 @@ export class GetIdeaAiEnhancementService {
               .map((m) => toIdeasSectionMediaResponse(m.sourceMedia)),
           }
         : null,
-      activeAttempt: active ? toIdeaAiAttempt(active, medias) : null,
-      currentResult: current ? toIdeaAiAttempt(current, medias) : null,
-      attemptHistory: attempts.map((a) => toIdeaAiAttempt(a, medias)),
+      activeAttempt: active ? toIdeaAiAttempt(active, medias, attempts) : null,
+      currentResult: current
+        ? toIdeaAiAttempt(current, medias, attempts)
+        : null,
+      attemptHistory: attempts.map((a) => toIdeaAiAttempt(a, medias, attempts)),
     };
   }
 }

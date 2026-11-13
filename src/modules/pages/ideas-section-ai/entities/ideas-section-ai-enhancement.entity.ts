@@ -5,6 +5,7 @@ import {
   IdeaAiDecision,
   IdeaAiEnhancementStatus,
   IdeaAiErrorCode,
+  IdeaAiScope,
 } from '../enums/ideas-section-ai.enums';
 import { IdeasSectionSubmissionSnapshotEntity } from './ideas-section-submission-snapshot.entity';
 
@@ -59,6 +60,45 @@ export class IdeasSectionAiEnhancementEntity extends BaseEntity {
 
   @Column({ type: 'int' })
   attempt: number;
+
+  /** O que esta tentativa refaz; o restante vem de `baseEnhancementId`. */
+  @Column({
+    type: 'enum',
+    enum: IdeaAiScope,
+    default: IdeaAiScope.FULL,
+  })
+  scope: IdeaAiScope;
+
+  /** Título e descrição entram nesta tentativa. */
+  @Column({ name: 'include_text', type: 'boolean', default: true })
+  includeText: boolean;
+
+  /** Mídias de origem refeitas; null = todas as do snapshot. */
+  @Column({ name: 'target_media_ids', type: 'json', nullable: true })
+  targetMediaIds: string[] | null;
+
+  /** Resultado vigente no pedido, de onde vêm os itens não refeitos. */
+  @Column({
+    name: 'base_enhancement_id',
+    type: 'varchar',
+    length: 36,
+    nullable: true,
+  })
+  baseEnhancementId: string | null;
+
+  /** Orientação da administração para esta tentativa. */
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  instructions: string | null;
+
+  /** Quantas vezes um worker assumiu a tentativa (inclui retomadas). */
+  @Column({ name: 'claim_count', type: 'int', default: 0 })
+  claimCount: number;
+
+  @Column({ name: 'progress_total', type: 'int', default: 0 })
+  progressTotal: number;
+
+  @Column({ name: 'progress_done', type: 'int', default: 0 })
+  progressDone: number;
 
   /** Null outside PENDING/PROCESSING; a unique section id enforces one active attempt. */
   @Column({

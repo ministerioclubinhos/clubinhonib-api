@@ -19,6 +19,7 @@ import { IdeaAiGatewayProvider } from './providers/idea-ai-gateway.provider';
 import { IdeaDocumentRendererProvider } from './providers/idea-document-renderer.provider';
 import { IdeaImageTransformProvider } from './providers/idea-image-transform.provider';
 import { IdeasSectionAiEnhancementJob } from './jobs/ideas-section-ai-enhancement.job';
+import { UpdateIdeaAiEnhancementService } from './services/update-idea-ai-enhancement.service';
 import { IdeasSectionAiController } from './ideas-section-ai.controller';
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { IdeasSectionAiController } from './ideas-section-ai.controller';
     CreateIdeaAiEnhancementService,
     GetIdeaAiEnhancementService,
     UpdateIdeaAiPublicationService,
+    UpdateIdeaAiEnhancementService,
     DeleteIdeaAiAssetsService,
     ProcessIdeaAiEnhancementService,
     EnhanceIdeaTextService,

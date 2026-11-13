@@ -68,4 +68,8 @@ export class IdeasSectionAiPublicationChoiceEntity extends BaseEntity {
 
   @Column({ type: 'enum', enum: IdeaAiDecision })
   decision: IdeaAiDecision;
+
+  /** O texto publicado difere da versão escolhida: a administração editou. */
+  @Column({ type: 'boolean', default: false })
+  edited: boolean;
 }
