@@ -43,3 +43,7 @@ export const A4_PAD_BACKGROUND_TOLERANCE = 24;
  */
 export const VERSE_CARD_A4_RULE =
   'FOLHA A4 SEM BORDA: o cartão será impresso numa folha A4 paisagem, de ponta a ponta; o fundo será estendido em cima e embaixo até a proporção do A4. O fundo vai até todas as bordas, sem moldura, margem ou faixa branca, e é contínuo nas bordas de cima e de baixo (sem desenhos cortados ali). Mantenha o texto a pelo menos 5% de todas as bordas, porque a impressora perde alguns milímetros.';
+
+/** Full-page visuals are cropped to A4; the white margin is what the crop removes. */
+export const A4_COMPOSITION_RULE =
+  'FOLHA A4: esta imagem será impressa sozinha numa folha A4 e recortada no centro para a proporção do A4 (1 : 1,41). Componha para essa proporção e mantenha todos os elementos dentro da área central, com margem branca de pelo menos 8% em todas as bordas; nada encostado ou cortado nas bordas.';

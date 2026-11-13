@@ -7,7 +7,7 @@ export function buildYoungerMeditationImagePrompt(
   answer = '',
 ): string {
   return `${buildMeditationActivityImagePrompt(
-    '4 a 7 anos',
+    '5 a 8 anos',
     instruction,
     proposedComposition,
     answer,

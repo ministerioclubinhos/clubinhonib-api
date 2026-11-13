@@ -39,6 +39,7 @@ export function text(
   size: number = L.textSize,
   bold = false,
   color: string = DOCUMENT_DEFAULT_COLOR,
+  italics = false,
 ): TextRun {
   return new TextRun({
     text: sanitizeDocxText(text),
@@ -46,6 +47,7 @@ export function text(
     size,
     bold,
     color,
+    italics,
   });
 }
 
@@ -130,15 +132,17 @@ export function meditationTitleBlocks(
   document: MeditationJson | undefined,
   title: string,
   size: number,
+  withBrand = true,
 ): Array<Paragraph | Table> {
   const brand = paragraph([text(L.brand, size, true)], true);
+  const head = withBrand ? [brand] : [];
   const nodes = meditationRichNodes(document, 'title');
   // A title nobody formatted is laid out like the printed models instead.
   const formatted =
     nodes.length > 1 || /"marks"|"textAlign"/.test(JSON.stringify(nodes));
   if (formatted)
     return [
-      brand,
+      ...head,
       ...meditationRichParagraphs(
         document,
         'title',
@@ -152,7 +156,7 @@ export function meditationTitleBlocks(
   const match = /^(.*?)\s*(\(.+\))[\s.]*$/s.exec(title.trim());
   const main = (match ? match[1] : title).trim().replace(/[\s.]+$/, '');
   return [
-    brand,
+    ...head,
     paragraph([text(main.toLocaleUpperCase('pt-BR'), size, true)], true),
     ...(match ? [paragraph([text(match[2], size - 2)], true)] : []),
   ];
@@ -189,6 +193,7 @@ export function prayerTable(
   width: number,
   labelFill: string,
   labelSize: number,
+  labelColor: string = DOCUMENT_DEFAULT_COLOR,
 ): Table {
   const framed = (
     children: Array<Paragraph | Table>,
@@ -214,7 +219,12 @@ export function prayerTable(
         cantSplit: true,
         children: [
           framed(
-            [paragraph([text('FALANDO COM DEUS:', labelSize, true)], true)],
+            [
+              paragraph(
+                [text('FALANDO COM DEUS:', labelSize, true, labelColor)],
+                true,
+              ),
+            ],
             labelWidth,
             labelFill,
           ),

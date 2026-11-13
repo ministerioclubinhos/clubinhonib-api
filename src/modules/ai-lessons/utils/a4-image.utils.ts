@@ -7,6 +7,50 @@ import {
   A4_PAD_EDGE_TRIM_PX,
 } from '../constants/lesson-visual-style.constants';
 
+/** Crop box that gives the image the A4 proportion, centred, on its own orientation. */
+export function a4CropBox(
+  width: number,
+  height: number,
+): { left: number; top: number; width: number; height: number } | null {
+  const landscape = width >= height;
+  const ratio = landscape ? width / height : height / width;
+  if (Math.abs(ratio - A4_ASPECT_RATIO) < A4_ASPECT_TOLERANCE) return null;
+  const tooLong = ratio > A4_ASPECT_RATIO;
+  // Landscape too long → narrower; portrait too long → shorter; otherwise the other axis.
+  const cropWidth = landscape === tooLong;
+  const w = cropWidth
+    ? Math.round(
+        landscape ? height * A4_ASPECT_RATIO : height / A4_ASPECT_RATIO,
+      )
+    : width;
+  const h = cropWidth
+    ? height
+    : Math.round(landscape ? width / A4_ASPECT_RATIO : width * A4_ASPECT_RATIO);
+  return {
+    left: Math.floor((width - w) / 2),
+    top: Math.floor((height - h) / 2),
+    width: w,
+    height: h,
+  };
+}
+
+/**
+ * Providers only draw 3:2 or 4:3 images; a full-page visual must print on A4.
+ * The prompt keeps a white margin on every edge, so this centred crop only
+ * removes empty paper.
+ */
+export async function cropToA4Proportion(image: Buffer): Promise<Buffer> {
+  try {
+    const { width, height } = await sharp(image).metadata();
+    if (!width || !height) return image;
+    const box = a4CropBox(width, height);
+    return box ? await sharp(image).extract(box).png().toBuffer() : image;
+  } catch {
+    // Not a readable image: the upload validation that follows rejects it with its own message.
+    return image;
+  }
+}
+
 /** Edges to add so the image reaches the A4 proportion without losing any of it. */
 export function a4PadBox(
   width: number,

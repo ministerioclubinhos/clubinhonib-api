@@ -151,7 +151,7 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
     },
     [LessonStageType.MEDITATION_YOUNGER]: {
       key: 'clubinho.meditation-younger.canonical',
-      version: '1.3.0',
+      version: '2.1.0',
       stage: LessonStageType.MEDITATION_YOUNGER,
       exactStructure: [
         'MEDITAÇÃO PARA CRIANÇAS MENORES',
@@ -164,9 +164,10 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
       ],
       rules: [
         ...sharedRules,
-        'Criar exatamente duas atividades complementares para 4 a 7 anos: priorizar labirinto/percurso/associação e reconhecimento com alternativas, pistas ou pintura seletiva. Desenho livre para colorir é excepcional, nunca o padrão nem as duas atividades.',
+        'Criar exatamente duas atividades complementares para 5 a 8 anos, com mecânicas diferentes entre si e variadas de semana a semana, no estilo das folhas impressas: labirinto simples, labirinto de letras que revela um nome, pintar os pontinhos, cobrir pontilhado, pintar o local ou a cena certa, circular/X em figuras, ligar, ordenar cenas ou múltipla escolha escrita com 3 opções.',
+        'A resposta correta de cada atividade representa a mensagem central e o propósito da lição, não um detalhe secundário; pelo menos uma atividade trata diretamente dessa mensagem.',
         'Usar o único versículo principal NVI aprovado, sem paráfrase.',
-        'Gerar de uma a duas artes funcionais, ids 1 e 2 associados às atividades. Incluir caminhos, alternativas, letras e rótulos indispensáveis à solução; não gerar arte decorativa para questões textuais. Conferir a solução e todas as pistas.',
+        'A atividade 1 sempre tem arte; a atividade 2 tem arte, exceto quando for múltipla escolha escrita. Toda atividade que cita figuras, labirinto ou caminho tem sua arte. Ids 1 e 2; conferir a solução e todas as pistas.',
         'A composição final deve permitir duas cópias idênticas da meditação por folha A4, como no padrão manual.',
       ],
     },

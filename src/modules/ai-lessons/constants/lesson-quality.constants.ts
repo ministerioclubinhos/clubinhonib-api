@@ -23,7 +23,7 @@ export const LESSON_STAGE_QUALITY_RULES: Record<LessonStageType, string> = {
   [LessonStageType.VERSE_FIXATION]:
     'Entregue uma fixação realmente divertida, estilo gincana, com ação física e repetição progressiva do versículo aprovado, terminando com a recitação coletiva do versículo completo e da referência. Documento de uma página: materiais baratos, preparação, passos curtos, regras com duração e como se vence, uma frase por adaptação (5–7 e 8–11) e uma frase de avaliação, sem constrangimento.',
   [LessonStageType.MEDITATION_YOUNGER]:
-    'Crie duas atividades complementares para 4–7 anos, priorizando labirinto/percurso/associação e reconhecimento com alternativas ou pintura seletiva. Desenho livre para colorir é excepcional. Confira todas as pistas, a solução verificável e os ids das artes; questão textual não recebe ilustração decorativa.',
+    'Crie duas atividades complementares para 5–8 anos, com mecânicas diferentes no estilo das folhas impressas (labirinto, letras, pontinhos, pontilhado, pintar o certo, circular/X, ligar, ordenar ou múltipla escolha escrita). A resposta correta representa a mensagem central da lição. Confira que toda atividade que cita figuras tem arte e que a solução é verificável.',
   [LessonStageType.MEDITATION_OLDER]:
     'Crie três blocos substanciais para 8–11 anos, com 4–6 subitens de compreensão e enigmas completos de 5–8 pistas/palavras, ocupando a página inteira com conteúdo útil. Use o tema como título e somente referências no texto bíblico. Entregue instruções completas, elementos imprimíveis suficientes e gabarito conferido. A resposta deve ser verificável e corresponder exatamente ao desafio; relacione a aplicação ao cotidiano infantil.',
   [LessonStageType.MANUAL_WORK]:

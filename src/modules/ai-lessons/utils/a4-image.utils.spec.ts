@@ -1,6 +1,53 @@
 import { sharp } from './sharp.utils';
 import { A4_ASPECT_RATIO } from '../constants/lesson-visual-style.constants';
-import { a4PadBox, padToA4Proportion } from './a4-image.utils';
+import {
+  a4CropBox,
+  a4PadBox,
+  cropToA4Proportion,
+  padToA4Proportion,
+} from './a4-image.utils';
+
+const blank = (width: number, height: number) =>
+  sharp({
+    create: { width, height, channels: 3, background: '#ffffff' },
+  })
+    .png()
+    .toBuffer();
+
+describe('proporção A4 das imagens de página inteira', () => {
+  it('corta nas laterais a imagem 3:2 da OpenAI e em cima e embaixo a 4:3 do Gemini', () => {
+    expect(a4CropBox(1536, 1024)).toEqual({
+      left: 44,
+      top: 0,
+      width: 1448,
+      height: 1024,
+    });
+    expect(a4CropBox(1024, 1536)).toEqual({
+      left: 0,
+      top: 44,
+      width: 1024,
+      height: 1448,
+    });
+    expect(a4CropBox(1200, 900)?.height).toBe(
+      Math.round(1200 / A4_ASPECT_RATIO),
+    );
+  });
+
+  it('não mexe em imagem que já está na proporção do A4', () => {
+    expect(a4CropBox(1414, 1000)).toBeNull();
+  });
+
+  it('entrega a imagem recortada na proporção do A4', async () => {
+    const cropped = await cropToA4Proportion(await blank(1536, 1024));
+    const { width, height } = await sharp(cropped).metadata();
+    expect(width / height).toBeCloseTo(A4_ASPECT_RATIO, 2);
+  });
+
+  it('devolve intacto o que não é imagem legível', async () => {
+    const notImage = Buffer.from('não é imagem');
+    await expect(cropToA4Proportion(notImage)).resolves.toBe(notImage);
+  });
+});
 
 describe('padToA4Proportion (cartões do versículo sem borda)', () => {
   it('estende em cima e embaixo um cartão 3:2 sem cortar nada', async () => {

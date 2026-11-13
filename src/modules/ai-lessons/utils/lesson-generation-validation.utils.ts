@@ -15,6 +15,7 @@ import {
   LESSON_VISUAL_QUANTITY,
 } from '../constants/lesson-workflow.constants';
 import { LessonEntity } from '../entities/lesson.entity';
+import { withMissingActivityArt } from './meditation-assets.utils';
 import {
   LessonCategory,
   LessonStageType,
@@ -216,6 +217,8 @@ export function validateCanonicalContent(
     if (type === LessonStageType.MEDITATION_OLDER)
       generated.biblicalText = lesson.biblicalReference;
   }
+  if (type === LessonStageType.MEDITATION_YOUNGER)
+    return withMissingActivityArt(generated);
   return generated;
 }
 

@@ -1,7 +1,4 @@
-import {
-  meditationRichNodes,
-  meditationRichParagraphs,
-} from './meditation-rich-text.utils';
+import { meditationRichParagraphs } from './meditation-rich-text.utils';
 import { youngerMeditationFit } from './younger-meditation-fit.utils';
 import {
   BorderStyle,
@@ -24,7 +21,6 @@ import type {
 import {
   noBorders,
   text,
-  textLines,
   paragraph,
   cell,
   table,
@@ -34,6 +30,22 @@ import {
   framedSheet,
   verseLabelCell,
 } from './meditation-layout.utils';
+
+/** “Verse text” then “(Reference – NVI)” on its own line, as in the printed sheets. */
+export function youngerVerseParagraphs(
+  verse: string,
+  size: number,
+): Paragraph[] {
+  const match = /^(.*?)\s*\(([^()]*)\)\s*$/s.exec(verse.trim());
+  const body = (match ? match[1] : verse).trim();
+  const reference = match ? match[2].trim() : '';
+  return [
+    paragraph([text(body, size)], true),
+    ...(reference
+      ? [paragraph([text(`(${reference} – NVI)`, size)], true)]
+      : []),
+  ];
+}
 
 export function buildYoungerMeditationCopy(
   sheet: YoungerMeditationSheet,
@@ -107,24 +119,9 @@ export function buildYoungerMeditationCopy(
           verseLabelCell(3250),
           cell([paragraph([text('❯', 46, true, 'ED1C24')], true)], 430),
           new TableCell({
-            children: meditationRichNodes(sheet.document, 'verseText').length
-              ? [
-                  ...meditationRichParagraphs(
-                    sheet.document,
-                    'verseText',
-                    '',
-                    fit.verseSize,
-                    true,
-                  ),
-                  ...meditationRichParagraphs(
-                    sheet.document,
-                    'verseReference',
-                    '',
-                    fit.verseSize,
-                    true,
-                  ),
-                ]
-              : [paragraph(textLines(sheet.verse, fit.verseSize), true)],
+            // As in the printed sheets: the verse, then its reference with the
+            // version between parentheses on a line of its own.
+            children: youngerVerseParagraphs(sheet.verse, fit.verseSize),
             width: { size: innerWidth - 3680, type: WidthType.DXA },
             margins: { top: 70, bottom: 70, left: 90, right: 90 },
             verticalAlign: VerticalAlign.CENTER,
@@ -203,7 +200,7 @@ export function buildYoungerMeditationCopy(
     ),
     2650,
     innerWidth,
-    L.yellow,
+    L.olderPrayerLabel,
     19,
   );
   return framedSheet(

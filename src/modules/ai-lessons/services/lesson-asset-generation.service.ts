@@ -1,5 +1,8 @@
-import { padToA4Proportion } from '../utils/a4-image.utils';
-import { withLessonVisualStyle } from '../utils/story-visual-mode.utils';
+import { cropToA4Proportion, padToA4Proportion } from '../utils/a4-image.utils';
+import {
+  withA4Composition,
+  withLessonVisualStyle,
+} from '../utils/story-visual-mode.utils';
 import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import {
@@ -335,7 +338,7 @@ export class LessonAssetGenerationService {
       );
       return buildMeditationActivityImagePrompt(
         type === LessonStageType.MEDITATION_YOUNGER
-          ? '5 a 7 anos'
+          ? '5 a 8 anos'
           : '8 a 11 anos',
         lessonString(activity.instruction),
         lessonString(asset.prompt),
@@ -347,7 +350,7 @@ export class LessonAssetGenerationService {
     return lessonString(asset.prompt);
   }
 
-  /** Verse cards are full-bleed A4 pages: extended, never cropped, to its proportion. */
+  /** Story visuals are full A4 pages: composed for it and cropped to its proportion. */
   private async generateAssetImage(
     llmProvider: LessonLlmProviderContract,
     imagePrompt: string,
@@ -381,9 +384,20 @@ export class LessonAssetGenerationService {
           forceReference,
         ),
       );
-    return this.requestAssetImage(
+    if (type !== LessonStageType.LESSON_VISUALS)
+      return this.requestAssetImage(
+        llmProvider,
+        imagePrompt,
+        type,
+        lesson,
+        visualConfig,
+        isCutoutKit,
+        identityReferenceImage,
+        forceReference,
+      );
+    const image = await this.requestAssetImage(
       llmProvider,
-      imagePrompt,
+      withA4Composition(withLessonVisualStyle(imagePrompt, visualConfig.style)),
       type,
       lesson,
       visualConfig,
@@ -391,6 +405,7 @@ export class LessonAssetGenerationService {
       identityReferenceImage,
       forceReference,
     );
+    return cropToA4Proportion(image);
   }
 
   private requestAssetImage(
@@ -406,8 +421,6 @@ export class LessonAssetGenerationService {
   ): Promise<Buffer> {
     const orientation = lessonString(visualConfig.orientation);
     const visualType = lessonString(visualConfig.type);
-    if (type === LessonStageType.LESSON_VISUALS)
-      imagePrompt = withLessonVisualStyle(imagePrompt, visualConfig.style);
     if (isCutoutKit)
       return llmProvider.generateImage(
         imagePrompt,

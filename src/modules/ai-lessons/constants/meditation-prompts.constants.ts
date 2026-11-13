@@ -5,35 +5,33 @@ export const YOUNGER_MEDITATION_LINE_ART_RULE =
 export const YOUNGER_MEDITATION_BASE_PROMPT = `Produza somente a MEDITAÇÃO PARA CRIANÇAS MENORES, seguindo os modelos reais do Clubinho Bíblico NIB: O Semeador, os poderes de Jesus sobre os demônios, as doenças, a natureza e a morte, e a multiplicação dos pães.
 
 PÚBLICO E FOLHA
-- Crianças de 4 a 7 anos, inclusive em alfabetização inicial; leitura com apoio do professor. Comandos concretos e desafios visuais simples.
+- Crianças de 5 a 8 anos, inclusive em alfabetização inicial; leitura com apoio do professor. Comandos concretos e desafios visuais simples.
 - Exatamente duas atividades complementares, numeradas 1 e 2. O renderer monta duas cópias idênticas na mesma página A4 retrato: logo oficial à esquerda, faixa preta, título, Nome/Data, versículo destacado, duas colunas e oração no rodapé.
 - Use o tema, os fatos e o único versículo NVI aprovados na lição. Não copie os temas, versículos ou soluções dos exemplos para outra semana.
-- Cada instruction deve reunir uma contextualização bíblica curta e o comando completo da atividade. Use 35 a 75 palavras, no máximo duas ou três pequenas subperguntas, e não repita título, versículo ou cabeçalho.
+- Cada instruction deve reunir uma contextualização bíblica curta e o comando completo da atividade. Use 20 a 45 palavras, como nas folhas impressas, e no máximo três pequenas subperguntas; na múltipla escolha escrita, cada pergunta tem 3 opções curtas. Quando usar círculo e X na mesma atividade, o círculo marca o que é certo e o X o que não é, e não repita título, versículo ou cabeçalho.
 - As duas questões formam uma sequência do mesmo tema: compreender o acontecimento e reconhecer sua mensagem. Retome personagens, ações e propósito da lição em cada contextualização; não crie passatempo genérico apenas com um personagem bíblico ao lado. A oração conclui essa mesma mensagem.
+- FOCO NO ENSINO CENTRAL: a resposta correta de cada atividade representa a mensagem central e o propósito da lição aprovada, não um detalhe secundário da história (por exemplo, numa lição sobre o destino eterno, o acerto é o lugar junto de Deus/Abraão ou ouvir a Palavra de Deus, e não a mesa ou a porta da casa). Pelo menos uma das duas atividades trata diretamente dessa mensagem.
 - Quando houver dois relatos bíblicos na lição, cubra ambos, distribuindo os fatos entre as duas atividades sem misturá-los.
 
-ESTILO DAS ATIVIDADES — NÃO É UMA FOLHA DE COLORIR
-- Padrão preferencial: uma atividade de percurso/descoberta e uma de reconhecimento/compreensão ou aplicação, com mecânicas diferentes.
-- Varie entre semanas: não torne labirinto obrigatório. Inclua também ordenar cenas, ligar acontecimentos, contar objetos e marcar quantidades, cobrir pontilhados e selecionar imagens, conforme a narrativa.
-- Para 4 anos, a tarefa deve ser realizável ouvindo o comando e observando figuras; não exija leitura autônoma, escrita de frases ou cálculo abstrato. Para 6–7 anos, palavras curtas e contagem simples são adequadas, sem tornar alfabetização um pré-requisito.
-- Atividade 1: labirinto simples levando um personagem ao destino bíblico correto; percurso de letras que revela um nome/lugar; ou ligar personagem, ação e objeto. O caminho deve ter início e destino identificáveis, corredores largos e uma solução verificável.
-- Atividade 2: circular/marcar a alternativa certa; associar fatos; completar uma palavra curta com pistas; escolher e pintar somente a imagem correta entre alternativas; ou revelar uma figura pintando apenas as áreas com pontos. Forneça todas as opções/pistas na própria folha.
-- Pintar a alternativa certa é uma atividade de reconhecimento, não um desenho livre para colorir. Desenho livre para colorir é excepcional, nunca o padrão e nunca as duas atividades; use apenas quando solicitado ou quando houver uma finalidade pedagógica concreta.
-- Exemplos de mecânica, não de conteúdo obrigatório: levar o semeador à boa terra + descobrir a figura pelas áreas com pontos; seguir letras até o nome de uma região + circular respostas sobre o relato; levar o personagem a Jesus + escolher o local correto da cura entre casa e hospital.
-- Não gere duas cenas decorativas para pintar, caça-palavras denso, texto abstrato, tarefa dependente de internet/material externo ou desafio com leitura longa para essa idade.
+ESTILO DAS ATIVIDADES — COMO AS FOLHAS IMPRESSAS DO CLUBINHO
+- As duas atividades usam mecânicas DIFERENTES entre si e variam de uma semana para outra; escolha as que melhor servem à história e à mensagem desta lição. Não repita sempre o mesmo par de questões.
+- Cardápio das folhas reais (exemplos de forma, não de conteúdo): labirinto simples levando um personagem ao destino certo (ajudar o semeador a encontrar a terra boa; levar o cego até Jesus); labirinto de letras em círculos cujo caminho certo revela um nome, com uma linha para escrever a resposta (REGIÃO DOS G_______); pintar somente as áreas com pontinhos para revelar uma figura; cobrir linhas pontilhadas para completar um desenho e depois pintar; pintar o local ou a figura certa entre 2 ou 3 (hospital ou casa); pintar as cenas que mostram o fato da história; circular ou marcar X em figuras rotuladas; ligar figuras; numerar cenas na ordem; múltipla escolha escrita com 2 ou 3 perguntas curtas (a, b, c), cada uma com 3 opções curtas para circular.
+- Para 5 anos a tarefa deve ser realizável ouvindo o comando e olhando as figuras; para 7–8 anos, palavras curtas, perguntas simples e contagem são adequadas. Não exija escrita de frases, leitura longa ou cálculo abstrato.
+- Pintar ou colorir só vale ligado ao fato (pintar a cena certa, revelar pelos pontinhos, completar o pontilhado); desenho livre para colorir nunca é usado nas duas atividades.
+- Não use caça-palavras denso, cruzadinha, texto abstrato ou tarefa que dependa de material externo.
 
 ELEMENTOS IMPRIMÍVEIS
-- De uma a duas artes funcionais, no máximo uma por atividade. A primeira atividade deve ter apoio visual executável. A segunda pode ser apenas texto com alternativas: nesse caso, não gere uma ilustração decorativa.
+- A atividade 1 sempre tem arte. A atividade 2 tem arte, exceto quando for múltipla escolha escrita: nesse caso todas as perguntas e opções ficam no próprio comando.
+- Se o comando de uma atividade pedir para observar, pintar, ligar, circular ou resolver figuras, imagens, desenhos, labirinto ou caminho, a arte daquela atividade é obrigatória e mostra exatamente esses elementos. Nunca escreva "figuras abaixo" sem a arte.
 - printableAssets.id deve ser literalmente "1" ou "2", correspondente ao número da atividade. Não associe uma arte ao desafio errado e não repita ids.
-- Toda arte é desenho em preto e branco para pintar: contornos pretos, interiores e fundo brancos, sem cores, cinza ou sombreado. Use traço limpo, poucos elementos, desenho grande e boa legibilidade dentro de uma coluna de meia folha A4. Personagens e ambientes são apoio contextual, não substituem o desafio.
-- O prompt de cada arte deve especificar início, destino, trajetos, símbolos, letras ou alternativas indispensáveis e a composição completa. Letras, números, nomes curtos e rótulos são permitidos quando necessários para resolver a atividade e devem estar em português, legíveis e sem erros.
-- Labirinto: descreva o percurso correto no gabarito, assegure saída alcançável e não marque o caminho solucionado na arte. Letras em percurso: o caminho correto precisa formar exatamente a resposta. Associação: inclua todos os elementos dos dois grupos. Áreas com pontos: defina as regiões marcadas e a figura revelada. Escolha visual: todas as alternativas precisam estar presentes e distinguíveis.
-- Não desenhe cabeçalho, logo, instrução completa, versículo, oração, número externo da atividade ou gabarito na arte; o renderer cuida desses elementos.
+- Toda arte é desenho em preto e branco para pintar: contornos pretos, interiores e fundo brancos, sem cores, cinza ou sombreado. Traço limpo, figuras grandes e legíveis numa coluna de meia folha A4.
+- O prompt de cada arte especifica cada elemento e a composição completa. Labirinto: entrada e destino desenhados e identificáveis, corredores largos, poucos caminhos e um único caminho que chega ao destino. Letras no labirinto: o caminho certo forma exatamente a resposta. Pontinhos: só as áreas da figura escondida têm pontos. Pontilhado: o contorno a cobrir é tracejado. Escolha: todas as alternativas presentes, do mesmo tamanho e em quadros separados, com rótulo curto em MAIÚSCULAS quando ajudar.
+- Não desenhe cabeçalho, logo, instrução completa, versículo, oração, número externo da atividade, o caminho resolvido ou a resposta marcada na arte; o renderer cuida desses elementos.
 
 GABARITO, ORAÇÃO E CONFERÊNCIA
 - answer é interno para o professor: dê a solução completa, com caminho/sequência ou a resposta de cada subitem, coerente com os fatos aprovados. Não imprima nem destaque a alternativa correta no material infantil.
 - prayer: uma frase curta iniciada por "Jesus," ou "Senhor," ligada à aplicação da lição.
-- Antes de devolver o JSON, confira: exatamente duas atividades diferentes; desafios completos e solucionáveis; imagens associadas aos ids corretos; todas as pistas/alternativas necessárias; resposta determinística; versículo preservado; ausência de conteúdo assustador; textos e artes que cabem na folha duplicada. Corrija qualquer incoerência antes de responder.`;
+- Antes de devolver o JSON, confira: exatamente duas atividades com mecânicas diferentes; arte para toda atividade que cita figuras, labirinto ou caminho; a resposta correta de cada uma ligada à mensagem central da lição; desafios completos e solucionáveis; imagens associadas aos ids corretos; todas as pistas/alternativas necessárias; resposta determinística; versículo preservado; ausência de conteúdo assustador; textos e artes que cabem na folha duplicada. Corrija qualquer incoerência antes de responder.`;
 
 export const OLDER_MEDITATION_BASE_PROMPT = `Produza uma meditação de uma página A4 para crianças de 8 a 11 anos, baseada exclusivamente no tema e na lição aprovada. As regras são gerais para qualquer relato bíblico e qualquer mecânica de exercício.
 ESTRUTURA E PROGRESSÃO
@@ -51,3 +49,17 @@ ARTES
 - printableAssets contém SEMPRE exatamente TRÊS imagens, ids "1", "2" e "3", uma por bloco. Todos os blocos usam visualRequired true. Cada imagem serve de anexo ou apoio visual específico à questão, inclusive nas atividades textuais; pode ilustrar a situação, personagens ou elementos a observar, sem repetir o enunciado, revelar respostas ou acrescentar outro jogo.
 - Arte visual contém os elementos do desafio ou uma ilustração de apoio pertinente àquela questão, nunca outro exercício, instrução completa, banco já impresso, cabeçalho ou solução. O prompt especifica todos os dados e alternativas de forma coerente com os subitens e gabaritos. Não marque a resposta, não ligue o par correto nem desenhe o caminho resolvido.
 - Antes de entregar, resolva todos os desafios, confira cada gabarito, relações com a lição, variedade e aplicação concreta. Não substitua um enigma por questionário longo para atingir contagem de palavras.`;
+
+/**
+ * A younger-meditation command that depends on pictures (figures, a maze, a
+ * path) needs its art; when the model forgets to plan it, it is added.
+ */
+export const VISUAL_ACTIVITY_REFERENCE =
+  /\b(figuras?|imagens?|desenhos?|cenas?|labirinto|caminho|pontilhad[ao]s?|pontinhos)\b/i;
+
+export const MISSING_ACTIVITY_ART = {
+  purpose: 'Figuras indispensáveis ao comando da atividade.',
+  prompt:
+    'Desenhe somente os elementos indispensáveis citados no comando da atividade (figuras para circular ou pintar, labirinto ou caminho com entrada e destino, cenas para ordenar), grandes e bem separados, em preto e branco para pintar: contornos pretos limpos, fundo e interiores brancos, sem destacar a resposta nem desenhar o caminho resolvido.',
+  altText: 'Figuras da atividade.',
+} as const;

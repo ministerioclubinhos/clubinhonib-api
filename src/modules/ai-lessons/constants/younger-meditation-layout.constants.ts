@@ -40,9 +40,10 @@ export const YOUNGER_MEDITATION_LAYOUT = {
   verseColumnOffset: 3860,
   prayerColumnOffset: 2830,
   textSizes: [20, 18, 16, 14],
-  imageMaximumHeight: 230,
+  // Pictures fill the column like the printed sheets.
+  imageMaximumHeight: 300,
   imageMinimumHeight: 60,
-  imageMaximumWidth: 335,
+  imageMaximumWidth: 350,
   // Estimates are approximate; only a clear overflow rejects the sheet.
   overflowTolerance: 1.08,
 } as const;
