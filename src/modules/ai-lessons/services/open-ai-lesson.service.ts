@@ -50,7 +50,6 @@ import {
   DEFAULT_OPENAI_IMAGE_QUALITY,
   DEFAULT_OPENAI_TEXT_MODEL,
   LESSON_FUN_GAME_LIMITS,
-  LESSON_GAME_MAX_STEPS,
 } from '../constants/ai-provider-settings.constants';
 import {
   LessonImageOrientation,
@@ -83,13 +82,6 @@ type ResponsesPayload = {
   };
 };
 const STRING_ARRAY = { type: 'array', items: { type: 'string' } } as const;
-/** One paid image is generated per step: the ceiling bounds cost. */
-const GAME_STEPS_SCHEMA = {
-  type: 'array',
-  minItems: 1,
-  maxItems: LESSON_GAME_MAX_STEPS,
-  items: { type: 'string' },
-} as const;
 const ASSET_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -219,21 +211,66 @@ const CUTOUT_KIT_SCHEMA = {
     },
   },
 } as const;
-const GAME_INSTRUCTION_ASSET_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['id', 'stepNumber', 'instruction', 'purpose', 'prompt', 'altText'],
-  properties: {
-    id: { type: 'string' },
-    stepNumber: { type: 'integer' },
-    instruction: {
+/** The one-page fun game fields shared by item 3 and the verse fixation (item 5). */
+const FUN_GAME_PROPERTIES = {
+  name: { type: 'string', description: 'Até 5 palavras.' },
+  objective: {
+    type: 'string',
+    description: 'Uma frase curta (até 25 palavras).',
+  },
+  funMechanics: {
+    type: 'array',
+    minItems: 2,
+    maxItems: 3,
+    items: {
+      type: 'string',
+      description: 'Até 6 palavras, ex.: "Corrida de revezamento".',
+    },
+  },
+  materials: {
+    type: 'array',
+    minItems: 1,
+    maxItems: LESSON_FUN_GAME_LIMITS.maxMaterials,
+    items: {
+      type: 'string',
+      description: 'Item com quantidade, até 8 palavras.',
+    },
+  },
+  preparation: {
+    type: 'string',
+    description: 'No máximo 2 frases curtas (até 40 palavras).',
+  },
+  steps: {
+    type: 'array',
+    minItems: 3,
+    maxItems: LESSON_FUN_GAME_LIMITS.maxSteps,
+    items: {
+      type: 'string',
+      description: 'Uma frase de comando, até 20 palavras.',
+    },
+  },
+  rulesAndSafety: {
+    type: 'array',
+    minItems: 1,
+    maxItems: LESSON_FUN_GAME_LIMITS.maxRules,
+    items: {
       type: 'string',
       description:
-        'Cópia literal do passo da brincadeira ilustrado por esta imagem.',
+        'Regra curta, até 15 palavras; inclui a duração e como se vence.',
     },
-    purpose: { type: 'string' },
-    prompt: { type: 'string' },
-    altText: { type: 'string' },
+  },
+  ageAdaptations: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['ages5To7', 'ages8To11'],
+    properties: {
+      ages5To7: { type: 'string', description: 'Uma frase curta.' },
+      ages8To11: { type: 'string', description: 'Uma frase curta.' },
+    },
+  },
+  biblicalPrinciple: {
+    type: 'string',
+    description: 'Até 2 frases curtas para o professor dizer depois.',
   },
 } as const;
 /** The fun game has a single image that compiles the whole game. */
@@ -397,65 +434,7 @@ export function schemaFor(
         'assets',
       ],
       properties: {
-        name: { type: 'string', description: 'Até 5 palavras.' },
-        objective: {
-          type: 'string',
-          description: 'Uma frase curta (até 25 palavras).',
-        },
-        funMechanics: {
-          type: 'array',
-          minItems: 2,
-          maxItems: 3,
-          items: {
-            type: 'string',
-            description: 'Até 6 palavras, ex.: "Corrida de revezamento".',
-          },
-        },
-        materials: {
-          type: 'array',
-          minItems: 1,
-          maxItems: LESSON_FUN_GAME_LIMITS.maxMaterials,
-          items: {
-            type: 'string',
-            description: 'Item com quantidade, até 8 palavras.',
-          },
-        },
-        preparation: {
-          type: 'string',
-          description: 'No máximo 2 frases curtas (até 40 palavras).',
-        },
-        steps: {
-          type: 'array',
-          minItems: 3,
-          maxItems: LESSON_FUN_GAME_LIMITS.maxSteps,
-          items: {
-            type: 'string',
-            description: 'Uma frase de comando, até 20 palavras.',
-          },
-        },
-        rulesAndSafety: {
-          type: 'array',
-          minItems: 1,
-          maxItems: LESSON_FUN_GAME_LIMITS.maxRules,
-          items: {
-            type: 'string',
-            description:
-              'Regra curta, até 15 palavras; inclui a duração e como se vence.',
-          },
-        },
-        ageAdaptations: {
-          type: 'object',
-          additionalProperties: false,
-          required: ['ages5To7', 'ages8To11'],
-          properties: {
-            ages5To7: { type: 'string', description: 'Uma frase curta.' },
-            ages8To11: { type: 'string', description: 'Uma frase curta.' },
-          },
-        },
-        biblicalPrinciple: {
-          type: 'string',
-          description: 'Até 2 frases curtas para o professor dizer depois.',
-        },
+        ...FUN_GAME_PROPERTIES,
         assets: {
           type: 'array',
           minItems: 1,
@@ -511,37 +490,17 @@ export function schemaFor(
         'assets',
       ],
       properties: {
-        name: { type: 'string' },
-        objective: { type: 'string' },
-        funMechanics: {
-          type: 'array',
-          minItems: 2,
-          maxItems: 3,
-          items: { type: 'string' },
-        },
+        // The verse comes first: the game is built around it.
         verseText: { type: 'string' },
         verseReference: { type: 'string' },
         verseVersion: { type: 'string', enum: ['NVI'] },
-        materials: STRING_ARRAY,
-        preparation: { type: 'string' },
-        steps: GAME_STEPS_SCHEMA,
-        ageAdaptations: {
-          type: 'object',
-          additionalProperties: false,
-          required: ['ages5To7', 'ages8To11'],
-          properties: {
-            ages5To7: { type: 'string' },
-            ages8To11: { type: 'string' },
-          },
-        },
-        rulesAndSafety: STRING_ARRAY,
-        evaluation: { type: 'string' },
-        biblicalPrinciple: { type: 'string' },
+        ...FUN_GAME_PROPERTIES,
+        evaluation: { type: 'string', description: 'Uma frase curta.' },
         assets: {
           type: 'array',
           minItems: 1,
-          maxItems: LESSON_GAME_MAX_STEPS,
-          items: GAME_INSTRUCTION_ASSET_SCHEMA,
+          maxItems: 1,
+          items: GAME_SUMMARY_ASSET_SCHEMA,
         },
       },
     };

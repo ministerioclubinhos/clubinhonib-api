@@ -210,6 +210,7 @@ export function buildCutoutKitImagePrompt(input: {
   ].join('\n\n');
 }
 
+/** Legacy per-step games: one instructional image per step. */
 export function buildGameInstructionImagePrompt(input: {
   game: JsonObject;
   stepNumber: number;
@@ -242,8 +243,17 @@ export function buildGameSummaryImagePrompt(input: {
   proposedComposition: string;
 }): string {
   const steps = Array.isArray(input.game.steps) ? input.game.steps : [];
+  const text = (value: unknown): string =>
+    typeof value === 'string' ? value.trim() : '';
+  const verse = text(input.game.verseText);
+  const reference = text(input.game.verseReference);
   return [
     'CRIE UM INFOGRÁFICO INFANTIL VERTICAL (RETRATO, FOLHA A4) QUE COMPILA UMA ÚNICA BRINCADEIRA.',
+    ...(verse
+      ? [
+          `É A BRINCADEIRA DE FIXAÇÃO DESTE VERSÍCULO. Logo abaixo do título, uma faixa de destaque com o versículo escrito EXATAMENTE ASSIM, sem alterar, omitir ou acrescentar nenhum caractere: "${verse}" — e, em seguida, a referência "${reference}". Fora dessa faixa, não escreva o versículo de novo.`,
+        ]
+      : []),
     'BRINCADEIRA COMPLETA E APROVADA:',
     JSON.stringify({
       name: input.game.name,
@@ -256,7 +266,7 @@ export function buildGameSummaryImagePrompt(input: {
     'COMPOSIÇÃO VISUAL PROPOSTA:',
     input.proposedComposition.trim(),
     `ESTRUTURA OBRIGATÓRIA, DE CIMA PARA BAIXO: (1) o nome da brincadeira como título grande e colorido no topo; (2) uma faixa "MATERIAIS" com ícones simples de cada material; (3) uma faixa "PREPARAÇÃO" mostrando como montar o espaço; (4) um caminho com exatamente ${steps.length} paradas numeradas em ordem (bandeirinhas ou círculos com os números 1 a ${steps.length}), cada parada com um título curto do passo e um ícone ou desenho simples da ação, ligadas por setas; (5) um quadro final de destaque com a regra de encerramento ou como o grupo vence.`,
-    `TEXTO NA IMAGEM (OBRIGATÓRIO, nenhuma faixa ou placa em branco): título "${typeof input.game.name === 'string' ? input.game.name.trim() : ''}"; faixas "MATERIAIS", "PREPARAÇÃO" e "COMO BRINCAR"; em cada parada, o número dentro do círculo ou bandeirinha e, ao lado, um título curto do passo sem repetir o número (no máximo 5 palavras, resumindo o passo correspondente); no quadro final, uma frase curta de encerramento. Escreva em português do Brasil com ortografia e acentuação corretas; não invente palavras e não escreva parágrafos.`,
+    `TEXTO NA IMAGEM (OBRIGATÓRIO, nenhuma faixa ou placa em branco): título "${text(input.game.name)}"; faixas "MATERIAIS", "PREPARAÇÃO" e "COMO BRINCAR"; em cada parada, o número dentro do círculo ou bandeirinha e, ao lado, um título curto do passo sem repetir o número (no máximo 5 palavras, resumindo o passo correspondente); no quadro final, uma frase curta de encerramento. Escreva em português do Brasil com ortografia e acentuação corretas; não invente palavras e não escreva parágrafos.`,
     'ESTILO: ilustração infantil alegre, com contornos de caneta e cores vivas e claras, fundo de campo ou parque suave, placas de madeira, faixas coloridas e ícones simples. Cartões e faixas organizados, com bastante respiro e leitura fácil.',
     'CRIANÇAS BRINCANDO (OBRIGATÓRIO): em cada parada do passo a passo e no quadro final, mostre crianças genéricas de 5 a 11 anos, diversas, em traço infantil simples, fazendo a ação com expressões de alegria, empolgação e torcida (correndo, pulando, arremessando, comemorando). O clima é de festa e gincana, como um cartaz de recreação: cores vivas, movimento, linhas de ação, confetes ou bandeirinhas. Não faça um infográfico só de objetos.',
     'É uma única brincadeira: não mostre várias brincadeiras, horários nem programação do dia. Sem personagens bíblicos e sem cenas da história. Nada violento, assustador ou perigoso.',

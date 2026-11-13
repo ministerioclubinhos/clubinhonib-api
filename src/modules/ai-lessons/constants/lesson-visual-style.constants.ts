@@ -32,6 +32,10 @@ export const A4_ASPECT_RATIO = Math.SQRT2;
 export const A4_ASPECT_TOLERANCE = 0.01;
 /** Edge pixels dropped before a full-bleed card is extended to A4. */
 export const A4_PAD_EDGE_TRIM_PX = 4;
+/** Rows (or columns) sampled next to an edge to find its background colour. */
+export const A4_PAD_BACKGROUND_SAMPLE_PX = 40;
+/** How far (per channel, 0–255) a column may drift from the edge colour and still be background. */
+export const A4_PAD_BACKGROUND_TOLERANCE = 24;
 
 /**
  * Verse cards are full-bleed: the background reaches every edge and is

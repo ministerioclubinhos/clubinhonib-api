@@ -62,10 +62,10 @@ export function buildLessonSystemPrompt(
       ? [
           stage === LessonStageType.STANDARD_GAME
             ? P.standardGameAsset
-            : P.gameAssets,
+            : P.verseFixationAsset,
           stage === LessonStageType.STANDARD_GAME
             ? P.standardGameFun
-            : P.gameFun,
+            : P.verseFixationFun,
           P.gameHistory,
         ]
       : []),

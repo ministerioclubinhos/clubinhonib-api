@@ -92,34 +92,36 @@ ARTE E IMPRESSÃO
 - Não inclua pessoas, personagens, cenas, paisagens completas ou cenas bíblicas. Em cada cartão, primeiro o texto ocupa cerca de 90% da imagem; depois, só nas sobras (cantos, bordas e vãos entre as linhas), entram desenhos minúsculos e variados, em quantidade decidida pelo espaço livre, pelo estilo e pelo sentido do trecho (sem número fixo), que remetem ao sentido do trecho (ex.: ouvido para "ouvir", pergaminho para "Moisés e os Profetas") e pequenos brilhos da mesma paleta, somando no máximo 10% da imagem, sem tocar nas letras. Nunca diminua o texto para caber detalhes.
 - Gere dentro da imagem somente o trecho exato ou a referência exata solicitada, em tipografia infantil extragrande e arredondada, limitada à mesma paleta de três cores, com contorno e sombra suaves numa cor da paleta (nunca branco). Não acrescente nenhuma outra letra, palavra, número, moldura pesada ou logotipo.
 - Preserve adequação para crianças de 5 a 11 anos e fidelidade bíblica NVI. Não inclua sexualização, romance, violência gráfica ou elementos assustadores.`,
-  [LessonStageType.VERSE_FIXATION]: `Produza somente uma BRINCADEIRA SUPER DIVERTIDA DE FIXAÇÃO DO VERSÍCULO, no mesmo padrão completo da Brincadeira Normal do Clubinho Bíblico NIB. Esta etapa é diferente dos Visuais do Versículo já produzidos.
+  [LessonStageType.VERSE_FIXATION]: `Produza somente a BRINCADEIRA DIVERTIDA DE FIXAÇÃO DO VERSÍCULO da semana, seguindo o padrão dos materiais manuais do Clubinho Bíblico NIB. Esta etapa é diferente dos Visuais do Versículo já produzidos.
 
-CONTRATO PEDAGÓGICO
-- Use o único versículo principal escolhido e aprovado na lição. Preserve exatamente o texto, a referência e a versão NVI. Não escolha outro versículo, não parafraseie, complete, reduza ou troque a tradução.
-- O objetivo central e verificável é fazer as crianças compreenderem e memorizarem o versículo completo; toda mecânica deve provocar repetição significativa, reconstrução, associação ou recuperação ativa do texto.
-- Crie uma experiência que crianças de 5 a 11 anos realmente queiram brincar. Combine somente 2 ou 3 elementos como movimento, missão cooperativa, surpresa, busca, ritmo, montagem, descoberta ou desafio coletivo.
-- Estruture curiosidade inicial, ação dinâmica e final marcante. Mantenha todas as crianças participando, sem eliminação, filas demoradas, exposição individual constrangedora ou atividade escolar disfarçada.
-- A regra central deve ser explicável em até 1 minuto e funcionar mesmo com crianças ainda não alfabetizadas, usando fala, gestos, imagens, cores ou ajuda do grupo.
-- A brincadeira deve durar de 10 a 15 minutos e terminar com todas as crianças recitando juntas o versículo completo e explicando seu sentido em linguagem simples.
+O QUE É A FIXAÇÃO DIVERTIDA
+- É uma gincana/recreação de verdade cujo prêmio é o versículo na cabeça: as crianças correm, pulam, buscam, arremessam e montam, e cada rodada as faz FALAR, MONTAR ou RECUPERAR o versículo. Elas têm de sair rindo e sabendo o versículo de cor.
+- Use o único versículo principal aprovado na lição. Preserve exatamente o texto, a referência e a versão NVI; não escolha outro, não parafraseie, não complete nem reduza.
+- Inspire-se em mecânicas clássicas adaptadas ao versículo: caça às palavras escondidas, revezamento que monta o versículo em ordem, estoura balão com um trecho dentro, pescaria de palavras, batata quente que para em quem completa o trecho, eco que vai sumindo palavras a cada rodada, corrida até o trecho certo, varal do versículo.
+- Repetição progressiva e divertida: primeiro todos repetem juntos, depois partes vão sumindo e as crianças completam, até recitarem o versículo inteiro sem apoio.
+- Equipes, rodadas, tempo e placar são bem-vindos; todos comemoram no fim e terminam recitando juntos o versículo completo com a referência.
+- Funciona com crianças que ainda não leem: use fala, gestos, cores e ajuda do grupo.
+- Planeje para 5 a 11 anos juntas, com uma simplificação para 5 a 7 e um desafio extra para 8 a 11 anos.
+- Materiais baratos: papel, fita crepe, balões, copos, bola, barbante, prendedores.
 
-ESTRUTURA OBRIGATÓRIA
-1. NOME curto, alegre e memorável.
-2. OBJETIVO pedagógico de memorização e objetivo da dinâmica.
-3. MECÂNICAS DIVERTIDAS: informe as 2 ou 3 mecânicas combinadas.
-4. MATERIAIS com quantidades ou regra de cálculo.
-5. PREPARAÇÃO do espaço e dos materiais.
-6. COMO BRINCAR em passos numerados, incluindo apresentação, repetição progressiva, dinâmica e recapitulação final, sem saltos lógicos.
-7. REGRAS E SEGURANÇA: duração de 10 a 15 minutos, organização dos grupos, encerramento, espaço pequeno, criança tímida, não alfabetizada ou com mobilidade reduzida.
-8. ADAPTAÇÕES POR IDADE: simplificação para 5 a 7 anos e desafio opcional para 8 a 11 anos.
-9. COMO AVALIAR a compreensão e a memorização sem constrangimento.
-10. PRINCÍPIO BÍBLICO: conexão final curta em linguagem infantil.
-11. VISUAIS DE APOIO: crie exatamente uma imagem instrucional para cada passo, na mesma ordem. Cada imagem deve mostrar claramente como executar aquela instrução, e nunca ser apenas decorativa.
+ESTRUTURA OBRIGATÓRIA — DOCUMENTO CURTO, QUE CABE EM UMA PÁGINA A4
+O professor lê em 1 minuto e já sai brincando. Frases curtas, sem repetir a mesma informação em duas seções.
+1. NOME: até 5 palavras, com cara de gincana.
+2. OBJETIVO: uma frase.
+3. MECÂNICAS DIVERTIDAS: 2 ou 3 itens de até 6 palavras.
+4. MATERIAIS: até 6 itens curtos, com quantidade.
+5. PREPARAÇÃO: no máximo 2 frases.
+6. COMO BRINCAR: de 3 a 6 passos, cada um uma frase de comando, terminando com a recitação coletiva.
+7. REGRAS E SEGURANÇA: até 4 regras curtas, incluindo a duração (10 a 15 minutos) e como se vence.
+8. ADAPTAÇÕES POR IDADE: uma frase para 5 a 7 anos e uma para 8 a 11 anos.
+9. COMO AVALIAR: uma frase (ex.: cada equipe recita sem ajuda).
+10. PRINCÍPIO BÍBLICO: até 2 frases curtas sobre o sentido do versículo.
+11. VISUAL DE APOIO: crie UMA única imagem-resumo que compile toda a brincadeira — o versículo em destaque, materiais, preparação, a sequência do passo a passo em painéis na ordem de leitura e o encerramento —, com crianças genéricas e alegres fazendo cada ação. Não crie uma imagem por passo, nem cenas da história bíblica, nem um infográfico só de objetos.
 
-REGRAS DOS VISUAIS
-- Use composição horizontal/paisagem, cores claras e suaves e identidade consistente entre todas as imagens.
-- Não coloque texto, letras ou números dentro das imagens; a instrução literal será exibida como legenda pelo sistema.
-- Mostre posições, materiais, organização e ação necessárias para executar cada passo. Não refaça os cartões tipográficos dos Visuais do Versículo.
-- Não proponha corrida perigosa, contato forçado, eliminação, humilhação, venda nos olhos sem assistência ou materiais cortantes.`,
+REGRAS
+- PROIBIDO como mecânica principal: desenhar, colorir, ficar sentado repetindo, quiz de perguntas, cartaz parado ou ouvir explicação. Se a brincadeira couber dentro de uma sala com as crianças sentadas, ela está errada.
+- Segurança básica: espaço livre de obstáculos, nada cortante, sem alimento sem alerta de alergia, sem venda nos olhos sem assistência, corridas só em piso seguro e sem empurrar; ninguém é exposto ou constrangido ao recitar.
+- A imagem-resumo é um infográfico vertical (retrato, A4), colorido e alegre, com o título da brincadeira, o versículo e a referência exatamente como aprovados, as faixas MATERIAIS, PREPARAÇÃO e COMO BRINCAR, os passos numerados com títulos curtos e o encerramento escritos em português correto.`,
   [LessonStageType.MEDITATION_YOUNGER]: YOUNGER_MEDITATION_BASE_PROMPT,
   [LessonStageType.MEDITATION_OLDER]: OLDER_MEDITATION_BASE_PROMPT,
   [LessonStageType.MANUAL_WORK]: `Produza somente o TRABALHO MANUAL PARA COLORIR, conforme a folha manual da Semana 26 do Clubinho Bíblico NIB.

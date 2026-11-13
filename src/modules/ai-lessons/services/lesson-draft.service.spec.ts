@@ -1379,7 +1379,7 @@ describe('LessonDraftService workflow safety', () => {
     ).toThrow(ConflictException);
   });
 
-  it('exige um visual instrucional para cada passo da fixação do versículo', () => {
+  it('a fixação do versículo também usa uma única imagem de compilado', () => {
     const target = pureLessonUtils as unknown as {
       validateCanonicalContent: (
         lesson: LessonEntity,
@@ -1387,29 +1387,48 @@ describe('LessonDraftService workflow safety', () => {
         generated: Record<string, unknown>,
       ) => Record<string, unknown>;
     };
-    const generated = {
+    const compiled = {
       steps: ['Monte o versículo em grupo.', 'Recite o versículo completo.'],
       assets: [
         {
-          id: 'instrucao-01',
-          stepNumber: 1,
-          instruction: 'Monte o versículo em grupo.',
-        },
-        {
-          id: 'instrucao-02',
-          stepNumber: 2,
-          instruction: 'Recite o versículo completo.',
+          id: 'compilado-01',
+          purpose: 'Resumo',
+          prompt: 'Infográfico',
+          altText: 'Resumo',
         },
       ],
     };
-
     expect(
       target.validateCanonicalContent(
         {} as LessonEntity,
         LessonStageType.VERSE_FIXATION,
-        generated,
+        compiled,
       ),
-    ).toBe(generated);
+    ).toBe(compiled);
+    expect(() =>
+      target.validateCanonicalContent(
+        {} as LessonEntity,
+        LessonStageType.VERSE_FIXATION,
+        {
+          steps: [
+            'Monte o versículo em grupo.',
+            'Recite o versículo completo.',
+          ],
+          assets: [
+            {
+              id: 'instrucao-01',
+              stepNumber: 1,
+              instruction: 'Monte o versículo em grupo.',
+            },
+            {
+              id: 'instrucao-02',
+              stepNumber: 2,
+              instruction: 'Recite o versículo completo.',
+            },
+          ],
+        },
+      ),
+    ).toThrow(ConflictException);
   });
 
   it('considera nova somente uma brincadeira com nome, mecânicas e passos diferentes', () => {

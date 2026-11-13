@@ -1,9 +1,6 @@
 import { ConflictException } from '@nestjs/common';
 import { AppBusinessException, ErrorCode } from 'src/shared/exceptions';
-import {
-  LESSON_FUN_GAME_LIMITS,
-  LESSON_GAME_MAX_STEPS,
-} from '../constants/ai-provider-settings.constants';
+import { LESSON_FUN_GAME_LIMITS } from '../constants/ai-provider-settings.constants';
 import {
   LESSON_INTERNAL_FIELDS,
   LESSON_SCENE_ID_DIGITS,
@@ -191,46 +188,27 @@ export function validateCanonicalContent(
     const assets = Array.isArray(generated.assets)
       ? generated.assets.map((item) => lessonAsObject(item))
       : [];
-    if (steps.length > LESSON_GAME_MAX_STEPS)
+    // Both fun games (item 3 and the verse fixation, item 5) are a one-page
+    // document plus a single compiled image.
+    const list = (value: unknown): unknown[] =>
+      Array.isArray(value) ? value : [];
+    if (
+      steps.length > LESSON_FUN_GAME_LIMITS.maxSteps ||
+      list(generated.materials).length > LESSON_FUN_GAME_LIMITS.maxMaterials ||
+      list(generated.rulesAndSafety).length > LESSON_FUN_GAME_LIMITS.maxRules
+    )
       throw new ConflictException(
-        `A brincadeira pode ter no máximo ${LESSON_GAME_MAX_STEPS} passos, cada um com seu visual instrucional.`,
+        `A brincadeira divertida é um documento de uma página: no máximo ${LESSON_FUN_GAME_LIMITS.maxSteps} passos, ${LESSON_FUN_GAME_LIMITS.maxMaterials} materiais e ${LESSON_FUN_GAME_LIMITS.maxRules} regras.`,
       );
-    if (type === LessonStageType.STANDARD_GAME) {
-      const list = (value: unknown): unknown[] =>
-        Array.isArray(value) ? value : [];
-      if (
-        steps.length > LESSON_FUN_GAME_LIMITS.maxSteps ||
-        list(generated.materials).length >
-          LESSON_FUN_GAME_LIMITS.maxMaterials ||
-        list(generated.rulesAndSafety).length > LESSON_FUN_GAME_LIMITS.maxRules
-      )
-        throw new ConflictException(
-          `A brincadeira divertida é um documento de uma página: no máximo ${LESSON_FUN_GAME_LIMITS.maxSteps} passos, ${LESSON_FUN_GAME_LIMITS.maxMaterials} materiais e ${LESSON_FUN_GAME_LIMITS.maxRules} regras.`,
-        );
-      if (
-        !steps.length ||
-        assets.length !== 1 ||
-        lessonString(assets[0].id).trim() !== LESSON_GAME_SUMMARY_ASSET_ID
-      )
-        throw new ConflictException(
-          'A brincadeira divertida precisa ter o passo a passo no documento e exatamente uma imagem com o compilado de toda a brincadeira.',
-        );
-      return generated;
-    }
-    const invalid =
+    if (
       !steps.length ||
-      assets.length !== steps.length ||
-      assets.some(
-        (asset, index) =>
-          lessonString(asset.id).trim() !==
-            `instrucao-${String(index + 1).padStart(2, '0')}` ||
-          Number(asset.stepNumber) !== index + 1 ||
-          lessonString(asset.instruction).trim() !== steps[index],
-      );
-    if (invalid)
+      assets.length !== 1 ||
+      lessonString(assets[0].id).trim() !== LESSON_GAME_SUMMARY_ASSET_ID
+    )
       throw new ConflictException(
-        'A brincadeira precisa ter exatamente um visual instrucional para cada passo, na mesma ordem e com a instrução literal.',
+        'A brincadeira divertida precisa ter o passo a passo no documento e exatamente uma imagem com o compilado de toda a brincadeira.',
       );
+    return generated;
   }
 
   if (LESSON_MEDITATION_STAGES.includes(type)) {

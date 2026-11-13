@@ -1,10 +1,7 @@
 import { LESSON_SHARED_QUALITY_RULES } from '../constants/lesson-quality.constants';
 import { createHash } from 'node:crypto';
 import { LessonStageType } from '../enums/lesson.enums';
-import {
-  LESSON_FUN_GAME_LIMITS,
-  LESSON_GAME_MAX_STEPS,
-} from '../constants/ai-provider-settings.constants';
+import { LESSON_FUN_GAME_LIMITS } from '../constants/ai-provider-settings.constants';
 
 export type LessonTemplateContract = {
   key: string;
@@ -13,9 +10,6 @@ export type LessonTemplateContract = {
   exactStructure: readonly string[];
   rules: readonly string[];
 };
-
-/** Each step becomes one generated image: the ceiling keeps cost bounded. */
-const GAME_STEP_LIMIT_RULE = `Descrever a brincadeira em no máximo ${LESSON_GAME_MAX_STEPS} passos objetivos; cada passo recebe exatamente um visual.`;
 
 const sharedRules = [
   ...LESSON_SHARED_QUALITY_RULES,
@@ -130,7 +124,7 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
     },
     [LessonStageType.VERSE_FIXATION]: {
       key: 'clubinho.verse-fixation.canonical',
-      version: '2.2.0',
+      version: '3.0.0',
       stage: LessonStageType.VERSE_FIXATION,
       exactStructure: [
         'NOME DA BRINCADEIRA',
@@ -148,10 +142,11 @@ export const LESSON_TEMPLATES: Record<LessonStageType, LessonTemplateContract> =
       rules: [
         ...sharedRules,
         'Usar exatamente o único versículo principal NVI aprovado na lição.',
-        'Usar o mesmo template completo da Brincadeira Normal, mas fazer da compreensão e memorização do versículo o objetivo central de todas as mecânicas.',
-        'Combinar 2 ou 3 mecânicas lúdicas, manter todas as crianças ativas e concluir com a recitação coletiva do versículo completo.',
-        'Criar exatamente um visual instrucional para cada passo, na mesma ordem, demonstrando como executar a instrução e sem texto dentro da imagem.',
-        GAME_STEP_LIMIT_RULE,
+        'A fixação divertida é gincana com ação física (correr, buscar, arremessar, estourar, montar) em que cada rodada faz as crianças falarem, montarem ou recuperarem o versículo, com repetição progressiva até todos recitarem juntos o versículo completo com a referência.',
+        'Equipes, rodadas, tempo e placar são bem-vindos; proibido como mecânica principal desenhar, quiz, repetição sentada ou cartaz parado. Funciona para quem ainda não lê.',
+        `Documento curto, de uma página A4: de 3 a ${LESSON_FUN_GAME_LIMITS.maxSteps} passos de uma frase, até ${LESSON_FUN_GAME_LIMITS.maxMaterials} materiais, até ${LESSON_FUN_GAME_LIMITS.maxRules} regras curtas, uma frase por adaptação, por objetivo e por avaliação. Sem repetir informação entre seções.`,
+        'A entrega é o documento e UMA única imagem (id compilado-01) com o compilado de tudo: o versículo e a referência em destaque, materiais, preparação, o passo a passo em painéis na ordem de leitura e o encerramento, com crianças genéricas e alegres fazendo cada ação; não criar uma imagem por passo nem personagens ou cenas bíblicas.',
+        'Exceção à regra de textos do renderer: o compilado-01 traz o título, o versículo, as faixas, os passos numerados e o encerramento escritos na própria arte.',
       ],
     },
     [LessonStageType.MEDITATION_YOUNGER]: {

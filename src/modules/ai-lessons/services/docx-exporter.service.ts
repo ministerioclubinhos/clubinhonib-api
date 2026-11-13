@@ -362,10 +362,12 @@ export class DocxExporterService implements OnApplicationBootstrap {
           ),
       // Verse cards are full-bleed: the art reaches every edge of the sheet.
       this.bleedLandscapePages(verseVisualStage, loadImage),
-      this.landscapeAssetPages(
-        [{ stage: fixationStage, imageOnly: false }],
-        loadImage,
-      ),
+      isGameSummaryAssetList(fixationStage.assets)
+        ? this.portraitAssetPages(fixationStage, loadImage)
+        : this.landscapeAssetPages(
+            [{ stage: fixationStage, imageOnly: false }],
+            loadImage,
+          ),
       portraitVisuals
         ? this.portraitAssetPages(visualStage, loadImage)
         : Promise.resolve([]),
@@ -423,7 +425,11 @@ export class DocxExporterService implements OnApplicationBootstrap {
       ...storyLandscapePages.map(landscapeSection),
       ...gamePages.map(gameSummary ? portraitSection : landscapeSection),
       ...verseCardPages.map(bleedSection),
-      ...laterLandscapePages.map(landscapeSection),
+      ...laterLandscapePages.map(
+        isGameSummaryAssetList(fixationStage.assets)
+          ? portraitSection
+          : landscapeSection,
+      ),
       ...portraitVisualPages.map((page) => ({
         properties: {
           page: { margin: { top: 120, bottom: 120, left: 120, right: 120 } },

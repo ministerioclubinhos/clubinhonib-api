@@ -87,9 +87,6 @@ export const DEFAULT_OPENAI_IMAGE_MODEL = 'gpt-image-2';
 export const DEFAULT_OPENAI_IMAGE_QUALITY = 'high';
 export const DEFAULT_OPENAI_REASONING_EFFORT = 'none';
 
-/** One paid image per game step: bounded by schema and by local validation. */
-export const LESSON_GAME_MAX_STEPS = 8;
-
 /**
  * The fun game (item 3) is a one-page document plus one compiled image: its
  * lists are short and its steps fit the six stops of the infographic.

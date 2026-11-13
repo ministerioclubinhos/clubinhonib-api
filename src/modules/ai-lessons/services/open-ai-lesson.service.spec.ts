@@ -385,17 +385,27 @@ describe('OpenAiLessonService image identity', () => {
     );
   });
 
-  it('bounds the number of game steps; only the fixation pays one image per step', () => {
-    const steps = (stage: LessonStageType) =>
-      (
-        schemaFor(stage) as {
-          properties: Record<string, { maxItems?: number }>;
-        }
-      ).properties;
-    // The fun game is a one-page document: six steps, the six stops of its image.
-    expect(steps(LessonStageType.STANDARD_GAME).steps.maxItems).toBe(6);
-    expect(steps(LessonStageType.VERSE_FIXATION).steps.maxItems).toBe(8);
-    expect(steps(LessonStageType.VERSE_FIXATION).assets.maxItems).toBe(8);
+  it('both fun games are one-page documents with a single compiled image', () => {
+    for (const stage of [
+      LessonStageType.STANDARD_GAME,
+      LessonStageType.VERSE_FIXATION,
+    ]) {
+      const schema = schemaFor(stage) as {
+        properties: {
+          steps: { maxItems?: number };
+          assets: {
+            maxItems?: number;
+            items: { properties: { id: { enum: string[] } } };
+          };
+        };
+      };
+      // Six steps: the six stops of the compiled image.
+      expect(schema.properties.steps.maxItems).toBe(6);
+      expect(schema.properties.assets.maxItems).toBe(1);
+      expect(schema.properties.assets.items.properties.id.enum).toEqual([
+        'compilado-01',
+      ]);
+    }
   });
 
   it('pede uma única imagem de compilado para a brincadeira divertida', () => {

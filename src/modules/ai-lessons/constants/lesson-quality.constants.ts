@@ -21,7 +21,7 @@ export const LESSON_STAGE_QUALITY_RULES: Record<LessonStageType, string> = {
   [LessonStageType.VERSE_VISUALS]:
     'Confira que a concatenação dos trechos reproduz integralmente o versículo aprovado, sem omissão, repetição ou troca de palavras; encerre com a referência. Preserve a legibilidade e a diagramação exigidas para os cartões tipográficos.',
   [LessonStageType.VERSE_FIXATION]:
-    'Entregue uma dinâmica completa, com preparação, materiais, regras, passos, duração e encerramento. Faça a criança compreender e memorizar o versículo aprovado por meio de participação lúdica; conclua com recitação completa, adapte às duas faixas etárias e não transforme a dinâmica em mera exibição de cartões.',
+    'Entregue uma fixação realmente divertida, estilo gincana, com ação física e repetição progressiva do versículo aprovado, terminando com a recitação coletiva do versículo completo e da referência. Documento de uma página: materiais baratos, preparação, passos curtos, regras com duração e como se vence, uma frase por adaptação (5–7 e 8–11) e uma frase de avaliação, sem constrangimento.',
   [LessonStageType.MEDITATION_YOUNGER]:
     'Crie duas atividades complementares para 4–7 anos, priorizando labirinto/percurso/associação e reconhecimento com alternativas ou pintura seletiva. Desenho livre para colorir é excepcional. Confira todas as pistas, a solução verificável e os ids das artes; questão textual não recebe ilustração decorativa.',
   [LessonStageType.MEDITATION_OLDER]:

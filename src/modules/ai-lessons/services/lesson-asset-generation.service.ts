@@ -4,6 +4,7 @@ import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import {
   LESSON_GAME_STAGES,
+  LESSON_GAME_SUMMARY_ASSET_ID,
   LESSON_GENERATED_IMAGE_MAX_BYTES,
   LESSON_IDENTITY_REFERENCE_STAGES,
   LESSON_MEDITATION_STAGES,
@@ -215,6 +216,8 @@ export class LessonAssetGenerationService {
           isCutoutKit,
           reference,
           Boolean(continuity && reference),
+          LESSON_GAME_STAGES.includes(type) &&
+            assetId === LESSON_GAME_SUMMARY_ASSET_ID,
         ));
       const image = assertLessonUploadImage(buffer);
       if (usesIdentityReference && position === 0)
@@ -298,7 +301,12 @@ export class LessonAssetGenerationService {
         proposedComposition: lessonString(asset.prompt),
         hasIdentityReference: params.hasIdentityReference,
       });
-    if (type === LessonStageType.STANDARD_GAME)
+    // Both fun games (item 3 and the verse fixation) draw one compiled image;
+    // games generated before keep one instructional image per step.
+    if (
+      LESSON_GAME_STAGES.includes(type) &&
+      lessonString(asset.id) === LESSON_GAME_SUMMARY_ASSET_ID
+    )
       return buildGameSummaryImagePrompt({
         game: content,
         proposedComposition: lessonString(asset.prompt),
@@ -349,7 +357,17 @@ export class LessonAssetGenerationService {
     isCutoutKit: boolean,
     identityReferenceImage: LessonImageReference | undefined,
     forceReference = false,
+    /** The fun game's compiled infographic: a portrait A4 page with its own style. */
+    compiledGame = false,
   ): Promise<Buffer> {
+    if (compiledGame)
+      return llmProvider.generateImage(
+        imagePrompt,
+        String(LessonImageOrientation.PORTRAIT),
+        lessonString(visualConfig.type),
+        undefined,
+        LessonImagePurpose.GAME_SUMMARY,
+      );
     if (type === LessonStageType.VERSE_VISUALS)
       return padToA4Proportion(
         await this.requestAssetImage(
@@ -405,15 +423,6 @@ export class LessonAssetGenerationService {
         visualType,
         identityReferenceImage,
         LessonImagePurpose.MEDITATION_ACTIVITY,
-      );
-    // The compiled game infographic is a portrait A4 page with its own style.
-    if (type === LessonStageType.STANDARD_GAME)
-      return llmProvider.generateImage(
-        imagePrompt,
-        String(LessonImageOrientation.PORTRAIT),
-        visualType,
-        undefined,
-        LessonImagePurpose.GAME_SUMMARY,
       );
     if (type === LessonStageType.MANUAL_WORK)
       return llmProvider.generateImage(

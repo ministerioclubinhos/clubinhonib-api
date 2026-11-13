@@ -49,3 +49,34 @@ describe('padToA4Proportion não transforma a linha da borda em faixa', () => {
     expect(data[0]).toBe(100);
   });
 });
+
+describe('padToA4Proportion não copia detalhe encostado na borda', () => {
+  it('preenche a margem nova com a cor do fundo, não com o desenho', async () => {
+    const width = 300;
+    const height = 200;
+    const raw = Buffer.alloc(width * height * 3, 0);
+    for (let i = 0; i < width * height; i += 1) {
+      raw[i * 3] = 240; // fundo coral
+      raw[i * 3 + 1] = 90;
+      raw[i * 3 + 2] = 60;
+    }
+    // detalhe (pergaminho) encostado na borda de baixo, à direita
+    // mais alto que a faixa de amostra (40 px), como um pergaminho grande
+    for (let y = 130; y < height; y += 1)
+      for (let x = 260; x < 290; x += 1) {
+        raw[(y * width + x) * 3] = 250;
+        raw[(y * width + x) * 3 + 1] = 230;
+        raw[(y * width + x) * 3 + 2] = 160;
+      }
+    const card = await sharp(raw, { raw: { width, height, channels: 3 } })
+      .png()
+      .toBuffer();
+    const { data, info } = await sharp(await padToA4Proportion(card))
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    expect(info.width / info.height).toBeCloseTo(A4_ASPECT_RATIO, 1);
+    // última linha, na coluna do detalhe: tem de ser o fundo, não o pergaminho
+    const last = ((info.height - 1) * info.width + 270) * info.channels;
+    expect([data[last], data[last + 1], data[last + 2]]).toEqual([240, 90, 60]);
+  });
+});

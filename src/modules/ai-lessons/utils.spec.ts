@@ -1,5 +1,5 @@
 import {
-  buildGameInstructionImagePrompt,
+  buildGameSummaryImagePrompt,
   buildStoryVisualImagePrompt,
   buildVerseVisualImagePrompt,
   extractTiptapSectionText,
@@ -110,27 +110,36 @@ describe('AI lesson utilities', () => {
     expect(prompt).toContain('imagem de referência anexada');
   });
 
-  it('includes the complete game and exact step in an instructional image prompt', () => {
-    const prompt = buildGameInstructionImagePrompt({
+  it('puts the exact verse in a highlighted band of the fixation compiled image', () => {
+    const prompt = buildGameSummaryImagePrompt({
       game: {
-        name: 'Caminho da bondade',
-        objective: 'Praticar atitudes de bondade.',
-        materials: ['cones', 'cartões'],
-        preparation: ['Organize os cones em linha.'],
-        steps: ['Forme duas filas.', 'Cada criança contorna um cone.'],
-        rulesAndSafety: ['Não correr.'],
+        name: 'Corrida do Versículo',
+        verseText: 'Se não ouvem a Moisés e aos Profetas, não acreditarão',
+        verseReference: 'Lucas 16:31a',
+        steps: [
+          'Formem equipes.',
+          'Corram e montem o versículo.',
+          'Recitem juntos.',
+        ],
       },
-      stepNumber: 2,
-      instruction: 'Cada criança contorna um cone.',
-      proposedComposition: 'Criança caminhando ao redor do cone.',
+      proposedComposition: 'Infográfico vertical.',
     });
 
-    expect(prompt).toContain('Caminho da bondade');
-    expect(prompt).toContain('Forme duas filas.');
-    expect(prompt).toContain('INSTRUÇÃO 2');
-    expect(prompt).toContain('Cada criança contorna um cone.');
-    expect(prompt).toContain('demonstre claramente como executar');
-    expect(prompt).toContain('Não produza uma ilustração decorativa genérica');
+    expect(prompt).toContain('BRINCADEIRA DE FIXAÇÃO DESTE VERSÍCULO');
+    expect(prompt).toContain(
+      '"Se não ouvem a Moisés e aos Profetas, não acreditarão"',
+    );
+    expect(prompt).toContain('"Lucas 16:31a"');
+    expect(prompt).toContain('exatamente 3 paradas numeradas');
+    expect(prompt).toContain('título "Corrida do Versículo"');
+  });
+
+  it('keeps the fun game compiled image free of a verse band', () => {
+    const prompt = buildGameSummaryImagePrompt({
+      game: { name: 'Pescaria', steps: ['Pesquem.'] },
+      proposedComposition: 'Infográfico vertical.',
+    });
+    expect(prompt).not.toContain('FIXAÇÃO DESTE VERSÍCULO');
   });
 
   it('requests the final verse text inside the generated image', () => {
