@@ -57,6 +57,8 @@ import {
   readImageBrief,
   withImageBriefPart,
 } from '../utils/lesson-image-brief.utils';
+import { randomInt } from 'node:crypto';
+import { MANUAL_WORK_FRAMINGS } from '../constants/manual-work-scene.constants';
 import { buildManualWorkImagePrompt } from '../utils/manual-work-image.utils';
 import { buildMeditationActivityImagePrompt } from '../utils/meditation-image.utils';
 import {
@@ -346,7 +348,11 @@ export class LessonAssetGenerationService {
       );
     }
     if (type === LessonStageType.MANUAL_WORK)
-      return buildManualWorkImagePrompt(lessonString(asset.prompt));
+      // A new framing each time, so redrawing the image never repeats it.
+      return buildManualWorkImagePrompt(
+        lessonString(asset.prompt),
+        randomInt(MANUAL_WORK_FRAMINGS.length),
+      );
     return lessonString(asset.prompt);
   }
 

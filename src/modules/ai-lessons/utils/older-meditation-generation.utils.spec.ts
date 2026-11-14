@@ -84,9 +84,19 @@ describe('older meditation generation', () => {
   it('asks once for one more question when the sheet leaves the page half empty', async () => {
     const llm = provider();
     const content = olderMeditationFixture();
-    // Two short questions leave most of the page blank.
+    // Three short questions leave most of the page blank.
     const items = content.activities as MeditationJson[];
-    content.activities = [items[0], items[items.length - 1]];
+    content.activities = [
+      items[0],
+      {
+        ...items[1],
+        subitems: (items[1].subitems as MeditationJson[]).slice(0, 1),
+      },
+      {
+        ...items[3],
+        number: 3,
+      },
+    ];
     content.printableAssets = (
       content.printableAssets as MeditationJson[]
     ).filter((asset) => asset.id === '1');
@@ -99,7 +109,22 @@ describe('older meditation generation', () => {
     expect(llm.generateStage).toHaveBeenCalledTimes(1);
     expect(
       String(llm.generateStage.mock.calls[0][0].revisionInstructions),
-    ).toContain('Acrescente uma questão curta');
+    ).toContain('curta e com mecânica diferente das demais');
+  });
+  it('asks once for a pastime when the sheet has only plain questions', async () => {
+    const llm = provider();
+    const content = olderMeditationFixture();
+    const items = content.activities as MeditationJson[];
+    content.activities = items.slice(0, 3);
+    llm.generateStage.mockResolvedValueOnce({ content, responseId: 'again' });
+    // Still without a pastime: saved for people to review, no second request.
+    await expect(
+      createOlderMeditation(llm, input, { content, responseId: 'initial' }),
+    ).resolves.toMatchObject({ responseId: 'again' });
+    expect(llm.generateStage).toHaveBeenCalledTimes(1);
+    expect(
+      String(llm.generateStage.mock.calls[0][0].revisionInstructions),
+    ).toContain('falta um passatempo');
   });
   it('asks once for a shorter sheet when it does not fit, then saves it for editing', async () => {
     const warn = jest

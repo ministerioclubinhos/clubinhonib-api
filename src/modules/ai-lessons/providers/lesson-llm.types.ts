@@ -54,6 +54,8 @@ export type LessonLlmGenerationInput = {
   template: LessonTemplateContract;
   approvedUpstream: Record<string, unknown> | null;
   previousVariants?: Array<Record<string, unknown>>;
+  /** Manual work: the moment of the story this generation draws. */
+  sceneFocus?: string;
   canonicalVerse?: {
     text: string;
     reference: string;

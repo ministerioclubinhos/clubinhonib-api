@@ -23,7 +23,10 @@ import {
 import { OLDER_MEDITATION_MAX_ACTIVITIES } from '../constants/lesson-document.constants';
 import type { OlderMeditationSheet } from '../types/older-meditation.types';
 import { olderMeditationActivityBlocks } from './older-meditation-activity.utils';
-import { fitOlderMeditationSheet } from './older-meditation-fit.utils';
+import {
+  fitOlderMeditationSheet,
+  olderMeditationSideGridColumns,
+} from './older-meditation-fit.utils';
 import {
   table,
   cell,
@@ -75,6 +78,68 @@ function olderMeditationTitleBlocks(
         ),
       ],
       true,
+    ),
+  ];
+}
+
+/**
+ * A question as the handmade sheets lay it out: text on the left and, on the
+ * right, its artwork or its puzzle grid (word search, crossword).
+ */
+function activityChildren(
+  sheet: OlderMeditationSheet,
+  index: number,
+  activity: OlderMeditationSheet['activities'][number],
+  width: number,
+  fontSize: number,
+  imageHeight: number,
+): Array<Paragraph | Table> {
+  const textWidth = Math.floor(width * O.textColumnShare);
+  const sideWidth = Math.ceil(width * O.imageColumnShare);
+  const sideGrid = olderMeditationSideGridColumns(
+    activity.instruction,
+    Boolean(activity.image),
+    fontSize,
+  );
+  if (!activity.image && !sideGrid)
+    return olderMeditationActivityBlocks(
+      sheet.document,
+      index,
+      activity.instruction,
+      fontSize,
+    );
+  const grids: Table[] = [];
+  const blocks = olderMeditationActivityBlocks(
+    sheet.document,
+    index,
+    activity.instruction,
+    fontSize,
+    sideGrid ? grids : undefined,
+  );
+  // A grid the text never produced keeps the question in a single column.
+  if (!activity.image && !grids.length) return blocks;
+  return [
+    table(
+      [
+        new TableRow({
+          children: [
+            cell(blocks, textWidth),
+            cell(
+              activity.image
+                ? [
+                    imageParagraph(
+                      activity.image,
+                      (sideWidth - O.sideGridGutter) / O.twipsPerPixel,
+                      imageHeight,
+                    ),
+                  ]
+                : grids,
+              sideWidth,
+            ),
+          ],
+        }),
+      ],
+      [textWidth, sideWidth],
     ),
   ];
 }
@@ -221,49 +286,14 @@ export function buildOlderMeditationSheet(
                 },
                 verticalAlign: VerticalAlign.TOP,
                 margins: { top: 60, bottom: 60, left: 60, right: 60 },
-                children: activity.image
-                  ? [
-                      table(
-                        [
-                          new TableRow({
-                            children: [
-                              cell(
-                                olderMeditationActivityBlocks(
-                                  sheet.document,
-                                  index,
-                                  activity.instruction,
-                                  fontSize,
-                                ),
-                                Math.floor(width * O.textColumnShare),
-                              ),
-                              cell(
-                                [
-                                  imageParagraph(
-                                    activity.image,
-                                    (width * O.imageColumnShare) /
-                                      O.twipsPerPixel,
-                                    imageHeight,
-                                  ),
-                                ],
-                                Math.ceil(width * O.imageColumnShare),
-                              ),
-                            ],
-                          }),
-                        ],
-                        [
-                          Math.floor(width * O.textColumnShare),
-                          Math.ceil(width * O.imageColumnShare),
-                        ],
-                      ),
-                    ]
-                  : [
-                      ...olderMeditationActivityBlocks(
-                        sheet.document,
-                        index,
-                        activity.instruction,
-                        fontSize,
-                      ),
-                    ],
+                children: activityChildren(
+                  sheet,
+                  index,
+                  activity,
+                  width,
+                  fontSize,
+                  imageHeight,
+                ),
               }),
             ],
           }),

@@ -43,8 +43,21 @@ export function decodeMeditationCode(supportText: string): string | null {
     .map((line) =>
       line.replace(/^\s*(código|codigo|frase)\s*:?\s*/i, '').trim(),
     )
-    .filter((line) => /\d/.test(line) && !/\p{L}{3,}/u.test(line));
+    .filter(isCipheredLine);
   if (!ciphered.length) return null;
+  // "J1S5S 1SP1R45": single symbols replace some letters inside the words
+  // (vowels by numbers, as in the printed sheets); the other letters stay.
+  const inline =
+    [...table.keys()].every((symbol) => symbol.length === 1) &&
+    ciphered.some((line) => /\p{L}\d|\d\p{L}/u.test(line));
+  if (inline)
+    return ciphered
+      .map((line) =>
+        Array.from(line)
+          .map((char) => table.get(char) ?? char)
+          .join(''),
+      )
+      .join(' ');
   return ciphered
     .map((line) =>
       line
@@ -59,6 +72,13 @@ export function decodeMeditationCode(supportText: string): string | null {
         .join(' '),
     )
     .join(' ');
+}
+
+/** A line written in code: most of its words carry a digit. */
+function isCipheredLine(line: string): boolean {
+  const words = line.split(/\s+/).filter(Boolean);
+  const coded = words.filter((word) => /\d/.test(word)).length;
+  return coded > 0 && coded * 2 >= words.length;
 }
 
 /** True when the ciphered text, decoded with its legend, gives the answer. */

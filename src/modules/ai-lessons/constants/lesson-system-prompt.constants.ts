@@ -40,6 +40,9 @@ export const LESSON_SYSTEM_PROMPT = {
     'Na FIXAÇÃO DIVERTIDA DO VERSÍCULO, diversão e memorização andam juntas: é gincana com ação física (correr, buscar, arremessar, estourar, montar) em que cada rodada faz as crianças falarem, montarem ou recuperarem o versículo, com repetição progressiva (partes vão sumindo) até todos recitarem juntos o versículo completo com a referência. Equipes, tempo e placar são bem-vindos. Reprove a própria ideia se ela for desenho, quiz, repetição sentada ou algo que caiba numa sala com as crianças sentadas.',
   gameHistory:
     'Quando previousVariants estiver preenchido para BRINCADEIRA, trata-se de uma regeneração: crie outra brincadeira do zero. Todas as brincadeiras desse histórico são referências negativas. É proibido reutilizar qualquer nome anterior, inclusive com pequena mudança de pontuação, artigo, subtítulo ou grafia. Não revise, adapte, renomeie nem recicle nenhuma dinâmica anterior. Nome, mecânica principal, organização, materiais característicos e sequência de ações devem ser genuinamente diferentes.',
+  manualWorkScene:
+    'No TRABALHO MANUAL, a cena do desenho muda a cada geração. Desenhe o momento indicado em CENA DESTA GERAÇÃO, sempre fiel à lição aprovada. Quando previousVariants estiver preenchido, cada item é uma cena já desenhada para esta lição: todas são referências negativas. É proibido repetir o mesmo momento, a mesma composição ou os mesmos personagens na mesma posição; escolha outro acontecimento, outro lugar ou outro enquadramento da história.',
+  manualWorkSceneHeading: 'CENA DESTA GERAÇÃO',
   verseVisualsSplit:
     'Para VISUAIS DO VERSÍCULO, use canonicalVerse.text e canonicalVerse.reference completos. Você decide a quantidade da melhor divisão semântica do texto, entre uma e nove partes; elas devem reconstruí-lo exatamente. Depois acrescente obrigatoriamente um último item isolado contendo somente a referência completa.',
   verseVisualsCard:

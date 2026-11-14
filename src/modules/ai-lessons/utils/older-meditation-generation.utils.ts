@@ -24,8 +24,11 @@ import {
   olderMeditationInstructionWords,
   olderMeditationReadingWords,
   olderMeditationAssetIssue,
+  olderMeditationExpansionRequest,
+  olderMeditationHasPastime,
+  olderMeditationStories,
 } from './older-meditation-quality.utils';
-import { buildMeditationActivityImagePrompt } from './meditation-image.utils';
+import { buildOlderMeditationImagePrompt } from './older-meditation-image.utils';
 import { fitOlderMeditationSheet } from './older-meditation-fit.utils';
 import { editedOlderMeditation } from './older-meditation-content.utils';
 import { lessonContentToTiptap } from './lesson-tiptap.utils';
@@ -160,8 +163,11 @@ export async function createOlderMeditation(
       title: input.theme,
       // The subtitle names the stories, as in the printed sheets; the
       // reference is only a fallback.
-      biblicalText:
-        text(current.content.biblicalText) || input.biblicalReference,
+      biblicalText: olderMeditationStories(
+        text(current.content.biblicalText),
+        input.theme,
+        input.biblicalReference,
+      ),
       // The verse was approved in the lesson: every attempt prints it as is.
       ...(input.canonicalVerse
         ? {
@@ -211,19 +217,27 @@ export async function createOlderMeditation(
         ? content.activities.length
         : 0;
       const freeShare = 1 - required / fit.activitySpace;
+      // The handmade sheets always carry a pastime (word search, crossword,
+      // code...): a sheet of plain questions asks once for one.
+      const lacksPastime = !olderMeditationHasPastime(content);
       const canExpand =
         fit.fits &&
         !expandRequested &&
-        freeShare > L.minimumFreeShareToExpand &&
-        questionCount < L.maximumActivities &&
-        attempt < L.correctionAttempts;
+        attempt < L.correctionAttempts &&
+        (lacksPastime ||
+          (freeShare > L.minimumFreeShareToExpand &&
+            questionCount < L.maximumActivities));
       const layoutLog = `[meditation-older] phase=layout status=${fit.fits ? 'fits' : 'needs-editing'} responseId=${current.responseId} fontPoints=${fit.fontSize / 2} availableHeight=${fit.activitySpace} requiredHeight=${required} blockHeights=${JSON.stringify(fit.weights)} next=${canExpand ? 'expand' : fit.fits ? 'save' : canShorten ? 'shorten' : 'save-for-editing'}`;
       if (fit.fits) logger.log(layoutLog);
       else logger.warn(layoutLog);
       if (canExpand) {
         expandRequested = true;
         issues.push(
-          `Folha: sobrou ${Math.floor(freeShare * 100)}% da página em branco. Acrescente uma questão curta (${questionCount + 1}ª) com mecânica diferente das demais, ligada à lição, mantendo as questões atuais.`,
+          olderMeditationExpansionRequest(
+            Math.floor(freeShare * 100),
+            questionCount,
+            lacksPastime,
+          ),
         );
       } else if (canShorten) {
         shortenRequested = true;
@@ -304,9 +318,9 @@ export async function createOlderMeditationImages(
       )
         continue;
       const activity = activities[Number(id) - 1];
-      const prompt = buildMeditationActivityImagePrompt(
+      const prompt = buildOlderMeditationImagePrompt(
         OLDER_MEDITATION_AGE_GROUP,
-        String(activity.instruction),
+        activity,
         [
           String(asset.prompt),
           ...issues
@@ -317,8 +331,6 @@ export async function createOlderMeditationImages(
             )
             .map((issue) => `CORRIJA NA ARTE: ${issue.reason}`),
         ].join('\n'),
-        String(activity.answer),
-        true,
       );
       const buffer = await llm.generateImage(
         prompt,

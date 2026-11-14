@@ -523,7 +523,7 @@ export function schemaFor(
     stage === LessonStageType.MEDITATION_OLDER
   ) {
     const older = stage === LessonStageType.MEDITATION_OLDER;
-    // Maiores: 2 a 4 questões, conforme o tamanho dos exercícios.
+    // Maiores: 3 ou 4 questões, conforme o tamanho dos exercícios.
     const minActivities = older ? OLDER_MEDITATION_MIN_ACTIVITIES : 2;
     const count = older ? OLDER_MEDITATION_MAX_ACTIVITIES : 2;
     return {

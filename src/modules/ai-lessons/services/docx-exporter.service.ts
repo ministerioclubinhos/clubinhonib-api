@@ -1,4 +1,8 @@
-import { buildManualWorkSheet } from '../utils/manual-work-layout.utils';
+import {
+  buildManualWorkSheet,
+  manualWorkImageHeight,
+} from '../utils/manual-work-layout.utils';
+import { fitManualWorkArt } from '../utils/manual-work-image.utils';
 import { specialPresentationGuide } from '../utils/special-presentation-guide.utils';
 import { MANUAL_WORK_LAYOUT } from '../constants/manual-work-layout.constants';
 import { editedOlderMeditation } from '../utils/older-meditation-content.utils';
@@ -1408,10 +1412,11 @@ export class DocxExporterService implements OnApplicationBootstrap {
       loadImage(String(asset.url)),
       this.header(LessonHeaderImage.LESSON_RIGHT),
     ]);
+    const verse = `“${unquoteLessonVerse(lessonString(data.verseText))}” (${lessonString(data.verseReference)} - NVI)`;
     return buildManualWorkSheet(
-      image,
+      await fitManualWorkArt(image, manualWorkImageHeight(verse)),
       logo,
-      `“${unquoteLessonVerse(lessonString(data.verseText))}” (${lessonString(data.verseReference)} - NVI)`,
+      verse,
     );
   }
 

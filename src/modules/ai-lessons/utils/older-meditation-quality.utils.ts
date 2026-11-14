@@ -15,7 +15,22 @@ import {
 import { OLDER_MEDITATION_LIMITS as L } from '../constants/older-meditation-contract.constants';
 import type { MeditationJson } from '../types/younger-meditation.types';
 import { meditationWordSearchIssue } from './meditation-word-search.utils';
-import { repairMeditationWordSearch } from './repair-meditation-word-search.utils';
+import { MEDITATION_WORD_SEARCH_MAX_WORDS } from '../constants/meditation-word-search.constants';
+import { OLDER_MEDITATION_CROSSWORD as C } from '../constants/older-meditation-puzzle.constants';
+import {
+  buildOlderMeditationCrossword,
+  buildOlderMeditationWordSearch,
+  hasPuzzleGrid,
+  olderMeditationCrosswordAnswers,
+  olderMeditationPuzzleCommand,
+} from './older-meditation-puzzle.utils';
+import {
+  OLDER_MEDITATION_MARK_OPTIONS,
+  OLDER_MEDITATION_MAXIMUM_IMAGES,
+  OLDER_MEDITATION_PASTIME_MECHANICS,
+  OLDER_MEDITATION_TEXT_ONLY_MECHANICS,
+  OLDER_MEDITATION_SILENT_SUBITEM_MECHANICS,
+} from '../constants/older-meditation-puzzle.constants';
 
 function object(value: unknown): MeditationJson {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -86,53 +101,90 @@ export function normalizeOlderMeditation(
         if (!Array.isArray(activity.subitems)) return activity;
         let items = activity.subitems.map(object);
         let supportText = text(activity.supportText);
-        if (activity.mechanic === Mechanic.WORD_SEARCH) {
-          const repaired = repairMeditationWordSearch(
-            {
-              activities: [
-                {
-                  number: index + 1,
-                  instruction: supportText,
-                  answer: items.map((item) => text(item.answer)).join('\n'),
-                },
-              ],
-            },
-            // Generated sheets always get a server-built grid, as in the
-            // printed sheets: random filler, words in several directions.
-            true,
+        const mechanic = activity.mechanic as Mechanic;
+        // Puzzle answer keys computed by the server replace the model's.
+        let answerKey: string | undefined;
+        let clueDirections: string[] = [];
+        if (mechanic === Mechanic.WORD_SEARCH) {
+          // The model only chooses the words; the grid is always drawn here,
+          // as in the printed sheets: random filler, several directions.
+          const puzzle = buildOlderMeditationWordSearch(
+            supportText,
+            items.map((item) => text(item.answer)),
           );
-          const puzzle = object((repaired.activities as MeditationJson[])[0]);
-          if (text(puzzle.instruction) !== supportText && items.length === 1) {
-            supportText = text(puzzle.instruction);
-            items = [{ ...items[0], answer: text(puzzle.answer) }];
+          if (puzzle) {
+            supportText = puzzle.supportText;
+            answerKey = puzzle.answer;
+            items = [{ ...items[0], options: [], answer: puzzle.answer }];
           }
         }
+        if (mechanic === Mechanic.CROSSWORD) {
+          // Each subitem is a clue with a one-word answer; the grid is laid
+          // out here, so its crossings are always consistent.
+          const answers = olderMeditationCrosswordAnswers(items);
+          const puzzle = answers
+            ? buildOlderMeditationCrossword(answers)
+            : null;
+          if (puzzle) {
+            supportText = puzzle.supportText;
+            answerKey = puzzle.answer;
+            clueDirections = puzzle.directions;
+          }
+        }
+        const command = olderMeditationPuzzleCommand(
+          mechanic,
+          text(activity.command),
+          text(activity.context),
+        );
+        const silent =
+          items.length === 1 &&
+          OLDER_MEDITATION_SILENT_SUBITEM_MECHANICS.includes(mechanic);
+        // "( ) frase" numa linha só quando todas as frases têm as mesmas
+        // duas opções (certo/errado), como nas folhas impressas.
+        const marks =
+          mechanic === Mechanic.TRUE_FALSE &&
+          items.every(
+            (item) =>
+              Array.isArray(item.options) &&
+              item.options
+                .map((option) => text(option).toLowerCase())
+                .join('|') === OLDER_MEDITATION_MARK_OPTIONS.join('|'),
+          );
         // Como nas folhas impressas: o trecho da história e o comando formam
         // um único parágrafo, logo depois do número da questão.
         const instruction = [
-          [text(activity.context), text(activity.command)]
-            .filter(Boolean)
-            .join(' '),
+          [text(activity.context), command].filter(Boolean).join(' '),
           supportText,
-          ...items.map((item, number) => {
+          ...(silent ? [] : items).map((item, number) => {
             const options = Array.isArray(item.options)
               ? item.options.map(text).filter(Boolean)
               : [];
             // As in the handmade sheets: "( ) option" to mark.
-            const choices = options.map((option) => `( ) ${option}`);
+            const choices = marks
+              ? []
+              : options.map((option) => `( ) ${option}`);
             const compact = choices.join('   ');
             // Open answers get lines to write on, as in the printed sheets.
             const writing =
-              [Mechanic.SHORT_ANSWER, Mechanic.CODE].includes(
-                activity.mechanic as Mechanic,
-              ) && !options.length
+              [Mechanic.SHORT_ANSWER, Mechanic.CODE].includes(mechanic) &&
+              !options.length
                 ? [
                     OLDER_MEDITATION_LAYOUT.writingLine,
                     OLDER_MEDITATION_LAYOUT.writingLine,
                   ]
                 : [];
+            const label = clueDirections.length
+              ? `${number + 1}. `
+              : marks
+                ? '(   ) '
+                : items.length === 1
+                  ? ''
+                  : `${String.fromCharCode(97 + number)}) `;
+            const suffix = clueDirections.length
+              ? ` (${clueDirections[number]})`
+              : '';
             return [
-              `${String.fromCharCode(97 + number)}) ${text(item.prompt)}`,
+              `${label}${text(item.prompt)}${suffix}`,
               ...writing,
               ...(compact.length <=
               OLDER_MEDITATION_LAYOUT.inlineOptionsMaximumCharacters
@@ -145,9 +197,20 @@ export function normalizeOlderMeditation(
         ]
           .filter(Boolean)
           .join('\n');
+        if (answerKey !== undefined)
+          return {
+            ...activity,
+            number: index + 1,
+            command,
+            supportText,
+            subitems: items,
+            instruction,
+            answer: answerKey,
+          };
         return {
           ...activity,
           number: index + 1,
+          command,
           supportText,
           subitems: items,
           instruction,
@@ -315,7 +378,8 @@ export function olderMeditationContentIssue(
         return `${label} a frase precisa de uma lacuna para preencher.`;
     }
     const instruction = text(activity.instruction);
-    if (/\*\*|^\s*#{1,6}\s/m.test(instruction))
+    // "# # 2 . ." is a crossword row, not a Markdown heading.
+    if (/\*\*|^\s*#{1,6}\s+(?![#.\d\s])\S/m.test(instruction))
       return `${label} remova Markdown do texto imprimível.`;
     if (olderMeditationReadingWords(activity) > L.maximumActivityWords)
       return `${label} ficou longo demais; simplifique sem remover pistas ou dados.`;
@@ -336,8 +400,13 @@ export function olderMeditationContentIssue(
           .split(/\r?\n/)
           .filter((line) => /^[A-ZÀ-Ü\s]{4,}$/.test(line.trim())).length < 3
       )
-        return `${label} o caça-palavras precisa de lista e grade completa na própria folha.`;
+        return `${label} o caça-palavras precisa da lista na linha "Palavras:" com 2 a ${MEDITATION_WORD_SEARCH_MAX_WORDS} palavras simples da lição, separadas por vírgula; o servidor desenha a grade.`;
     }
+    if (
+      mechanic === Mechanic.CROSSWORD &&
+      !hasPuzzleGrid(text(activity.supportText))
+    )
+      return `${label} na cruzadinha cada subitem é uma pista (prompt) com gabarito de UMA palavra sem espaços, de ${C.minimumLetters} a ${C.maximumLetters} letras; use de ${C.minimumWords} a ${C.maximumWords} pistas com palavras diferentes. O servidor desenha a grade.`;
     const puzzleIssue = meditationWordSearchIssue(instruction);
     if (puzzleIssue) return `${label} ${puzzleIssue}`;
   }
@@ -371,7 +440,13 @@ export function reconcileOlderMeditationArt(
       Number.isInteger(Number(id)) &&
       Number(id) >= 1 &&
       Number(id) <= activities.length &&
-      !seen.has(id);
+      !seen.has(id) &&
+      // Grids and code tables already fill their question.
+      !OLDER_MEDITATION_TEXT_ONLY_MECHANICS.includes(
+        activities[Number(id) - 1].mechanic as Mechanic,
+      ) &&
+      // One or two pictures a sheet, as in the handmade ones.
+      seen.size < OLDER_MEDITATION_MAXIMUM_IMAGES;
     if (valid) seen.add(id);
     return valid;
   });
@@ -383,4 +458,41 @@ export function reconcileOlderMeditationArt(
       visualRequired: seen.has(String(index + 1)),
     })),
   };
+}
+
+/** True when the sheet carries a pastime of the handmade sheets. */
+export function olderMeditationHasPastime(content: MeditationJson): boolean {
+  return (Array.isArray(content.activities) ? content.activities : []).some(
+    (activity) =>
+      OLDER_MEDITATION_PASTIME_MECHANICS.includes(
+        object(activity).mechanic as Mechanic,
+      ),
+  );
+}
+
+/**
+ * The stories named under the theme. A subtitle that only repeats the theme
+ * says nothing: the Bible reference is printed instead.
+ */
+export function olderMeditationStories(
+  stories: string,
+  theme: string,
+  reference: string,
+): string {
+  return stories && signature(stories) !== signature(theme)
+    ? stories
+    : reference;
+}
+
+/** The single request that fills a short sheet or one without a pastime. */
+export function olderMeditationExpansionRequest(
+  freePercent: number,
+  questionCount: number,
+  lacksPastime: boolean,
+): string {
+  const pastime =
+    'um passatempo das folhas impressas: caça-palavras (WORD_SEARCH, só a linha "Palavras:" com 6 a 8 palavras da história) ou cruzadinha (CROSSWORD, 4 a 6 pistas com resposta de uma palavra)';
+  if (questionCount < L.maximumActivities)
+    return `Folha: ${lacksPastime ? 'falta um passatempo' : `sobrou ${freePercent}% da página em branco`}. Acrescente a ${questionCount + 1}ª questão, ${lacksPastime ? `que deve ser ${pastime}` : 'curta e com mecânica diferente das demais'}, ligada à lição, mantendo as questões atuais.`;
+  return `Folha: falta um passatempo. Troque a questão ${questionCount - 1} por ${pastime}, mantendo as demais questões.`;
 }

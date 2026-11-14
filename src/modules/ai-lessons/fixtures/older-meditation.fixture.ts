@@ -127,6 +127,24 @@ export function olderMeditationFixture(
           },
         ],
       },
+      {
+        number: 4,
+        mechanic: M.CODE,
+        goal: G.COMPREHENSION,
+        sourceExcerpt: 'Um samaritano cuidou do homem ferido.',
+        context: 'Jesus terminou a história com uma ordem.',
+        command: 'Troque os números pelas letras e descubra qual foi.',
+        supportText:
+          '1 = E | 2 = A | 3 = I | 4 = O | 5 = U\nV2  1  F2Ç2  4  M1SM4',
+        visualRequired: false,
+        subitems: [
+          {
+            prompt: 'Escreva a frase decifrada.',
+            options: [],
+            answer: 'Vá e faça o mesmo',
+          },
+        ],
+      },
     ],
     printableAssets: [
       {

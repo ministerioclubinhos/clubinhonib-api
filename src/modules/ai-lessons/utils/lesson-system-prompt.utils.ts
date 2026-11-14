@@ -72,6 +72,14 @@ export function buildLessonSystemPrompt(
     ...(stage === LessonStageType.VERSE_VISUALS
       ? [P.verseVisualsSplit, P.verseVisualsCard]
       : []),
+    ...(stage === LessonStageType.MANUAL_WORK
+      ? [
+          P.manualWorkScene,
+          ...(input.sceneFocus?.trim()
+            ? [`${P.manualWorkSceneHeading}\n${input.sceneFocus.trim()}`]
+            : []),
+        ]
+      : []),
     ...(LESSON_VERSE_PRODUCT_STAGES.includes(stage) ? [P.verseProducts] : []),
     ...(input.visualConfig ? [P.visualConfig] : []),
     ...(input.adminPrompt.trim()

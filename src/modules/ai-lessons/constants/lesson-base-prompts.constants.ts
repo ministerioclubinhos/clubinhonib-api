@@ -126,14 +126,14 @@ REGRAS
 
 CONTRATO
 - Use o único versículo principal NVI aprovado na lição, preservando texto completo e referência sem paráfrase.
-- Escolha uma cena ou símbolo concreto, imediatamente reconhecível e fiel à passagem, que ajude a criança a recordar o sentido do versículo.
+- Escolha UMA cena concreta da história da lição, imediatamente reconhecível e fiel à passagem: os personagens em ação no momento principal, com o cenário completo (como o semeador lançando sementes no campo, ou Jesus e os discípulos puxando a rede cheia de peixes). Nunca uma sequência de quadros nem um símbolo isolado.
 - Forneça título “TRABALHO MANUAL”, instrução curta e uma única arte principal. A saída final terá duas cópias idênticas na mesma folha A4 retrato, separadas para recorte.
 
 PROMPT DA ARTE
 - Line art infantil preto e branco puro para colorir, fundo totalmente branco, traço preto grosso, contínuo e nítido, formas grandes, áreas internas amplas, poucos detalhes pequenos e alto contraste.
 - Sem cor, cinza, sombras, hachuras pesadas, textura, fotografia, realismo perturbador, borda cortada ou elementos encostados na margem.
 - Não gerar texto, letras, versículo, referência, título, marca ou logotipo dentro da imagem; o renderer aplicará o texto NVI e os cabeçalhos oficiais.
-- Composição horizontal dentro de cada meia folha A4 retrato e adequada a crianças de 5 a 11 anos.
+- Composição horizontal (paisagem 3:2) que ocupa toda a largura de cada meia folha A4 retrato, adequada a crianças de 5 a 11 anos. No prompt da arte, descreva personagens, ação e cenário da cena escolhida.
 - Preserve época, personagens e fatos bíblicos; não represente Deus Pai fisicamente e trate morte, cruz e sofrimento com reverência e sem violência gráfica.`,
 };
 

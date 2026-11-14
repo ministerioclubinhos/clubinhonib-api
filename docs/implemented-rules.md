@@ -710,13 +710,16 @@ estão resumidas na seção "Histórico" daquele documento.
 - Lições regulares geram kit de recortes nos visuais da história; lições
   especiais geram cartazes de cena por trecho literal da narrativa.
 - A meditação dos maiores (8 a 12 anos) segue o modelo das folhas impressas:
-  relatos entre parênteses abaixo do tema, de 2 a 4 questões (a IA escolhe pela
+  relatos entre parênteses abaixo do tema, 3 ou 4 questões (a IA escolhe pela
   soma do tamanho dos exercícios, para preencher a página A4 inteira), cada uma
   com contexto da história e comando no mesmo parágrafo, de 1 a 6 subitens,
   imagem só nas questões com `visualRequired` (no máximo uma por questão) e
   revisão separada de texto e de artes. A questão 1 recorda a história e ao
   menos uma questão é de compreensão ou aplicação.
-- O trabalho manual gera uma única arte para colorir.
+- O trabalho manual gera uma única arte para colorir (uma cena da história,
+  com cenário, em paisagem) e a folha traz duas cópias idênticas que ocupam a
+  página A4 inteira, como nas folhas feitas à mão: logo, faixa preta
+  "TRABALHO MANUAL", versículo em maiúsculas e negrito e o desenho.
 - As regras editoriais do prompt orientam a IA e exigem autorrevisão; não
   substituem a revisão humana.
 

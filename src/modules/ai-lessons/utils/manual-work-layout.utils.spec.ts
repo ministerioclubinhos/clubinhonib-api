@@ -22,7 +22,11 @@ describe('manual work two copies on one sheet', () => {
       const xml = await zip.file('word/document.xml')!.async('string');
       expect(xml.match(/TRABALHO MANUAL/g)).toHaveLength(2);
       expect(xml.match(/<w:drawing>/g)).toHaveLength(4);
-      expect(xml.match(/<w:tr>/g)).toHaveLength(3);
+      // The outer row, plus the frame and the header row of each copy.
+      expect(xml.match(/<w:tr>/g)).toHaveLength(5);
+      // Bold capitals and the black band, as in the handmade sheets.
+      expect(xml).toContain(verse.split('.')[0].toUpperCase());
+      expect(xml.match(/w:fill="000000"/g)).toHaveLength(2);
       expect(
         xml.match(/w:val="single" w:color="000000" w:sz="24"/g),
       ).toHaveLength(8);

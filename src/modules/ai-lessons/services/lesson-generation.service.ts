@@ -97,6 +97,10 @@ import {
   createOlderMeditationImages,
 } from '../utils/older-meditation-generation.utils';
 import { olderMeditationLessonSource } from '../utils/older-meditation-quality.utils';
+import {
+  manualWorkPreviousScenes,
+  manualWorkSceneFocus,
+} from '../utils/manual-work-scene.utils';
 import { AdminLessonPromptService } from './admin-lesson-prompt.service';
 import { GetLessonService } from './get-lesson.service';
 import { LessonStudioSupportService } from './lesson-studio-support.service';
@@ -787,7 +791,18 @@ export class LessonGenerationService
                   : null,
               )
             : upstream,
-        previousVariants: previousGameVariants,
+        previousVariants:
+          type === LessonStageType.MANUAL_WORK
+            ? manualWorkPreviousScenes(
+                (stage.versions ?? []).map((version) =>
+                  lessonAsObject(version.structuredDataJson),
+                ),
+              )
+            : previousGameVariants,
+        // Each regeneration of the coloring page draws another moment.
+        ...(type === LessonStageType.MANUAL_WORK
+          ? { sceneFocus: manualWorkSceneFocus((stage.versions ?? []).length) }
+          : {}),
         canonicalVerse: [
           LessonStageType.VERSE_VISUALS,
           LessonStageType.VERSE_FIXATION,

@@ -120,9 +120,9 @@ describe('older meditation executable content contract', () => {
       olderMeditationContentIssue(normalizeOlderMeditation(valid)),
     ).toContain('gabarito');
   });
-  it('accepts 2 to 4 questions and rejects sheets outside that range', () => {
+  it('accepts 3 or 4 questions and rejects sheets outside that range', () => {
     const base = activities(olderMeditationFixture());
-    for (const count of [2, 3, 4]) {
+    for (const count of [3, 4]) {
       const content = olderMeditationFixture();
       content.activities =
         count === 4
@@ -150,7 +150,7 @@ describe('older meditation executable content contract', () => {
         olderMeditationContentIssue(normalizeOlderMeditation(content)),
       ).toBeNull();
     }
-    for (const count of [1, 5]) {
+    for (const count of [1, 2, 5]) {
       const content = olderMeditationFixture();
       content.activities = Array.from(
         { length: count },
@@ -158,7 +158,7 @@ describe('older meditation executable content contract', () => {
       );
       expect(
         olderMeditationContentIssue(normalizeOlderMeditation(content)),
-      ).toContain('2 a 4 questões');
+      ).toContain('3 a 4 questões');
     }
   });
   it('joins the story context and the command in the first paragraph of the question', () => {
@@ -169,13 +169,17 @@ describe('older meditation executable content contract', () => {
   });
   it('reconciles art with visualRequired locally and still rejects repeated questions', () => {
     const misplaced = olderMeditationFixture();
-    (misplaced.printableAssets as MeditationJson[]).push({
-      id: '2',
-      prompt: 'Cena sem visualRequired.',
-    });
+    misplaced.printableAssets = [
+      { id: '2', prompt: 'Cena sem visualRequired.' },
+      { id: '3', prompt: 'Segunda arte, além da única permitida.' },
+    ];
     const reconciled = normalizeOlderMeditation(misplaced);
     // Planned art makes the question illustrated instead of failing the sheet.
     expect(activities(reconciled)[1].visualRequired).toBe(true);
+    // A single picture a sheet: the others are dropped with their flags.
+    expect(reconciled.printableAssets).toHaveLength(1);
+    expect(activities(reconciled)[0].visualRequired).toBe(false);
+    expect(activities(reconciled)[2].visualRequired).toBe(false);
     expect(olderMeditationContentIssue(reconciled)).toBeNull();
     const missing = olderMeditationFixture();
     missing.printableAssets = [];
@@ -248,12 +252,13 @@ describe('older meditation executable content contract', () => {
       olderMeditationContentIssue(normalizeOlderMeditation(letter)),
     ).toBeNull();
   });
-  it('requires a real word-search grid and checks its words instead of assuming an image exists', () => {
+  it('draws the word-search grid on the server from the list of words alone', () => {
     const content = olderMeditationFixture();
     activities(content)[0] = {
       ...activities(content)[0],
       mechanic: M.WORD_SEARCH,
-      supportText: 'Caça-palavras\nPalavras: AMOR, CUIDADO.',
+      command: 'Encontre as palavras no quadro de letras.',
+      supportText: 'Palavras: Amor, Cuidado, Próximo.',
       subitems: [
         {
           prompt: 'Encontre as palavras.',
@@ -262,19 +267,97 @@ describe('older meditation executable content contract', () => {
         },
       ],
     };
+    const normalized = normalizeOlderMeditation(content);
+    const puzzle = activities(normalized)[0];
+    expect(olderMeditationContentIssue(normalized)).toBeNull();
+    expect(puzzle.instruction).toContain('caça-palavras');
+    expect(puzzle.supportText).toContain('Palavras: AMOR, CUIDADO, PROXIMO');
     expect(
-      olderMeditationContentIssue(normalizeOlderMeditation(content)),
-    ).toContain('lista e grade');
+      String(puzzle.supportText)
+        .split('\n')
+        .filter((line) => /^([A-Z] )+[A-Z]$/.test(line)).length,
+    ).toBeGreaterThanOrEqual(8);
+    expect(puzzle.answer).toContain('PROXIMO: linha');
+    // The single subitem only repeats the command and is not printed.
+    expect(puzzle.instruction).not.toContain('Encontre as palavras.\n');
+    // A grid drawn by the model is replaced, never trusted.
     activities(content)[0].supportText =
-      'Caça-palavras\nA M O R A B C\nC U I D A D O\nB C D E F G H\nPalavras: AMOR, CUIDADO';
+      'A M O R A B C\nC U I D A D O\nB C D E F G H\nPalavras: AMOR, CUIDADO';
+    expect(
+      activities(normalizeOlderMeditation(content))[0].supportText,
+    ).not.toContain('C U I D A D O\nB C D E F G H');
+    activities(content)[0].supportText = 'Encontre as palavras.';
     expect(
       olderMeditationContentIssue(normalizeOlderMeditation(content)),
-    ).toBeNull();
+    ).toContain('o servidor desenha a grade');
     expect(
       olderMeditationInstructionWords(
         'Caça-palavras\nA M O R\nJ E S U S\nPalavras: AMOR',
       ),
     ).toBe(3);
+  });
+  it('lays out the crossword from clues with one-word answers', () => {
+    const content = olderMeditationFixture();
+    activities(content)[0] = {
+      ...activities(content)[0],
+      mechanic: M.CROSSWORD,
+      command: 'Complete a cruzadinha.',
+      supportText: '',
+      subitems: [
+        {
+          prompt: 'Quem ajudou o homem ferido.',
+          options: [],
+          answer: 'Samaritano',
+        },
+        {
+          prompt: 'Para onde o ferido foi levado.',
+          options: [],
+          answer: 'Hospedaria',
+        },
+        {
+          prompt: 'O que o samaritano demonstrou.',
+          options: [],
+          answer: 'Amor',
+        },
+      ],
+    };
+    const normalized = normalizeOlderMeditation(content);
+    const puzzle = activities(normalized)[0];
+    expect(olderMeditationContentIssue(normalized)).toBeNull();
+    expect(puzzle.instruction).toMatch(/^[#.\d]( [#.\d])+$/m);
+    expect(puzzle.instruction).toContain(
+      '1. Quem ajudou o homem ferido. (horizontal)',
+    );
+    expect(puzzle.instruction).not.toContain('SAMARITANO');
+    expect(puzzle.answer).toContain('2) HOSPEDARIA (vertical)');
+    // Answers with more than one word cannot be laid out.
+    (activities(content)[0].subitems as MeditationJson[])[2].answer =
+      'Muito amor';
+    expect(
+      olderMeditationContentIssue(normalizeOlderMeditation(content)),
+    ).toContain('UMA palavra');
+  });
+  it('accepts a code that swaps only the vowels for numbers, as in the printed sheets', () => {
+    const content = olderMeditationFixture();
+    // The fixture already ends with a code: only one per sheet.
+    content.activities = activities(content).slice(0, 3);
+    activities(content)[0] = {
+      ...activities(content)[0],
+      mechanic: M.CODE,
+      command: 'Troque os números pelas letras.',
+      supportText: '1 = E | 2 = A | 3 = I | 4 = O | 5 = U\nJ1S5S  1  2  V3D2',
+      subitems: [
+        { prompt: 'Escreva a frase.', options: [], answer: 'Jesus é a vida' },
+      ],
+    };
+    expect(
+      olderMeditationContentIssue(normalizeOlderMeditation(content)),
+    ).toBeNull();
+    (activities(content)[0].subitems as MeditationJson[])[0].answer =
+      'Jesus é o caminho';
+    expect(
+      olderMeditationContentIssue(normalizeOlderMeditation(content)),
+    ).toContain('não forma a resposta do gabarito');
   });
   it('rejects too much prose and does not add the internal key or evidence to printable instructions', () => {
     const content = normalizeOlderMeditation(olderMeditationFixture());

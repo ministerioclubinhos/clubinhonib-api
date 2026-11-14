@@ -97,6 +97,8 @@ export function olderMeditationActivityBlocks(
   index: number,
   instruction: string,
   size: number,
+  /** When given, puzzle grids go here (printed beside the text) instead. */
+  detachedGrids?: Table[],
 ): Array<Paragraph | Table> {
   const field = `activity${index + 1}`;
   const richNodes = meditationRichNodes(document, field);
@@ -127,11 +129,12 @@ export function olderMeditationActivityBlocks(
     // Three identical "______" answer lines are not a grid.
     if (isPuzzleGridBlock(rows)) {
       if (rows.every((row) => row.length === rows[0].length)) {
+        const crossword = rows.some((row) => /[#.]/.test(row));
         const side = Math.min(
           O.gridCellSize,
           size * O.lineHeight + O.gridPadding,
         );
-        blocks.push(
+        (detachedGrids ?? blocks).push(
           table(
             rows.map(
               (row) =>
@@ -144,17 +147,22 @@ export function olderMeditationActivityBlocks(
                         width: { size: side, type: WidthType.DXA },
                         margins: { top: 20, bottom: 20, left: 0, right: 0 },
                         verticalAlign: VerticalAlign.CENTER,
-                        ...(letter === '#'
-                          ? { shading: { fill: '252223' } }
-                          : {}),
+                        // Crossword: blocked cells vanish and the cells to
+                        // fill get a firm outline, as in the printed sheets.
                         borders: Object.fromEntries(
                           ['top', 'bottom', 'left', 'right'].map((border) => [
                             border,
-                            {
-                              style: BorderStyle.SINGLE,
-                              size: 2,
-                              color: 'CCCCCC',
-                            },
+                            letter === '#'
+                              ? {
+                                  style: BorderStyle.NONE,
+                                  size: 0,
+                                  color: 'FFFFFF',
+                                }
+                              : {
+                                  style: BorderStyle.SINGLE,
+                                  size: crossword ? 8 : 2,
+                                  color: crossword ? '252223' : 'CCCCCC',
+                                },
                           ]),
                         ),
                         children: [
@@ -165,7 +173,10 @@ export function olderMeditationActivityBlocks(
                                   ? ''
                                   : letter,
                                 font: O.gridFont,
-                                size: Math.min(O.gridFontSize, size),
+                                // Clue numbers are small, as in a crossword.
+                                ...(/\d/.test(letter)
+                                  ? { size: O.gridClueFontSize, bold: true }
+                                  : { size: Math.min(O.gridFontSize, size) }),
                               }),
                             ],
                             true,

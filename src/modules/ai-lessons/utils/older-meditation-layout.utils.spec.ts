@@ -27,6 +27,7 @@ describe('older meditation PDF layout', () => {
       activities: [
         { instruction: dense },
         { instruction: dense },
+        { instruction: dense },
         {
           instruction:
             'Caça-palavras: encontre os nomes.\n' +
@@ -60,7 +61,7 @@ describe('older meditation PDF layout', () => {
     const fit = fitOlderMeditationSheet(base);
     expect(fit.fits).toBe(true);
     expect(fit.fontSize).toBeGreaterThanOrEqual(20);
-    expect(fit.imageHeight).toBeLessThan(230);
+    expect(fit.imageHeight).toBeLessThan(270);
     expect(fit.imageHeight).toBeGreaterThanOrEqual(140);
     expect(fit.weights).toHaveLength(3);
   });
@@ -151,7 +152,7 @@ describe('older meditation PDF layout', () => {
         .filter((match) => Number(match[1]) !== 14700)
         .reduce((sum, match) => sum + Number(match[1]), 0);
     expect(activityHeight(long)).toBeGreaterThan(0);
-    expect(activityHeight(long)).toBeLessThan(10000);
+    expect(activityHeight(long)).toBeLessThan(10600);
     expect(activityHeight(long)).toBeLessThanOrEqual(activityHeight(short));
     expect(long).toContain('FALANDO COM DEUS:');
     expect(long).toContain('FIM DA ORAÇÃO.');

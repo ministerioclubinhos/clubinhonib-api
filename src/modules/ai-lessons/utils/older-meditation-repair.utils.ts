@@ -6,6 +6,11 @@ import type { MeditationJson } from '../types/younger-meditation.types';
 
 const CHOICE_MARKER = /^\s*(?:\(\s*[a-e1-9]?\s*\)|[a-e1-9][.)\-:])\s*/i;
 
+/** A letter or number the model wrote before an option: "(A) ", "b) ", "2. ". */
+const OPTION_MARKER = /^\s*(?:\(\s*[a-e1-9]\s*\)|[a-e1-9][.)])\s+/i;
+/** Numbering the model wrote before a subitem: "1. ", "a) ", "(2) ". */
+const PROMPT_MARKER = /^\s*(?:\(\s*[a-f1-9]\s*\)|[a-f1-9][.)])\s+/i;
+
 const TRUE_FALSE_SYNONYMS: Record<string, string> = {
   v: 'verdadeiro',
   certo: 'verdadeiro',
@@ -78,8 +83,11 @@ export function repairOlderMeditationActivity(
     ? activity.subitems.map((raw) => {
         const item =
           raw && typeof raw === 'object' ? (raw as MeditationJson) : {};
+        // "( ) (A) Ele foi" would print two markers: the sheet adds its own.
         const options = Array.isArray(item.options)
-          ? item.options.map((option) => text(withoutMarkdown(option)))
+          ? item.options.map((option) =>
+              text(withoutMarkdown(option)).replace(OPTION_MARKER, ''),
+            )
           : item.options;
         const answer = text(item.answer);
         const matched =
@@ -88,7 +96,8 @@ export function repairOlderMeditationActivity(
             : null;
         return {
           ...item,
-          prompt: withoutMarkdown(item.prompt),
+          // The sheet letters the subitems: "a) 1. É importante" loses the "1.".
+          prompt: text(withoutMarkdown(item.prompt)).replace(PROMPT_MARKER, ''),
           options,
           answer: matched ?? item.answer,
         };
