@@ -5,6 +5,12 @@ import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 /** Arquivos enviados, indexados pelo nome do campo multipart. */
 export type MulterFilesDict = Record<string, Express.Multer.File>;
 
+/** Safe validation output; never includes submitted values or DTO instances. */
+export interface IdeasPageFieldError {
+  field: string;
+  message: string;
+}
+
 /** Mídias de uma página agrupadas por seção. */
 export type MediaBySection = Map<string, MediaItemEntity[]>;
 

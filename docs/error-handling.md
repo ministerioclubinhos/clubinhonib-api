@@ -825,3 +825,16 @@ No Estúdio, essas falhas viram `AI_QUEUE_UNAVAILABLE`, `AI_QUEUE_TIMEOUT` ou
 `AI_CONFIGURATION_MISSING` na etapa. Os jobs de ideias compartilhadas mantêm o
 contrato de tentativa com falha; o catálogo de modelos mantém a lista de
 contingência. Ver [comportamento da fila](ai-request-queue.md).
+
+### Ideas page editor validation
+
+Ideas page multipart requests return 422 `INVALID_INPUT` for non-object JSON,
+foreign/duplicate section or media IDs and invalid link URLs; `VALIDATION_ERROR`
+for blank required text or titles/subtitles exceeding 255 characters. Missing
+upload bindings use `MEDIA_FIELD_MISSING`/`MEDIA_FILE_NOT_FOUND`, including
+replacement uploads of existing media. The global error envelope is unchanged.
+
+An empty `sections` array also returns 422 `VALIDATION_ERROR` before persistence.
+DTO errors include `details.fieldErrors: [{ field, message }]`; nested paths identify
+the affected section/material and the primary message describes the first issue
+in Portuguese. Submitted values and validation target objects are never returned.

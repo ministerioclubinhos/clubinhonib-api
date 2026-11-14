@@ -184,6 +184,7 @@ describe('IdeasPageCreateService', () => {
       'IdeasSection',
       expect.anything(),
       expect.any(Function),
+      manager,
     );
     expect(result.sections[0].medias).toHaveLength(1);
   });
@@ -218,28 +219,37 @@ describe('IdeasPageCreateService', () => {
     ).rejects.toBeInstanceOf(AppValidationException);
   });
 
-  it('faz rollback e remove mídias órfãs quando a gravação falha', async () => {
-    const orphan = Object.assign(new MediaItemEntity(), {
-      id: 'm1',
-      isLocalFile: true,
-      url: 'https://s3/a.png',
-    });
-    ideasPageRepository.findSectionsOfPage.mockResolvedValue([
-      buildSection('s1'),
-    ]);
-    mediaItemProcessor.findManyMediaItemsByTargets.mockResolvedValue([orphan]);
-    createRouteService.createRouteWithManager.mockRejectedValue(
-      new Error('db down'),
+  it('descarta somente uploads sem referência quando a transação falha', async () => {
+    const file = {} as Express.Multer.File;
+    awsS3Service.upload.mockResolvedValue('https://s3/new.png');
+    mediaItemProcessor.processMediaItemsPolymorphic.mockImplementationOnce(
+      async (
+        _items: unknown,
+        _id: string,
+        _type: string,
+        _files: unknown,
+        upload: (file: Express.Multer.File) => Promise<string>,
+        transaction: EntityManager,
+      ) => {
+        expect(transaction).toBe(manager);
+        await upload(file);
+        throw new Error('rollback');
+      },
     );
-
     await expect(
-      service.createIdeasPage(validDto(), {}),
+      service.createIdeasPage(
+        validDto({
+          sections: [
+            { title: 'Ideia', description: '', medias: [uploadMedia()] },
+          ],
+        }),
+        { 'image_0_0.png': file },
+      ),
     ).rejects.toBeInstanceOf(AppInternalException);
-
-    expect(ideasPageRepository.runInTransaction).toHaveBeenCalledTimes(1);
-    expect(mediaItemProcessor.deleteMediaItems).toHaveBeenCalledWith(
-      [orphan],
+    expect(mediaItemProcessor.discardUnreferencedUploads).toHaveBeenCalledWith(
+      ['https://s3/new.png'],
       expect.any(Function),
     );
+    expect(mediaItemProcessor.deleteMediaItems).not.toHaveBeenCalled();
   });
 });

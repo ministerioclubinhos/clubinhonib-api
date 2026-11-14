@@ -859,3 +859,17 @@ direto ao provedor, e a API continua subindo sem Redis, com as rotas de IA
 degradadas. Jobs de um processo que deixou de existir são descartados. As
 leases de domínio e as decisões de publicação permanecem no MySQL. Ver
 [regras da fila](ai-request-queue.md).
+
+### Ideas page editing
+
+Page, route, section and media changes share a single transaction on creation and
+update. Old storage objects are cleaned only after commit; rollback discards only
+unreferenced new uploads. The API rejects foreign/duplicate section or media IDs,
+missing replacement files, blank/overlong titles, blank page descriptions and
+non-HTTP(S) links. Existing upload metadata remains server-owned. See
+[Ideas page editor contract](api-ideas-pages.md).
+
+The editor requires at least one section on create/update, even for drafts;
+sections can remain without media. DTO validation fails before persistence and
+reports the field with its section/material position, without returning submitted
+content. Removing the last section through an update cannot erase a whole page.

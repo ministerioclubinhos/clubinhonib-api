@@ -13,6 +13,8 @@ export const MANUAL_WORK_LAYOUT = {
   verseSize: 22,
   verseColumns: 68,
   verseLineHeight: 270,
+  /** Width/height of the stored artwork: wide, to span the whole frame. */
+  artAspectRatio: 1.8,
   /** The artwork spans the whole frame. */
   imageMaximumWidth: 722,
   imageMaximumHeight: 440,

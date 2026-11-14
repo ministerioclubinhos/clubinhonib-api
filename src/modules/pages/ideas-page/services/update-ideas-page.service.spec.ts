@@ -21,6 +21,11 @@ import { IdeasPageRepository } from '../repositories/ideas-page.repository';
 import { IdeasPageEntity } from '../entities/ideas-page.entity';
 import { IdeasSectionEntity } from '../entities/ideas-section.entity';
 import { IdeasPageGetService } from './get-ideas-page.service';
+import {
+  UpdateIdeasPageDto,
+  UpdateIdeasSectionDto,
+} from '../dto/update-ideas-page.dto';
+import { MediaItemDto } from 'src/shared/share-dto/media-item-dto';
 import { IdeasPageUpdateService } from './update-ideas-page.service';
 
 const buildSection = (
@@ -65,21 +70,24 @@ const buildPage = (sections: IdeasSectionEntity[] = []): IdeasPageEntity =>
     route,
   });
 
-const sectionInput = (overrides: Record<string, unknown> = {}) => ({
+const sectionInput = (
+  overrides: Partial<UpdateIdeasSectionDto> = {},
+): UpdateIdeasSectionDto => ({
   title: 'Abertura',
   description: 'Materiais',
   medias: [],
   ...overrides,
 });
 
-const validDto = (overrides: Record<string, unknown> = {}) =>
-  ({
-    id: 'page-id',
-    title: 'Ideias revisadas',
-    description: 'Nova descrição',
-    sections: [],
-    ...overrides,
-  }) as never;
+const validDto = (
+  overrides: Partial<UpdateIdeasPageDto> = {},
+): UpdateIdeasPageDto => ({
+  id: 'page-id',
+  title: 'Ideias revisadas',
+  description: 'Nova descrição',
+  sections: [],
+  ...overrides,
+});
 
 describe('IdeasPageUpdateService', () => {
   const manager = {} as EntityManager;
@@ -111,20 +119,23 @@ describe('IdeasPageUpdateService', () => {
     findManyMediaItemsByTargets: jest.fn(),
     findMediaItemsByTarget: jest.fn(),
     deleteMediaItems: jest.fn(),
-    removeMediaItem: jest.fn(),
+    deleteMediaItemByIdInTransaction: jest.fn(),
     processMediaItemsPolymorphic: jest.fn(),
     buildBaseMediaItem: jest.fn(),
-    upsertMediaItem: jest.fn(),
+    saveMediaItemInTransaction: jest.fn(),
     discardUnreferencedUploads: jest.fn(),
   };
 
   let service: IdeasPageUpdateService;
 
   beforeEach(async () => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
+    ideasPageRepository.runInTransaction.mockImplementation(
+      (run: (m: EntityManager) => Promise<unknown>) => run(manager),
+    );
     mediaItemProcessor.findMediaItemsByTargetInTransaction.mockImplementation(
       (_m: EntityManager, id: string, type: string) =>
-        mediaItemProcessor.findManyMediaItemsByTargets([id], type) as Promise<
+        mediaItemProcessor.findMediaItemsByTarget(id, type) as Promise<
           MediaItemEntity[]
         >,
     );
@@ -143,9 +154,9 @@ describe('IdeasPageUpdateService', () => {
       (item: Record<string, unknown>) =>
         Object.assign(new MediaItemEntity(), item),
     );
-    mediaItemProcessor.upsertMediaItem.mockImplementation(
-      (id: string, media: MediaItemEntity) =>
-        Object.assign(media, { id: id ?? 'nova' }),
+    mediaItemProcessor.saveMediaItemInTransaction.mockImplementation(
+      (_manager: EntityManager, media: MediaItemEntity) =>
+        Object.assign(media, { id: media.id ?? 'nova' }),
     );
     mediaItemProcessor.discardUnreferencedUploads.mockImplementation(
       async (urls: string[], remove: (url: string) => Promise<void>) => {
@@ -214,7 +225,7 @@ describe('IdeasPageUpdateService', () => {
       isLocalFile: true,
       url: 'https://s3/a.png',
     });
-    mediaItemProcessor.findManyMediaItemsByTargets.mockResolvedValue([media]);
+    mediaItemProcessor.findMediaItemsByTarget.mockResolvedValue([media]);
 
     await service.updateIdeasPage('page-id', validDto({ sections: [] }), {});
 
@@ -241,6 +252,7 @@ describe('IdeasPageUpdateService', () => {
     expect(ideasPageRepository.createSection).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ title: 'Abertura', public: false }),
+      manager,
     );
   });
 
@@ -262,21 +274,22 @@ describe('IdeasPageUpdateService', () => {
         title: 'Novo título',
         public: true,
       }),
+      manager,
     );
     expect(ideasPageRepository.removeSectionsByIds).not.toHaveBeenCalled();
   });
 
-  it('cria, em vez de sobrescrever, a seção cujo id não é da página', async () => {
-    getService.findEntityOrFail.mockResolvedValue(buildPage([]));
-
-    await service.updateIdeasPage(
-      'page-id',
-      validDto({ sections: [sectionInput({ id: 'de-outra-pagina' })] }),
-      {},
-    );
-
-    expect(ideasPageRepository.saveSection).not.toHaveBeenCalled();
-    expect(ideasPageRepository.createSection).toHaveBeenCalledTimes(1);
+  it('recusa seção de outra página antes de iniciar escritas', async () => {
+    await expect(
+      service.updateIdeasPage(
+        'page-id',
+        validDto({
+          sections: [sectionInput({ id: 'de-outra-pagina' })],
+        }),
+        {},
+      ),
+    ).rejects.toBeInstanceOf(AppValidationException);
+    expect(ideasPageRepository.runInTransaction).not.toHaveBeenCalled();
   });
 
   it('preserva o arquivo da mídia que não foi trocada', async () => {
@@ -319,9 +332,10 @@ describe('IdeasPageUpdateService', () => {
 
     expect(awsS3Service.upload).not.toHaveBeenCalled();
     expect(awsS3Service.delete).not.toHaveBeenCalled();
-    expect(mediaItemProcessor.upsertMediaItem).toHaveBeenCalledWith(
-      'm1',
+    expect(mediaItemProcessor.saveMediaItemInTransaction).toHaveBeenCalledWith(
+      manager,
       expect.objectContaining({
+        id: 'm1',
         url: 'https://s3/antiga.png',
         isLocalFile: true,
         originalName: 'antiga.png',
@@ -373,9 +387,10 @@ describe('IdeasPageUpdateService', () => {
 
     expect(awsS3Service.delete).toHaveBeenCalledWith('https://s3/antiga.png');
     expect(awsS3Service.upload).toHaveBeenCalledWith(file);
-    expect(mediaItemProcessor.upsertMediaItem).toHaveBeenCalledWith(
-      'm1',
+    expect(mediaItemProcessor.saveMediaItemInTransaction).toHaveBeenCalledWith(
+      manager,
       expect.objectContaining({
+        id: 'm1',
         url: 'https://s3/nova.png',
         originalName: 'nova.png',
         size: 42,
@@ -385,7 +400,7 @@ describe('IdeasPageUpdateService', () => {
     // O arquivo antigo só pode sair depois que o registro aponta para o novo.
     const uploadedAt = awsS3Service.upload.mock.invocationCallOrder[0];
     const savedAt =
-      mediaItemProcessor.upsertMediaItem.mock.invocationCallOrder[0];
+      mediaItemProcessor.saveMediaItemInTransaction.mock.invocationCallOrder[0];
     const deletedAt = awsS3Service.delete.mock.invocationCallOrder[0];
     expect(uploadedAt).toBeLessThan(savedAt);
     expect(savedAt).toBeLessThan(deletedAt);
@@ -395,7 +410,9 @@ describe('IdeasPageUpdateService', () => {
     const existing = buildSection('s1');
     getService.findEntityOrFail.mockResolvedValue(buildPage([existing]));
     awsS3Service.upload.mockResolvedValue('https://s3/nova.png');
-    mediaItemProcessor.upsertMediaItem.mockRejectedValue(new Error('db down'));
+    mediaItemProcessor.saveMediaItemInTransaction.mockRejectedValue(
+      new Error('db down'),
+    );
 
     const file = {
       fieldname: 'image_0_0.png',
@@ -496,13 +513,13 @@ describe('IdeasPageUpdateService', () => {
       {},
     );
 
-    expect(mediaItemProcessor.removeMediaItem).toHaveBeenCalledWith(
-      storedMedia,
-      expect.any(Function),
-    );
+    expect(
+      mediaItemProcessor.deleteMediaItemByIdInTransaction,
+    ).toHaveBeenCalledWith(manager, storedMedia.id);
+    expect(awsS3Service.delete).toHaveBeenCalledWith(storedMedia.url);
   });
 
-  it('mantém no S3 o arquivo ainda referenciado por outra mídia enviada', async () => {
+  it('verifica referências somente depois de gravar a mídia que reutiliza a URL', async () => {
     const existing = buildSection('s1');
     getService.findEntityOrFail.mockResolvedValue(buildPage([existing]));
 
@@ -535,9 +552,17 @@ describe('IdeasPageUpdateService', () => {
       {},
     );
 
-    expect(mediaItemProcessor.removeMediaItem).toHaveBeenCalledWith(
-      storedMedia,
-      undefined,
+    expect(
+      mediaItemProcessor.deleteMediaItemByIdInTransaction,
+    ).toHaveBeenCalledWith(manager, storedMedia.id);
+    expect(mediaItemProcessor.discardUnreferencedUploads).toHaveBeenCalledWith(
+      [storedMedia.url],
+      expect.any(Function),
+    );
+    expect(
+      mediaItemProcessor.saveMediaItemInTransaction.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      mediaItemProcessor.discardUnreferencedUploads.mock.invocationCallOrder[0],
     );
   });
 
@@ -592,5 +617,237 @@ describe('IdeasPageUpdateService', () => {
     await expect(
       service.updateIdeasPage('page-id', validDto(), {}),
     ).rejects.toBeInstanceOf(AppInternalException);
+  });
+
+  it('usa o mesmo manager em todas as escritas e só apaga arquivos depois do commit', async () => {
+    const old = Object.assign(new MediaItemEntity(), {
+      id: 'old',
+      isLocalFile: true,
+      url: 'https://s3/old',
+    });
+    getService.findEntityOrFail.mockResolvedValue(
+      buildPage([buildSection('s1'), buildSection('removed')]),
+    );
+    mediaItemProcessor.findMediaItemsByTarget.mockResolvedValue([old]);
+    let committed = false;
+    ideasPageRepository.runInTransaction.mockImplementationOnce(
+      async (work) => {
+        const result = await work(manager);
+        expect(awsS3Service.delete).not.toHaveBeenCalled();
+        committed = true;
+        return result;
+      },
+    );
+    awsS3Service.delete.mockImplementation(async () => {
+      expect(committed).toBe(true);
+    });
+    await service.updateIdeasPage(
+      'page-id',
+      validDto({ sections: [sectionInput({ id: 's1' }), sectionInput()] }),
+      {},
+    );
+    expect(ideasPageRepository.runInTransaction).toHaveBeenCalledTimes(1);
+    expect(ideasPageRepository.saveSection).toHaveBeenCalledWith(
+      expect.anything(),
+      manager,
+    );
+    expect(ideasPageRepository.createSection).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      manager,
+    );
+    expect(
+      mediaItemProcessor.processMediaItemsPolymorphic,
+    ).toHaveBeenCalledWith(
+      [],
+      'nova',
+      'IdeasSection',
+      {},
+      expect.any(Function),
+      manager,
+    );
+    expect(ideasPageRepository.removeSectionsByIds).toHaveBeenCalledWith(
+      ['removed'],
+      manager,
+    );
+  });
+
+  it('não exclui arquivos antigos se a escrita final falhar após remover uma seção', async () => {
+    getService.findEntityOrFail.mockResolvedValue(
+      buildPage([buildSection('removed')]),
+    );
+    mediaItemProcessor.findMediaItemsByTarget.mockResolvedValue([
+      Object.assign(new MediaItemEntity(), {
+        id: 'm1',
+        isLocalFile: true,
+        url: 'https://s3/old',
+      }),
+    ]);
+    ideasPageRepository.updateContent.mockRejectedValueOnce(
+      new Error('rollback'),
+    );
+    await expect(
+      service.updateIdeasPage('page-id', validDto(), {}),
+    ).rejects.toBeInstanceOf(AppInternalException);
+    expect(ideasPageRepository.runInTransaction).toHaveBeenCalledTimes(1);
+    expect(awsS3Service.delete).not.toHaveBeenCalled();
+  });
+
+  it('recusa um arquivo de substituição ausente antes de alterar a seção', async () => {
+    getService.findEntityOrFail.mockResolvedValue(
+      buildPage([buildSection('s1')]),
+    );
+    await expect(
+      service.updateIdeasPage(
+        'page-id',
+        validDto({
+          sections: [
+            sectionInput({
+              id: 's1',
+              medias: [
+                {
+                  id: 'm1',
+                  mediaType: MediaType.IMAGE,
+                  uploadType: UploadType.UPLOAD,
+                  isLocalFile: false,
+                  fieldKey: 'missing',
+                },
+              ],
+            }),
+          ],
+        }),
+        {},
+      ),
+    ).rejects.toBeInstanceOf(AppValidationException);
+    expect(ideasPageRepository.saveSection).not.toHaveBeenCalled();
+  });
+
+  it.each(['foreign', 'duplicate'])(
+    'recusa mídia %s sem salvar ou remover arquivos',
+    async (mode) => {
+      getService.findEntityOrFail.mockResolvedValue(
+        buildPage([buildSection('s1')]),
+      );
+      const media: MediaItemDto = {
+        id: 'm1',
+        mediaType: MediaType.IMAGE,
+        uploadType: UploadType.LINK,
+        isLocalFile: false,
+        url: 'https://example.org/image.png',
+      };
+      mediaItemProcessor.findMediaItemsByTarget.mockResolvedValue(
+        mode === 'duplicate' ? [media] : [],
+      );
+      await expect(
+        service.updateIdeasPage(
+          'page-id',
+          validDto({
+            sections: [
+              sectionInput({
+                id: 's1',
+                medias: mode === 'duplicate' ? [media, media] : [media],
+              }),
+            ],
+          }),
+          {},
+        ),
+      ).rejects.toBeInstanceOf(AppValidationException);
+      expect(
+        mediaItemProcessor.saveMediaItemInTransaction,
+      ).not.toHaveBeenCalled();
+      expect(awsS3Service.delete).not.toHaveBeenCalled();
+    },
+  );
+
+  it('preserva metadados do arquivo salvo mesmo se o cliente enviar outra URL', async () => {
+    getService.findEntityOrFail.mockResolvedValue(
+      buildPage([buildSection('s1')]),
+    );
+    mediaItemProcessor.findMediaItemsByTarget.mockResolvedValue([
+      Object.assign(new MediaItemEntity(), {
+        id: 'm1',
+        isLocalFile: true,
+        url: 'https://s3/original',
+        size: 123,
+        originalName: 'original.png',
+      }),
+    ]);
+    await service.updateIdeasPage(
+      'page-id',
+      validDto({
+        sections: [
+          sectionInput({
+            id: 's1',
+            medias: [
+              {
+                id: 'm1',
+                title: 'Novo título',
+                mediaType: MediaType.IMAGE,
+                uploadType: UploadType.UPLOAD,
+                isLocalFile: true,
+                url: 'https://example.org/foreign',
+                size: 1,
+                originalName: 'wrong.png',
+              },
+            ],
+          }),
+        ],
+      }),
+      {},
+    );
+    expect(mediaItemProcessor.saveMediaItemInTransaction).toHaveBeenCalledWith(
+      manager,
+      expect.objectContaining({
+        id: 'm1',
+        title: 'Novo título',
+        url: 'https://s3/original',
+        size: 123,
+        originalName: 'original.png',
+      }),
+    );
+    expect(awsS3Service.delete).not.toHaveBeenCalled();
+  });
+
+  it('troca upload por link limpando os metadados antigos', async () => {
+    getService.findEntityOrFail.mockResolvedValue(
+      buildPage([buildSection('s1')]),
+    );
+    mediaItemProcessor.findMediaItemsByTarget.mockResolvedValue([
+      Object.assign(new MediaItemEntity(), {
+        id: 'm1',
+        isLocalFile: true,
+        url: 'https://s3/old',
+      }),
+    ]);
+    await service.updateIdeasPage(
+      'page-id',
+      validDto({
+        sections: [
+          sectionInput({
+            id: 's1',
+            medias: [
+              {
+                id: 'm1',
+                mediaType: MediaType.IMAGE,
+                uploadType: UploadType.LINK,
+                isLocalFile: true,
+                url: 'https://example.org/new',
+              },
+            ],
+          }),
+        ],
+      }),
+      {},
+    );
+    expect(mediaItemProcessor.saveMediaItemInTransaction).toHaveBeenCalledWith(
+      manager,
+      expect.objectContaining({
+        url: 'https://example.org/new',
+        isLocalFile: false,
+        originalName: '',
+        size: 0,
+      }),
+    );
+    expect(awsS3Service.delete).toHaveBeenCalledWith('https://s3/old');
   });
 });

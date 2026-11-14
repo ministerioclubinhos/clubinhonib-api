@@ -1,5 +1,5 @@
 import { plainToInstance } from 'class-transformer';
-import { validate } from 'class-validator';
+import { validate, ValidationError } from 'class-validator';
 import { AppValidationException, ErrorCode } from 'src/shared/exceptions';
 import {
   MediaItemEntity,
@@ -8,7 +8,50 @@ import {
 import { MediaItemInput } from 'src/shared/media/media-item-processor';
 import { MediaItemDto } from 'src/shared/share-dto/media-item-dto';
 import { IdeasSectionEntity } from './entities/ideas-section.entity';
-import { MediaBySection, MulterFilesDict, SectionSyncPlan } from './types';
+import {
+  IdeasPageFieldError,
+  MediaBySection,
+  MulterFilesDict,
+  SectionSyncPlan,
+} from './types';
+import { IDEAS_VALIDATION_FIELD_LABELS } from './constants';
+
+/** Give nested errors their section/material position without echoing content. */
+export function ideasPageFieldErrors(
+  errors: ValidationError[],
+  parent = '',
+): IdeasPageFieldError[] {
+  return errors.flatMap((error) => {
+    const field = parent ? `${parent}.${error.property}` : error.property;
+    const children = ideasPageFieldErrors(error.children ?? [], field);
+    if (!error.constraints) return children;
+    if (error.constraints.whitelistValidation) {
+      return [
+        {
+          field: parent || 'page',
+          message: 'Remova os campos não permitidos e tente novamente.',
+        },
+        ...children,
+      ];
+    }
+    const section = /^sections\.(\d+)/.exec(field);
+    const media = /\.medias\.(\d+)/.exec(field);
+    const label = [
+      section ? `Seção ${Number(section[1]) + 1}` : 'Página',
+      media ? `Material ${Number(media[1]) + 1}` : '',
+      IDEAS_VALIDATION_FIELD_LABELS[error.property] ?? '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+    return [
+      {
+        field,
+        message: `${label}: ${Object.values(error.constraints).join(' ')}`,
+      },
+      ...children,
+    ];
+  });
+}
 
 /** Indexa os arquivos enviados pelo nome do campo multipart. */
 export function buildFilesDict(
@@ -90,16 +133,25 @@ export async function parseAndValidatePayload<T extends object>(
     );
   }
 
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new AppValidationException(
+      ErrorCode.INVALID_INPUT,
+      'Os dados da página devem ser um objeto JSON.',
+    );
+  }
   const dto = plainToInstance(dtoClass, parsed);
   const errors = await validate(dto, {
     whitelist: true,
     forbidNonWhitelisted: true,
+    validationError: { target: false, value: false },
   });
 
   if (errors.length > 0) {
+    const fieldErrors = ideasPageFieldErrors(errors);
     throw new AppValidationException(
       ErrorCode.VALIDATION_ERROR,
-      'Dados inválidos na requisição',
+      fieldErrors[0]?.message ?? 'Revise os dados da página e tente novamente.',
+      { fieldErrors },
     );
   }
 
@@ -108,7 +160,7 @@ export async function parseAndValidatePayload<T extends object>(
 
 /** Uma mídia é um arquivo novo quando veio marcada como upload local. */
 export function isUploadedMedia(item: MediaItemDto): boolean {
-  return item.uploadType === UploadType.UPLOAD && item.isLocalFile === true;
+  return item.uploadType === UploadType.UPLOAD;
 }
 
 /**
@@ -120,14 +172,15 @@ export function assertUploadsHaveFiles(
   filesDict: MulterFilesDict,
 ): void {
   for (const item of items.filter(isUploadedMedia)) {
-    if (!item.fieldKey) {
+    const fieldKey = item.fieldKey ?? item.fileField;
+    if (!fieldKey) {
       throw new AppValidationException(
         ErrorCode.MEDIA_FIELD_MISSING,
         `fieldKey ausente para a mídia "${item.title ?? ''}"`,
       );
     }
 
-    if (!filesDict[item.fieldKey]) {
+    if (!Object.hasOwn(filesDict, fieldKey)) {
       throw new AppValidationException(
         ErrorCode.MEDIA_FILE_NOT_FOUND,
         `Arquivo ausente para a mídia "${item.title ?? ''}"`,
@@ -145,4 +198,40 @@ export function toMediaItemInputs(items: MediaItemDto[]): MediaItemInput[] {
     ...item,
     fileField: item.fieldKey ?? item.fileField,
   }));
+}
+
+/** Reject stale, foreign or duplicate identifiers instead of silently creating copies. */
+export function assertOwnedUniqueIds(
+  incoming: { id?: string }[],
+  existing: { id: string }[],
+  label: string,
+): void {
+  const owned = new Set(existing.map((item) => item.id));
+  const seen = new Set<string>();
+  for (const item of incoming) {
+    if (!item.id) continue;
+    if (!owned.has(item.id) || seen.has(item.id)) {
+      throw new AppValidationException(
+        ErrorCode.INVALID_INPUT,
+        `Identificador de ${label} inválido ou repetido. Recarregue a página e tente novamente.`,
+      );
+    }
+    seen.add(item.id);
+  }
+}
+
+export function assertMediaLinks(items: MediaItemDto[]): void {
+  for (const item of items) {
+    if (item.uploadType !== UploadType.LINK) continue;
+    try {
+      const url = new URL(item.url?.trim() ?? '');
+      if (!['https:', 'http:'].includes(url.protocol))
+        throw new Error('protocol');
+    } catch {
+      throw new AppValidationException(
+        ErrorCode.INVALID_INPUT,
+        'Informe um link HTTP ou HTTPS válido para a mídia.',
+      );
+    }
+  }
 }

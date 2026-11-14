@@ -59,7 +59,11 @@ import {
 } from '../utils/lesson-image-brief.utils';
 import { randomInt } from 'node:crypto';
 import { MANUAL_WORK_FRAMINGS } from '../constants/manual-work-scene.constants';
-import { buildManualWorkImagePrompt } from '../utils/manual-work-image.utils';
+import {
+  buildManualWorkImagePrompt,
+  fitManualWorkArt,
+} from '../utils/manual-work-image.utils';
+import { MANUAL_WORK_LAYOUT } from '../constants/manual-work-layout.constants';
 import { buildMeditationActivityImagePrompt } from '../utils/meditation-image.utils';
 import {
   lessonAssetListKey,
@@ -388,6 +392,25 @@ export class LessonAssetGenerationService {
           isCutoutKit,
           identityReferenceImage,
           forceReference,
+        ),
+      );
+    // The coloring page is stored already trimmed and cropped wide, so it
+    // fills the frame on screen as well as in the PDF.
+    if (type === LessonStageType.MANUAL_WORK)
+      return fitManualWorkArt(
+        await this.requestAssetImage(
+          llmProvider,
+          imagePrompt,
+          type,
+          lesson,
+          visualConfig,
+          isCutoutKit,
+          identityReferenceImage,
+          forceReference,
+        ),
+        Math.round(
+          MANUAL_WORK_LAYOUT.imageMaximumWidth /
+            MANUAL_WORK_LAYOUT.artAspectRatio,
         ),
       );
     if (type !== LessonStageType.LESSON_VISUALS)

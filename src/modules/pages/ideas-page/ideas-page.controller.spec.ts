@@ -157,4 +157,17 @@ describe('IdeasPageController', () => {
 
     expect(deleteService.removePage).toHaveBeenCalledWith(ID);
   });
+
+  it('refuses deleting every section through the editor before calling a write service', async () => {
+    await expect(
+      controller.update(ID, [], payload({ sections: [] })),
+    ).rejects.toMatchObject({
+      message: 'Página · Seções: Adicione ao menos uma seção.',
+    });
+    await expect(
+      controller.create([], payload({ sections: [] })),
+    ).rejects.toBeInstanceOf(AppValidationException);
+    expect(updateService.updateIdeasPage).not.toHaveBeenCalled();
+    expect(createService.createIdeasPage).not.toHaveBeenCalled();
+  });
 });

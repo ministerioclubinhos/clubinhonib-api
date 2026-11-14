@@ -15,7 +15,11 @@ import { CreateIdeasPageDto } from '../dto/create-ideas-page.dto';
 import { IdeasPageResponseDto } from '../dto/ideas-page-response.dto';
 import { IdeasPageEntity } from '../entities/ideas-page.entity';
 import { toIdeasPageResponse } from '../mappers';
-import { assertUploadsHaveFiles, toMediaItemInputs } from '../utils';
+import {
+  assertUploadsHaveFiles,
+  assertMediaLinks,
+  toMediaItemInputs,
+} from '../utils';
 import { MediaBySection, MulterFilesDict } from '../types';
 import {
   IDEAS_PAGE_ENTITY_TYPE,
@@ -47,9 +51,7 @@ export class IdeasPageCreateService {
       filesDict,
     );
 
-    // Fica fora do bloco porque o `catch` precisa do id para varrer a mídia
-    // que tenha sobrado da tentativa.
-    let savedPage: IdeasPageEntity | undefined;
+    assertMediaLinks(dto.sections.flatMap((section) => section.medias));
 
     // Cada arquivo enviado fica registrado: se a criação falhar depois do
     // upload, o objeto é apagado do bucket em vez de ficar órfão.
@@ -71,11 +73,9 @@ export class IdeasPageCreateService {
             },
             manager,
           );
-          savedPage = created;
 
           created.route = await this.createRoute(dto, created, manager);
           created = await this.ideasPageRepository.savePage(created, manager);
-          savedPage = created;
 
           const media = await this.createSections(
             dto,
@@ -97,7 +97,6 @@ export class IdeasPageCreateService {
 
       return toIdeasPageResponse(page, mediaBySection);
     } catch (error: unknown) {
-      await this.discardOrphanMedia(savedPage?.id);
       await this.mediaItemProcessor.discardUnreferencedUploads(
         uploads.uploadedUrls,
         (url: string) => this.awsS3Service.delete(url),
@@ -172,44 +171,12 @@ export class IdeasPageCreateService {
           IDEAS_SECTION_MEDIA_TARGET_TYPE,
           filesDict,
           uploads.upload,
+          manager,
         );
 
       mediaBySection.set(section.id, mediaItems);
     }
 
     return mediaBySection;
-  }
-
-  /**
-   * As mídias são gravadas fora da transação da página: no rollback, apagar o
-   * que já foi persistido evita registro e arquivo órfãos.
-   */
-  private async discardOrphanMedia(pageId?: string): Promise<void> {
-    if (!pageId) return;
-
-    try {
-      const sections =
-        await this.ideasPageRepository.findSectionsOfPage(pageId);
-      const sectionIds = sections.map((section) => section.id);
-      if (sectionIds.length === 0) return;
-
-      const orphans = await this.mediaItemProcessor.findManyMediaItemsByTargets(
-        sectionIds,
-        IDEAS_SECTION_MEDIA_TARGET_TYPE,
-      );
-      if (orphans.length === 0) return;
-
-      await this.mediaItemProcessor.deleteMediaItems(orphans, (url: string) =>
-        this.awsS3Service.delete(url),
-      );
-      this.logger.warn(
-        `Compensação executada: ${orphans.length} mídia(s) órfã(s) removida(s). pageId=${pageId}`,
-      );
-    } catch (cleanupError: unknown) {
-      this.logger.error(
-        `Falha ao remover mídias órfãs da página de ideias ${pageId}`,
-        cleanupError instanceof Error ? cleanupError.stack : undefined,
-      );
-    }
   }
 }

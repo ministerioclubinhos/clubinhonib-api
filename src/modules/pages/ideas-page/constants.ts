@@ -44,3 +44,24 @@ export const IDEAS_PAGE_SORT_COLUMNS = {
 
 /** Tamanho máximo do texto de busca. */
 export const IDEAS_PAGE_SEARCH_MAX_LENGTH = 200;
+
+export const IDEAS_TITLE_MAX_LENGTH = 255;
+export const IDEAS_PAGE_MIN_SECTIONS = 1;
+export const IDEAS_VALIDATION_FIELD_LABELS: Readonly<Record<string, string>> = {
+  title: 'Título',
+  subtitle: 'Subtítulo',
+  description: 'Descrição',
+  public: 'Visibilidade',
+  sections: 'Seções',
+  medias: 'Materiais',
+  id: 'Identificador',
+  uploadType: 'Tipo de envio',
+  mediaType: 'Tipo de material',
+  isLocalFile: 'Arquivo enviado',
+  url: 'Link',
+  platformType: 'Plataforma',
+  originalName: 'Nome do arquivo',
+  size: 'Tamanho do arquivo',
+  fieldKey: 'Arquivo',
+  fileField: 'Arquivo',
+};
