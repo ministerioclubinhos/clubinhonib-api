@@ -1,24 +1,25 @@
 import { Controller, Get, Param, Logger } from '@nestjs/common';
 import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
-import { RouteService } from './route.service';
-import { RouteEntity } from './route-page.entity';
+import { GetRouteService } from './services/get-route.service';
+import { RouteResponseDto } from './dto/route-response.dto';
+import { toRouteResponse, toRouteResponseList } from './mappers';
 
 @Controller('routes')
 export class RouteController {
   private readonly logger = new Logger(RouteController.name);
 
-  constructor(private readonly routeService: RouteService) {}
+  constructor(private readonly getRouteService: GetRouteService) {}
 
   @Get()
-  async findAll(): Promise<RouteEntity[]> {
-    const routes = await this.routeService.findAllRoutes();
+  async findAll(): Promise<RouteResponseDto[]> {
+    const routes = await this.getRouteService.findAllRoutes();
     this.logger.debug(`📦 Rotas retornadas: ${routes.length}`);
-    return routes;
+    return toRouteResponseList(routes);
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string): Promise<RouteEntity> {
-    const route = await this.routeService.findById(id);
+  async findOne(@Param('id') id: string): Promise<RouteResponseDto> {
+    const route = await this.getRouteService.findById(id);
     if (!route) {
       this.logger.warn(`⚠️ Rota ID=${id} não encontrada`);
       throw new AppNotFoundException(
@@ -26,6 +27,6 @@ export class RouteController {
         'Rota não encontrada',
       );
     }
-    return route;
+    return toRouteResponse(route);
   }
 }

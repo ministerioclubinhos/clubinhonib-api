@@ -5,13 +5,15 @@ import { DocumentEntity } from './entities/document.entity';
 import { MediaModule } from 'src/shared/media/media.module';
 
 import { CreateDocumentService } from './services/create-document.service';
+import { AnnounceDocumentService } from './services/announce-document.service';
+import { EmailModule } from 'src/shared/email';
+import { SiteUrlModule } from 'src/shared/site-url';
+import { UserModule } from 'src/core/user/user.module';
 import { UpdateDocumentService } from './services/update-document.service';
 import { GetDocumentService } from './services/get-document.service';
 import { DeleteDocumentService } from './services/delete-document.service';
-import { DocumentRepository } from './document.repository';
-import { DataSource } from 'typeorm';
-import { RouteService } from 'src/modules/routes/route.service';
-import { RouteRepository } from 'src/modules/routes/route-page.repository';
+import { DocumentsRepository } from './repositories/documents.repository';
+import { RouteModule } from 'src/modules/routes/route.module';
 import { MeditationModule } from 'src/modules/meditations/meditation.module';
 
 @Module({
@@ -19,24 +21,23 @@ import { MeditationModule } from 'src/modules/meditations/meditation.module';
     TypeOrmModule.forFeature([DocumentEntity]),
     MediaModule,
     MeditationModule,
+    RouteModule,
+    EmailModule,
+    SiteUrlModule,
+    UserModule,
   ],
   controllers: [DocumentsController],
   providers: [
     CreateDocumentService,
+    AnnounceDocumentService,
     UpdateDocumentService,
     GetDocumentService,
-    RouteService,
     DeleteDocumentService,
-    {
-      provide: DocumentRepository,
-      useFactory: (dataSource: DataSource) =>
-        new DocumentRepository(dataSource),
-      inject: [DataSource],
-    },
-    RouteRepository,
+    DocumentsRepository,
   ],
   exports: [
     CreateDocumentService,
+    AnnounceDocumentService,
     UpdateDocumentService,
     GetDocumentService,
     DeleteDocumentService,

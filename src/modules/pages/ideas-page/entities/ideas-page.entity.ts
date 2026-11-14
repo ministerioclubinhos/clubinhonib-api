@@ -30,4 +30,11 @@ export class IdeasPageEntity extends BaseEntity {
   })
   @JoinColumn()
   route: RouteEntity | null;
+
+  /**
+   * Contagem de seções carregada apenas pela listagem paginada. Não é coluna:
+   * o banco a devolve por `loadRelationCountAndMap`, e fica indefinida nas
+   * demais consultas.
+   */
+  sectionCount?: number;
 }

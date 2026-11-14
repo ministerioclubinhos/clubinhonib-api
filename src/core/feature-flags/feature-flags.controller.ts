@@ -1,92 +1,153 @@
 import {
-  Controller,
-  Get,
-  Post,
-  Patch,
-  Delete,
   Body,
-  Param,
-  UseGuards,
-  Query,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
   Logger,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
-import { FeatureFlagsService } from './feature-flags.service';
-import { CreateFeatureFlagDto } from './dto/create-feature-flag.dto';
-import { UpdateFeatureFlagDto } from './dto/update-feature-flag.dto';
+import { Request } from 'express';
+
+import { Paginated } from 'src/shared/dto/paginated.dto';
+
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminRoleGuard } from '../auth/guards/role-guard';
+import { AuthContextService } from '../auth/services/auth-context.service';
+
+import { CreateFeatureFlagDto } from './dto/create-feature-flag.dto';
+import { UpdateFeatureFlagDto } from './dto/update-feature-flag.dto';
+import { QueryFeatureFlagsDto } from './dto/query-feature-flags.dto';
+import { FeatureFlagResponseDto } from './dto/feature-flag-response.dto';
+import { FeatureFlagStatsDto } from './dto/feature-flag-stats.dto';
+import { CreateFeatureFlagService } from './services/create-feature-flag.service';
+import { GetFeatureFlagsService } from './services/get-feature-flags.service';
+import { UpdateFeatureFlagService } from './services/update-feature-flag.service';
+import { DeleteFeatureFlagService } from './services/delete-feature-flag.service';
 
 @Controller('feature-flags')
 export class FeatureFlagsController {
   private readonly logger = new Logger(FeatureFlagsController.name);
 
-  constructor(private readonly service: FeatureFlagsService) {}
+  constructor(
+    private readonly createService: CreateFeatureFlagService,
+    private readonly getService: GetFeatureFlagsService,
+    private readonly updateService: UpdateFeatureFlagService,
+    private readonly deleteService: DeleteFeatureFlagService,
+    private readonly authContext: AuthContextService,
+  ) {}
 
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Post()
-  async create(@Body() dto: CreateFeatureFlagDto) {
-    this.logger.log(`Creating feature flag: ${dto.key}`);
-    const result = await this.service.create(dto);
-    this.logger.log(`Feature flag created: ${dto.key}`);
-    return result;
+  async create(
+    @Body() dto: CreateFeatureFlagDto,
+  ): Promise<FeatureFlagResponseDto> {
+    this.logger.debug(`POST /feature-flags | key=${dto.key}`);
+    return this.createService.create(dto);
   }
 
+  /** Acerta o catálogo: cria o que falta e apaga o que foi aposentado. */
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
+  @Post('seed')
+  async seed(): Promise<{
+    message: string;
+    count: number;
+    created: FeatureFlagResponseDto[];
+    retired: string[];
+  }> {
+    this.logger.debug('POST /feature-flags/seed');
+
+    const { created, retired } = await this.createService.synchronizeCatalog();
+
+    return {
+      message: 'Catálogo de feature flags conferido',
+      count: created.length,
+      created,
+      retired,
+    };
+  }
+
+  /**
+   * Listagem do painel.
+   *
+   * Exige administrador: a lista descreve a configuração inteira do produto,
+   * inclusive as flags desligadas e a quem cada uma se aplica.
+   */
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Get()
-  findAll() {
-    this.logger.log('Fetching all feature flags');
-    return this.service.findAll();
+  async findAll(
+    @Query() query: QueryFeatureFlagsDto,
+  ): Promise<Paginated<FeatureFlagResponseDto>> {
+    this.logger.debug('GET /feature-flags');
+    return this.getService.findAllPaginated(query);
   }
 
-  @UseGuards(JwtAuthGuard)
+  /** Resumo do acervo, exibido no cabeçalho do painel. */
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
+  @Get('stats')
+  async stats(): Promise<FeatureFlagStatsDto> {
+    this.logger.debug('GET /feature-flags/stats');
+    return this.getService.getStats();
+  }
+
+  /**
+   * As flags que valem para quem está pedindo.
+   *
+   * O perfil vem da sessão, nunca da query: aceitar `?role=` deixava qualquer
+   * pessoa pedir o mapa de um administrador.
+   */
+  @Get('map')
+  async getFlagsMap(@Req() request: Request): Promise<Record<string, boolean>> {
+    const role = await this.authContext.getRole(request);
+    this.logger.debug(`GET /feature-flags/map | role=${role ?? 'visitante'}`);
+    return this.getService.getFlagsMap(role);
+  }
+
+  /** Situação de uma única flag para quem está pedindo. */
   @Get('check/:key')
   async check(
     @Param('key') key: string,
-    @Query('environment') environment?: string,
-  ) {
-    this.logger.log(
-      `Checking feature flag: ${key}, environment: ${environment || 'default'}`,
-    );
-    const enabled = await this.service.isEnabled(key, environment);
-    return { key, enabled, environment };
+    @Req() request: Request,
+  ): Promise<{ key: string; enabled: boolean }> {
+    const role = await this.authContext.getRole(request);
+    return { key, enabled: await this.getService.isEnabled(key, role) };
   }
 
-  @UseGuards(JwtAuthGuard)
-  @Get('environment/:environment')
-  findByEnvironment(@Param('environment') environment: string) {
-    this.logger.log(`Fetching feature flags for environment: ${environment}`);
-    return this.service.findByEnvironment(environment);
-  }
-
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Get(':key')
-  findOne(@Param('key') key: string) {
-    this.logger.log(`Fetching feature flag: ${key}`);
-    return this.service.findByKey(key);
+  async findOne(@Param('key') key: string): Promise<FeatureFlagResponseDto> {
+    this.logger.debug(`GET /feature-flags/${key}`);
+    return this.getService.findOne(key);
   }
 
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Patch(':key')
-  async update(@Param('key') key: string, @Body() dto: UpdateFeatureFlagDto) {
-    this.logger.log(`Updating feature flag: ${key}`);
-    const result = await this.service.update(key, dto);
-    this.logger.log(`Feature flag updated: ${key}`);
-    return result;
+  async update(
+    @Param('key') key: string,
+    @Body() dto: UpdateFeatureFlagDto,
+  ): Promise<FeatureFlagResponseDto> {
+    this.logger.debug(`PATCH /feature-flags/${key}`);
+    return this.updateService.update(key, dto);
   }
 
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Patch(':key/toggle')
-  async toggle(@Param('key') key: string) {
-    this.logger.log(`Toggling feature flag: ${key}`);
-    const result = await this.service.toggle(key);
-    this.logger.log(`Feature flag toggled: ${key}`);
-    return result;
+  async toggle(@Param('key') key: string): Promise<FeatureFlagResponseDto> {
+    this.logger.debug(`PATCH /feature-flags/${key}/toggle`);
+    return this.updateService.toggle(key);
   }
 
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Delete(':key')
-  async remove(@Param('key') key: string) {
-    this.logger.log(`Deleting feature flag: ${key}`);
-    await this.service.remove(key);
-    this.logger.log(`Feature flag deleted: ${key}`);
-    return { message: `Feature flag "${key}" deleted successfully` };
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async remove(@Param('key') key: string): Promise<void> {
+    this.logger.debug(`DELETE /feature-flags/${key}`);
+    await this.deleteService.remove(key);
   }
 }

@@ -1,0 +1,29 @@
+@startuml Feature Flags Flow - Clubinho NIB API
+!theme plain
+hide footbox
+title Feature flags — resolve and manage
+
+actor Client
+participant FeatureFlagsController as Controller
+participant GetFeatureFlagsService as Reader
+participant "Create / Update / Delete services" as Writer
+database "MySQL\nFeatureFlagsRepository" as Repository
+
+alt Public map or check
+  Client -> Controller : GET /feature-flags/map or /check/:key
+  Controller -> Reader : resolve flag(s) for session role
+  Reader -> Repository : load persisted flags
+  Repository --> Reader : enabled + targetRoles
+  Reader --> Client : enabled only when flag and audience match
+else Admin management
+  Client -> Controller : CRUD /feature-flags
+  Controller -> Writer : validated DTO / key
+  Writer -> Repository : create, update, toggle or delete
+  Writer -> Reader : invalidate affected cache
+  Writer --> Client : DTO or 204
+end
+
+note over Writer, Repository
+  Module startup synchronizes default flags and removes retired keys.
+end note
+@enduml

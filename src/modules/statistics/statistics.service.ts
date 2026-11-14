@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { StatisticsRepository } from './statistics.repository';
-import { StatisticsCalculationsService } from './services/statistics-calculations.service';
+import { AttendanceStatisticsRepository } from './repositories/attendance-statistics.repository';
+import { ChildrenStatisticsRepository } from './repositories/children-statistics.repository';
+import { ClubsTeachersStatisticsRepository } from './repositories/clubs-teachers-statistics.repository';
+import { PagelasStatisticsRepository } from './repositories/pagelas-statistics.repository';
+import { OverviewStatisticsRepository } from './repositories/overview-statistics.repository';
+import { AcceptedChristsStatisticsRepository } from './repositories/accepted-christs-statistics.repository';
 import { StatisticsPeriodService } from './services/statistics-period.service';
 import { AcademicWeekService } from '../club-control/services/academic-week.service';
 import { PagelasStatsQueryDto } from './dto/pagelas-stats-query.dto';
@@ -15,10 +19,8 @@ import {
 } from './dto/chart-data-response.dto';
 
 import {
-  PagelaStatsRaw,
   TeacherDecisionStatsRaw,
   TeacherStatsRaw,
-  AcceptedChristsByClubRaw,
   PagelasByClubRaw,
 } from './dto/statistics-raw-results.dto';
 import { ChildrenStatsQueryDto } from './dto/children-stats-query.dto';
@@ -27,15 +29,43 @@ import { ClubsStatsQueryDto } from './dto/clubs-stats-query.dto';
 import { ClubsStatsResponseDto } from './dto/clubs-stats-response.dto';
 import { TeachersStatsQueryDto } from './dto/teachers-stats-query.dto';
 import { TeachersStatsResponseDto } from './dto/teachers-stats-response.dto';
-import { ChildEntity } from '../children/entities/child.entity';
-import { ClubEntity } from '../clubs/entities/club.entity/club.entity';
 import { TeacherProfileEntity } from '../teacher-profiles/entities/teacher-profile.entity/teacher-profile.entity';
+import {
+  ageGroup as toAgeGroup,
+  ageInYears,
+  monthsParticipating as countMonthsParticipating,
+  participationTimeRange as toParticipationTimeRange,
+  average,
+  averageOfMeasured,
+  consecutiveAcademicWeeks,
+  engagementScore as calcEngagementScore,
+  growthRate,
+  percentage,
+  presenceRateOrPerPagela,
+  roundToOneDecimal,
+  toCount,
+} from './utils/metrics.utils';
+import { toDateOnly } from './utils/date.utils';
+import { addDaysToDateOnly } from './utils/enrollment.utils';
+import { parseDateOnly } from 'src/shared/academic-week/academic-week.util';
+import { todayInAppTimezone } from 'src/shared/calendar-day/calendar-day.util';
+import { ACTIVITY_WINDOW_DAYS, OVERVIEW_CACHE_TTL_MS } from './constants';
+import { CurrentAcademicWeek } from './types';
+import { toAddressSummary } from './utils/address.utils';
+import {
+  ClubAttendanceAnalysisDto,
+  WeeklyAttendanceDto,
+} from './dto/club-attendance-analysis.dto';
 
 @Injectable()
 export class StatisticsService {
   constructor(
-    private readonly statisticsRepository: StatisticsRepository,
-    private readonly calculationsService: StatisticsCalculationsService,
+    private readonly attendanceRepository: AttendanceStatisticsRepository,
+    private readonly childrenRepository: ChildrenStatisticsRepository,
+    private readonly clubsTeachersRepository: ClubsTeachersStatisticsRepository,
+    private readonly pagelasRepository: PagelasStatisticsRepository,
+    private readonly overviewRepository: OverviewStatisticsRepository,
+    private readonly acceptedChristsRepository: AcceptedChristsStatisticsRepository,
     private readonly periodService: StatisticsPeriodService,
     private readonly academicWeekService: AcademicWeekService,
   ) {}
@@ -52,13 +82,13 @@ export class StatisticsService {
       byCity,
       byParticipationTime,
     ] = await Promise.all([
-      this.statisticsRepository.getPagelasTimeSeries(filters),
-      this.statisticsRepository.getPagelasByGender(filters),
-      this.statisticsRepository.getPagelasByAgeGroup(filters),
-      this.statisticsRepository.getPagelasByClub(filters),
-      this.statisticsRepository.getPagelasByTeacher(filters),
-      this.statisticsRepository.getPagelasByCity(filters),
-      this.statisticsRepository.getPagelasByParticipationTime(filters),
+      this.pagelasRepository.getPagelasTimeSeries(filters),
+      this.pagelasRepository.getPagelasByGender(filters),
+      this.pagelasRepository.getPagelasByAgeGroup(filters),
+      this.pagelasRepository.getPagelasByClub(filters),
+      this.pagelasRepository.getPagelasByTeacher(filters),
+      this.pagelasRepository.getPagelasByCity(filters),
+      this.pagelasRepository.getPagelasByParticipationTime(filters),
     ]);
 
     const timeSeriesData = {
@@ -102,12 +132,14 @@ export class StatisticsService {
       byCity,
       byParticipationTime,
     ] = await Promise.all([
-      this.statisticsRepository.getAcceptedChristsTimeSeries(filters),
-      this.statisticsRepository.getAcceptedChristsByGender(filters),
-      this.statisticsRepository.getAcceptedChristsByAgeGroup(filters),
-      this.statisticsRepository.getAcceptedChristsByClub(filters),
-      this.statisticsRepository.getAcceptedChristsByCity(filters),
-      this.statisticsRepository.getAcceptedChristsByParticipationTime(filters),
+      this.acceptedChristsRepository.getAcceptedChristsTimeSeries(filters),
+      this.acceptedChristsRepository.getAcceptedChristsByGender(filters),
+      this.acceptedChristsRepository.getAcceptedChristsByAgeGroup(filters),
+      this.acceptedChristsRepository.getAcceptedChristsByClub(filters),
+      this.acceptedChristsRepository.getAcceptedChristsByCity(filters),
+      this.acceptedChristsRepository.getAcceptedChristsByParticipationTime(
+        filters,
+      ),
     ]);
 
     const timeSeries = timeSeriesRaw.map((t) => ({
@@ -133,8 +165,8 @@ export class StatisticsService {
     pagelasFilters: PagelasStatsQueryDto,
   ): Promise<CombinedInsightsDto> {
     const [topEngagedChildren, clubRankings] = await Promise.all([
-      this.statisticsRepository.getTopEngagedChildren(pagelasFilters, 20),
-      this.statisticsRepository.getClubRankings(pagelasFilters),
+      this.childrenRepository.getTopEngagedChildren(pagelasFilters, 20),
+      this.childrenRepository.getClubRankings(pagelasFilters),
     ]);
 
     return {
@@ -143,137 +175,205 @@ export class StatisticsService {
     };
   }
 
+  /**
+   * A semana letiva corrente, ou `null` fora do período letivo.
+   *
+   * É a única fonte de "esta semana" das estatísticas: a mesma semana que a
+   * pagela grava em `year`/`week`. A semana do calendário civil não serve —
+   * o período letivo começa em março, e a semana 45 do ano é a 37 letiva.
+   */
+  private async getCurrentAcademicWeek(): Promise<CurrentAcademicWeek | null> {
+    const current =
+      await this.academicWeekService.calculateCurrentAcademicWeek();
+
+    return current?.isWithinPeriod &&
+      current.academicYear &&
+      current.academicWeek
+      ? { year: current.academicYear, week: current.academicWeek }
+      : null;
+  }
+
+  /**
+   * O panorama, guardado por um minuto.
+   *
+   * A resposta não depende de quem pergunta nem de filtro nenhum — a rota é
+   * exclusiva do administrador e não recebe parâmetros —, então uma entrada só
+   * serve a todos. Ver `OVERVIEW_CACHE_TTL_MS` para o porquê do prazo.
+   */
+  private overviewCache: {
+    value: OverviewStatsResponseDto;
+    computedAt: number;
+  } | null = null;
+
   async getOverviewStatistics(): Promise<OverviewStatsResponseDto> {
-    const now = new Date();
+    const cached = this.overviewCache;
+    if (cached && Date.now() - cached.computedAt < OVERVIEW_CACHE_TTL_MS) {
+      return cached.value;
+    }
+
+    // "Hoje" é o dia no fuso do Clubinho, lido ao meio-dia: o relógio do
+    // processo (UTC no contêiner) já está no dia seguinte a partir das 21h.
+    const now = parseDateOnly(todayInAppTimezone());
     const currentYear = now.getFullYear();
 
-    const currentAcademicWeek =
-      await this.academicWeekService.calculateCurrentAcademicWeek();
-    const currentWeek = currentAcademicWeek?.academicWeek || 1;
+    const currentWeek = await this.getCurrentAcademicWeek();
+    const currentWeekFilters: PagelasStatsQueryDto = currentWeek ?? {
+      startDate: '1970-01-01',
+      endDate: '1970-01-01',
+    };
 
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfMonthStr = startOfMonth.toISOString().split('T')[0];
-    const todayStr = now.toISOString(); // Use full timestamp to include today's data
+    const startOfMonthStr = toDateOnly(startOfMonth);
+    const todayStr = toDateOnly(now);
 
     const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - now.getDay());
-    const startOfWeekStr = startOfWeek.toISOString().split('T')[0];
+    const daysSinceMonday = now.getDay() === 0 ? 6 : now.getDay() - 1;
+    startOfWeek.setDate(now.getDate() - daysSinceMonday);
+    const startOfWeekStr = toDateOnly(startOfWeek);
 
     const sixWeeksAgo = new Date(now);
-    sixWeeksAgo.setDate(now.getDate() - 42);
-    const sixWeeksAgoStr = sixWeeksAgo.toISOString().split('T')[0];
+    sixWeeksAgo.setDate(now.getDate() - 41);
+    const sixWeeksAgoStr = toDateOnly(sixWeeksAgo);
 
     const sixMonthsAgo = new Date(now);
-    sixMonthsAgo.setMonth(now.getMonth() - 6);
-    const sixMonthsAgoStr = sixMonthsAgo.toISOString().split('T')[0];
+    sixMonthsAgo.setMonth(now.getMonth() - 5, 1);
+    const sixMonthsAgoStr = toDateOnly(sixMonthsAgo);
 
     const threeMonthsAgo = new Date(now);
     threeMonthsAgo.setMonth(now.getMonth() - 3);
-    const threeMonthsAgoStr = threeMonthsAgo.toISOString().split('T')[0];
+    const threeMonthsAgoStr = toDateOnly(threeMonthsAgo);
+
+    const sixMonthsGrowthStart = new Date(now);
+    sixMonthsGrowthStart.setMonth(now.getMonth() - 6);
+    const sixMonthsGrowthStartStr = toDateOnly(sixMonthsGrowthStart);
+    // As janelas de decisão são fechadas nas duas pontas: a anterior termina
+    // na véspera do início da atual, para nenhum dia contar duas vezes.
+    const previousGrowthEndStr = addDaysToDateOnly(threeMonthsAgoStr, -1);
 
     const sevenDaysAgo = new Date(now);
-    sevenDaysAgo.setDate(now.getDate() - 7);
-    const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+    sevenDaysAgo.setDate(now.getDate() - 6);
+    const sevenDaysAgoStr = toDateOnly(sevenDaysAgo);
+
+    const thirtyDaysAgo = new Date(now);
+    thirtyDaysAgo.setDate(now.getDate() - 29);
+    const thirtyDaysAgoStr = toDateOnly(thirtyDaysAgo);
 
     const [
       totalCounts,
       activeCountsThisMonth,
       pagelasThisWeek,
-      pagelasThisMonth,
+      // A ordem aqui é a ordem das promises abaixo. `pagelasThisMonth` e
+      // `pagelasLast30Days` estavam trocados: o "este mês" da tela recebia a
+      // janela móvel de 30 dias e o "últimos 30 dias" recebia o mês corrente.
+      // No dia 7 de um mês, isso mostrava 30 dias de dados como "este mês" e
+      // fazia "últimos 30 dias" empatar com "últimos 7 dias".
+      pagelasLast30Days,
       pagelasLastSixWeeks,
       pagelasLast7Days,
-      pagelasLast30Days,
+      pagelasThisMonth,
       acceptedChristsThisWeek,
       acceptedChristsThisMonth,
       acceptedChristsThisYear,
       acceptedChristsLastSixMonths,
       acceptedChristsLast3Months,
+      acceptedChristsPrevious3Months,
       topEngagedChildren,
       topPerformingClubs,
-      clubsPerformanceMetrics,
+      clubsWithLowAttendance,
+      currentWeekAttendance,
       childrenEngagementMetrics,
       genderDistribution,
       geographicDistribution,
+      childrenNow,
+      childrenThreeMonthsAgo,
     ] = await Promise.all([
-      this.statisticsRepository.getTotalCounts(),
-      this.statisticsRepository.getActiveCountsThisMonth(),
-      this.statisticsRepository.getPagelasOverallStats({
-        year: currentYear,
-        week: currentWeek,
-      }),
-      this.statisticsRepository.getPagelasOverallStats({
-        startDate: startOfMonthStr,
+      this.overviewRepository.getTotalCounts(),
+      this.overviewRepository.getActiveCounts(startOfMonthStr, todayStr),
+      this.pagelasRepository.getPagelasOverallStats(currentWeekFilters),
+      this.pagelasRepository.getPagelasOverallStats({
+        startDate: thirtyDaysAgoStr,
         endDate: todayStr,
       }),
-      this.statisticsRepository.getPagelasWeeklyStats({
+      this.pagelasRepository.getPagelasWeeklyStats({
         startDate: sixWeeksAgoStr,
         endDate: todayStr,
       }),
-      this.statisticsRepository.getPagelasOverallStats({
+      this.pagelasRepository.getPagelasOverallStats({
         startDate: sevenDaysAgoStr,
         endDate: todayStr,
       }),
-      this.statisticsRepository.getPagelasOverallStats({
+      this.pagelasRepository.getPagelasOverallStats({
         startDate: startOfMonthStr,
         endDate: todayStr,
       }),
-      this.statisticsRepository.getAcceptedChristsOverallStats({
+      this.acceptedChristsRepository.getAcceptedChristsOverallStats({
         startDate: startOfWeekStr,
         endDate: todayStr,
       }),
-      this.statisticsRepository.getAcceptedChristsOverallStats({
+      this.acceptedChristsRepository.getAcceptedChristsOverallStats({
         startDate: startOfMonthStr,
         endDate: todayStr,
       }),
-      this.statisticsRepository.getAcceptedChristsOverallStats({
+      this.acceptedChristsRepository.getAcceptedChristsOverallStats({
         startDate: `${currentYear}-01-01`,
         endDate: todayStr,
       }),
-      this.statisticsRepository.getAcceptedChristsByPeriod({
+      this.acceptedChristsRepository.getAcceptedChristsByPeriod({
         startDate: sixMonthsAgoStr,
         endDate: todayStr,
         groupBy: 'month',
       }),
-      this.statisticsRepository.getAcceptedChristsOverallStats({
+      this.acceptedChristsRepository.getAcceptedChristsOverallStats({
         startDate: threeMonthsAgoStr,
         endDate: todayStr,
       }),
-      this.statisticsRepository.getTopEngagedChildren(
+      // A janela anterior passa pela mesma consulta da atual. Antes cada
+      // ponta tinha a sua, com filtros diferentes, e a diferença de critério
+      // saía na tela como crescimento.
+      this.acceptedChristsRepository.getAcceptedChristsOverallStats({
+        startDate: sixMonthsGrowthStartStr,
+        endDate: previousGrowthEndStr,
+      }),
+      this.childrenRepository.getTopEngagedChildren(
         { startDate: startOfMonthStr, endDate: todayStr },
         5,
       ),
-      this.statisticsRepository.getClubRankings({
+      this.childrenRepository.getClubRankings({
         startDate: startOfMonthStr,
         endDate: todayStr,
       }),
-      this.statisticsRepository.getClubsPerformanceMetrics(),
-      this.statisticsRepository.getChildrenEngagementMetrics(),
-      this.statisticsRepository.getChildrenGenderDistribution(),
-      this.statisticsRepository.getGeographicDistribution(),
+      this.overviewRepository.countClubsWithLowAttendance(
+        startOfMonthStr,
+        todayStr,
+      ),
+      // Clubinhos sem pagela na semana letiva corrente saem da mesma análise
+      // da tela de frequência semanal: ela já sabe quem está de férias, quem
+      // ainda não teve o encontro e quem não tem criança esperada. Fora do
+      // período letivo não há semana, e portanto ninguém em falta.
+      currentWeek
+        ? this.attendanceRepository.analyzeWeeklyAttendance(
+            currentWeek.year,
+            currentWeek.week,
+          )
+        : Promise.resolve(null),
+      this.overviewRepository.getChildrenEngagementMetrics(
+        startOfMonthStr,
+        todayStr,
+      ),
+      this.overviewRepository.getChildrenGenderDistribution(),
+      this.overviewRepository.getGeographicDistribution(),
+      // As duas pontas do crescimento de crianças, pela mesma regra.
+      this.overviewRepository.getChildrenCountAt(todayStr),
+      this.overviewRepository.getChildrenCountAt(threeMonthsAgoStr),
     ]);
 
-    const threeMonthsAgoChildCount =
-      await this.statisticsRepository.getChildrenCountAt(threeMonthsAgoStr);
-    const childrenGrowthRate =
-      threeMonthsAgoChildCount > 0
-        ? ((totalCounts.totalChildren - threeMonthsAgoChildCount) /
-            threeMonthsAgoChildCount) *
-          100
-        : 0;
+    const childrenGrowthRate = growthRate(childrenNow, childrenThreeMonthsAgo);
+    const decisionsGrowthRate = growthRate(
+      acceptedChristsLast3Months.totalDecisions,
+      acceptedChristsPrevious3Months.totalDecisions,
+    );
 
-    const threeMonthsAgoAcceptedChrists =
-      await this.statisticsRepository.getAcceptedChristsCountBefore(
-        threeMonthsAgoStr,
-      );
-    const decisionsGrowthRate =
-      threeMonthsAgoAcceptedChrists > 0
-        ? ((acceptedChristsLast3Months.totalDecisions -
-            threeMonthsAgoAcceptedChrists) /
-            threeMonthsAgoAcceptedChrists) *
-          100
-        : 0;
-
-    return {
+    const overview: OverviewStatsResponseDto = {
       summary: {
         totalChildren: totalCounts.totalChildren,
         totalClubs: totalCounts.totalClubs,
@@ -337,13 +437,14 @@ export class StatisticsService {
       },
 
       indicators: {
-        clubsWithLowAttendance: clubsPerformanceMetrics.clubsWithLowAttendance,
+        clubsWithLowAttendance,
         childrenWithLowEngagement:
           childrenEngagementMetrics.childrenWithLowEngagement,
-        clubsMissingPagelas: clubsPerformanceMetrics.clubsMissingPagelas,
+        clubsMissingPagelas: currentWeekAttendance?.summary.clubsMissing ?? 0,
+        currentAcademicWeek: currentWeek,
         growthRate: {
-          children: Math.round(childrenGrowthRate * 10) / 10,
-          decisions: Math.round(decisionsGrowthRate * 10) / 10,
+          children: roundToOneDecimal(childrenGrowthRate),
+          decisions: roundToOneDecimal(decisionsGrowthRate),
         },
       },
 
@@ -353,15 +454,19 @@ export class StatisticsService {
         topCities: geographicDistribution.topCities.slice(0, 10),
       },
     };
+
+    this.overviewCache = { value: overview, computedAt: Date.now() };
+
+    return overview;
   }
 
   async getPagelasStatistics(
     filters: PagelasStatsQueryDto,
   ): Promise<PagelasStatsResponseDto> {
     const [overall, byWeek, topPerformers] = await Promise.all([
-      this.statisticsRepository.getPagelasOverallStats(filters),
-      this.statisticsRepository.getPagelasWeeklyStats(filters),
-      this.statisticsRepository.getPagelasTopPerformers(filters, 10),
+      this.pagelasRepository.getPagelasOverallStats(filters),
+      this.pagelasRepository.getPagelasWeeklyStats(filters),
+      this.pagelasRepository.getPagelasTopPerformers(filters, 10),
     ]);
 
     return {
@@ -381,9 +486,9 @@ export class StatisticsService {
     filters: AcceptedChristsStatsQueryDto,
   ): Promise<AcceptedChristsStatsResponseDto> {
     const [overall, byPeriod, recentDecisions] = await Promise.all([
-      this.statisticsRepository.getAcceptedChristsOverallStats(filters),
-      this.statisticsRepository.getAcceptedChristsByPeriod(filters),
-      this.statisticsRepository.getRecentAcceptedChrists(filters, 10),
+      this.acceptedChristsRepository.getAcceptedChristsOverallStats(filters),
+      this.acceptedChristsRepository.getAcceptedChristsByPeriod(filters),
+      this.acceptedChristsRepository.getRecentAcceptedChrists(filters, 10),
     ]);
 
     return {
@@ -397,148 +502,98 @@ export class StatisticsService {
     };
   }
 
-  getClubDetailedStats(clubId: string, filters: PagelasStatsQueryDto) {
-    return {
-      message: 'Visão detalhada do clube - Em implementação',
-      clubId,
-      filters,
-    };
-  }
-
-  getChildDetailedStats(childId: string) {
-    return {
-      message: 'Visão detalhada da criança - Em implementação',
-      childId,
-    };
-  }
-
-  getCityDetailedStats(city: string, filters: PagelasStatsQueryDto) {
-    return {
-      message: 'Visão detalhada da cidade - Em implementação',
-      city,
-      filters,
-    };
-  }
-
-  getTeacherDetailedStats(teacherId: string, filters: PagelasStatsQueryDto) {
-    return {
-      message: 'Visão detalhada do professor - Em implementação',
-      teacherId,
-      filters,
-    };
-  }
-
-  getComparativeStats(params: Record<string, any>) {
-    return {
-      message: 'Comparação entre entidades - Em implementação',
-      params,
-    };
-  }
-
-  getTrendsAnalysis(filters: Record<string, any>) {
-    return {
-      message: 'Análise de tendências e previsões - Em implementação',
-      filters,
-    };
-  }
-
-  getConsolidatedReport(params: Record<string, any>) {
-    return {
-      message: 'Relatório consolidado - Em implementação',
-      params,
-    };
-  }
-
-  getRankings(type: string, params: Record<string, any>) {
-    return {
-      message: 'Rankings - Em implementação',
-      type,
-      params,
-    };
-  }
-
-  getPersonalizedDashboard(role: string, userId: string) {
-    return {
-      message: 'Dashboard personalizado - Em implementação',
-      role,
-      userId,
-    };
-  }
-
   async getChildrenStats(
     filters: ChildrenStatsQueryDto,
   ): Promise<ChildrenStatsResponseDto> {
     const processedFilters = this.periodService.applyPeriodFilter(filters);
 
-    const [childrenData, distribution] = await Promise.all([
-      this.statisticsRepository.getChildrenWithStats(processedFilters),
-      this.statisticsRepository.getChildrenStatsDistribution(processedFilters),
-    ]);
+    const childrenData =
+      await this.childrenRepository.getChildrenWithStats(processedFilters);
 
-    const children = childrenData.children as ChildEntity[];
-    const pagelasStats = childrenData.pagelasStats as Map<
-      string,
-      PagelaStatsRaw
-    >;
+    const children = childrenData.allFilteredChildren;
+    const pagelasStats = childrenData.pagelasStats;
     const decisionsMap = childrenData.decisionsMap;
     const totalCount = childrenData.totalCount;
     const filteredCount = childrenData.filteredCount;
     const page = childrenData.page;
     const limit = childrenData.limit;
 
+    const expectedByChild = childrenData.expectedByChild;
+    const currentWeek = await this.getCurrentAcademicWeek();
+
     let sumAge = 0;
     let sumEngagement = 0;
     let sumPresenceRate = 0;
+    // Só entra na média quem tem o que medir: engajamento exige pagela, e
+    // presença exige ter sido esperada. Criança sem nada no recorte não tem
+    // 0% — não tem taxa —, e somá-la puxava a média de todas para baixo.
+    let childrenWithEngagement = 0;
+    let childrenWithPresenceRate = 0;
     let childrenWithDecisions = 0;
     let activeChildren = 0;
 
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+    const activeSince = addDaysToDateOnly(
+      todayInAppTimezone(),
+      -ACTIVITY_WINDOW_DAYS,
+    );
 
-    const childrenWithStats = children.map((child, index) => {
-      const age = this.calculationsService.calculateAge(child.birthDate);
-      const monthsParticipating =
-        this.calculationsService.calculateMonthsParticipating(child.joinedAt);
+    const allChildrenWithStats = children.map((child, index) => {
+      const age = ageInYears(child.birthDate);
+      const monthsParticipating = countMonthsParticipating(child.joinedAt);
       const participationTimeRange =
-        this.calculationsService.getParticipationTimeRange(monthsParticipating);
+        toParticipationTimeRange(monthsParticipating);
 
       const stats = pagelasStats.get(child.id);
-      const totalPagelas = stats ? parseInt(stats.totalPagelas) : 0;
-      const presenceCount = stats ? parseInt(stats.presenceCount) : 0;
-      const meditationCount = stats ? parseInt(stats.meditationCount) : 0;
-      const verseCount = stats ? parseInt(stats.verseCount) : 0;
+      const totalPagelas = toCount(stats?.totalPagelas);
+      const presenceCount = toCount(stats?.presenceCount);
+      const meditationCount = toCount(stats?.meditationCount);
+      const verseCount = toCount(stats?.verseCount);
 
-      const presenceRate =
-        totalPagelas > 0 ? (presenceCount / totalPagelas) * 100 : 0;
-      const meditationRate =
-        totalPagelas > 0 ? (meditationCount / totalPagelas) * 100 : 0;
-      const verseRecitationRate =
-        totalPagelas > 0 ? (verseCount / totalPagelas) * 100 : 0;
+      // Presentes ÷ esperados. No recorte por professor não existe
+      // "esperado", e a taxa volta a ser sobre as pagelas lançadas.
+      const expectedPresences = expectedByChild
+        ? (expectedByChild.get(child.id) ?? 0)
+        : null;
+      const presenceRate = presenceRateOrPerPagela(
+        presenceCount,
+        totalPagelas,
+        expectedPresences,
+      );
+      const meditationRate = percentage(meditationCount, totalPagelas);
+      const verseRecitationRate = percentage(verseCount, totalPagelas);
 
-      const engagementScore =
-        totalPagelas > 0
-          ? ((presenceCount * 0.3 +
-              meditationCount * 0.35 +
-              verseCount * 0.35) /
-              totalPagelas) *
-            100
-          : 0;
+      const engagementScore = calcEngagementScore({
+        presenceCount,
+        meditationCount,
+        verseCount,
+        totalPagelas,
+      });
 
       const decision = decisionsMap.get(child.id);
       const hasDecision = !!decision;
-      const totalDecisions = decision ? parseInt(decision.totalDecisions) : 0;
+      const totalDecisions = toCount(decision?.totalDecisions);
 
       const lastActivity = stats?.lastActivity || null;
-      const isActive = lastActivity
-        ? new Date(lastActivity) >= new Date(thirtyDaysAgoStr)
-        : false;
+      // Ativa é quem teve **presença** nos últimos dias, pela data da pagela.
+      const lastPresence = stats?.lastPresence || null;
+      const isActive = !!lastPresence && lastPresence >= activeSince;
 
-      const consecutiveWeeks = 0;
+      const consecutiveWeeks = consecutiveAcademicWeeks(
+        stats?.weekKeys,
+        currentWeek,
+      );
 
       sumAge += age;
-      sumEngagement += engagementScore;
-      sumPresenceRate += presenceRate;
+      if (totalPagelas > 0) {
+        sumEngagement += engagementScore;
+        childrenWithEngagement++;
+      }
+      if (
+        expectedPresences === null ? totalPagelas > 0 : expectedPresences > 0
+      ) {
+        sumPresenceRate += presenceRate;
+        childrenWithPresenceRate++;
+      }
       if (hasDecision) childrenWithDecisions++;
       if (isActive) activeChildren++;
 
@@ -570,10 +625,10 @@ export class StatisticsService {
           presenceCount,
           meditationCount,
           verseRecitationCount: verseCount,
-          presenceRate: Math.round(presenceRate * 10) / 10,
-          meditationRate: Math.round(meditationRate * 10) / 10,
-          verseRecitationRate: Math.round(verseRecitationRate * 10) / 10,
-          engagementScore: Math.round(engagementScore * 10) / 10,
+          presenceRate: roundToOneDecimal(presenceRate),
+          meditationRate: roundToOneDecimal(meditationRate),
+          verseRecitationRate: roundToOneDecimal(verseRecitationRate),
+          engagementScore: roundToOneDecimal(engagementScore),
           lastPagelaDate: lastActivity ? String(lastActivity) : null,
           consecutiveWeeks,
         },
@@ -584,9 +639,88 @@ export class StatisticsService {
           totalDecisions,
         },
         isActive,
-        rank: index + 1 + (page - 1) * limit,
+        rank: index + 1,
       };
     });
+
+    const pageStart = (page - 1) * limit;
+    const childrenWithStats = allChildrenWithStats.slice(
+      pageStart,
+      pageStart + limit,
+    );
+
+    const toPercentage = (count: number) => percentage(count, filteredCount);
+    const genderCounts = new Map<string, number>();
+    const ageGroupCounts = new Map<string, number>();
+    const clubCounts = new Map<
+      string,
+      { clubId: string; clubNumber: number; count: number }
+    >();
+    const cityCounts = new Map<string, { state: string; count: number }>();
+    const participationCounts = new Map<string, number>();
+
+    allChildrenWithStats.forEach((child) => {
+      genderCounts.set(child.gender, (genderCounts.get(child.gender) || 0) + 1);
+
+      const ageGroup = toAgeGroup(child.age);
+      ageGroupCounts.set(ageGroup, (ageGroupCounts.get(ageGroup) || 0) + 1);
+
+      if (child.club) {
+        const current = clubCounts.get(child.club.id) || {
+          clubId: child.club.id,
+          clubNumber: child.club.number,
+          count: 0,
+        };
+        current.count++;
+        clubCounts.set(child.club.id, current);
+      }
+
+      if (child.address?.city) {
+        const current = cityCounts.get(child.address.city) || {
+          state: child.address.state || 'N/A',
+          count: 0,
+        };
+        current.count++;
+        cityCounts.set(child.address.city, current);
+      }
+
+      participationCounts.set(
+        child.participationTimeRange,
+        (participationCounts.get(child.participationTimeRange) || 0) + 1,
+      );
+    });
+
+    const distribution = {
+      byGender: Array.from(genderCounts.entries()).map(([gender, count]) => ({
+        gender,
+        count,
+        percentage: toPercentage(count),
+      })),
+      byAgeGroup: Array.from(ageGroupCounts.entries()).map(
+        ([ageGroup, count]) => ({
+          ageGroup,
+          count,
+          percentage: toPercentage(count),
+        }),
+      ),
+      byClub: Array.from(clubCounts.values()).map((club) => ({
+        ...club,
+        percentage: toPercentage(club.count),
+      })),
+      byCity: Array.from(cityCounts.entries()).map(([city, data]) => ({
+        city,
+        state: data.state,
+        count: data.count,
+        percentage: toPercentage(data.count),
+      })),
+      byParticipationTime: Array.from(participationCounts.entries()).map(
+        ([timeRange, count]) => ({
+          timeRange,
+          count,
+          percentage: toPercentage(count),
+        }),
+      ),
+    };
 
     const totalPages = Math.ceil(filteredCount / limit);
 
@@ -599,14 +733,12 @@ export class StatisticsService {
         totalChildren: totalCount,
         filteredChildren: filteredCount,
         avgAge: filteredCount > 0 ? Math.round(sumAge / filteredCount) : 0,
-        avgEngagementScore:
-          filteredCount > 0
-            ? Math.round((sumEngagement / filteredCount) * 10) / 10
-            : 0,
-        avgPresenceRate:
-          filteredCount > 0
-            ? Math.round((sumPresenceRate / filteredCount) * 10) / 10
-            : 0,
+        avgEngagementScore: roundToOneDecimal(
+          average(sumEngagement, childrenWithEngagement),
+        ),
+        avgPresenceRate: roundToOneDecimal(
+          average(sumPresenceRate, childrenWithPresenceRate),
+        ),
         childrenWithDecisions,
         activeChildren,
       },
@@ -644,28 +776,36 @@ export class StatisticsService {
     const processedFilters = this.periodService.applyPeriodFilter(filters);
 
     const clubsData =
-      await this.statisticsRepository.getClubsWithStats(processedFilters);
-    const clubs = clubsData.clubs as ClubEntity[];
-    const childrenResults = clubsData.childrenResults;
-    const pagelasResults = clubsData.pagelasResults;
-    const decisionsResults = clubsData.decisionsResults;
-    const teachers = clubsData.teachers as TeacherProfileEntity[];
+      await this.clubsTeachersRepository.getClubsWithStats(processedFilters);
+    const clubs = clubsData.allFilteredClubs;
+    const childrenResults = clubsData.allChildrenResults;
+    const pagelasResults = clubsData.allPagelasResults;
+    const { decisionsByClub, performanceByClub } = clubsData;
+    const teachers = clubsData.allTeachers;
     const totalCount = clubsData.totalCount;
     const page = clubsData.page;
     const limit = clubsData.limit;
     const inactiveClubs = clubsData.inactiveClubs;
     const inactiveChildren = clubsData.inactiveChildren;
 
-    const childrenByClub: Map<string, { total: number; M: number; F: number }> =
-      new Map();
+    const childrenByClub: Map<
+      string,
+      { total: number; M: number; F: number; ageTotal: number }
+    > = new Map();
     childrenResults.forEach((r) => {
       if (!childrenByClub.has(r.clubId)) {
-        childrenByClub.set(r.clubId, { total: 0, M: 0, F: 0 });
+        childrenByClub.set(r.clubId, {
+          total: 0,
+          M: 0,
+          F: 0,
+          ageTotal: 0,
+        });
       }
       const data = childrenByClub.get(r.clubId);
       if (data) {
-        const count = parseInt(r.total);
+        const count = toCount(r.total);
         data.total += count;
+        data.ageTotal += Number(r.avgAge || 0) * count;
         if (r.gender === 'M') data.M = count;
         if (r.gender === 'F') data.F = count;
       }
@@ -673,9 +813,6 @@ export class StatisticsService {
 
     const pagelasByClub = new Map<string, PagelasByClubRaw>(
       pagelasResults.map((p) => [p.clubId, p]),
-    );
-    const decisionsByClub = new Map<string, AcceptedChristsByClubRaw>(
-      decisionsResults.map((d) => [d.clubId, d]),
     );
     const teachersByClub = new Map<string, TeacherProfileEntity[]>();
 
@@ -688,59 +825,39 @@ export class StatisticsService {
       }
     });
 
-    const clubsWithStats = clubs.map((club, index) => {
-      const children = childrenByClub.get(club.id) || { total: 0, M: 0, F: 0 };
+    const allClubsWithStats = clubs.map((club, index) => {
+      const children = childrenByClub.get(club.id) || {
+        total: 0,
+        M: 0,
+        F: 0,
+        ageTotal: 0,
+      };
       const pagelas = pagelasByClub.get(club.id);
       const decisions = decisionsByClub.get(club.id);
       const clubTeachers = teachersByClub.get(club.id) || [];
 
-      const totalPagelas = pagelas ? parseInt(pagelas.totalPagelas || '0') : 0;
-      const presenceCount = pagelas
-        ? parseInt(pagelas.presenceCount || '0')
-        : 0;
-      const meditationCount = pagelas
-        ? parseInt(pagelas.meditationCount || '0')
-        : 0;
-      const verseCount = pagelas ? parseInt(pagelas.verseCount || '0') : 0;
+      const totalPagelas = toCount(pagelas?.totalPagelas);
+      const verseCount = toCount(pagelas?.verseCount);
+      const verseRate = percentage(verseCount, totalPagelas);
 
-      const presenceRate =
-        totalPagelas > 0 ? (presenceCount / totalPagelas) * 100 : 0;
-      const meditationRate =
-        totalPagelas > 0 ? (meditationCount / totalPagelas) * 100 : 0;
-      const verseRate =
-        totalPagelas > 0 ? (verseCount / totalPagelas) * 100 : 0;
+      // Crianças com presença no recorte.
+      const activeChildren = toCount(pagelas?.activeChildren);
 
-      const activeChildren = pagelas
-        ? parseInt(pagelas.activeChildren || '0')
-        : 0;
-      const activityRate =
-        children.total > 0 ? (activeChildren / children.total) * 100 : 0;
-      const decisionRate =
-        activeChildren > 0
-          ? ((decisions
-              ? parseInt(decisions.childrenWithDecisions || '0')
-              : 0) /
-              activeChildren) *
-            100
-          : 0;
-
-      const performanceScore =
-        presenceRate * 0.3 +
-        meditationRate * 0.3 +
-        activityRate * 0.2 +
-        decisionRate * 0.2;
+      // As taxas e o índice vêm prontos do repositório, que já os usou para
+      // filtrar e ordenar: o número da tela é o mesmo que ordenou a lista.
+      const performance = performanceByClub.get(club.id);
+      const presenceRate = performance?.presenceRate ?? 0;
+      const meditationRate = performance?.meditationRate ?? 0;
+      const performanceScore = performance?.performanceScore ?? 0;
 
       return {
         clubId: club.id,
         clubNumber: club.number,
         weekday: club.weekday,
         time: club.time || null,
-        address: {
-          city: club.address.city,
-          state: club.address.state,
-          district: club.address.district,
-          street: club.address.street,
-        },
+        // A relação é opcional: sem isto, um clubinho sem endereço derrubava a
+        // listagem inteira com erro interno.
+        address: toAddressSummary(club.address),
         coordinator: club.coordinator
           ? {
               id: club.coordinator.id,
@@ -754,14 +871,12 @@ export class StatisticsService {
             M: children.M,
             F: children.F,
           },
-          avgAge: 0,
-          withDecisions: decisions
-            ? parseInt(decisions.childrenWithDecisions || '0')
-            : 0,
+          avgAge: roundToOneDecimal(average(children.ageTotal, children.total)),
+          withDecisions: decisions?.childrenWithDecisions ?? 0,
         },
         teachers: {
           total: clubTeachers.length,
-          active: pagelas ? parseInt(pagelas.activeTeachers || '0') : 0,
+          active: toCount(pagelas?.activeTeachers),
           list: clubTeachers.map((t) => ({
             id: t.id,
             name: t.user?.name || 'N/A',
@@ -769,23 +884,31 @@ export class StatisticsService {
         },
         performance: {
           totalPagelas,
-          presenceRate: Math.round(presenceRate * 10) / 10,
-          meditationRate: Math.round(meditationRate * 10) / 10,
-          verseRecitationRate: Math.round(verseRate * 10) / 10,
-          performanceScore: Math.round(performanceScore * 10) / 10,
-          totalDecisions: decisions
-            ? parseInt(decisions.totalDecisions || '0')
-            : 0,
+          presenceRate: roundToOneDecimal(presenceRate),
+          meditationRate: roundToOneDecimal(meditationRate),
+          verseRecitationRate: roundToOneDecimal(verseRate),
+          performanceScore: roundToOneDecimal(performanceScore),
+          totalDecisions: decisions?.totalDecisions ?? 0,
         },
+        measured: performance?.measured ?? false,
         lastActivity: pagelas?.lastActivity
           ? {
               date: new Date(pagelas.lastActivity).toISOString(),
               type: 'pagela',
             }
           : null,
-        rank: index + 1 + (page - 1) * limit,
+        rank: index + 1,
       };
     });
+
+    const pageStart = (page - 1) * limit;
+    const clubsWithStats = allClubsWithStats
+      .slice(pageStart, pageStart + limit)
+      // `measured` é interno: serve só para as médias do resumo.
+      .map(({ measured, ...club }) => {
+        void measured;
+        return club;
+      });
 
     const byCity = new Map<string, { state: string; count: number }>();
     const byWeekday = new Map<string, number>();
@@ -797,7 +920,7 @@ export class StatisticsService {
       ['85-100', 0],
     ]);
 
-    clubsWithStats.forEach((club) => {
+    allClubsWithStats.forEach((club) => {
       const cityKey = club.address.city || 'N/A';
       if (!byCity.has(cityKey)) {
         byCity.set(cityKey, { state: club.address.state || 'N/A', count: 0 });
@@ -830,43 +953,33 @@ export class StatisticsService {
       else byPerformance.set('85-100', (byPerformance.get('85-100') || 0) + 1);
     });
 
-    const totalFiltered = clubsWithStats.length;
+    const totalFiltered = allClubsWithStats.length;
     const totalPages = Math.ceil(totalCount / limit);
 
     const summary = {
       totalClubs: totalCount,
       filteredClubs: totalFiltered,
-      totalChildren: clubsWithStats.reduce(
+      totalChildren: allClubsWithStats.reduce(
         (sum, c) => sum + c.children.total,
         0,
       ),
-      totalTeachers: clubsWithStats.reduce(
+      totalTeachers: allClubsWithStats.reduce(
         (sum, c) => sum + c.teachers.total,
         0,
       ),
-      avgPerformanceScore:
-        totalFiltered > 0
-          ? Math.round(
-              (clubsWithStats.reduce(
-                (sum, c) => sum + c.performance.performanceScore,
-                0,
-              ) /
-                totalFiltered) *
-                10,
-            ) / 10
-          : 0,
-      avgPresenceRate:
-        totalFiltered > 0
-          ? Math.round(
-              (clubsWithStats.reduce(
-                (sum, c) => sum + c.performance.presenceRate,
-                0,
-              ) /
-                totalFiltered) *
-                10,
-            ) / 10
-          : 0,
-      totalDecisions: clubsWithStats.reduce(
+      // Clubinho sem criança esperada e sem pagela no recorte não tem taxa:
+      // contá-lo como 0% derrubava a média de todos.
+      avgPerformanceScore: averageOfMeasured(
+        allClubsWithStats,
+        (c) => c.measured,
+        (c) => c.performance.performanceScore,
+      ),
+      avgPresenceRate: averageOfMeasured(
+        allClubsWithStats,
+        (c) => c.measured,
+        (c) => c.performance.presenceRate,
+      ),
+      totalDecisions: allClubsWithStats.reduce(
         (sum, c) => sum + c.performance.totalDecisions,
         0,
       ),
@@ -883,28 +996,26 @@ export class StatisticsService {
           city,
           state: data.state,
           count: data.count,
-          percentage:
-            totalFiltered > 0 ? (data.count / totalFiltered) * 100 : 0,
+          percentage: percentage(data.count, totalFiltered),
         })),
         byWeekday: Array.from(byWeekday.entries()).map(([weekday, count]) => ({
           weekday,
           count,
-          percentage: totalFiltered > 0 ? (count / totalFiltered) * 100 : 0,
+          percentage: percentage(count, totalFiltered),
         })),
         byCoordinator: Array.from(byCoordinator.entries()).map(
           ([id, data]) => ({
             coordinatorId: id,
             coordinatorName: data.name,
             count: data.count,
-            percentage:
-              totalFiltered > 0 ? (data.count / totalFiltered) * 100 : 0,
+            percentage: percentage(data.count, totalFiltered),
           }),
         ),
         byPerformance: Array.from(byPerformance.entries()).map(
           ([range, count]) => ({
             range,
             count,
-            percentage: totalFiltered > 0 ? (count / totalFiltered) * 100 : 0,
+            percentage: percentage(count, totalFiltered),
           }),
         ),
       },
@@ -928,11 +1039,11 @@ export class StatisticsService {
     const processedFilters = this.periodService.applyPeriodFilter(filters);
 
     const teachersData =
-      await this.statisticsRepository.getTeachersWithStats(processedFilters);
+      await this.clubsTeachersRepository.getTeachersWithStats(processedFilters);
     const { totalCount, page, limit } = teachersData;
-    const teachers = teachersData.teachers as TeacherProfileEntity[];
-    const pagelasResults = teachersData.pagelasResults;
-    const decisionsResults = teachersData.decisionsResults;
+    const teachers = teachersData.allFilteredTeachers;
+    const pagelasResults = teachersData.allPagelasResults;
+    const decisionsResults = teachersData.allDecisionsResults;
 
     const pagelasByTeacher = new Map<string, TeacherStatsRaw>(
       pagelasResults.map((p) => [p.teacherId, p]),
@@ -941,40 +1052,38 @@ export class StatisticsService {
       decisionsResults.map((d) => [d.teacherId, d]),
     );
 
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+    const activeSince = addDaysToDateOnly(
+      todayInAppTimezone(),
+      -ACTIVITY_WINDOW_DAYS,
+    );
 
-    const teachersWithStats = teachers.map((teacher, index) => {
+    const allTeachersWithStats = teachers.map((teacher, index) => {
       const pagelas = pagelasByTeacher.get(teacher.id);
       const decisions = decisionsByTeacher.get(teacher.id);
 
-      const totalPagelas = pagelas ? parseInt(pagelas.totalPagelas) : 0;
-      const uniqueChildren = pagelas ? parseInt(pagelas.uniqueChildren) : 0;
-      const presenceCount = pagelas ? parseInt(pagelas.presenceCount) : 0;
-      const meditationCount = pagelas ? parseInt(pagelas.meditationCount) : 0;
-      const verseCount = pagelas ? parseInt(pagelas.verseCount) : 0;
+      const totalPagelas = toCount(pagelas?.totalPagelas);
+      const uniqueChildren = toCount(pagelas?.uniqueChildren);
+      const activeChildren = toCount(pagelas?.activeChildren);
+      const presenceCount = toCount(pagelas?.presenceCount);
+      const meditationCount = toCount(pagelas?.meditationCount);
+      const verseCount = toCount(pagelas?.verseCount);
 
-      const avgPresenceRate =
-        totalPagelas > 0 ? (presenceCount / totalPagelas) * 100 : 0;
-      const avgMeditationRate =
-        totalPagelas > 0 ? (meditationCount / totalPagelas) * 100 : 0;
-      const avgVerseRate =
-        totalPagelas > 0 ? (verseCount / totalPagelas) * 100 : 0;
+      const avgPresenceRate = percentage(presenceCount, totalPagelas);
+      const avgMeditationRate = percentage(meditationCount, totalPagelas);
+      const avgVerseRate = percentage(verseCount, totalPagelas);
 
-      const childrenWithDecisions = decisions
-        ? parseInt(decisions.childrenWithDecisions)
-        : 0;
-      const decisionRate =
-        uniqueChildren > 0 ? (childrenWithDecisions / uniqueChildren) * 100 : 0;
+      const childrenWithDecisions = toCount(decisions?.childrenWithDecisions);
+      const decisionRate = percentage(childrenWithDecisions, uniqueChildren);
 
       const effectivenessScore =
-        avgPresenceRate * 0.4 + avgMeditationRate * 0.3 + decisionRate * 0.3;
+        avgPresenceRate * 0.3 +
+        avgMeditationRate * 0.3 +
+        avgVerseRate * 0.2 +
+        decisionRate * 0.2;
 
       const lastActivity = pagelas?.lastActivity;
-      const isActive = lastActivity
-        ? new Date(lastActivity) >= new Date(thirtyDaysAgoStr)
-        : false;
+      const lastActivityDay = pagelas?.lastActivityDay;
+      const isActive = !!lastActivityDay && lastActivityDay >= activeSince;
 
       return {
         teacherId: teacher.id,
@@ -997,16 +1106,22 @@ export class StatisticsService {
         children: {
           total: uniqueChildren,
           unique: uniqueChildren,
-          active: 0,
+          active: activeChildren,
           withDecisions: childrenWithDecisions,
-          avgEngagement: 0,
+          avgEngagement:
+            Math.round(
+              (avgPresenceRate * 0.3 +
+                avgMeditationRate * 0.35 +
+                avgVerseRate * 0.35) *
+                10,
+            ) / 10,
         },
         performance: {
           totalPagelas,
-          avgPresenceRate: Math.round(avgPresenceRate * 10) / 10,
-          avgMeditationRate: Math.round(avgMeditationRate * 10) / 10,
-          avgVerseRate: Math.round(avgVerseRate * 10) / 10,
-          effectivenessScore: Math.round(effectivenessScore * 10) / 10,
+          avgPresenceRate: roundToOneDecimal(avgPresenceRate),
+          avgMeditationRate: roundToOneDecimal(avgMeditationRate),
+          avgVerseRate: roundToOneDecimal(avgVerseRate),
+          effectivenessScore: roundToOneDecimal(effectivenessScore),
         },
         lastActivity: lastActivity
           ? {
@@ -1015,9 +1130,15 @@ export class StatisticsService {
             }
           : null,
         isActive,
-        rank: index + 1 + (page - 1) * limit,
+        rank: index + 1,
       };
     });
+
+    const pageStart = (page - 1) * limit;
+    const teachersWithStats = allTeachersWithStats.slice(
+      pageStart,
+      pageStart + limit,
+    );
 
     const byClub = new Map<string, { number: number; count: number }>();
     const byCity = new Map<string, { state: string; count: number }>();
@@ -1028,7 +1149,7 @@ export class StatisticsService {
       ['85-100', 0],
     ]);
 
-    teachersWithStats.forEach((teacher) => {
+    allTeachersWithStats.forEach((teacher) => {
       if (teacher.club) {
         const clubKey = teacher.club.id;
         if (!byClub.has(clubKey)) {
@@ -1056,39 +1177,29 @@ export class StatisticsService {
         byEffectiveness.set('85-100', (byEffectiveness.get('85-100') || 0) + 1);
     });
 
-    const totalFiltered = teachersWithStats.length;
+    const totalFiltered = allTeachersWithStats.length;
     const totalPages = Math.ceil(totalCount / limit);
 
     const summary = {
       totalTeachers: totalCount,
       filteredTeachers: totalFiltered,
-      activeTeachers: teachersWithStats.filter((t) => t.isActive).length,
-      totalChildren: teachersWithStats.reduce(
+      activeTeachers: allTeachersWithStats.filter((t) => t.isActive).length,
+      totalChildren: allTeachersWithStats.reduce(
         (sum, t) => sum + t.children.total,
         0,
       ),
-      avgEffectivenessScore:
-        totalFiltered > 0
-          ? Math.round(
-              (teachersWithStats.reduce(
-                (sum, t) => sum + t.performance.effectivenessScore,
-                0,
-              ) /
-                totalFiltered) *
-                10,
-            ) / 10
-          : 0,
-      avgPresenceRate:
-        totalFiltered > 0
-          ? Math.round(
-              (teachersWithStats.reduce(
-                (sum, t) => sum + t.performance.avgPresenceRate,
-                0,
-              ) /
-                totalFiltered) *
-                10,
-            ) / 10
-          : 0,
+      // Professor que não lançou pagela no recorte não tem taxa a entrar na
+      // média; antes ele contava como 0% e derrubava a de todos.
+      avgEffectivenessScore: averageOfMeasured(
+        allTeachersWithStats,
+        (t) => t.performance.totalPagelas > 0,
+        (t) => t.performance.effectivenessScore,
+      ),
+      avgPresenceRate: averageOfMeasured(
+        allTeachersWithStats,
+        (t) => t.performance.totalPagelas > 0,
+        (t) => t.performance.avgPresenceRate,
+      ),
     };
 
     return {
@@ -1102,21 +1213,19 @@ export class StatisticsService {
           clubId,
           clubNumber: data.number,
           count: data.count,
-          percentage:
-            totalFiltered > 0 ? (data.count / totalFiltered) * 100 : 0,
+          percentage: percentage(data.count, totalFiltered),
         })),
         byCity: Array.from(byCity.entries()).map(([city, data]) => ({
           city,
           state: data.state,
           count: data.count,
-          percentage:
-            totalFiltered > 0 ? (data.count / totalFiltered) * 100 : 0,
+          percentage: percentage(data.count, totalFiltered),
         })),
         byEffectiveness: Array.from(byEffectiveness.entries()).map(
           ([range, count]) => ({
             range,
             count,
-            percentage: totalFiltered > 0 ? (count / totalFiltered) * 100 : 0,
+            percentage: percentage(count, totalFiltered),
           }),
         ),
       },
@@ -1157,8 +1266,8 @@ export class StatisticsService {
     endDate?: string,
     page?: number,
     limit?: number,
-  ): Promise<unknown> {
-    return this.statisticsRepository.analyzeClubAttendance(
+  ): Promise<ClubAttendanceAnalysisDto> {
+    return this.attendanceRepository.analyzeClubAttendance(
       clubId,
       year,
       startDate,
@@ -1173,8 +1282,8 @@ export class StatisticsService {
     week: number,
     page?: number,
     limit?: number,
-  ): Promise<unknown> {
-    return this.statisticsRepository.analyzeWeeklyAttendance(
+  ): Promise<WeeklyAttendanceDto> {
+    return this.attendanceRepository.analyzeWeeklyAttendance(
       year,
       week,
       page,

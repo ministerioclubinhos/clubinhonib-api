@@ -1,17 +1,19 @@
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
   IsDateString,
   IsEnum,
   IsString,
   ValidateNested,
-  ArrayMinSize,
-  ArrayMaxSize,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { WeekDay } from '../entities/day.entity';
 import { MediaItemDto } from 'src/shared/share-dto/media-item-dto';
+import { WeekDay } from '../entities/day.entity';
+import { MEDITATION_DAYS_COUNT } from '../constants';
 
-class DayDto {
+/** Um dia da meditação enviado na criação. */
+export class CreateMeditationDayDto {
   @IsEnum(WeekDay, {
     message:
       'day deve ser um dos valores: Monday, Tuesday, Wednesday, Thursday, Friday',
@@ -25,6 +27,7 @@ class DayDto {
   topic: string;
 }
 
+/** Contrato de `POST /meditations`. */
 export class CreateMeditationDto {
   @IsString({ message: 'topic deve ser uma string' })
   topic: string;
@@ -46,9 +49,13 @@ export class CreateMeditationDto {
   media: MediaItemDto;
 
   @IsArray({ message: 'days deve ser um array' })
-  @ArrayMinSize(5, { message: 'days deve conter exatamente 5 itens' })
-  @ArrayMaxSize(5, { message: 'days deve conter exatamente 5 itens' })
+  @ArrayMinSize(MEDITATION_DAYS_COUNT, {
+    message: `days deve conter exatamente ${MEDITATION_DAYS_COUNT} itens`,
+  })
+  @ArrayMaxSize(MEDITATION_DAYS_COUNT, {
+    message: `days deve conter exatamente ${MEDITATION_DAYS_COUNT} itens`,
+  })
   @ValidateNested({ each: true })
-  @Type(() => DayDto)
-  days: DayDto[];
+  @Type(() => CreateMeditationDayDto)
+  days: CreateMeditationDayDto[];
 }

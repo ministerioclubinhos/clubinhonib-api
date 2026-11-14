@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Request } from 'express';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { JwtPayload, UserRole } from '../auth.types';
+import { AccessContext, JwtPayload, UserRole } from '../auth.types';
 import {
   AppUnauthorizedException,
   AppInternalException,
@@ -74,6 +74,21 @@ export class AuthContextService {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Papel e identidade de quem pediu, no formato que os casos de uso usam.
+   *
+   * O papel já vem normalizado em minúsculas pelo `normalizeRole`; um token
+   * ausente ou inválido devolve o contexto anônimo em vez de lançar.
+   */
+  async resolveAccessContext(req: Request): Promise<AccessContext> {
+    const payload = await this.tryGetPayload(req);
+
+    return {
+      role: payload?.role as UserRole | undefined,
+      userId: payload?.sub ?? null,
+    };
   }
 
   async getUserId(req: Request): Promise<string | null> {

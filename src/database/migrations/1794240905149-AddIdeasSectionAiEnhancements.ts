@@ -1,0 +1,56 @@
+import { MigrationInterface, QueryRunner } from "typeorm";
+
+export class AddIdeasSectionAiEnhancements1794240905149 implements MigrationInterface {
+    name = 'AddIdeasSectionAiEnhancements1794240905149'
+
+    public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`CREATE TABLE \`ideas_section_submission_snapshot_medias\` (\`id\` varchar(36) NOT NULL, \`createdAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), \`updatedAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6), \`snapshot_id\` varchar(36) NOT NULL, \`source_media_id\` varchar(36) NOT NULL, \`position\` int NOT NULL, \`original_name\` varchar(255) NULL, \`media_type\` varchar(32) NOT NULL, \`upload_type\` varchar(32) NOT NULL, \`url\` text NULL, UNIQUE INDEX \`uq_idea_snapshot_media_source\` (\`snapshot_id\`, \`source_media_id\`), PRIMARY KEY (\`id\`)) ENGINE=InnoDB`);
+        await queryRunner.query(`CREATE TABLE \`ideas_section_submission_snapshots\` (\`id\` varchar(36) NOT NULL, \`createdAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), \`updatedAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6), \`section_id\` varchar(36) NOT NULL, \`submitted_title\` varchar(255) NOT NULL, \`submitted_description\` text NOT NULL, \`submitted_at\` datetime NOT NULL, \`source\` enum ('SUBMISSION', 'LEGACY_CAPTURE') NOT NULL, UNIQUE INDEX \`IDX_5392f0fd0aabf7fa9db99f399b\` (\`section_id\`), UNIQUE INDEX \`REL_5392f0fd0aabf7fa9db99f399b\` (\`section_id\`), PRIMARY KEY (\`id\`)) ENGINE=InnoDB`);
+        await queryRunner.query(`CREATE TABLE \`ideas_section_ai_enhancements\` (\`id\` varchar(36) NOT NULL, \`createdAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), \`updatedAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6), \`section_id\` varchar(36) NOT NULL, \`snapshot_id\` varchar(36) NOT NULL, \`status\` enum ('PENDING', 'PROCESSING', 'COMPLETED', 'PARTIAL', 'FAILED', 'SKIPPED') NOT NULL DEFAULT 'PENDING', \`provider\` varchar(32) NOT NULL, \`text_model\` varchar(128) NULL, \`image_model\` varchar(128) NULL, \`prompt_version\` varchar(64) NOT NULL, \`attempt\` int NOT NULL, \`active_section_id\` varchar(36) NULL, \`current_result_section_id\` varchar(36) NULL, \`lease_owner\` varchar(36) NULL, \`lease_expires_at\` datetime NULL, \`requested_at\` datetime NOT NULL, \`started_at\` datetime NULL, \`finished_at\` datetime NULL, \`enhanced_title\` varchar(255) NULL, \`enhanced_description\` text NULL, \`title_decision\` enum ('PENDING', 'ENHANCED', 'ORIGINAL') NOT NULL DEFAULT 'PENDING', \`description_decision\` enum ('PENDING', 'ENHANCED', 'ORIGINAL') NOT NULL DEFAULT 'PENDING', \`text_guard\` json NULL, \`error_code\` enum ('PROVIDER_NOT_CONFIGURED', 'PROVIDER_REQUEST_FAILED', 'INVALID_PROVIDER_RESPONSE', 'GUARD_REJECTED', 'LIMIT_REACHED', 'CANCELLED') NULL, UNIQUE INDEX \`uq_idea_ai_current_section\` (\`current_result_section_id\`), UNIQUE INDEX \`uq_idea_ai_active_section\` (\`active_section_id\`), INDEX \`idx_idea_ai_status_lease\` (\`status\`, \`lease_expires_at\`), UNIQUE INDEX \`uq_idea_ai_attempt_number\` (\`section_id\`, \`attempt\`), PRIMARY KEY (\`id\`)) ENGINE=InnoDB`);
+        await queryRunner.query(`CREATE TABLE \`ideas_section_ai_media_enhancements\` (\`id\` varchar(36) NOT NULL, \`createdAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), \`updatedAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6), \`enhancement_id\` varchar(36) NOT NULL, \`source_media_id\` varchar(36) NOT NULL, \`enhanced_media_id\` varchar(36) NULL, \`editable_media_id\` varchar(36) NULL, \`kind\` enum ('VIDEO', 'DOCUMENT', 'IMAGE') NOT NULL, \`status\` enum ('PENDING', 'PROCESSING', 'ENHANCED', 'SKIPPED', 'REJECTED_BY_GUARD', 'FAILED') NOT NULL DEFAULT 'PENDING', \`skip_reason\` enum ('NOT_SUPPORTED', 'ESSENTIAL_VISUALS', 'TOO_LARGE', 'ALREADY_GOOD', 'CONTAINS_PEOPLE', 'LIMIT_REACHED') NULL, \`guard\` json NULL, \`decision\` enum ('PENDING', 'ENHANCED', 'ORIGINAL') NOT NULL DEFAULT 'PENDING', UNIQUE INDEX \`uq_idea_ai_media_source\` (\`enhancement_id\`, \`source_media_id\`), PRIMARY KEY (\`id\`)) ENGINE=InnoDB`);
+        await queryRunner.query(`CREATE TABLE \`ideas_section_ai_publication_choices\` (\`id\` varchar(36) NOT NULL, \`createdAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), \`updatedAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6), \`choice_key\` varchar(64) NOT NULL, \`section_id\` varchar(36) NOT NULL, \`enhancement_id\` varchar(36) NULL, \`field\` enum ('TITLE', 'DESCRIPTION', 'MEDIA') NOT NULL, \`source_media_id\` varchar(36) NULL, \`decision\` enum ('PENDING', 'ENHANCED', 'ORIGINAL') NOT NULL, UNIQUE INDEX \`uq_idea_ai_publication_choice_key\` (\`section_id\`, \`choice_key\`), UNIQUE INDEX \`uq_idea_ai_publication_choice\` (\`section_id\`, \`field\`, \`source_media_id\`), PRIMARY KEY (\`id\`)) ENGINE=InnoDB`);
+        await queryRunner.query(`ALTER TABLE \`ideas_section_submission_snapshot_medias\` ADD CONSTRAINT \`fk_idea_snapshot_media_snapshot\` FOREIGN KEY (\`snapshot_id\`) REFERENCES \`ideas_section_submission_snapshots\`(\`id\`) ON DELETE CASCADE ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE \`ideas_section_submission_snapshot_medias\` ADD CONSTRAINT \`fk_idea_snapshot_media_source\` FOREIGN KEY (\`source_media_id\`) REFERENCES \`media_items\`(\`id\`) ON DELETE RESTRICT ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE \`ideas_section_submission_snapshots\` ADD CONSTRAINT \`fk_idea_snapshot_section\` FOREIGN KEY (\`section_id\`) REFERENCES \`ideas_sections\`(\`id\`) ON DELETE CASCADE ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE \`ideas_section_ai_enhancements\` ADD CONSTRAINT \`fk_idea_ai_enhancement_section\` FOREIGN KEY (\`section_id\`) REFERENCES \`ideas_sections\`(\`id\`) ON DELETE CASCADE ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE \`ideas_section_ai_enhancements\` ADD CONSTRAINT \`fk_idea_ai_enhancement_snapshot\` FOREIGN KEY (\`snapshot_id\`) REFERENCES \`ideas_section_submission_snapshots\`(\`id\`) ON DELETE CASCADE ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE \`ideas_section_ai_media_enhancements\` ADD CONSTRAINT \`fk_idea_ai_media_enhancement\` FOREIGN KEY (\`enhancement_id\`) REFERENCES \`ideas_section_ai_enhancements\`(\`id\`) ON DELETE CASCADE ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE \`ideas_section_ai_media_enhancements\` ADD CONSTRAINT \`fk_idea_ai_media_source\` FOREIGN KEY (\`source_media_id\`) REFERENCES \`media_items\`(\`id\`) ON DELETE RESTRICT ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE \`ideas_section_ai_media_enhancements\` ADD CONSTRAINT \`fk_idea_ai_media_result\` FOREIGN KEY (\`enhanced_media_id\`) REFERENCES \`media_items\`(\`id\`) ON DELETE RESTRICT ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE \`ideas_section_ai_media_enhancements\` ADD CONSTRAINT \`fk_idea_ai_media_editable\` FOREIGN KEY (\`editable_media_id\`) REFERENCES \`media_items\`(\`id\`) ON DELETE RESTRICT ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE \`ideas_section_ai_publication_choices\` ADD CONSTRAINT \`fk_idea_ai_choice_section\` FOREIGN KEY (\`section_id\`) REFERENCES \`ideas_sections\`(\`id\`) ON DELETE CASCADE ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE \`ideas_section_ai_publication_choices\` ADD CONSTRAINT \`fk_idea_ai_choice_enhancement\` FOREIGN KEY (\`enhancement_id\`) REFERENCES \`ideas_section_ai_enhancements\`(\`id\`) ON DELETE SET NULL ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE \`ideas_section_ai_publication_choices\` ADD CONSTRAINT \`fk_idea_ai_choice_media\` FOREIGN KEY (\`source_media_id\`) REFERENCES \`media_items\`(\`id\`) ON DELETE RESTRICT ON UPDATE NO ACTION`);
+    }
+
+    public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`ALTER TABLE \`ideas_section_ai_publication_choices\` DROP FOREIGN KEY \`fk_idea_ai_choice_media\``);
+        await queryRunner.query(`ALTER TABLE \`ideas_section_ai_publication_choices\` DROP FOREIGN KEY \`fk_idea_ai_choice_enhancement\``);
+        await queryRunner.query(`ALTER TABLE \`ideas_section_ai_publication_choices\` DROP FOREIGN KEY \`fk_idea_ai_choice_section\``);
+        await queryRunner.query(`ALTER TABLE \`ideas_section_ai_media_enhancements\` DROP FOREIGN KEY \`fk_idea_ai_media_editable\``);
+        await queryRunner.query(`ALTER TABLE \`ideas_section_ai_media_enhancements\` DROP FOREIGN KEY \`fk_idea_ai_media_result\``);
+        await queryRunner.query(`ALTER TABLE \`ideas_section_ai_media_enhancements\` DROP FOREIGN KEY \`fk_idea_ai_media_source\``);
+        await queryRunner.query(`ALTER TABLE \`ideas_section_ai_media_enhancements\` DROP FOREIGN KEY \`fk_idea_ai_media_enhancement\``);
+        await queryRunner.query(`ALTER TABLE \`ideas_section_ai_enhancements\` DROP FOREIGN KEY \`fk_idea_ai_enhancement_snapshot\``);
+        await queryRunner.query(`ALTER TABLE \`ideas_section_ai_enhancements\` DROP FOREIGN KEY \`fk_idea_ai_enhancement_section\``);
+        await queryRunner.query(`ALTER TABLE \`ideas_section_submission_snapshots\` DROP FOREIGN KEY \`fk_idea_snapshot_section\``);
+        await queryRunner.query(`ALTER TABLE \`ideas_section_submission_snapshot_medias\` DROP FOREIGN KEY \`fk_idea_snapshot_media_source\``);
+        await queryRunner.query(`ALTER TABLE \`ideas_section_submission_snapshot_medias\` DROP FOREIGN KEY \`fk_idea_snapshot_media_snapshot\``);
+        await queryRunner.query(`DROP INDEX \`uq_idea_ai_publication_choice\` ON \`ideas_section_ai_publication_choices\``);
+        await queryRunner.query(`DROP INDEX \`uq_idea_ai_publication_choice_key\` ON \`ideas_section_ai_publication_choices\``);
+        await queryRunner.query(`DROP TABLE \`ideas_section_ai_publication_choices\``);
+        await queryRunner.query(`DROP INDEX \`uq_idea_ai_media_source\` ON \`ideas_section_ai_media_enhancements\``);
+        await queryRunner.query(`DROP TABLE \`ideas_section_ai_media_enhancements\``);
+        await queryRunner.query(`DROP INDEX \`uq_idea_ai_attempt_number\` ON \`ideas_section_ai_enhancements\``);
+        await queryRunner.query(`DROP INDEX \`idx_idea_ai_status_lease\` ON \`ideas_section_ai_enhancements\``);
+        await queryRunner.query(`DROP INDEX \`uq_idea_ai_active_section\` ON \`ideas_section_ai_enhancements\``);
+        await queryRunner.query(`DROP INDEX \`uq_idea_ai_current_section\` ON \`ideas_section_ai_enhancements\``);
+        await queryRunner.query(`DROP TABLE \`ideas_section_ai_enhancements\``);
+        await queryRunner.query(`DROP INDEX \`REL_5392f0fd0aabf7fa9db99f399b\` ON \`ideas_section_submission_snapshots\``);
+        await queryRunner.query(`DROP INDEX \`IDX_5392f0fd0aabf7fa9db99f399b\` ON \`ideas_section_submission_snapshots\``);
+        await queryRunner.query(`DROP TABLE \`ideas_section_submission_snapshots\``);
+        await queryRunner.query(`DROP INDEX \`uq_idea_snapshot_media_source\` ON \`ideas_section_submission_snapshot_medias\``);
+        await queryRunner.query(`DROP TABLE \`ideas_section_submission_snapshot_medias\``);
+    }
+
+}

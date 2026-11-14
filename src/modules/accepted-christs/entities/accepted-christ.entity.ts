@@ -1,3 +1,4 @@
+import { UserEntity } from 'src/core/user/entities/user.entity';
 import { BaseEntity } from 'src/shared/share-entity/base.entity';
 import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { ChildEntity } from 'src/modules/children/entities/child.entity';
@@ -22,4 +23,12 @@ export class AcceptedChristEntity extends BaseEntity {
 
   @Column({ type: 'varchar', length: 500, nullable: true })
   notes?: string | null;
+
+  /**
+   * Quem registrou a decisão. `null` em registros anteriores a esta coluna ou
+   * quando o usuário foi excluído depois.
+   */
+  @ManyToOne(() => UserEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'created_by_user_id' })
+  createdBy?: UserEntity | null;
 }

@@ -1,3 +1,4 @@
+import { UserEntity } from 'src/core/user/entities/user.entity';
 import { BaseEntity } from 'src/shared/share-entity/base.entity';
 import {
   Entity,
@@ -8,7 +9,7 @@ import {
   OneToMany,
 } from 'typeorm';
 import { AddressEntity } from 'src/modules/addresses/entities/address.entity/address.entity';
-import { ClubEntity } from 'src/modules/clubs/entities/club.entity/club.entity';
+import { ClubEntity } from 'src/modules/clubs/entities/club.entity';
 import { PagelaEntity } from 'src/modules/pagelas/entities/pagela.entity';
 import { AcceptedChristEntity } from 'src/modules/accepted-christs/entities/accepted-christ.entity';
 
@@ -35,6 +36,16 @@ export class ChildEntity extends BaseEntity {
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
 
+  /**
+   * Dia em que a criança foi desativada, em `YYYY-MM-DD`; `null` enquanto ativa.
+   *
+   * Existe para o histórico: quem saiu em novembro continua contando nas
+   * estatísticas de março a outubro. Só com `isActive` não dá para saber até
+   * quando a criança frequentou.
+   */
+  @Column({ type: 'date', nullable: true })
+  deactivatedAt?: string | null;
+
   @ManyToOne(() => ClubEntity, (club) => club.children, {
     nullable: true,
     onDelete: 'SET NULL',
@@ -56,4 +67,17 @@ export class ChildEntity extends BaseEntity {
 
   @OneToMany(() => AcceptedChristEntity, (ac) => ac.child, { cascade: true })
   acceptedChrists: AcceptedChristEntity[];
+
+  /**
+   * Quem cadastrou a criança. `null` em cadastros anteriores a esta coluna ou
+   * quando o usuário foi excluído depois.
+   */
+  @ManyToOne(() => UserEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'created_by_user_id' })
+  createdBy?: UserEntity | null;
+
+  /** Quem fez a última alteração no cadastro (edição, ativar ou desativar). */
+  @ManyToOne(() => UserEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'updated_by_user_id' })
+  updatedBy?: UserEntity | null;
 }

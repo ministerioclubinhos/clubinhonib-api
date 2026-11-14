@@ -1,126 +1,62 @@
-import {
-  Exclude,
-  Expose,
-  Type,
-  Transform,
-  plainToInstance,
-} from 'class-transformer';
-import { AddressResponseDto } from 'src/modules/addresses/dto/address.response.dto';
-import { Weekday } from '../enums/weekday.enum/weekday.enum';
-import { ClubEntity } from '../entities/club.entity/club.entity';
+import { Weekday } from '../entities/weekday.enum';
 
-@Exclude()
-class UserMiniDto {
-  @Expose() id!: string;
-  @Expose() name!: string;
-  @Expose() email!: string;
-  @Expose() phone!: string;
-  @Expose() active!: boolean;
-  @Expose() completed!: boolean;
-  @Expose() commonUser!: boolean;
+/**
+ * Endereço no contrato de clubinhos.
+ *
+ * Sem os carimbos de data do endereço: quem lê um clubinho não tem o que fazer
+ * com eles, e prometê-los obrigaria a carregá-los em toda listagem.
+ */
+export class ClubAddressResponseDto {
+  id: string;
+  street: string | null;
+  number: string | null;
+  district: string | null;
+  city: string | null;
+  state: string | null;
+  postalCode: string | null;
+  complement: string | null;
 }
 
-@Exclude()
-class CoordinatorWithUserDto {
-  @Expose() id!: string;
-  @Expose() active!: boolean;
-
-  @Expose()
-  @Type(() => UserMiniDto)
-  user!: UserMiniDto;
+/** Dados mínimos do usuário ligado a um perfil. */
+export class ClubUserMiniDto {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  active: boolean;
+  completed: boolean;
+  commonUser: boolean;
 }
 
-@Exclude()
-class TeacherWithUserDto {
-  @Expose() id!: string;
-  @Expose() active!: boolean;
-
-  @Expose()
-  @Type(() => UserMiniDto)
-  user!: UserMiniDto;
+/** Coordenador do clubinho. */
+export class CoordinatorWithUserDto {
+  id: string;
+  active: boolean;
+  user: ClubUserMiniDto | null;
 }
 
-@Exclude()
-export class ClubMiniDto {
-  @Expose() id!: string;
-  @Expose() number!: number;
-  @Expose() weekday!: Weekday;
-
-  @Expose()
-  @Transform(({ value }: { value: string | null }) =>
-    typeof value === 'string' ? value.slice(0, 5) : null,
-  )
-  time!: string | null;
-
-  @Expose() isActive!: boolean;
+/** Professor vinculado ao clubinho. */
+export class TeacherWithUserDto {
+  id: string;
+  active: boolean;
+  user: ClubUserMiniDto | null;
 }
 
-@Exclude()
+/** Clubinho sem os vínculos, para listas leves. */
 export class ClubSimpleResponseDto {
-  @Expose() id!: string;
-  @Expose() number!: number;
-  @Expose() weekday!: Weekday;
-
-  @Expose()
-  @Transform(({ value }: { value: string | null }) =>
-    typeof value === 'string' ? value.slice(0, 5) : null,
-  )
-  time!: string | null;
-
-  @Expose() isActive!: boolean;
-
-  @Expose()
-  @Type(() => AddressResponseDto)
-  address!: AddressResponseDto;
-
-  @Expose() createdAt!: Date;
-  @Expose() updatedAt!: Date;
+  id: string;
+  number: number;
+  weekday: Weekday;
+  /** Horário no formato `HH:mm`. */
+  time: string | null;
+  isActive: boolean;
+  address: ClubAddressResponseDto | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-@Exclude()
-export class ClubResponseDto {
-  @Expose() id!: string;
-  @Expose() number!: number;
-
-  @Expose()
-  @Transform(({ value }: { value: string | null }) =>
-    typeof value === 'string' ? value.slice(0, 5) : null,
-  )
-  time!: string | null;
-
-  @Expose() isActive!: boolean;
-
-  @Expose()
-  @Type(() => AddressResponseDto)
-  address!: AddressResponseDto;
-
-  @Expose()
-  @Type(() => CoordinatorWithUserDto)
-  @Transform(
-    ({ value }: { value: CoordinatorWithUserDto | null | undefined }) =>
-      value ?? null,
-  )
-  coordinator!: CoordinatorWithUserDto | null;
-
-  @Expose()
-  @Type(() => TeacherWithUserDto)
-  @Transform(({ value }: { value: TeacherWithUserDto[] | null | undefined }) =>
-    Array.isArray(value) ? value : [],
-  )
-  teachers!: TeacherWithUserDto[];
-
-  @Expose() weekday!: Weekday;
-  @Expose() createdAt!: Date;
-  @Expose() updatedAt!: Date;
-}
-
-export function toClubSimpleDto(entity: ClubEntity): ClubSimpleResponseDto {
-  return plainToInstance(ClubSimpleResponseDto, entity, {
-    excludeExtraneousValues: true,
-  });
-}
-export function toClubDto(entity: ClubEntity): ClubResponseDto {
-  return plainToInstance(ClubResponseDto, entity, {
-    excludeExtraneousValues: true,
-  });
+/** Contrato de resposta de `/clubs`. */
+export class ClubResponseDto extends ClubSimpleResponseDto {
+  coordinator: CoordinatorWithUserDto | null;
+  teachers: TeacherWithUserDto[];
 }

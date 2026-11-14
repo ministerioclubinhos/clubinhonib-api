@@ -1,12 +1,10 @@
-import { RouteEntity } from 'src/modules/routes/route-page.entity';
+import { ImageSectionAuthorDto } from '../../image-section/dto/image-section-response.dto';
+import { RouteType } from 'src/modules/routes/route-page.entity';
 import {
-  MediaItemEntity,
   MediaType,
-  UploadType,
   PlatformType,
+  UploadType,
 } from 'src/shared/media/media-item/media-item.entity';
-import { ImagePageEntity } from '../entity/Image-page.entity';
-import { ImageSectionEntity } from '../entity/Image-section.entity';
 
 export class ImageRouteDto {
   title: string;
@@ -18,22 +16,7 @@ export class ImageRouteDto {
   entityType: string;
   description: string;
   entityId: string;
-  type: string;
-
-  static fromEntity(route: RouteEntity): ImageRouteDto {
-    return {
-      title: route.title,
-      public: route.public,
-      subtitle: route.subtitle,
-      image: route.image,
-      idToFetch: route.idToFetch,
-      path: route.path,
-      entityType: route.entityType,
-      description: route.description,
-      entityId: route.entityId,
-      type: route.type,
-    };
-  }
+  type: RouteType;
 }
 
 export class GalleryMediaItemDto {
@@ -47,24 +30,14 @@ export class GalleryMediaItemDto {
   platformType?: PlatformType;
   originalName?: string;
   size?: number;
-
-  static fromEntity(entity: MediaItemEntity): GalleryMediaItemDto {
-    return {
-      id: entity.id,
-      title: entity.title,
-      description: entity.description,
-      uploadType: entity.uploadType,
-      mediaType: entity.mediaType,
-      isLocalFile: entity.isLocalFile,
-      url: entity.url,
-      platformType: entity.platformType,
-      originalName: entity.originalName,
-      size: entity.size,
-    };
-  }
 }
 
 export class ImageSectionDto {
+  authorId: string | null;
+  celebrators: string[];
+  celebrationCount: number;
+  celebratedByMe: boolean;
+  author: ImageSectionAuthorDto | null;
   id: string;
   caption: string;
   description: string;
@@ -72,23 +45,6 @@ export class ImageSectionDto {
   createdAt: Date;
   updatedAt: Date;
   mediaItems: GalleryMediaItemDto[];
-
-  static fromEntity(
-    section: ImageSectionEntity,
-    mediaItems: MediaItemEntity[],
-  ): ImageSectionDto {
-    return {
-      id: section.id,
-      caption: section.caption,
-      description: section.description,
-      public: section.public,
-      createdAt: section.createdAt,
-      updatedAt: section.updatedAt,
-      mediaItems: mediaItems.map((item) =>
-        GalleryMediaItemDto.fromEntity(item),
-      ),
-    };
-  }
 }
 
 export class ImagePageResponseDto {
@@ -100,26 +56,4 @@ export class ImagePageResponseDto {
   updatedAt: Date;
   route: ImageRouteDto;
   sections: ImageSectionDto[];
-
-  static fromEntity(
-    page: ImagePageEntity,
-    mediaMap: Map<string, MediaItemEntity[]>,
-  ): ImagePageResponseDto {
-    if (!page.route) {
-      throw new Error(`A galeria com id ${page.id} não possui rota associada.`);
-    }
-
-    return {
-      id: page.id,
-      title: page.name,
-      description: page.description,
-      public: page.public,
-      createdAt: page.createdAt,
-      updatedAt: page.updatedAt,
-      route: ImageRouteDto.fromEntity(page.route),
-      sections: page.sections.map((section) =>
-        ImageSectionDto.fromEntity(section, mediaMap.get(section.id) || []),
-      ),
-    };
-  }
 }

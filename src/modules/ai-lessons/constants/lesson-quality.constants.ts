@@ -1,0 +1,35 @@
+import { LessonStageType } from '../enums/lesson.enums';
+
+export const LESSON_SHARED_QUALITY_RULES = [
+  'Use a lição aprovada como fonte das etapas derivadas: tema, propósito, personagens, acontecimentos e aplicação devem permanecer coerentes, sem acrescentar fatos bíblicos não conferidos.',
+  'Não invente falas, sentimentos, intenções, referências ou páginas de manuais. Ao combinar relatos bíblicos, identifique os detalhes de cada relato sem transferi-los automaticamente para todos os personagens.',
+  'Na lição, escolha um versículo curto (ou dois consecutivos, se um só não completar o ensino) que resuma a mensagem central da lição, para memorização infantil. Nas etapas derivadas, preserve exatamente o texto e a referência do versículo aprovado: não escolha outro, encurte ou parafraseie.',
+  'Use linguagem concreta e acolhedora, adequada à faixa etária da etapa. Evite detalhes assustadores, violência gráfica e associar doenças, deficiência, medo ou ansiedade à possessão demoníaca. Cumpra esses cuidados pela forma de escrever, sem acrescentar avisos ou ressalvas no material.',
+  'Proponha aplicações práticas ligadas ao propósito; não prometa ausência de fome, doença, sofrimento ou problemas materiais. Convites de fé e orações são voluntários, sem pressão ou exposição da criança.',
+  'Entregue conteúdo completo e executável, sem frases interrompidas, instruções ausentes, placeholders ou recursos mencionados mas não fornecidos. Respeite os campos, quantidades, ordem e formato de impressão específicos da etapa.',
+  'Perguntas, desafios e gabaritos devem corresponder ao conteúdo efetivamente ensinado e aos recursos fornecidos. Não cobre uma fala, informação ou desfecho ausente; confira se a atividade pode ser resolvida.',
+  'Antes de devolver o JSON, revise fidelidade, clareza, completude, segurança e coerência com a lição e corrija os problemas encontrados. Não inclua essa revisão no material infantil.',
+] as const;
+
+export const LESSON_STAGE_QUALITY_RULES: Record<LessonStageType, string> = {
+  [LessonStageType.LESSON]:
+    'Conclua cada sub-história com seu desfecho bíblico e destaque os relatos separadamente. Mantenha propósito curto e concreto, narrativa participativa e aplicação para quem já crê e para quem deseja seguir Jesus.',
+  [LessonStageType.LESSON_VISUALS]:
+    'Cubra todos os elementos essenciais de cada sub-história aprovada, respeitando a quantidade de pranchas solicitada. Vincule cada item ao trecho literal da narrativa em storyEvidence; mantenha personagens consistentes entre as pranchas e não crie elementos ou acontecimentos sem apoio na lição.',
+  [LessonStageType.STANDARD_GAME]:
+    'Entregue uma brincadeira de recreação realmente divertida, com ação física, desafio e energia (estilo gincana), materiais baratos, preparação, passos em ordem, regras, placar ou critério claro de encerramento e duração. A ligação com a lição fica no nome, no tema e no princípio bíblico. Inclua adaptações para 5–7 e 8–11 anos, todos jogando quase o tempo todo e segurança básica.',
+  [LessonStageType.VERSE_VISUALS]:
+    'Confira que a concatenação dos trechos reproduz integralmente o versículo aprovado, sem omissão, repetição ou troca de palavras; encerre com a referência. Preserve a legibilidade e a diagramação exigidas para os cartões tipográficos.',
+  [LessonStageType.VERSE_FIXATION]:
+    'Entregue uma fixação realmente divertida, estilo gincana, com ação física e repetição progressiva do versículo aprovado, terminando com a recitação coletiva do versículo completo e da referência. Documento de uma página: materiais baratos, preparação, passos curtos, regras com duração e como se vence, uma frase por adaptação (5–7 e 8–11) e uma frase de avaliação, sem constrangimento.',
+  [LessonStageType.MEDITATION_YOUNGER]:
+    'Crie duas atividades complementares para 5–8 anos, com mecânicas diferentes no estilo das folhas impressas (labirinto, letras, pontinhos, pontilhado, pintar o certo, circular/X, ligar, ordenar ou múltipla escolha escrita). A resposta correta representa a mensagem central da lição. Confira que toda atividade que cita figuras tem arte e que a solução é verificável.',
+  [LessonStageType.MEDITATION_OLDER]:
+    'Crie três blocos substanciais para 8–11 anos, com 4–6 subitens de compreensão e enigmas completos de 5–8 pistas/palavras, ocupando a página inteira com conteúdo útil. Use o tema como título e somente referências no texto bíblico. Entregue instruções completas, elementos imprimíveis suficientes e gabarito conferido. A resposta deve ser verificável e corresponder exatamente ao desafio; relacione a aplicação ao cotidiano infantil.',
+  [LessonStageType.MANUAL_WORK]:
+    'Explique como realizar a atividade com o desenho fornecido e sua relação com a lição. Garanta áreas adequadas para colorir, margens para impressão e recorte seguro com ajuda de adulto quando necessário; não dependa de peças ou materiais ausentes.',
+};
+
+/** Stage review of the weekly story visuals as complete scenes. */
+export const REGULAR_SCENE_VISUALS_QUALITY_RULE =
+  'Confira que os trechos, juntos, reproduzem a LIÇÃO BÍBLICA inteira na ordem, sem omissão nem repetição, e que cada cena mostra um acontecimento diferente, com os mesmos personagens consistentes e sem elementos ou acontecimentos sem apoio na lição.';

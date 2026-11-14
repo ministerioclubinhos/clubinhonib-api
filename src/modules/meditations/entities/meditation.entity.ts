@@ -7,11 +7,13 @@ export class MeditationEntity extends BaseEntity {
   @Column()
   topic: string;
 
+  /** Data no formato `YYYY-MM-DD`; colunas `date` chegam como string. */
   @Column({ type: 'date' })
-  startDate: Date;
+  startDate: string;
 
+  /** Data no formato `YYYY-MM-DD`; colunas `date` chegam como string. */
   @Column({ type: 'date' })
-  endDate: Date;
+  endDate: string;
 
   @OneToMany(() => DayEntity, (day) => day.meditation, {
     cascade: true,

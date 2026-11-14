@@ -7,7 +7,7 @@ import {
   JoinColumn,
   Unique,
 } from 'typeorm';
-import { ClubEntity } from 'src/modules/clubs/entities/club.entity/club.entity';
+import { ClubEntity } from 'src/modules/clubs/entities/club.entity';
 import { UserEntity } from 'src/core/user/entities/user.entity';
 
 @Unique('UQ_teacher_profile_user', ['user'])

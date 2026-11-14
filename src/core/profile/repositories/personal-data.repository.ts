@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { PersonalData } from '../entities/personal-data.entity';
 
 @Injectable()
@@ -10,6 +10,17 @@ export class PersonalDataRepository extends Repository<PersonalData> {
 
   async findByUserId(userId: string): Promise<PersonalData | null> {
     return this.findOne({ where: { userId } });
+  }
+
+  /**
+   * Dados pessoais de vários usuários de uma vez.
+   *
+   * A listagem de perfis carregava um por um — duas consultas por linha da
+   * página, além da consulta da própria página.
+   */
+  async findByUserIds(userIds: string[]): Promise<PersonalData[]> {
+    if (!userIds.length) return [];
+    return this.find({ where: { userId: In(userIds) } });
   }
 
   async createForUser(

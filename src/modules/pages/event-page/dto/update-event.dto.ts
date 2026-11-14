@@ -1,12 +1,14 @@
 import {
   IsBoolean,
   IsDateString,
+  IsEnum,
   IsOptional,
   IsString,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { MediaItemDto } from 'src/shared/share-dto/media-item-dto';
+import { EventAudience, EventType } from '../entities/event.entity';
 
 export class UpdateEventDto {
   @IsOptional()
@@ -22,15 +24,20 @@ export class UpdateEventDto {
   description?: string;
 
   @IsOptional()
-  @IsDateString(
-    {},
-    { message: 'date deve estar em formato ISO válido (YYYY-MM-DD)' },
-  )
+  @IsDateString({}, { message: 'date deve estar em formato ISO válido' })
   date?: string;
 
   @IsOptional()
   @IsString({ message: 'location deve ser uma string' })
   location?: string;
+
+  @IsOptional()
+  @IsEnum(EventAudience)
+  audience?: EventAudience;
+
+  @IsOptional()
+  @IsEnum(EventType)
+  eventType?: EventType;
 
   @IsOptional()
   @ValidateNested()

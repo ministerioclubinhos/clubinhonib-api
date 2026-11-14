@@ -1,38 +1,46 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
+  AppException,
+  AppInternalException,
   AppNotFoundException,
   AppValidationException,
   ErrorCode,
 } from 'src/shared/exceptions';
-import { DataSource } from 'typeorm';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
-import { RouteService } from 'src/modules/routes/route.service';
+import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
+import { UpdateRouteService } from 'src/modules/routes/services/update-route.service';
 import { RouteType, RouteEntity } from 'src/modules/routes/route-page.entity';
-import { DocumentRepository } from '../document.repository';
+import { DocumentsRepository } from '../repositories/documents.repository';
 import { UpdateDocumentDto } from '../dto/update-document.dto';
 import { DocumentEntity } from '../entities/document.entity';
+import {
+  DOCUMENT_MEDIA_TARGET_TYPE,
+  DOCUMENT_MEDIA_TARGET_TYPES,
+  DOCUMENT_ROUTE_PREFIX,
+} from '../constants';
+import { DocumentResponseDto } from '../dto/document-response.dto';
+import { toDocumentResponse } from '../mappers';
 
 @Injectable()
 export class UpdateDocumentService {
   private readonly logger = new Logger(UpdateDocumentService.name);
 
   constructor(
-    private readonly dataSource: DataSource,
-    private readonly documentRepo: DocumentRepository,
+    private readonly documentRepo: DocumentsRepository,
     private readonly s3Service: AwsS3Service,
     private readonly mediaProcessor: MediaItemProcessor,
-    private readonly routeService: RouteService,
+    private readonly updateRouteService: UpdateRouteService,
   ) {}
 
   async execute(
     id: string,
     dto: UpdateDocumentDto & { isLocalFile?: boolean },
     file?: Express.Multer.File,
-  ): Promise<DocumentEntity> {
+  ): Promise<DocumentResponseDto> {
     this.logger.log(`🛠️ Atualizando documento ID=${id}`);
 
-    const existingDocument = await this.documentRepo.findOneWithRelations(id);
+    const existingDocument = await this.documentRepo.findByIdWithRoute(id);
     if (!existingDocument) {
       this.logger.warn(`⚠️ Documento não encontrado: ID=${id}`);
       throw new AppNotFoundException(
@@ -49,113 +57,121 @@ export class UpdateDocumentService {
       );
     }
 
-    return await this.dataSource.transaction(async (manager) => {
-      const updatedDocument = manager.merge(DocumentEntity, existingDocument, {
-        name: dto.name,
-        description: dto.description,
-      });
-      const savedDocument = await manager.save(DocumentEntity, updatedDocument);
-      this.logger.log(`✅ Documento atualizado: ${savedDocument.id}`);
+    // O arquivo sobe fora da transação: o rastreador permite apagá-lo do
+    // bucket quando a atualização falha depois do upload.
+    const uploads = new S3UploadTracker((uploaded: Express.Multer.File) =>
+      this.s3Service.upload(uploaded),
+    );
 
-      if (savedDocument.route) {
-        const updatedRoute = await this.upsertDocumentRoute(
-          savedDocument.route.id,
-          {
-            name: dto.name,
-            subtitle: dto.media.title,
-            description: dto.description,
-          },
-          savedDocument.id,
-        );
-        savedDocument.route = updatedRoute;
-      }
-
-      const existingMedia = await this.mediaProcessor.findMediaItemsByTarget(
-        savedDocument.id,
-        'document',
-      );
-
-      const isReplacingMedia = !dto.media.id;
-
-      if (isReplacingMedia) {
-        this.logger.log(`♻️ Substituindo mídia antiga...`);
-        const filesDict = file ? { [dto.media.fileField ?? 'file']: file } : {};
-
-        await this.mediaProcessor.cleanAndReplaceMediaItems(
-          [
-            {
-              title: dto.media.title ?? savedDocument.name,
-              description:
-                dto.media.description ?? `Documento: ${savedDocument.name}`,
-              mediaType: dto.media.mediaType,
-              uploadType: dto.media.uploadType,
-              platformType: dto.media.isLocalFile
-                ? undefined
-                : dto.media.platformType,
-              url: dto.media.url,
-              originalName: dto.media.originalName,
-              size: dto.media.size,
-              isLocalFile: dto.media.isLocalFile,
-              public: false,
-            },
-          ],
-          savedDocument.id,
-          'document',
-          filesDict,
-          existingMedia,
-          (url) => this.s3Service.delete(url),
-          (file) => this.s3Service.upload(file),
-        );
-      } else if (existingMedia.length > 0) {
-        this.logger.log(`✏️ Atualizando dados da mídia existente...`);
-        const mediaToUpdate = existingMedia[0];
-
-        const wasUpload = mediaToUpdate.isLocalFile === true;
-        const isNowLink = dto.media.isLocalFile === false;
-        const wasLink = mediaToUpdate.isLocalFile === false;
-        const isNowUpload = dto.media.isLocalFile === true;
-
-        if (wasUpload && isNowLink && mediaToUpdate.url) {
-          this.logger.log(
-            `🗑️ Deletando arquivo antigo do S3: ${mediaToUpdate.url}`,
+    try {
+      // A transação é aberta pelo repositório; aqui só se decide o que entra
+      // nela.
+      const savedDocument = await this.documentRepo.runInTransaction(
+        async (manager) => {
+          const saved = await this.documentRepo.updateInTransaction(
+            manager,
+            existingDocument,
+            { name: dto.name, description: dto.description },
           );
-          await this.s3Service.delete(mediaToUpdate.url);
-        }
+          this.logger.log(`✅ Documento atualizado: ${saved.id}`);
 
-        if (wasLink && isNowUpload) {
-          if (!file) {
-            throw new AppValidationException(
-              ErrorCode.FILE_REQUIRED,
-              'Arquivo de upload obrigatório ao mudar para upload.',
+          if (saved.route) {
+            saved.route = await this.upsertDocumentRoute(
+              saved.route.id,
+              {
+                name: dto.name,
+                subtitle: dto.media?.title,
+                description: dto.description,
+              },
+              saved.id,
             );
           }
-          const newUrl = await this.s3Service.upload(file);
-          dto.media.url = newUrl;
-          dto.media.originalName = file.originalname;
-          dto.media.size = file.size;
-          this.logger.log(`⬆️ Arquivo enviado para S3: ${newUrl}`);
-        }
 
-        mediaToUpdate.title = dto.media.title ?? mediaToUpdate.title;
-        mediaToUpdate.description =
-          dto.media.description ?? mediaToUpdate.description;
-        mediaToUpdate.uploadType = dto.media.uploadType;
-        mediaToUpdate.platformType = dto.media.isLocalFile
-          ? undefined
-          : dto.media.platformType;
-        mediaToUpdate.url = dto.media.url ?? mediaToUpdate.url;
-        mediaToUpdate.originalName =
-          dto.media.originalName ?? mediaToUpdate.originalName;
-        mediaToUpdate.size = dto.media.size ?? mediaToUpdate.size;
-        mediaToUpdate.isLocalFile = dto.media.isLocalFile;
+          return saved;
+        },
+      );
 
-        await manager.save(mediaToUpdate);
-      }
+      await this.syncMedia(savedDocument, dto, uploads, file);
+      this.logger.log('📎 Mídia atualizada com sucesso.');
 
-      this.logger.log(`📎 Mídia atualizada com sucesso.`);
+      // A resposta é lida depois da sincronização: antes a rota devolvia a
+      // entidade crua, sem a mídia que o formulário acabara de gravar.
+      const [media] = await this.mediaProcessor.findMediaItemsByTargetAnyType(
+        savedDocument.id,
+        DOCUMENT_MEDIA_TARGET_TYPES,
+      );
 
-      return savedDocument;
-    });
+      return toDocumentResponse(savedDocument, media ?? null);
+    } catch (error: unknown) {
+      await this.mediaProcessor.discardUnreferencedUploads(
+        uploads.uploadedUrls,
+        (url: string) => this.s3Service.delete(url),
+      );
+
+      this.logger.error(
+        `Erro ao atualizar documento. ID=${id}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+
+      if (error instanceof AppException) throw error;
+      throw new AppInternalException(
+        ErrorCode.INTERNAL_ERROR,
+        'Erro ao atualizar o documento.',
+        error as Error,
+      );
+    }
+  }
+
+  /**
+   * Aplica a mídia recebida sobre a atual.
+   *
+   * Tudo passa por `cleanAndReplaceMediaItems`: ele sobe o arquivo novo antes
+   * de apagar o antigo, reaproveita o objeto do S3 quando a edição não troca o
+   * arquivo e só apaga o que deixou de ser referenciado. O caminho manual que
+   * existia aqui apagava a URL da mídia sempre que o formulário reenviava um
+   * upload sem arquivo novo — e o formulário faz isso em toda edição.
+   */
+  private async syncMedia(
+    document: DocumentEntity,
+    dto: UpdateDocumentDto & { isLocalFile?: boolean },
+    uploads: S3UploadTracker,
+    file?: Express.Multer.File,
+  ): Promise<void> {
+    const media = dto.media;
+    if (!media) return;
+
+    const existingMedia =
+      await this.mediaProcessor.findMediaItemsByTargetAnyType(
+        document.id,
+        DOCUMENT_MEDIA_TARGET_TYPES,
+      );
+
+    const fieldKey = media.fileField ?? 'file';
+    const filesDict = file ? { [fieldKey]: file } : {};
+
+    await this.mediaProcessor.cleanAndReplaceMediaItems(
+      [
+        {
+          id: media.id ?? existingMedia[0]?.id,
+          title: media.title ?? document.name,
+          description: media.description ?? `Documento: ${document.name}`,
+          mediaType: media.mediaType,
+          uploadType: media.uploadType,
+          platformType: media.isLocalFile ? undefined : media.platformType,
+          url: media.url,
+          originalName: media.originalName,
+          size: media.size,
+          isLocalFile: media.isLocalFile,
+          fileField: fieldKey,
+        },
+      ],
+      document.id,
+      DOCUMENT_MEDIA_TARGET_TYPE,
+      filesDict,
+      existingMedia,
+      (url: string) => this.s3Service.delete(url),
+      uploads.upload,
+    );
   }
 
   private async upsertDocumentRoute(
@@ -176,12 +192,19 @@ export class UpdateDocumentService {
       entityId: documentId,
       public: false,
       type: RouteType.PAGE,
-      path: 'documento_',
       image:
         'https://bucket-clubinho-galeria.s3.us-east-2.amazonaws.com/uploads/img_card.jpg',
     };
 
-    const savedRoute = await this.routeService.upsertRoute(routeId, routeData);
+    // `path` é único no banco: gerá-lo a partir do título sem checar a
+    // disponibilidade quebrava a edição quando dois documentos passavam a ter
+    // o mesmo nome.
+    const savedRoute =
+      await this.updateRouteService.upsertRouteWithAvailablePath(
+        routeId,
+        routeData,
+        DOCUMENT_ROUTE_PREFIX,
+      );
     this.logger.debug(
       `✅ Rota do documento upsertada: ${savedRoute.id}, path: ${savedRoute.path}`,
     );

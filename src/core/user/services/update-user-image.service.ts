@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
+import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
 import {
   MediaType,
   PlatformType,
@@ -8,6 +9,7 @@ import {
 } from 'src/shared/media/media-item/media-item.entity';
 import { GetUsersService } from './get-user.service';
 import { AppValidationException, ErrorCode } from 'src/shared/exceptions';
+import { USER_MEDIA_TARGET, USER_IMAGE_FIELD_KEY } from '../constants';
 
 @Injectable()
 export class UpdateUserImageService {
@@ -67,6 +69,10 @@ export class UpdateUserImageService {
         isLocalFile: body.isLocalFile as boolean | undefined,
         fieldKey: body.fieldKey as string | undefined,
       };
+    } else if (files.length > 0) {
+      // Só o arquivo, sem JSON: é como o painel administrativo envia a foto de
+      // um usuário. Recusar deixava toda troca de foto pelo painel em 422.
+      mediaDto = { uploadType: UploadType.UPLOAD, isLocalFile: true };
     } else {
       throw new AppValidationException(
         ErrorCode.VALIDATION_ERROR,
@@ -88,123 +94,118 @@ export class UpdateUserImageService {
 
     const existingMedia = await this.mediaItemProcessor.findMediaItemByTarget(
       userId,
-      'UserEntity',
+      USER_MEDIA_TARGET,
     );
 
-    if (existingMedia) {
-      const media = this.mediaItemProcessor.buildBaseMediaItem(
-        {
-          ...mediaDto,
-          mediaType: MediaType.IMAGE,
-          uploadType: uploadTypeValue,
-          platformType: PlatformType.ANY,
-        },
-        userId,
-        'UserEntity',
-      );
+    // O arquivo sobe antes da mídia ser gravada: o rastreador permite apagá-lo
+    // do bucket quando a gravação falha depois do upload.
+    const uploads = new S3UploadTracker((file: Express.Multer.File) =>
+      this.s3Service.upload(file),
+    );
 
-      const hasOldLocalFile = existingMedia.isLocalFile && existingMedia.url;
+    try {
+      if (existingMedia) {
+        const media = this.mediaItemProcessor.buildBaseMediaItem(
+          {
+            ...mediaDto,
+            mediaType: MediaType.IMAGE,
+            uploadType: uploadTypeValue,
+            platformType: PlatformType.ANY,
+          },
+          userId,
+          USER_MEDIA_TARGET,
+        );
 
-      if (hasFile) {
-        const fieldKey = mediaDto.fieldKey || 'file';
-        const file = filesDict[fieldKey];
-        if (!file) {
+        const hasOldLocalFile = existingMedia.isLocalFile && existingMedia.url;
+
+        if (hasFile) {
+          const fieldKey = mediaDto.fieldKey || USER_IMAGE_FIELD_KEY;
+          const file = filesDict[fieldKey];
+          if (!file) {
+            throw new AppValidationException(
+              ErrorCode.FILE_REQUIRED,
+              `Arquivo não encontrado para upload. FieldKey: ${fieldKey}, Arquivos disponíveis: ${Object.keys(filesDict).join(', ')}`,
+            );
+          }
+
+          this.validateImageFile(file);
+
+          media.uploadType = UploadType.UPLOAD;
+          media.url = await uploads.upload(file);
+          media.isLocalFile = true;
+          media.originalName = file.originalname;
+          media.size = file.size;
+        } else if (mediaDto.url) {
+          media.uploadType = UploadType.LINK;
+          media.url = mediaDto.url;
+          media.isLocalFile = false;
+        } else {
           throw new AppValidationException(
             ErrorCode.FILE_REQUIRED,
-            `Arquivo não encontrado para upload. FieldKey: ${fieldKey}, Arquivos disponíveis: ${Object.keys(filesDict).join(', ')}`,
+            'URL ou arquivo é obrigatório',
           );
         }
 
-        this.validateImageFile(file);
+        await this.mediaItemProcessor.upsertMediaItem(existingMedia.id, media);
 
-        if (hasOldLocalFile) {
-          try {
-            await this.s3Service.delete(existingMedia.url);
-            this.logger.log(
-              `Arquivo antigo deletado do S3: ${existingMedia.url}`,
-            );
-          } catch (error: unknown) {
-            this.logger.warn(
-              `Não foi possível deletar o arquivo antigo do S3: ${existingMedia.url}`,
-              error instanceof Error ? error.stack : error,
-            );
-          }
+        // A foto antiga só sai depois que o registro aponta para a nova: apagar
+        // antes deixava o usuário sem imagem nenhuma se o upload falhasse.
+        if (hasOldLocalFile && existingMedia.url !== media.url) {
+          await this.s3Service.delete(existingMedia.url);
+          this.logger.log(
+            `Arquivo antigo removido do S3: ${existingMedia.url}`,
+          );
         }
-
-        media.uploadType = UploadType.UPLOAD;
-        media.url = await this.s3Service.upload(file);
-        media.isLocalFile = true;
-        media.originalName = file.originalname;
-        media.size = file.size;
-      } else if (mediaDto.url) {
-        if (hasOldLocalFile) {
-          try {
-            await this.s3Service.delete(existingMedia.url);
-            this.logger.log(
-              `Arquivo antigo deletado do S3 ao mudar para link: ${existingMedia.url}`,
-            );
-          } catch (error: unknown) {
-            this.logger.warn(
-              `Não foi possível deletar o arquivo antigo do S3: ${existingMedia.url}`,
-              error instanceof Error ? error.stack : error,
-            );
-          }
-        }
-
-        media.uploadType = UploadType.LINK;
-        media.url = mediaDto.url;
-        media.isLocalFile = false;
       } else {
-        throw new AppValidationException(
-          ErrorCode.FILE_REQUIRED,
-          'URL ou arquivo é obrigatório',
+        const media = this.mediaItemProcessor.buildBaseMediaItem(
+          {
+            ...mediaDto,
+            mediaType: MediaType.IMAGE,
+            uploadType: uploadTypeValue,
+            platformType: PlatformType.ANY,
+            title: mediaDto.title || 'Foto do Usuário',
+            description: mediaDto.description || 'Imagem de perfil do usuário',
+          },
+          userId,
+          USER_MEDIA_TARGET,
         );
-      }
 
-      await this.mediaItemProcessor.upsertMediaItem(existingMedia.id, media);
-    } else {
-      const media = this.mediaItemProcessor.buildBaseMediaItem(
-        {
-          ...mediaDto,
-          mediaType: MediaType.IMAGE,
-          uploadType: uploadTypeValue,
-          platformType: PlatformType.ANY,
-          title: mediaDto.title || 'Foto do Usuário',
-          description: mediaDto.description || 'Imagem de perfil do usuário',
-        },
-        userId,
-        'UserEntity',
-      );
+        if (hasFile) {
+          const fieldKey = mediaDto.fieldKey || USER_IMAGE_FIELD_KEY;
+          const file = filesDict[fieldKey];
+          if (!file) {
+            throw new AppValidationException(
+              ErrorCode.FILE_REQUIRED,
+              `Arquivo não encontrado para upload. FieldKey: ${fieldKey}, Arquivos disponíveis: ${Object.keys(filesDict).join(', ')}`,
+            );
+          }
 
-      if (hasFile) {
-        const fieldKey = mediaDto.fieldKey || 'file';
-        const file = filesDict[fieldKey];
-        if (!file) {
+          this.validateImageFile(file);
+
+          media.uploadType = UploadType.UPLOAD;
+          media.url = await uploads.upload(file);
+          media.isLocalFile = true;
+          media.originalName = file.originalname;
+          media.size = file.size;
+        } else if (mediaDto.url) {
+          media.uploadType = UploadType.LINK;
+          media.url = mediaDto.url;
+          media.isLocalFile = false;
+        } else {
           throw new AppValidationException(
             ErrorCode.FILE_REQUIRED,
-            `Arquivo não encontrado para upload. FieldKey: ${fieldKey}, Arquivos disponíveis: ${Object.keys(filesDict).join(', ')}`,
+            'URL ou arquivo é obrigatório',
           );
         }
 
-        this.validateImageFile(file);
-
-        media.uploadType = UploadType.UPLOAD;
-        media.url = await this.s3Service.upload(file);
-        media.isLocalFile = true;
-        media.originalName = file.originalname;
-        media.size = file.size;
-      } else if (mediaDto.url) {
-        media.uploadType = UploadType.LINK;
-        media.url = mediaDto.url;
-        media.isLocalFile = false;
-      } else {
-        throw new AppValidationException(
-          ErrorCode.FILE_REQUIRED,
-          'URL ou arquivo é obrigatório',
-        );
+        await this.mediaItemProcessor.saveMediaItem(media);
       }
-
-      await this.mediaItemProcessor.saveMediaItem(media);
+    } catch (error: unknown) {
+      await this.mediaItemProcessor.discardUnreferencedUploads(
+        uploads.uploadedUrls,
+        (url: string) => this.s3Service.delete(url),
+      );
+      throw error;
     }
 
     return this.getUsersService.findOne(userId);

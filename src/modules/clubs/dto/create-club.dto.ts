@@ -4,7 +4,6 @@ import {
   IsOptional,
   IsUUID,
   ValidateNested,
-  IsString,
   Min,
   IsArray,
   ArrayUnique,
@@ -12,17 +11,10 @@ import {
   IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { Weekday } from '../enums/weekday.enum/weekday.enum';
 
-class AddressInputDto {
-  @IsOptional() @IsString() street?: string;
-  @IsOptional() @IsString() number?: string;
-  @IsOptional() @IsString() district?: string;
-  @IsOptional() @IsString() city?: string;
-  @IsOptional() @IsString() state?: string;
-  @IsOptional() @IsString() postalCode?: string;
-  @IsOptional() @IsString() complement?: string;
-}
+import { Weekday } from '../entities/weekday.enum';
+import { CLUB_TIME_PATTERN } from '../constants';
+import { ClubAddressInputDto } from './club-address.dto';
 
 export class CreateClubDto {
   @IsInt()
@@ -33,17 +25,19 @@ export class CreateClubDto {
   weekday!: Weekday;
 
   @IsOptional()
-  @Matches(/^([01]?\d|2[0-3]):([0-5]\d)$/, {
+  @Matches(CLUB_TIME_PATTERN, {
     message: 'time deve ser H:mm ou HH:mm (0:00–23:59)',
   })
   time?: string;
 
-  @IsOptional() @IsBoolean() isActive?: boolean;
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 
   @IsOptional()
   @ValidateNested()
-  @Type(() => AddressInputDto)
-  address?: AddressInputDto;
+  @Type(() => ClubAddressInputDto)
+  address?: ClubAddressInputDto;
 
   @IsOptional()
   @IsUUID()

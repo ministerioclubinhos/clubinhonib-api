@@ -17,6 +17,16 @@ RUN npm ci --only=production
 # Stage 3: Final Image
 FROM node:22-alpine
 WORKDIR /app
+# O Estúdio Clubinho converte DOCX em PDF com o LibreOffice (`soffice`).
+# Carlito e Liberation são métrico-compatíveis com Calibri, Arial e Courier New,
+# as fontes usadas nos documentos; sem elas o encaixe das folhas muda.
+RUN apk add --no-cache \
+      libreoffice-writer \
+      fontconfig \
+      font-carlito \
+      font-liberation \
+      font-dejavu \
+    && fc-cache -f
 COPY --from=dependencies /app/package*.json ./
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY --from=dependencies /app/package-lock.json ./package-lock.json

@@ -1,46 +1,34 @@
-import { Injectable } from '@nestjs/common';
-import { Request } from 'express';
+import { Injectable, Logger } from '@nestjs/common';
+import { SyncClubEventService } from 'src/modules/pages/event-page/services/sync-club-event.service';
 import { ClubsRepository } from '../repositories/clubs.repository';
-import { AuthContextService } from 'src/core/auth/services/auth-context.service';
-import {
-  AppNotFoundException,
-  AppForbiddenException,
-  ErrorCode,
-} from 'src/shared/exceptions';
-
-type Ctx = { role?: string; userId?: string | null };
+import { ClubAccessContext } from '../types';
+import { assertCanDeleteClub } from '../utils';
 
 @Injectable()
 export class DeleteClubsService {
+  private readonly logger = new Logger(DeleteClubsService.name);
+
   constructor(
     private readonly clubsRepository: ClubsRepository,
-    private readonly authCtx: AuthContextService,
+    private readonly syncClubEvent: SyncClubEventService,
   ) {}
 
-  private async getCtx(req: Request): Promise<Ctx> {
-    const p = await this.authCtx.tryGetPayload(req);
-    return { role: p?.role?.toLowerCase(), userId: p?.sub ?? null };
-  }
+  async remove(
+    id: string,
+    context: ClubAccessContext,
+  ): Promise<{ message: string }> {
+    // Exclusão é só do administrador. O coordenador administra o clubinho
+    // dele — dia, horário, endereço, equipe — e pode desativá-lo, que é a
+    // operação com volta.
+    assertCanDeleteClub(context);
 
-  async remove(id: string, req: Request): Promise<{ message: string }> {
-    const ctx = await this.getCtx(req);
-    if (!ctx.role || ctx.role === 'teacher') {
-      throw new AppForbiddenException(
-        ErrorCode.CLUB_ACCESS_DENIED,
-        'Acesso negado',
-      );
-    }
-
-    if (ctx.role === 'coordinator') {
-      const allowed = await this.clubsRepository.userHasAccessToClub(id, ctx);
-      if (!allowed)
-        throw new AppNotFoundException(
-          ErrorCode.CLUB_NOT_FOUND,
-          'Clubinho não encontrado',
-        );
-    }
-
+    // Os dias saem do calendário antes: depois da exclusão não há mais de onde
+    // tirar o vínculo.
+    await this.syncClubEvent.removeForClub(id);
     await this.clubsRepository.deleteById(id);
+
+    this.logger.log(`Clubinho removido. ID=${id}`);
+
     return { message: 'Clubinho removido com sucesso' };
   }
 }

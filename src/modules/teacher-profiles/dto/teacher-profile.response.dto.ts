@@ -5,7 +5,7 @@ import {
   Transform,
   plainToInstance,
 } from 'class-transformer';
-import { Weekday } from 'src/modules/clubs/enums/weekday.enum/weekday.enum';
+import { Weekday } from 'src/modules/clubs/entities/weekday.enum';
 import { TeacherProfileEntity } from '../entities/teacher-profile.entity/teacher-profile.entity';
 
 @Exclude()

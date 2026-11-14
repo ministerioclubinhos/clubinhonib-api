@@ -1,7 +1,7 @@
 import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
-  IsIn,
+  IsEnum,
   IsInt,
   IsOptional,
   IsString,
@@ -9,78 +9,78 @@ import {
   Min,
 } from 'class-validator';
 
-const toBool = (v: any): boolean | undefined => {
-  if (v === undefined || v === null || v === '') return undefined;
-  const s = String(v).trim().toLowerCase();
-  if (['true', '1', 'yes', 'y'].includes(s)) return true;
-  if (['false', '0', 'no', 'n'].includes(s)) return false;
-  return undefined;
-};
-const toInt = (v: any): number | undefined => {
-  if (v === undefined || v === null || v === '') return undefined;
-  const n = Number(String(v).trim());
-  return Number.isFinite(n) ? n : undefined;
-};
-const trimOrUndef = (v: any): string | undefined => {
-  if (typeof v !== 'string') return undefined;
-  const t = v.trim();
-  return t ? t : undefined;
-};
+import {
+  toLowerCaseText,
+  toOptionalBoolean,
+  toOptionalText,
+} from 'src/shared/dto/query-transforms';
+
+import {
+  SortOrder,
+  TEACHERS_DEFAULT_LIMIT,
+  TEACHERS_DEFAULT_ORDER,
+  TEACHERS_DEFAULT_PAGE,
+  TEACHERS_DEFAULT_SORT,
+  TEACHERS_MAX_LIMIT,
+  TeacherSortField,
+} from '../constants';
 
 export class TeacherProfilesQueryDto {
+  /** Busca livre por professor, clubinho ou coordenador. */
   @IsOptional()
-  @Transform(({ value }) => trimOrUndef(value))
+  @Transform(({ value }: { value: unknown }) => toOptionalText(value))
   @IsString()
   searchString?: string;
 
+  /** Alias histórico de `searchString`; os dois filtram o mesmo. */
   @IsOptional()
-  @Transform(({ value }) => trimOrUndef(value))
+  @Transform(({ value }: { value: unknown }) => toOptionalText(value))
   @IsString()
   q?: string;
 
   @IsOptional()
-  @Transform(({ value }) => toBool(value))
+  @Transform(({ value }: { value: unknown }) => toOptionalBoolean(value))
   @IsBoolean()
   active?: boolean;
 
   @IsOptional()
-  @Transform(({ value }) => toBool(value))
+  @Transform(({ value }: { value: unknown }) => toOptionalBoolean(value))
   @IsBoolean()
   hasClub?: boolean;
 
   @IsOptional()
-  @Transform(({ value }) => toInt(value))
   @Type(() => Number)
   @IsInt()
+  @Min(1)
   clubNumber?: number;
 
   @IsOptional()
-  @Transform(({ value }) => toInt(value))
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  page: number = 1;
+  page: number = TEACHERS_DEFAULT_PAGE;
 
   @IsOptional()
-  @Transform(({ value }) => toInt(value))
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(100)
-  limit: number = 12;
+  @Max(TEACHERS_MAX_LIMIT)
+  limit: number = TEACHERS_DEFAULT_LIMIT;
 
   @IsOptional()
-  @IsIn(['updatedAt', 'createdAt', 'name', 'clubNumber'])
-  sort: 'updatedAt' | 'createdAt' | 'name' | 'clubNumber' = 'updatedAt';
+  @IsEnum(TeacherSortField)
+  sort: TeacherSortField = TEACHERS_DEFAULT_SORT;
 
   @IsOptional()
-  @IsIn(['asc', 'desc'])
-  order: 'asc' | 'desc' = 'desc';
+  @Transform(({ value }: { value: unknown }) => toLowerCaseText(value))
+  @IsEnum(SortOrder)
+  order: SortOrder = TEACHERS_DEFAULT_ORDER;
 }
 
+/** Uma página de resultados. */
 export class PageDto<T> {
-  items!: T[];
-  total!: number;
-  page!: number;
-  limit!: number;
+  items: T[];
+  total: number;
+  page: number;
+  limit: number;
 }

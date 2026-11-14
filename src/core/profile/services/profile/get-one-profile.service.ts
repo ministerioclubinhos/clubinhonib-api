@@ -1,69 +1,40 @@
 import { Injectable } from '@nestjs/common';
-import { UserRepository } from '../../../user/user.repository';
+
+import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
+import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
+import { GetUsersService } from 'src/core/user/services/get-user.service';
+
 import { PersonalDataRepository } from '../../repositories/personal-data.repository';
 import { UserPreferencesRepository } from '../../repositories/user-preferences.repository';
 import { CompleteProfileResponseDto } from '../../dto/complete-profile-response.dto';
-import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
-import { MediaItemRepository } from 'src/shared/media/media-item-repository';
-import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
+import { toCompleteProfileResponse } from '../../mappers';
 
 @Injectable()
 export class GetOneProfileService {
   constructor(
-    private readonly userRepository: UserRepository,
+    private readonly getUsersService: GetUsersService,
     private readonly personalDataRepository: PersonalDataRepository,
     private readonly userPreferencesRepository: UserPreferencesRepository,
-    private readonly mediaItemRepository: MediaItemRepository,
+    private readonly mediaItemProcessor: MediaItemProcessor,
   ) {}
 
   async execute(userId: string): Promise<CompleteProfileResponseDto> {
-    const user = await this.userRepository.findById(userId);
-    if (!user) {
-      throw new AppNotFoundException(
-        ErrorCode.USER_NOT_FOUND,
-        'Usuário não encontrado',
-      );
-    }
+    const user = await this.getUsersService.findOne(userId);
 
-    const personalData = await this.personalDataRepository.findByUserId(userId);
-    const preferences =
-      await this.userPreferencesRepository.findByUserId(userId);
+    const [personalData, preferences, [image]] = await Promise.all([
+      this.personalDataRepository.findByUserId(userId),
+      this.userPreferencesRepository.findByUserId(userId),
+      this.mediaItemProcessor.findMediaItemsByTarget(
+        userId,
+        MediaTargetType.User,
+      ),
+    ]);
 
-    const [profilePicture] = await this.mediaItemRepository.findByTarget(
-      userId,
-      MediaTargetType.User,
-    );
-
-    return {
-      id: user.id,
-      email: user.email,
-      phone: user.phone,
-      name: user.name,
-      role: user.role,
-      image: profilePicture,
-      personalData: personalData
-        ? {
-            birthDate: personalData.birthDate
-              ? personalData.birthDate instanceof Date
-                ? personalData.birthDate.toISOString().split('T')[0]
-                : String(personalData.birthDate).split('T')[0]
-              : undefined,
-            gender: personalData.gender,
-            gaLeaderName: personalData.gaLeaderName,
-            gaLeaderContact: personalData.gaLeaderContact,
-          }
-        : undefined,
-      preferences: preferences
-        ? {
-            loveLanguages: preferences.loveLanguages,
-            temperaments: preferences.temperaments,
-            favoriteColor: preferences.favoriteColor,
-            favoriteFood: preferences.favoriteFood,
-            favoriteMusic: preferences.favoriteMusic,
-            whatMakesYouSmile: preferences.whatMakesYouSmile,
-            skillsAndTalents: preferences.skillsAndTalents,
-          }
-        : undefined,
-    };
+    return toCompleteProfileResponse({
+      user,
+      image,
+      personalData,
+      preferences,
+    });
   }
 }

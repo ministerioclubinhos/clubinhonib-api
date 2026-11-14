@@ -1,21 +1,24 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Param,
-  Patch,
+  Controller,
   Delete,
+  Get,
   HttpCode,
-  UploadedFile,
-  UseInterceptors,
+  HttpStatus,
   Logger,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
-import { AppValidationException, ErrorCode } from 'src/shared/exceptions';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { plainToInstance } from 'class-transformer';
-import { validateOrReject, validateSync } from 'class-validator';
+
+import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
+import { AdminRoleGuard } from 'src/core/auth/guards/role-guard';
 
 import { CreateMeditationService } from './services/create-meditation.service';
 import { UpdateMeditationService } from './services/update-meditation.service';
@@ -24,13 +27,14 @@ import { GetMeditationService } from './services/get-meditation.service';
 
 import { CreateMeditationDto } from './dto/create-meditation.dto';
 import { UpdateMeditationDto } from './dto/update-meditation.dto';
-import { MeditationEntity } from './entities/meditation.entity';
-import { WeekMeditationResponseDto } from './dto/meditation-response-dto';
-
-import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
-import { AdminRoleGuard } from 'src/core/auth/guards/role-guard';
+import { MeditationResponseDto } from './dto/meditation-response.dto';
+import { QueryMeditationsDto } from './dto/query-meditations.dto';
+import { Paginated } from 'src/shared/dto/paginated.dto';
+import { parseAndValidatePayload } from './utils';
+import { MEDITATION_FILE_FIELD, MEDITATION_PAYLOAD_FIELD } from './constants';
 
 @Controller('meditations')
+@UseGuards(JwtAuthGuard)
 export class MeditationController {
   private readonly logger = new Logger(MeditationController.name);
 
@@ -41,116 +45,62 @@ export class MeditationController {
     private readonly getService: GetMeditationService,
   ) {}
 
-  @UseGuards(JwtAuthGuard, AdminRoleGuard)
+  @UseGuards(AdminRoleGuard)
   @Post()
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor(MEDITATION_FILE_FIELD))
   async create(
     @UploadedFile() file: Express.Multer.File,
-    @Body('meditationData') meditationDataRaw: string,
-  ): Promise<MeditationEntity> {
-    this.logger.log('📥 [POST /meditations] Criando nova meditação');
+    @Body(MEDITATION_PAYLOAD_FIELD) raw: string,
+  ): Promise<MeditationResponseDto> {
+    this.logger.debug('POST /meditations');
 
-    try {
-      const parsed = JSON.parse(meditationDataRaw) as Record<string, unknown>;
-      const dto = plainToInstance(CreateMeditationDto, parsed);
-      await validateOrReject(dto, {
-        whitelist: true,
-        forbidNonWhitelisted: true,
-      });
+    const dto = await parseAndValidatePayload(raw, CreateMeditationDto);
 
-      const result = await this.createService.create(dto, file);
-      this.logger.log(`✅ Meditação criada: ID=${result.id}`);
-      return result;
-    } catch (error: unknown) {
-      const errStack = error instanceof Error ? error.stack : undefined;
-      this.logger.error('❌ Erro ao criar meditação', errStack);
-      const message = Array.isArray(error)
-        ? error
-            .map((e: { constraints?: Record<string, string> }) =>
-              Object.values(e.constraints || {}),
-            )
-            .flat()
-            .join('; ')
-        : error instanceof Error
-          ? error.message
-          : 'Erro ao criar meditação.';
-      throw new AppValidationException(ErrorCode.VALIDATION_ERROR, message);
-    }
+    return this.createService.create(dto, file);
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard)
-  async findAll(): Promise<WeekMeditationResponseDto[]> {
-    this.logger.log('📦 [GET /meditations] Listando todas as meditações');
-    return this.getService.findAll();
+  async findAll(
+    @Query() query: QueryMeditationsDto,
+  ): Promise<Paginated<MeditationResponseDto>> {
+    this.logger.debug('GET /meditations');
+    return this.getService.findAllPaginated(query);
   }
 
-  @Get('/this-week')
-  @UseGuards(JwtAuthGuard)
-  async getThisWeek(): Promise<WeekMeditationResponseDto> {
-    this.logger.log(
-      '📆 [GET /meditations/this-week] Buscando meditação da semana',
-    );
+  @Get('this-week')
+  async getThisWeek(): Promise<MeditationResponseDto | null> {
+    this.logger.debug('GET /meditations/this-week');
     return this.getService.getThisWeekMeditation();
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
-  async findOne(@Param('id') id: string): Promise<WeekMeditationResponseDto> {
-    this.logger.log(`🔍 [GET /meditations/${id}] Buscando meditação`);
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<MeditationResponseDto> {
+    this.logger.debug(`GET /meditations/${id}`);
     return this.getService.findOne(id);
   }
 
-  @UseGuards(JwtAuthGuard, AdminRoleGuard)
+  @UseGuards(AdminRoleGuard)
   @Patch(':id')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor(MEDITATION_FILE_FIELD))
   async update(
-    @Param('id') id: string,
-    @Body('meditationData') rawMeditationData: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(MEDITATION_PAYLOAD_FIELD) raw: string,
     @UploadedFile() file?: Express.Multer.File,
-  ): Promise<MeditationEntity> {
-    this.logger.log(`✏️ [PATCH /meditations/${id}] Atualizando meditação`);
+  ): Promise<MeditationResponseDto> {
+    this.logger.debug(`PATCH /meditations/${id}`);
 
-    let dto: UpdateMeditationDto;
-    try {
-      const parsed = JSON.parse(rawMeditationData) as Record<string, unknown>;
-      dto = plainToInstance(UpdateMeditationDto, parsed);
-    } catch (err: unknown) {
-      const error = err instanceof Error ? err : new Error(String(err));
-      this.logger.error(`❌ JSON inválido para meditação`, error.stack);
-      throw new AppValidationException(
-        ErrorCode.VALIDATION_ERROR,
-        'JSON inválido no campo meditationData',
-      );
-    }
+    const dto = await parseAndValidatePayload(raw, UpdateMeditationDto);
 
-    const errors = validateSync(dto, {
-      whitelist: true,
-      forbidNonWhitelisted: true,
-    });
-    if (errors.length > 0) {
-      const message = errors
-        .map((err) => Object.values(err.constraints ?? {}).join(', '))
-        .join(' | ');
-      this.logger.warn(`❌ Erros de validação: ${message}`);
-      throw new AppValidationException(ErrorCode.VALIDATION_ERROR, message);
-    }
-
-    const result = await this.updateService.update(
-      id,
-      { ...dto, isLocalFile: !!file },
-      file,
-    );
-    this.logger.log(`✅ Meditação atualizada: ID=${result.id}`);
-    return result;
+    return this.updateService.update(id, dto, file);
   }
 
-  @UseGuards(JwtAuthGuard, AdminRoleGuard)
+  @UseGuards(AdminRoleGuard)
   @Delete(':id')
-  @HttpCode(204)
-  async remove(@Param('id') id: string): Promise<void> {
-    this.logger.log(`🗑️ [DELETE /meditations/${id}] Excluindo meditação`);
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    this.logger.debug(`DELETE /meditations/${id}`);
     await this.deleteService.remove(id);
-    this.logger.log(`✅ Meditação excluída: ID=${id}`);
   }
 }

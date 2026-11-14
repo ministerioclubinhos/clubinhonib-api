@@ -6,19 +6,23 @@ import {
   Patch,
   Param,
   Delete,
+  HttpCode,
+  HttpStatus,
   ParseUUIDPipe,
   UseInterceptors,
   UploadedFiles,
   Logger,
+  Query,
   UseGuards,
 } from '@nestjs/common';
-import { AppBusinessException, ErrorCode } from 'src/shared/exceptions';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
-import { plainToInstance } from 'class-transformer';
-import { validateOrReject } from 'class-validator';
+
+import { Paginated } from 'src/shared/dto/paginated.dto';
 
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto';
+import { QueryDocumentsDto } from './dto/query-documents.dto';
+import { DocumentResponseDto } from './dto/document-response.dto';
 
 import { CreateDocumentService } from './services/create-document.service';
 import { UpdateDocumentService } from './services/update-document.service';
@@ -27,6 +31,9 @@ import { DeleteDocumentService } from './services/delete-document.service';
 
 import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 import { AdminRoleGuard } from 'src/core/auth/guards/role-guard';
+
+import { findMediaFile, parseAndValidatePayload } from './utils';
+import { DOCUMENT_PAYLOAD_FIELD } from './constants';
 
 @Controller('documents')
 export class DocumentsController {
@@ -44,37 +51,12 @@ export class DocumentsController {
   @UseInterceptors(AnyFilesInterceptor())
   async create(
     @UploadedFiles() files: Express.Multer.File[],
-    @Body('documentData') documentDataRaw?: string,
-  ) {
+    @Body(DOCUMENT_PAYLOAD_FIELD) raw?: string,
+  ): Promise<DocumentResponseDto> {
     this.logger.log('📥 [POST /documents] Criando novo documento');
 
-    if (!documentDataRaw) {
-      this.logger.warn('❗ Campo "documentData" não enviado');
-      throw new AppBusinessException(
-        ErrorCode.INVALID_INPUT,
-        'Campo "documentData" não enviado.',
-      );
-    }
-
-    let dto: CreateDocumentDto;
-    try {
-      const parsed = JSON.parse(documentDataRaw) as Record<string, unknown>;
-      dto = plainToInstance(CreateDocumentDto, parsed);
-      await validateOrReject(dto);
-    } catch (error: unknown) {
-      this.logger.error(
-        '❌ Erro ao processar dados do documento',
-        error instanceof Error ? error.stack : error,
-      );
-      throw new AppBusinessException(
-        ErrorCode.INVALID_INPUT,
-        'Erro ao processar dados do documento.',
-      );
-    }
-
-    const file = dto.media?.fileField
-      ? files?.find((f) => f.fieldname === dto.media.fileField)
-      : undefined;
+    const dto = await parseAndValidatePayload(raw, CreateDocumentDto);
+    const file = findMediaFile(files, dto.media?.fileField);
 
     if (dto.media?.fileField && !file) {
       this.logger.warn(
@@ -87,15 +69,23 @@ export class DocumentsController {
     return result;
   }
 
+  /**
+   * Listagem do painel. Exige sessão: é o inventário administrativo dos
+   * documentos.
+   */
+  @UseGuards(JwtAuthGuard)
   @Get()
-  async findAll() {
-    this.logger.log('📄 [GET /documents] Listando todos os documentos');
-    return this.getService.findAll();
+  async findAllPaginated(
+    @Query() query: QueryDocumentsDto,
+  ): Promise<Paginated<DocumentResponseDto>> {
+    this.logger.debug('GET /documents');
+    return this.getService.findAllPaginated(query);
   }
 
   @Get(':id')
-  async findOne(@Param('id', ParseUUIDPipe) id: string) {
-    this.logger.log(`🔍 [GET /documents/${id}] Buscando documento`);
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<DocumentResponseDto> {
     return this.getService.findOne(id);
   }
 
@@ -105,38 +95,15 @@ export class DocumentsController {
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @UploadedFiles() files: Express.Multer.File[],
-    @Body('documentData') documentDataRaw?: string,
-  ) {
+    @Body(DOCUMENT_PAYLOAD_FIELD) raw?: string,
+  ): Promise<DocumentResponseDto> {
     this.logger.log(`✏️ [PATCH /documents/${id}] Atualizando documento`);
 
-    if (!documentDataRaw) {
-      this.logger.warn('❗ Campo "documentData" não enviado');
-      throw new AppBusinessException(
-        ErrorCode.INVALID_INPUT,
-        'Campo "documentData" não enviado.',
-      );
-    }
+    const dto = await parseAndValidatePayload(raw, UpdateDocumentDto);
+    // O id da URL manda: o corpo repete o campo só por compatibilidade.
+    dto.id = id;
 
-    let dto: UpdateDocumentDto;
-    try {
-      const parsed = JSON.parse(documentDataRaw) as Record<string, unknown>;
-      dto = plainToInstance(UpdateDocumentDto, parsed);
-      dto.id = id;
-      await validateOrReject(dto);
-    } catch (error: unknown) {
-      this.logger.error(
-        '❌ Erro ao processar dados do documento',
-        error instanceof Error ? error.stack : error,
-      );
-      throw new AppBusinessException(
-        ErrorCode.INVALID_INPUT,
-        'Erro ao processar dados do documento.',
-      );
-    }
-
-    const file = dto.media?.fileField
-      ? files?.find((f) => f.fieldname === dto.media.fileField)
-      : undefined;
+    const file = findMediaFile(files, dto.media?.fileField);
 
     if (dto.media?.fileField && !file) {
       this.logger.warn(
@@ -151,10 +118,10 @@ export class DocumentsController {
 
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Delete(':id')
-  async remove(@Param('id', ParseUUIDPipe) id: string) {
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     this.logger.log(`🗑️ [DELETE /documents/${id}] Removendo documento`);
-    const result = await this.deleteService.execute(id);
+    await this.deleteService.execute(id);
     this.logger.log(`✅ Documento removido com sucesso: ID=${id}`);
-    return result;
   }
 }

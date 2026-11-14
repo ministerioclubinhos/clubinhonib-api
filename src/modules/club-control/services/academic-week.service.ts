@@ -1,14 +1,21 @@
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Inject, Injectable, forwardRef } from '@nestjs/common';
 import { ClubPeriodEntity } from '../entities/club-period.entity';
-import { getAcademicWeekYear } from 'src/modules/pagelas/week.util';
+import { ClubControlRepository } from '../repositories/club-control.repository';
+import {
+  formatDateOnly,
+  getAcademicWeek,
+  parseDateOnly,
+  referenceYearOf,
+} from 'src/shared/academic-week/academic-week.util';
+import { todayInAppTimezone } from 'src/shared/calendar-day/calendar-day.util';
 
 @Injectable()
 export class AcademicWeekService {
   constructor(
-    @InjectRepository(ClubPeriodEntity)
-    private readonly periodsRepository: Repository<ClubPeriodEntity>,
+    // O repositório importa este serviço de volta: sem `forwardRef` a classe
+    // chega `undefined` na hora de resolver a injeção e a aplicação não sobe.
+    @Inject(forwardRef(() => ClubControlRepository))
+    private readonly clubControlRepository: ClubControlRepository,
   ) {}
 
   async calculateCurrentAcademicWeek(): Promise<{
@@ -18,11 +25,30 @@ export class AcademicWeekService {
     periodStartDate: string | null;
     periodEndDate: string | null;
   } | null> {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const period = await this.periodsRepository.findOne({
-      where: { year: currentYear, isActive: true },
-    });
+    // "Hoje" no fuso do Clubinho. O relógio do processo (UTC no contêiner) já
+    // está no dia seguinte a partir das 21h, e `toISOString()` sobre uma
+    // meia-noite local devolvia a véspera em fuso positivo.
+    const today = todayInAppTimezone();
+    const currentYear = referenceYearOf(today);
+
+    // O período corrente é o que **contém** hoje, e não o que leva o número do
+    // ano civil: um período letivo pode atravessar a virada (o de 2026 indo
+    // até janeiro de 2027), e em janeiro a busca só por `year = 2027` dizia
+    // "fora do período" no meio das aulas. Olha-se o ano corrente e os dois
+    // vizinhos; `findPeriodByYear` já traz só o período ativo.
+    const [current, previous, next] = await Promise.all([
+      this.clubControlRepository.findPeriodByYear(currentYear),
+      this.clubControlRepository.findPeriodByYear(currentYear - 1),
+      this.clubControlRepository.findPeriodByYear(currentYear + 1),
+    ]);
+
+    const containing = [current, previous, next].find(
+      (candidate): candidate is ClubPeriodEntity =>
+        !!candidate && getAcademicWeek(today, candidate) !== null,
+    );
+    // Nenhum contém hoje: o do ano corrente ainda serve para informar as
+    // datas de quem está fora dele.
+    const period = containing ?? current;
 
     if (!period) {
       return {
@@ -34,12 +60,9 @@ export class AcademicWeekService {
       };
     }
 
-    const startDate = new Date(period.startDate + 'T00:00:00');
-    const endDate = new Date(period.endDate + 'T23:59:59');
-    const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const nowDateStr = nowDate.toISOString().split('T')[0];
+    const weekData = getAcademicWeek(today, period);
 
-    if (nowDate < startDate || nowDate > endDate) {
+    if (!weekData) {
       return {
         academicYear: period.year,
         academicWeek: 0,
@@ -49,30 +72,13 @@ export class AcademicWeekService {
       };
     }
 
-    try {
-      const weekData = getAcademicWeekYear(
-        nowDateStr,
-        period.startDate,
-        period.endDate,
-        period.year,
-      );
-
-      return {
-        academicYear: weekData.year,
-        academicWeek: weekData.week,
-        isWithinPeriod: true,
-        periodStartDate: period.startDate,
-        periodEndDate: period.endDate,
-      };
-    } catch {
-      return {
-        academicYear: period.year,
-        academicWeek: 0,
-        isWithinPeriod: false,
-        periodStartDate: period.startDate,
-        periodEndDate: period.endDate,
-      };
-    }
+    return {
+      academicYear: weekData.year,
+      academicWeek: weekData.week,
+      isWithinPeriod: true,
+      periodStartDate: period.startDate,
+      periodEndDate: period.endDate,
+    };
   }
 
   getExpectedDateForAcademicWeek(
@@ -97,8 +103,9 @@ export class AcademicWeekService {
       throw new Error(`Invalid weekday: ${weekday}`);
     }
 
-    const periodStartDate = new Date(period.startDate + 'T00:00:00');
-    const startWeekStart = this.getWeekStartDate(periodStartDate);
+    const startWeekStart = this.getWeekStartDate(
+      parseDateOnly(period.startDate),
+    );
 
     const academicWeekStart = new Date(startWeekStart);
     academicWeekStart.setDate(startWeekStart.getDate() + (week - 1) * 7);
@@ -113,12 +120,21 @@ export class AcademicWeekService {
 
     date.setDate(academicWeekStart.getDate() + dayDiff);
 
-    return date.toISOString().split('T')[0];
+    return formatDateOnly(date);
   }
 
+  /**
+   * Quantas semanas letivas o período tem.
+   *
+   * As datas são lidas como dia de calendário. Com `new Date('2026-03-02')` a
+   * leitura era meia-noite **UTC**: em fuso negativo isso caía no domingo
+   * anterior, o início do período ia para a semana de trás e o total saía com
+   * uma semana a mais. O efeito era concreto — `checkClubWeek` deixava passar
+   * uma semana que não existe, e todo clubinho aparecia devendo pagela dela.
+   */
   calculateMaxAcademicWeek(period: ClubPeriodEntity): number {
-    const start = new Date(period.startDate);
-    const end = new Date(period.endDate);
+    const start = parseDateOnly(period.startDate);
+    const end = parseDateOnly(period.endDate);
 
     const startWeekStart = this.getWeekStartDate(start);
     const endWeekStart = this.getWeekStartDate(end);
@@ -225,9 +241,9 @@ export class AcademicWeekService {
       return true;
     }
 
-    const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
-    return todayStr > expectedDate;
+    // Hoje no fuso do Clubinho: `toISOString()` é UTC, e a partir das 21h no
+    // Brasil já devolvia o dia seguinte — o clubinho de hoje virava atrasado.
+    return todayInAppTimezone() > expectedDate;
   }
 
   getWeekStartDate(date: Date): Date {

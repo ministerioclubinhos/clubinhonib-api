@@ -1,87 +1,77 @@
-import { ChildEntity } from '../entities/child.entity';
+import { toRecordAuthor } from 'src/shared/record-author/record-author.util';
 import { AddressEntity } from 'src/modules/addresses/entities/address.entity/address.entity';
+import { toAcceptedChristShort } from 'src/modules/accepted-christs/mappers';
+
 import {
   AddressResponseDto,
+  ChildClubDto,
   ChildListItemDto,
   ChildResponseDto,
 } from '../dto/child-response.dto';
-import { AcceptedChristShortDto } from 'src/modules/accepted-christs/dtos/accepted-christ-short.dto';
+import { ChildEntity } from '../entities/child.entity';
+import { Gender } from '../entities/gender.enum';
+import { toDateOnly, toIsoDateTime } from '../utils';
 
-const dateOnly = (v: unknown): string | null => {
-  if (v === null || v === undefined) return null;
+/**
+ * Sexo gravado na coluna textual.
+ *
+ * Cadastros anteriores à validação podem trazer outro texto; nesse caso o
+ * contrato devolve masculino, que é o padrão histórico do formulário.
+ */
+const toGender = (value: string): Gender =>
+  value === (Gender.FEMALE as string) ? Gender.FEMALE : Gender.MALE;
 
-  if (v instanceof Date && !isNaN(v.getTime())) {
-    return v.toISOString().slice(0, 10);
-  }
-
-  if (typeof v !== 'string' && typeof v !== 'number') return null;
-
-  const s = String(v).trim();
-  const m = s.match(/^(\d{4}-\d{2}-\d{2})$/);
-  if (m) return m[1];
-
-  const d = new Date(s);
-  return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
-};
-
-const toIsoDateTime = (v: unknown): string => {
-  const s = String(v);
-  if (/\d{4}-\d{2}-\d{2}T/.test(s)) return s;
-  const d = v instanceof Date ? v : new Date(s);
-  return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
-};
-
-export const toChildListItemDto = (e: ChildEntity): ChildListItemDto => ({
-  id: e.id,
-  name: e.name,
-  guardianName: e.guardianName,
-  gender: e.gender,
-  guardianPhone: e.guardianPhone,
-  isActive: e.isActive,
-  clubId: e.club?.id ?? null,
-  acceptedChrists: (e.acceptedChrists ?? []).map(
-    (a): AcceptedChristShortDto => ({
-      id: a.id,
-      decision: a.decision,
-      createdAt: a.createdAt.toISOString(),
-      updatedAt: a.updatedAt.toISOString(),
-    }),
-  ),
-});
+const toClub = (entity: ChildEntity): ChildClubDto | null =>
+  entity.club
+    ? {
+        id: entity.club.id,
+        number: entity.club.number,
+        weekday: String(entity.club.weekday),
+      }
+    : null;
 
 export const toAddressDto = (
-  a: AddressEntity | null | undefined,
+  address: AddressEntity | null | undefined,
 ): AddressResponseDto | null => {
-  if (!a) return null;
+  if (!address) return null;
+
   return {
-    id: a.id,
-    street: a.street ?? '',
-    number: a.number ?? undefined,
-    district: a.district ?? '',
-    city: a.city ?? '',
-    state: a.state ?? '',
-    postalCode: a.postalCode ?? '',
-    complement: a.complement ?? undefined,
+    id: address.id,
+    street: address.street ?? '',
+    number: address.number ?? null,
+    district: address.district ?? '',
+    city: address.city ?? '',
+    state: address.state ?? '',
+    postalCode: address.postalCode ?? '',
+    complement: address.complement ?? null,
   };
 };
 
-export const toChildResponseDto = (e: ChildEntity): ChildResponseDto => ({
-  id: e.id,
-  name: e.name,
-  birthDate: dateOnly(e.birthDate)!,
-  guardianName: e.guardianName,
-  gender: e.gender,
-  guardianPhone: e.guardianPhone,
-  joinedAt: dateOnly(e.joinedAt),
-  isActive: e.isActive,
-  club: e.club
-    ? {
-        id: e.club.id,
-        number: e.club.number,
-        weekday: String(e.club.weekday),
-      }
-    : null,
-  address: toAddressDto(e.address),
-  createdAt: toIsoDateTime(e.createdAt),
-  updatedAt: toIsoDateTime(e.updatedAt),
+export const toChildListItemDto = (entity: ChildEntity): ChildListItemDto => ({
+  id: entity.id,
+  name: entity.name,
+  guardianName: entity.guardianName,
+  gender: toGender(entity.gender),
+  guardianPhone: entity.guardianPhone,
+  isActive: entity.isActive,
+  clubId: entity.club?.id ?? null,
+  // O recorte curto é montado pelo módulo dono da decisão, num lugar só.
+  acceptedChrists: (entity.acceptedChrists ?? []).map(toAcceptedChristShort),
+});
+
+export const toChildResponseDto = (entity: ChildEntity): ChildResponseDto => ({
+  id: entity.id,
+  name: entity.name,
+  birthDate: toDateOnly(entity.birthDate) ?? '',
+  guardianName: entity.guardianName,
+  gender: toGender(entity.gender),
+  guardianPhone: entity.guardianPhone,
+  joinedAt: toDateOnly(entity.joinedAt),
+  isActive: entity.isActive,
+  club: toClub(entity),
+  address: toAddressDto(entity.address),
+  createdBy: toRecordAuthor(entity.createdBy),
+  updatedBy: toRecordAuthor(entity.updatedBy),
+  createdAt: toIsoDateTime(entity.createdAt),
+  updatedAt: toIsoDateTime(entity.updatedAt),
 });

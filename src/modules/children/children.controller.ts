@@ -14,7 +14,11 @@ import {
 } from '@nestjs/common';
 import { Request } from 'express';
 
-import { ChildrenService } from './children.service';
+import { GetChildrenService } from './services/get-children.service';
+import { CreateChildrenService } from './services/create-children.service';
+import { UpdateChildrenService } from './services/update-children.service';
+import { DeleteChildrenService } from './services/delete-children.service';
+
 import { CreateChildDto } from './dto/create-child.dto';
 import { UpdateChildDto } from './dto/update-child.dto';
 import {
@@ -31,14 +35,19 @@ import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 @Controller('children')
 @UseGuards(JwtAuthGuard)
 export class ChildrenController {
-  constructor(private readonly service: ChildrenService) {}
+  constructor(
+    private readonly getService: GetChildrenService,
+    private readonly createService: CreateChildrenService,
+    private readonly updateService: UpdateChildrenService,
+    private readonly deleteService: DeleteChildrenService,
+  ) {}
 
   @Get()
   async findAll(
     @Query() query: QueryChildrenDto,
     @Req() req: Request,
   ): Promise<PaginatedResponseDto<ChildResponseDto>> {
-    return this.service.findAll(query, req);
+    return this.getService.findAll(query, req);
   }
 
   @Get('simple')
@@ -46,7 +55,7 @@ export class ChildrenController {
     @Query() query: QueryChildrenSimpleDto,
     @Req() req: Request,
   ): Promise<PaginatedResponseDto<ChildListItemDto>> {
-    return this.service.findAllSimples(query, req);
+    return this.getService.findAllSimples(query, req);
   }
 
   @Get(':id')
@@ -54,7 +63,7 @@ export class ChildrenController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Req() req: Request,
   ): Promise<ChildResponseDto> {
-    return this.service.findOne(id, req);
+    return this.getService.findOne(id, req);
   }
 
   @Post()
@@ -62,7 +71,7 @@ export class ChildrenController {
     @Body() dto: CreateChildDto,
     @Req() req: Request,
   ): Promise<ChildResponseDto> {
-    return this.service.create(dto, req);
+    return this.createService.create(dto, req);
   }
 
   @Put(':id')
@@ -71,7 +80,7 @@ export class ChildrenController {
     @Body() dto: UpdateChildDto,
     @Req() req: Request,
   ): Promise<ChildResponseDto> {
-    return this.service.update(id, dto, req);
+    return this.updateService.update(id, dto, req);
   }
 
   @Delete(':id')
@@ -79,7 +88,7 @@ export class ChildrenController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Req() req: Request,
   ): Promise<{ ok: true }> {
-    await this.service.remove(id, req);
+    await this.deleteService.remove(id, req);
     return { ok: true };
   }
 
@@ -88,6 +97,6 @@ export class ChildrenController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Req() req: Request,
   ): Promise<ChildResponseDto> {
-    return this.service.toggleActive(id, req);
+    return this.updateService.toggleActive(id, req);
   }
 }

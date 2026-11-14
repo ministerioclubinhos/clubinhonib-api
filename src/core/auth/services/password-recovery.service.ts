@@ -1,54 +1,64 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, Logger } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { GetUsersService } from '../../user/services/get-user.service';
 import { UpdateUserService } from '../../user/services/update-user.service';
-import { EmailService } from '../../../shared/providers/aws/email.service';
-import { SesIdentityService } from '../../../shared/providers/aws/ses-identity.service';
-import { EmailTemplateGenerator } from '../../../shared/email-template-generator';
+import { EmailService } from 'src/shared/email';
 import { ForgotPasswordDto } from '../dto/forgot-password.dto';
 import { ResetPasswordDto } from '../dto/reset-password.dto';
 import { PasswordResetTokenRepository } from '../repositories/password-reset-token.repository';
+import { SiteUrlService } from 'src/shared/site-url';
 import {
-  AppNotFoundException,
-  AppBusinessException,
-  ErrorCode,
-} from 'src/shared/exceptions';
+  AUTH_EMAIL_PATHS,
+  AUTH_TOKEN_BYTES,
+  PASSWORD_RESET_TTL_MINUTES,
+  PASSWORD_SETUP_TTL_HOURS,
+} from '../constants';
+import { AppBusinessException, ErrorCode } from 'src/shared/exceptions';
+import {
+  ForgotPasswordResponseDto,
+  ResetPasswordResponseDto,
+  ValidateResetTokenResponseDto,
+} from '../dto/auth-response.dto';
+
+/**
+ * A recuperação responde sempre isto, com ou sem conta correspondente.
+ */
+const GENERIC_FORGOT_PASSWORD_RESPONSE = {
+  status: 'RESET_LINK_SENT',
+  message:
+    'Se houver uma conta com esse e-mail, as instruções de recuperação foram enviadas.',
+} as const;
 
 @Injectable()
 export class PasswordRecoveryService {
+  private readonly logger = new Logger(PasswordRecoveryService.name);
+
   constructor(
-    private getUsersService: GetUsersService,
-    private updateUserService: UpdateUserService,
-    private emailService: EmailService,
-    private passwordResetTokenRepo: PasswordResetTokenRepository,
-    private sesIdentityService: SesIdentityService,
-    private configService: ConfigService,
+    private readonly getUsersService: GetUsersService,
+    private readonly updateUserService: UpdateUserService,
+    private readonly emailService: EmailService,
+    private readonly passwordResetTokenRepo: PasswordResetTokenRepository,
+    private readonly siteUrlService: SiteUrlService,
   ) {}
 
-  async forgotPassword(data: ForgotPasswordDto) {
+  /**
+   * Sempre responde a mesma coisa, exista ou não a conta: uma resposta
+   * diferente por e-mail inexistente entrega ao atacante quais endereços estão
+   * cadastrados.
+   */
+  async forgotPassword(
+    data: ForgotPasswordDto,
+  ): Promise<ForgotPasswordResponseDto> {
     const user = await this.getUsersService.findByEmail(data.email);
+
     if (!user) {
-      throw new AppNotFoundException(
-        ErrorCode.USER_NOT_FOUND,
-        'Email não encontrado',
-      );
+      this.logger.warn('Recuperação pedida para e-mail sem cadastro.');
+      return GENERIC_FORGOT_PASSWORD_RESPONSE;
     }
 
-    const sesCheck =
-      await this.sesIdentityService.checkAndResendSesVerification(user.email);
-
-    if (sesCheck.verificationEmailSent || !sesCheck.alreadyVerified) {
-      return {
-        status: 'VERIFICATION_EMAIL_SENT',
-        message:
-          'Seu email ainda não foi verificado. Um novo email de verificação foi enviado.',
-      };
-    }
-
-    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetToken = crypto.randomBytes(AUTH_TOKEN_BYTES).toString('hex');
     const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + 30);
+    expiresAt.setMinutes(expiresAt.getMinutes() + PASSWORD_RESET_TTL_MINUTES);
 
     await this.passwordResetTokenRepo.invalidateTokensForUser(user.id);
     await this.passwordResetTokenRepo.createToken(
@@ -57,28 +67,51 @@ export class PasswordRecoveryService {
       expiresAt,
     );
 
-    const baseUrl = this.getBaseUrl();
-    const resetLink = `${baseUrl}/recuperar-senha/${resetToken}`;
-
-    const emailHtml = EmailTemplateGenerator.generatePasswordRecovery(
-      user.name,
-      resetLink,
+    // `EmailService` não lança: uma falha de envio é registrada lá e a resposta
+    // segue igual. É o que a rota precisa — ela responde a mesma coisa para
+    // endereço existente e inexistente, de propósito, e um erro só no caso do
+    // endereço que existe revelaria quem tem conta.
+    await this.emailService.sendPasswordRecovery(
+      { id: user.id, name: user.name, email: user.email },
+      {
+        recipientName: user.name,
+        resetLink: this.siteUrlService.buildUrl(
+          AUTH_EMAIL_PATHS.passwordReset,
+          resetToken,
+        ),
+      },
     );
 
-    await this.emailService.sendEmailViaSES(
-      user.email,
-      'Recuperação de Senha - Clubinhos NIB',
-      `Olá ${user.name},\n\nRecebemos uma solicitação para redefinir sua senha.\nClique no link abaixo: \n${resetLink}`,
-      emailHtml,
-    );
-
-    return {
-      status: 'RESET_LINK_SENT',
-      message: 'As instruções de recuperação foram enviadas para o seu email.',
-    };
+    return GENERIC_FORGOT_PASSWORD_RESPONSE;
   }
 
-  async validateResetToken(token: string) {
+  /**
+   * Emite um link para a pessoa **definir** a primeira senha.
+   *
+   * É o mesmo token da recuperação, com validade maior: quem chama é a criação
+   * de conta pela coordenação, e a alternativa — mandar uma senha provisória no
+   * corpo do e-mail — deixaria uma credencial válida guardada para sempre na
+   * caixa de entrada.
+   *
+   * Não manda e-mail: devolve a URL, e quem pediu decide o que dizer. Assim o
+   * texto das boas-vindas mora no módulo de usuário, e não no de autenticação.
+   */
+  async issuePasswordSetupLink(userId: string): Promise<string> {
+    const token = crypto.randomBytes(AUTH_TOKEN_BYTES).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + PASSWORD_SETUP_TTL_HOURS);
+
+    // Invalida o que houver antes de emitir: dois links vivos para a mesma
+    // conta significam que o mais antigo continua servindo se vazar.
+    await this.passwordResetTokenRepo.invalidateTokensForUser(userId);
+    await this.passwordResetTokenRepo.createToken(userId, token, expiresAt);
+
+    return this.siteUrlService.buildUrl(AUTH_EMAIL_PATHS.passwordReset, token);
+  }
+
+  async validateResetToken(
+    token: string,
+  ): Promise<ValidateResetTokenResponseDto> {
     const validToken = await this.passwordResetTokenRepo.findValidToken(token);
     if (!validToken) {
       throw new AppBusinessException(
@@ -89,7 +122,9 @@ export class PasswordRecoveryService {
     return { valid: true, email: validToken.user.email };
   }
 
-  async resetPassword(dto: ResetPasswordDto) {
+  async resetPassword(
+    dto: ResetPasswordDto,
+  ): Promise<ResetPasswordResponseDto> {
     const validToken = await this.passwordResetTokenRepo.findValidToken(
       dto.token,
     );
@@ -108,34 +143,17 @@ export class PasswordRecoveryService {
 
     await this.passwordResetTokenRepo.deleteToken(dto.token);
 
-    const baseUrl = this.getBaseUrl();
-    const emailHtml = EmailTemplateGenerator.generatePasswordChanged(
-      user.name,
-      baseUrl,
-    );
-
-    await this.emailService.sendEmailViaSES(
-      user.email,
-      'Senha Alterada com Sucesso - Clubinhos NIB',
-      `Olá ${user.name},\n\nSua senha foi alterada com sucesso.`,
-      emailHtml,
+    // O aviso é consequência, não parte da troca: quando ele sai, a senha já
+    // mudou e o token já foi apagado. `EmailService` não lança, então a
+    // resposta de sucesso não depende do provedor de e-mail estar de pé.
+    await this.emailService.sendPasswordChanged(
+      { id: user.id, name: user.name, email: user.email },
+      {
+        recipientName: user.name,
+        loginLink: this.siteUrlService.baseUrl,
+      },
     );
 
     return { message: 'Senha alterada com sucesso.' };
-  }
-
-  private getBaseUrl(): string {
-    const environment = this.configService.get<string>('ENVIRONMENT');
-
-    switch (environment) {
-      case 'local':
-        return 'http://localhost:5173';
-      case 'staging':
-        return 'https://staging.clubinhonib.com';
-      case 'production':
-        return 'https://clubinhonib.com';
-      default:
-        return 'http://localhost:5173';
-    }
   }
 }

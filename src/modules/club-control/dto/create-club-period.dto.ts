@@ -6,6 +6,8 @@ import {
   IsString,
   IsBoolean,
   IsOptional,
+  IsDateString,
+  MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -18,15 +20,16 @@ export class CreateClubPeriodDto {
   year: number;
 
   @IsNotEmpty()
-  @IsString()
+  @IsDateString()
   startDate: string;
 
   @IsNotEmpty()
-  @IsString()
+  @IsDateString()
   endDate: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   description?: string;
 
   @IsOptional()

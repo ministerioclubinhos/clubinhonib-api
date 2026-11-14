@@ -11,8 +11,25 @@ import {
 import { AuthRequest } from './auth.types';
 
 import { LoginDto } from './dto/login.dto';
+import {
+  AuthGoogleLoginResponseDto,
+  AuthLoginResponseDto,
+  AuthLogoutResponseDto,
+  AuthRegisterResponseDto,
+  AuthTokensResponseDto,
+  ForgotPasswordResponseDto,
+  LinkClubResponseDto,
+  ResendVerificationResponseDto,
+  ResetPasswordResponseDto,
+  ValidateResetTokenResponseDto,
+  VerifyEmailResponseDto,
+} from './dto/auth-response.dto';
+import { MyProfileResponseDto } from 'src/core/user/dto/my-profile-response.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RegisterUserDto } from './dto/register.dto';
+import { EmailVerificationService } from './services/email-verification.service';
+import { VerifyEmailDto } from './dto/verify-email.dto';
+import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { CompleteUserDto } from './dto/complete-register.dto';
 import { AuthService } from './services/auth.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -28,10 +45,11 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly passwordRecoveryService: PasswordRecoveryService,
+    private readonly emailVerificationService: EmailVerificationService,
   ) {}
 
   @Post('login')
-  async login(@Body() dto: LoginDto) {
+  async login(@Body() dto: LoginDto): Promise<AuthLoginResponseDto> {
     this.logger.log('User login attempt');
     const result = await this.authService.login(dto);
     this.logger.log('User logged in successfully');
@@ -39,7 +57,9 @@ export class AuthController {
   }
 
   @Post('google')
-  async googleLogin(@Body() body: { token: string }) {
+  async googleLogin(
+    @Body() body: { token: string },
+  ): Promise<AuthGoogleLoginResponseDto> {
     this.logger.log('Google login attempt');
     const result = await this.authService.googleLogin(body.token);
     this.logger.log('Google login successful');
@@ -47,7 +67,9 @@ export class AuthController {
   }
 
   @Post('refresh')
-  async refresh(@Body() body: { refreshToken: string }) {
+  async refresh(
+    @Body() body: { refreshToken: string },
+  ): Promise<AuthTokensResponseDto> {
     this.logger.log('Token refresh attempt');
     const result = await this.authService.refreshToken(body.refreshToken);
     this.logger.log('Token refreshed successfully');
@@ -56,7 +78,7 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Post('logout')
-  async logout(@Request() req: AuthRequest) {
+  async logout(@Request() req: AuthRequest): Promise<AuthLogoutResponseDto> {
     this.logger.log(`User logging out: ${req.user.userId}`);
     const result = await this.authService.logout(req.user.userId);
     this.logger.log(`User logged out successfully: ${req.user.userId}`);
@@ -65,12 +87,14 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Get('me')
-  getMe(@Request() req: AuthRequest) {
+  getMe(@Request() req: AuthRequest): Promise<MyProfileResponseDto> {
     return this.authService.getMe(req.user.userId);
   }
 
   @Post('complete-register')
-  async completeRegister(@Body() data: CompleteUserDto) {
+  async completeRegister(
+    @Body() data: CompleteUserDto,
+  ): Promise<AuthRegisterResponseDto> {
     this.logger.log('Completing user registration');
     const result = await this.authService.completeRegister(data);
     this.logger.log('User registration completed successfully');
@@ -78,7 +102,9 @@ export class AuthController {
   }
 
   @Post('register')
-  async register(@Body() data: RegisterUserDto) {
+  async register(
+    @Body() data: RegisterUserDto,
+  ): Promise<AuthRegisterResponseDto> {
     this.logger.log('Creating new user registration');
     const result = await this.authService.register(data);
     this.logger.log('User registered successfully');
@@ -86,28 +112,59 @@ export class AuthController {
   }
 
   @Post('forgot-password')
-  async forgotPassword(@Body() dto: ForgotPasswordDto) {
-    this.logger.log(`Password reset requested for: ${dto.email}`);
-    const result = await this.passwordRecoveryService.forgotPassword(dto);
-    this.logger.log(`Password reset processed for: ${dto.email}`);
-    return result;
+  async forgotPassword(
+    @Body() dto: ForgotPasswordDto,
+  ): Promise<ForgotPasswordResponseDto> {
+    // O endereço não entra no log: é dado pessoal e a rota é pública.
+    this.logger.log('Recuperação de senha solicitada.');
+    return this.passwordRecoveryService.forgotPassword(dto);
+  }
+
+  @Post('verify-email')
+  async verifyEmail(
+    @Body() dto: VerifyEmailDto,
+  ): Promise<VerifyEmailResponseDto> {
+    this.logger.log('Confirmação de e-mail recebida.');
+    const result = await this.emailVerificationService.verify(dto.token);
+    return {
+      message: 'E-mail confirmado com sucesso. Sua conta está ativa.',
+      email: result.email,
+    };
+  }
+
+  @Post('resend-verification')
+  async resendVerification(
+    @Body() dto: ResendVerificationDto,
+  ): Promise<ResendVerificationResponseDto> {
+    this.logger.log('Reenvio de confirmação de e-mail solicitado.');
+    const emailVerification = await this.emailVerificationService.resend(
+      dto.email,
+    );
+    return { emailVerification };
   }
 
   @Get('reset-password/validate')
-  async validateResetToken(@Query('token') token: string) {
+  async validateResetToken(
+    @Query('token') token: string,
+  ): Promise<ValidateResetTokenResponseDto> {
     this.logger.log(`Validating reset token`);
     return this.passwordRecoveryService.validateResetToken(token);
   }
 
   @Post('reset-password')
-  async resetPassword(@Body() dto: ResetPasswordDto) {
+  async resetPassword(
+    @Body() dto: ResetPasswordDto,
+  ): Promise<ResetPasswordResponseDto> {
     this.logger.log(`Resetting password with token`);
     return this.passwordRecoveryService.resetPassword(dto);
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('link-club')
-  async linkClub(@Request() req: AuthRequest, @Body() dto: LinkClubDto) {
+  async linkClub(
+    @Request() req: AuthRequest,
+    @Body() dto: LinkClubDto,
+  ): Promise<LinkClubResponseDto> {
     this.logger.log(
       `Teacher ${req.user.userId} solicitou vínculo ao clubinho #${dto.clubNumber}`,
     );

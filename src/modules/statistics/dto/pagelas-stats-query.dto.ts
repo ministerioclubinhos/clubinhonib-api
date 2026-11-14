@@ -6,9 +6,13 @@ import {
   IsString,
   IsEnum,
   IsBoolean,
+  IsDateString,
+  IsUUID,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { Transform } from 'class-transformer';
+import { PeriodShortcut } from './period-filter.dto';
+import { parseStrictBoolean } from './query-transformers';
 
 export class PagelasStatsQueryDto {
   @IsOptional()
@@ -26,28 +30,28 @@ export class PagelasStatsQueryDto {
   week?: number;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   startDate?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   endDate?: string;
 
   @IsOptional()
-  @IsString()
+  @IsUUID()
   clubId?: string;
 
   @IsOptional()
-  @IsString()
+  @IsUUID()
   teacherId?: string;
 
   @IsOptional()
-  @IsString()
+  @IsUUID()
   coordinatorId?: string;
 
   @IsOptional()
-  @IsString()
-  gender?: string;
+  @IsEnum(['M', 'F'])
+  gender?: 'M' | 'F';
 
   @IsOptional()
   @Type(() => Number)
@@ -76,25 +80,25 @@ export class PagelasStatsQueryDto {
   district?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   joinedAfter?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   joinedBefore?: string;
 
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
+  @Transform(parseStrictBoolean)
   @IsBoolean()
   onlyPresent?: boolean;
 
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
+  @Transform(parseStrictBoolean)
   @IsBoolean()
   onlyDidMeditation?: boolean;
 
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
+  @Transform(parseStrictBoolean)
   @IsBoolean()
   onlyRecitedVerse?: boolean;
 
@@ -103,6 +107,6 @@ export class PagelasStatsQueryDto {
   groupBy?: 'day' | 'week' | 'month' | 'year';
 
   @IsOptional()
-  @IsString()
-  period?: string;
+  @IsEnum(PeriodShortcut)
+  period?: PeriodShortcut;
 }

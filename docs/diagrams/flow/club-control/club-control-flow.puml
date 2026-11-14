@@ -1,0 +1,33 @@
+@startuml Club Control Flow - Clubinho NIB API
+!theme plain
+hide footbox
+title Club control — calendar rules and weekly status
+
+actor "Admin / Leader" as Client
+participant ClubControlController as Controller
+participant ClubControlService as Service
+participant AcademicWeekService as Week
+database "MySQL\nClubControlRepository" as Repository
+participant "Indicators / Notification services" as Output
+
+alt Manage academic periods or exceptions (admin)
+  Client -> Controller : CRUD /club-control/periods or exceptions
+  Controller -> Service : validated DTO
+  Service -> Repository : validate overlap and persist
+  Service -> Output : announce new exception in background
+  Service --> Client : response DTO
+else Check week, dashboard or weekly summary
+  Client -> Controller : GET check/dashboard/weekly-summary
+  Controller -> Service : year, academic week and filters
+  Service -> Week : resolve period and academic boundaries
+  Service -> Repository : aggregate clubs, children and pagelas
+  Repository --> Service : scoped weekly data
+  Service -> Output : derive status and indicators
+  Service --> Client : summary DTO
+end
+
+note over Service, Repository
+  Events read getCalendarRules(): active periods + exceptions.
+  No period or a week outside it produces empty operational results.
+end note
+@enduml

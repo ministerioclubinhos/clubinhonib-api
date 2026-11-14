@@ -40,10 +40,28 @@ Creates a new user manually. Only accessible by Admins.
 }
 ```
 
-### Response (`UserEntity`)
+### Response (`UserResponseDto`)
 
 - **Status**: `201 Created`
-- Returns the created User entity with ID.
+- Returns the public contract below. The route **never** returns the entity:
+  `password` and `refreshToken` are columns of `UserEntity` and must not leave
+  the API.
+
+```json
+{
+  "id": "uuid-1",
+  "name": "Alice Teacher",
+  "email": "alice@example.com",
+  "phone": "92999990000",
+  "cpf": null,
+  "role": "teacher",
+  "active": true,
+  "completed": false,
+  "commonUser": true,
+  "createdAt": "2026-01-15T12:00:00.000Z",
+  "updatedAt": "2026-01-15T12:00:00.000Z"
+}
+```
 
 ---
 
@@ -58,19 +76,25 @@ Retrieves a paginated list of users with optional filtering.
 
 | Param | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `page` | `int` | `1` | Page number. |
-| `limit` | `int` | `12` | Items per page. |
-| `q` | `string` | - | Search by name, email, or phone. |
-| `role` | `enum` | - | Filter by `user`, `admin`, `coordinator`, `teacher`. |
-| `active` | `bool` | - | Filter by active status (`true`/`false`). |
-| `sort` | `string` | `updatedAt` | Sort field: `name`, `email`, `createdAt`, etc. |
-| `order` | `enum` | `DESC` | Sort direction: `ASC` or `DESC`. |
+| `page` | `int` ≥ 1 | `1` | Page number. |
+| `limit` | `int` 1–100 | `12` | Items per page; the maximum is enforced by the DTO and again by the repository. |
+| `q` | `string` | - | Search by name, email, phone, or role. |
+| `role` | `UserRole` | - | `admin`, `coordinator` or `teacher`. Any other value is rejected with `400`. |
+| `active` | `bool` | - | `true`/`false`; anything else drops the filter. |
+| `completed` | `bool` | - | `true`/`false`. |
+| `sort` | `UserSortField` | `updatedAt` | `name`, `email`, `phone`, `role`, `createdAt`, `updatedAt`. |
+| `order` | `ASC` \| `DESC` | `DESC` | Case-insensitive. |
+
+Administrators are excluded from the listing: the screen manages who works in the
+clubinho, and one admin is not managed from there.
+
+Ordering breaks ties by `u.id`, so paging never repeats or skips a row.
 
 #### Example Request URL
 
 `GET /users?page=1&limit=10&role=teacher&sort=name&order=ASC`
 
-### Response
+### Response (`PaginatedUsersResponseDto`)
 
 - **Status**: `200 OK`
 
@@ -83,25 +107,23 @@ Retrieves a paginated list of users with optional filtering.
       "id": "uuid-1",
       "name": "Alice Teacher",
       "email": "alice@example.com",
+      "phone": "92999990000",
+      "cpf": null,
       "role": "teacher",
       "active": true,
-      "createdAt": "2024-01-15T12:00:00Z"
-    },
-    {
-      "id": "uuid-2",
-      "name": "Bob Coordinator",
-      "email": "bob@example.com",
-      "role": "coordinator",
-      "active": true,
-      "createdAt": "2024-01-10T12:00:00Z"
+      "completed": true,
+      "commonUser": false,
+      "createdAt": "2026-01-15T12:00:00.000Z",
+      "updatedAt": "2026-01-16T12:00:00.000Z"
     }
   ],
   "meta": {
-    "totalItems": 50,
-    "itemCount": 2,
-    "itemsPerPage": 10,
+    "page": 1,
+    "limit": 10,
+    "total": 50,
     "totalPages": 5,
-    "currentPage": 1
+    "sort": "updatedAt",
+    "order": "DESC"
   }
 }
 ```
@@ -123,8 +145,12 @@ Updates any user's account details.
 | `name` | `string` | No | `@IsString` | Update name. |
 | `email` | `string` | No | `@IsEmail` | Update email. |
 | `password` | `string` | No | `@MinLength(6)` | **Reset password** (Admin can overwrite). |
-| `role` | `enum` | No | `@IsEnum` | Change role. |
-| `active` | `boolean` | No | - | Activate/Deactivate. |
+| `phone` | `string` | No | `@IsString` | Update phone (digits only). |
+| `role` | `UserRole` | No | `@IsEnum` | Change role; the matching teacher/coordinator profile is created and the old one removed. |
+| `active` | `boolean` | No | `@IsBoolean` | Activate/Deactivate. The profile follows, but is **not** deleted — see below. |
+| `completed` | `boolean` | No | `@IsBoolean` | Mark the registration as complete. |
+| `commonUser` | `boolean` | No | `@IsBoolean` | Distinguishes a ministry account from a common one. |
+| `cpf` | `string` | No | `@IsString` | Unique; a duplicate returns `409`. |
 
 #### Example Request JSON
 
@@ -135,10 +161,22 @@ Updates any user's account details.
 }
 ```
 
-### Response
+#### Effect on the teacher/coordinator profile
+
+| Change | Profile | Club link |
+| :--- | :--- | :--- |
+| `active` toggled | `active` follows the account | **preserved** |
+| `role` changed | old profile deleted, new one created | old link dropped with the old profile |
+
+Deactivating used to delete the profile, taking the club link with it;
+reactivating produced a profile with no club and said nothing. See
+[Profile Administration](api-profiles-admin.md#4-relationships-and-lifecycle).
+
+### Response (`UserResponseDto`)
 
 - **Status**: `200 OK`
-- Returns updated User entity.
+- Same contract as the create route — the entity, with its password hash and
+  refresh token, never leaves the API.
 
 ---
 
@@ -152,7 +190,55 @@ Retrieves the currently logged-in user's profile.
 ### Response
 
 - **Status**: `200 OK`
-- Returns the full User object including specialized profiles (`teacherProfile`, etc.).
+- Returns `MyProfileResponseDto`.
+
+`GET /auth/me`, `PATCH /profile`, `PATCH /profile/image` and this endpoint all
+answer **the same** `MyProfileResponseDto`, built by `toMyProfileResponse`.
+`/auth/me` used to build its own copy that omitted `active`, `completed`,
+`createdAt` and `updatedAt`.
+
+```typescript
+{
+  id: string;
+  email: string;
+  name: string;
+  phone: string;
+  cpf: string | null;
+  role: string;
+  active: boolean;
+  completed: boolean;
+  commonUser: boolean;
+  createdAt: string;            // ISO
+  updatedAt: string;            // ISO
+  image: {                      // null when the user has no photo
+    id: string;
+    title: string | null;
+    description: string | null;
+    url: string;
+    uploadType: string;
+    mediaType: string;
+    isLocalFile: boolean;
+    platformType: string | null;
+    originalName: string | null;
+    size: number | null;
+  } | null;
+  personalData?: { ... };       // see profile-module.md
+  preferences?: { ... };        // see profile-module.md
+  teacherProfile: {             // null when the user is not a teacher
+    id: string;
+    active: boolean;
+    club: { id, number, weekday, time, isActive } | null;
+  } | null;
+  coordinatorProfile: {         // null when the user is not a coordinator
+    id: string;
+    active: boolean;
+    clubs: Array<{ id, number, weekday, time, isActive }>;
+  } | null;
+}
+```
+
+The frontend mirrors this as `MyProfile` in `src/features/profile/types.ts`,
+and it is also the Redux `User` — one declaration, not two.
 
 ---
 
@@ -170,6 +256,7 @@ Allows a user to update their own basic account information.
 | `name` | `string` | No | `@MinLength(2)` | Update display name. |
 | `email` | `string` | No | `@IsEmail` | Update contact email. |
 | `phone` | `string` | No | `@IsString` | Update phone. |
+| `cpf` | `string` | No | `@IsString` | Update CPF; conflicts answer `409`. |
 
 #### Example Request JSON
 
@@ -239,7 +326,11 @@ Uploads or updates the user's avatar.
 ### Response
 
 - **Status**: `200 OK`
-- Returns updated User object with new `imageUrl` or `image` relation.
+- `PATCH /profile/image` returns `MyProfileResponseDto` — the same contract as
+  `GET /profile` and `GET /auth/me`, already carrying the new `image`.
+- `PATCH /users/:id/image` returns `UserResponseDto`, the administrative
+  contract. It does not carry the media itself; read the profile route when the
+  new URL is needed.
 
 ---
 ⬅️ [Back to Documentation Hub](README.md)

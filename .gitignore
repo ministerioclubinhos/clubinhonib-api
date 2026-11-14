@@ -5,6 +5,8 @@
 
 # Logs
 logs
+# Registros de auditoria locais (AUDIT_STORAGE=file)
+audit
 *.log
 npm-debug.log*
 pnpm-debug.log*
@@ -61,3 +63,4 @@ pids
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 cloudformation/ec2/params-prod.json
 cloudformation/ec2/params-staging.json
+email-preview.html

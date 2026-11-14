@@ -1,0 +1,28 @@
+@startuml Coordinator Profiles Flow - Clubinho NIB API
+!theme plain
+hide footbox
+title Coordinator profiles — club responsibility
+
+actor "Admin / Coordinator" as Client
+participant CoordinatorProfilesController as Controller
+participant "Get / Update CoordinatorProfilesService" as Service
+database "MySQL\nCoordinatorProfilesRepository" as Repository
+
+alt List or detail
+  Client -> Controller : GET /coordinator-profiles
+  Controller -> Service : filters + access context
+  Service -> Repository : query allowed profiles and clubs
+  Repository --> Client : paginated profile DTOs
+else Assign or unassign
+  Client -> Controller : PATCH .../assign-club or unassign-club
+  Controller -> Service : coordinatorId + clubId
+  Service -> Service : require admin
+  Service -> Repository : assign only if club has no coordinator
+  Repository --> Client : success or 409 conflict
+else Explicit transfer
+  Client -> Controller : PATCH .../move-club
+  Controller -> Service : source + destination + clubId
+  Service -> Repository : move club atomically
+  Repository --> Client : success message
+end
+@enduml

@@ -1,23 +1,8 @@
-import { Exclude, Expose } from 'class-transformer';
-import { ClubEntity } from '../entities/club.entity/club.entity';
-
-@Exclude()
+/** Opção de clubinho usada nos seletores dos formulários. */
 export class ClubSelectOptionDto {
-  @Expose()
-  id!: string;
-
-  @Expose()
-  detalhe!: string;
-
-  @Expose()
-  coordinator!: boolean;
-}
-
-export function toClubSelectOption(entity: ClubEntity): ClubSelectOptionDto {
-  const bairro = entity.address?.district?.trim();
-  return {
-    id: entity.id,
-    detalhe: `Clubinho ${entity.number} : ${bairro || '—'}`,
-    coordinator: !!entity.coordinator,
-  };
+  id: string;
+  /** Rótulo pronto: `Clubinho 12 : Centro`. */
+  label: string;
+  /** Indica se o clubinho já tem coordenador. */
+  coordinator: boolean;
 }

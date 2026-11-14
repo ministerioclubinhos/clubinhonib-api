@@ -1,149 +1,140 @@
-const { ACADEMIC_YEAR, PAGELAS_CHILD_LIMIT, PAGELAS_DEBUG, PAGELAS_CHILD_ID } = require('../common/config');
-const { fetchAllPages } = require('../common/pagination');
+const { ACADEMIC_YEAR, PAGELAS_CHILD_LIMIT, PAGELAS_DEBUG, PAGELAS_CHILD_ID, THROTTLE_MS } = require('../common/config');
 const { sleep } = require('../common/sleep');
+const { ensureRoleClients } = require('../common/role-users');
+const { expectHttpError, errorStatus, errorMessage } = require('../common/errors');
+const { ensureAcademicPeriod } = require('../club-control/create');
+const { computeTotalWeeks, dateForWeek, startWeekFor, randomAttendance, loadChildren, listPagelasOfChild } = require('./shared');
 
-function parseDateOnly(input) {
-  if (!input) return null;
-  const datePart = String(input).split('T')[0];
-  const d = new Date(`${datePart}T00:00:00`);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function getWeekStart(date) {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  return new Date(d.setDate(diff));
-}
-
-function computeTotalWeeks(period) {
-  const start = parseDateOnly(period?.startDate);
-  const end = parseDateOnly(period?.endDate);
-  if (!start || !end) return 48;
-  const startWs = getWeekStart(start);
-  const endWs = getWeekStart(end);
-  const days = Math.floor((endWs - startWs) / (1000 * 60 * 60 * 24));
-  return Math.max(1, Math.floor(days / 7) + 1);
-}
-
-function getDateForWeek(period, week, weekday) {
-  const startDate = parseDateOnly(period.startDate);
-  if (!startDate) throw new Error(`Invalid period: startDate=${period?.startDate}`);
-
-  const periodWeekStart = getWeekStart(startDate);
-  const weekStart = new Date(periodWeekStart);
-  weekStart.setDate(periodWeekStart.getDate() + (week - 1) * 7);
-
-  const weekdayMap = { monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
-  const targetWeekday = weekdayMap[weekday] || 1;
-  const currentWeekday = weekStart.getDay() || 7;
-  weekStart.setDate(weekStart.getDate() + (targetWeekday - currentWeekday));
-
-  if (Number.isNaN(weekStart.getTime())) {
-    throw new Error(`Invalid generated date week=${week} weekday=${weekday}`);
-  }
-  return weekStart.toISOString().split('T')[0];
-}
-
+/**
+ * Pagelas de todas as semanas do período para cada criança, a partir da
+ * semana em que ela entrou. `week`/`year` não são enviados: a API os deriva de
+ * `referenceDate`, e é isso que se quer exercitar. Duplicata responde 409.
+ */
 async function run({ http, logger, ctx }) {
+  logger.section('pagelas/create');
+  const as = await ensureRoleClients({ http, logger, ctx });
   const year = ctx?.year ?? ACADEMIC_YEAR;
-  let weeks = ctx?.weeks ?? 48;
+  const period = ctx.period ?? (await ensureAcademicPeriod({ http, year }));
+  ctx.period = period;
+  const weeks = ctx?.weeks > 0 ? ctx.weeks : computeTotalWeeks(period);
 
-  
-  const periodRes = await http.request('get', `/club-control/periods/${year}`);
-  const period = periodRes.data;
-  if (!period?.startDate) throw new Error(`[pagelas/create] invalid period ${year}: ${JSON.stringify(period)}`);
-
-  
-  if (!weeks || weeks <= 0) {
-    weeks = computeTotalWeeks(period);
-  }
-
-  
-  const clubsRes = await http.request('get', '/clubs/all');
-  const clubs = Array.isArray(clubsRes.data) ? clubsRes.data : [];
+  const clubs = ctx.clubs ?? (await http.request('get', '/clubs/all')).data;
   const clubMap = new Map(clubs.map((c) => [c.id, c]));
-
-  
-  let children = await fetchAllPages(http.request, 'get', '/children', {}, { limit: 100 });
-  const childLimit = (ctx?.pagelasChildLimit ?? PAGELAS_CHILD_LIMIT) || 0;
-  if (childLimit > 0) children = children.slice(0, childLimit);
-  const forcedChildId = ctx?.pagelasChildId ?? PAGELAS_CHILD_ID;
-  if (forcedChildId) children = children.filter((c) => c?.id === forcedChildId);
-  logger.info(`[pagelas/create] creating pagelas year=${year} weeks=${weeks} for children=${children.length} (skip duplicates)...`);
+  const children = await loadChildren(http, { limit: ctx?.pagelasChildLimit ?? PAGELAS_CHILD_LIMIT, forcedId: ctx?.pagelasChildId ?? PAGELAS_CHILD_ID });
+  logger.info(`[pagelas/create] year=${year} weeks=${weeks} children=${children.length}`);
 
   let created = 0;
   let duplicates = 0;
-  let skippedByJoinedAt = 0;
+  let skipped = 0;
   let shownErrors = 0;
   for (const child of children) {
-    const club = clubMap.get(child.clubId || child.club?.id);
+    const club = clubMap.get(child.club?.id);
     const weekday = club?.weekday || 'saturday';
-
-    
-    let startWeek = 1;
-    if (child.joinedAt) {
-      const joinedDate = parseDateOnly(child.joinedAt);
-      const periodStart = parseDateOnly(period.startDate);
-      if (joinedDate && periodStart) {
-        const daysDiff = Math.floor((joinedDate - periodStart) / (1000 * 60 * 60 * 24));
-        startWeek = Math.max(1, Math.floor(daysDiff / 7) + 1);
-      }
-    }
+    const startWeek = startWeekFor(child, period);
     if (startWeek > weeks) {
-      skippedByJoinedAt++;
+      skipped++;
       continue;
     }
-
+    const existing = new Set((await listPagelasOfChild(http, child.id, year)).map((p) => p.week));
     for (let week = startWeek; week <= weeks; week++) {
+      if (existing.has(week)) {
+        duplicates++;
+        continue;
+      }
       try {
-        const referenceDate = getDateForWeek(period, week, weekday);
-        const present = Math.random() > 0.2;
-        const didMeditation = present && Math.random() > 0.3;
-        const recitedVerse = present && Math.random() > 0.4;
         await http.request('post', '/pagelas', {
-          data: {
-            childId: child.id,
-            referenceDate,
-            week,
-            year,
-            present,
-            didMeditation,
-            recitedVerse,
-            notes: present ? `Week ${week} - ${present ? 'Present' : 'Absent'}` : null,
-          },
+          data: { childId: child.id, referenceDate: dateForWeek(period, week, weekday), ...randomAttendance(week) },
         });
         created++;
-        if (created % 250 === 0) logger.info(`[pagelas/create] progress created=${created}`);
-        await sleep(5);
+        if (created % 250 === 0) logger.info(`[pagelas/create] progresso created=${created}`);
+        if (THROTTLE_MS > 0) await sleep(THROTTLE_MS);
       } catch (e) {
-        const status = e.response?.status;
-        const msg = e.response?.data?.message || e.response?.data || e.message;
-        
-        const isIgnored = status === 400 || status === 409 || status === 404;
-        if (isIgnored && typeof msg === 'string' && msg.includes('Pagela already exists')) {
+        const status = errorStatus(e);
+        if (status === 409) {
           duplicates++;
-          if (!PAGELAS_DEBUG) continue;
+          continue;
         }
-        if (!PAGELAS_DEBUG && isIgnored) continue;
-        if (shownErrors < 25) {
+        if (shownErrors < 25 || PAGELAS_DEBUG) {
           shownErrors++;
-          logger.warn(
-            `[pagelas/create] error child=${child.id} week=${week} status=${status ?? 'n/a'}: ${
-              msg
-            }`,
-          );
+          logger.warn(`[pagelas/create] child=${child.id} week=${week}: ${errorMessage(e)}`);
         }
       }
     }
   }
+  logger.ok(`[pagelas/create] created=${created} duplicates=${duplicates} skippedByJoinedAt=${skipped}`);
 
-  logger.info(
-    `[pagelas/create] OK created=${created} duplicates=${duplicates} skippedByJoinedAt=${skippedByJoinedAt}`,
+  // Cenários de contrato.
+  const child = children.find((c) => c.club?.id) ?? children[0];
+  if (child) {
+    await logger.check('POST /pagelas repetindo criança/semana responde 409', async () => {
+      const existing = (await listPagelasOfChild(http, child.id, year))[0];
+      if (!existing) return 'sem pagela para duplicar';
+      return expectHttpError(
+        () => http.request('post', '/pagelas', { data: { childId: child.id, referenceDate: existing.referenceDate, present: true, didMeditation: false, recitedVerse: false } }),
+        409,
+        'pagela duplicada',
+      );
+    });
+    await logger.check('POST /pagelas com data fora do período letivo responde 4xx', () =>
+      expectHttpError(
+        () => http.request('post', '/pagelas', { data: { childId: child.id, referenceDate: `${year}-01-01`, present: true, didMeditation: false, recitedVerse: false } }),
+        [400, 404, 409, 422],
+        'pagela fora do período',
+      ),
+    );
+    await logger.check('POST /pagelas com week/year explícitos', async () => {
+      const weekRes = await listPagelasOfChild(http, child.id, year);
+      const used = new Set(weekRes.map((p) => p.week));
+      const free = [...Array(weeks).keys()].map((i) => i + 1).find((w) => !used.has(w));
+      if (!free) return 'todas as semanas ocupadas; pulado';
+      const club = clubMap.get(child.club?.id);
+      const res = await http.request('post', '/pagelas', {
+        data: { childId: child.id, referenceDate: dateForWeek(period, free, club?.weekday || 'saturday'), week: free, year, present: false, didMeditation: false, recitedVerse: false, notes: 'Semana explícita' },
+      });
+      if (res.data.week !== free || res.data.year !== year) throw new Error('week/year não respeitados');
+      return `week=${free}`;
+    });
+    await logger.check('POST /pagelas com notes acima do limite responde 400/422', () =>
+      expectHttpError(
+        () => http.request('post', '/pagelas', { data: { childId: child.id, referenceDate: period.startDate, present: true, didMeditation: true, recitedVerse: true, notes: 'x'.repeat(5000) } }),
+        [400, 422],
+        'pagela notes',
+      ),
+    );
+  }
+
+  if (as.teacher) {
+    const me = await as.teacher.request('get', '/auth/me');
+    const ownClub = me.data?.teacherProfile?.club?.id;
+    const ownChild = children.find((c) => c.club?.id === ownClub);
+    const otherChild = children.find((c) => c.club?.id && c.club.id !== ownClub);
+    if (ownChild) {
+      await logger.check('POST /pagelas como professor para criança do próprio clubinho (com teacherProfileId)', async () => {
+        const existing = new Set((await listPagelasOfChild(as.teacher, ownChild.id, year)).map((p) => p.week));
+        const free = [...Array(weeks).keys()].map((i) => i + 1).find((w) => !existing.has(w));
+        if (!free) return 'sem semana livre; pulado';
+        const res = await as.teacher.request('post', '/pagelas', {
+          data: { childId: ownChild.id, teacherProfileId: me.data.teacherProfile.id, referenceDate: dateForWeek(period, free, clubMap.get(ownClub)?.weekday || 'saturday'), present: true, didMeditation: true, recitedVerse: false },
+        });
+        if (res.data.teacherProfileId !== me.data.teacherProfile.id) throw new Error('teacherProfileId não gravado');
+        return `week=${res.data.week}`;
+      });
+    }
+    if (otherChild) {
+      await logger.check('POST /pagelas como professor para criança de outro clubinho responde 403', () =>
+        expectHttpError(
+          () => as.teacher.request('post', '/pagelas', { data: { childId: otherChild.id, referenceDate: period.startDate, present: true, didMeditation: false, recitedVerse: false } }),
+          403,
+          'pagela teacher alheio',
+        ),
+      );
+    }
+  }
+  await logger.check('POST /pagelas anônimo responde 401', () =>
+    expectHttpError(() => as.anonymous.request('post', '/pagelas', { data: {} }), 401, 'pagela anônimo'),
   );
-  return { created, duplicates, skippedByJoinedAt };
+
+  return { created, duplicates, skipped };
 }
 
 module.exports = { run };
-
-

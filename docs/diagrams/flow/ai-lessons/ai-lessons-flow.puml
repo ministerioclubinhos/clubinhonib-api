@@ -1,0 +1,176 @@
+@startuml
+title Estúdio Clubinho — produção, revisão e publicação
+actor Administrador
+participant Frontend
+participant "AI Lessons API" as API
+database MySQL
+queue "Fila de IA (Redis/BullMQ)" as Queue
+database "Progresso (Redis)" as Progress
+participant "Provedor salvo (OpenAI/Gemini)" as LLM
+collections S3
+participant "Materiais da semana" as Week
+
+== Configuração ==
+Administrador -> Frontend: configura provedor e parâmetros
+Frontend -> API: PUT /lessons/providers/settings
+API -> MySQL: transação com lock: OpenAI + Gemini + escolha ativa
+note right of API
+  apiKey criptografada (enc:v2) quando há chave mestra
+  Resposta só informa hasApiKey
+  Provedor ativo sem chave -> 400
+end note
+
+== Criação ==
+Administrador -> Frontend: cria pacote
+Frontend -> API: POST /lessons (REGULAR ou SPECIAL)
+API -> MySQL: transação: lição + etapas (8 no semanal, 3 no especial)
+
+== Produção (por etapa, na ordem) ==
+loop cada etapa
+  Administrador -> Frontend: gerar
+  Frontend -> API: POST /stages/generate
+  API -> API: valida pedido (visual inválido -> 400)
+  API -> MySQL: snapshot de provedor + prompt efetivo no pedido; etapa GENERATING
+  API -> Progress: abre o registro: etapa, fase WRITING, imagens pedidas, início
+  API --> Frontend: lição + generation (sem aguardar a IA)
+
+  group tentativa em segundo plano (máx. 3 por pedido)
+    API -> MySQL: lease com UUID da tentativa, relógio do banco (30 s, renovada a cada 10 s)
+    API -> Queue: texto (reaproveita checkpoint se o upstream não mudou)
+    Queue -> LLM: uma chamada por job
+    LLM --> Queue: JSON
+    Queue --> API: resultado
+    API -> API: validação local e correções limitadas
+    API -> MySQL: checkpoint do texto
+    API -> Queue: prompt mestre das imagens (base + orientações do admin + lição + plano)
+    Queue -> LLM
+    LLM --> Queue: direção de arte, fichas e uma parte por imagem
+    Queue --> API
+    API -> MySQL: checkpoint com o prompt mestre (falhou 2x -> segue sem ele)
+    API -> Progress: fase IMAGES, total e imagens já reaproveitadas
+    loop cada arte
+      API -> Queue: imagem
+      Queue -> LLM
+      LLM --> Queue: PNG/JPEG
+      Queue --> API
+      API -> API: valida assinatura e tamanho (15 MiB)
+      API -> S3: upload
+      API -> MySQL: checkpoint da URL
+      API -> Progress: completedImages + 1
+    end
+    API -> Progress: fase SAVING
+    API -> MySQL: transação: lock + posse da lease + upstream inalterado -> versão + etapa
+    API -> Progress: remove o registro (sucesso ou falha)
+  end
+
+  group acompanhamento (qualquer tela, inclusive após recarregar)
+    Frontend -> API: GET /lessons/generations/active
+    API -> Progress: registros vivos (TTL 120 s, renovado a cada 10 s)
+    API --> Frontend: lição, etapa, fase, imagens prontas, percentual, início
+    Frontend -> API: GET /:id/events (SSE)
+    API -> Progress: progresso entra no digest
+    API --> Frontend: snapshot a cada imagem pronta
+  end
+  note right of API
+    Lease perdida ou desligamento -> aborta a tentativa
+    Falha -> restaura status anterior, mantém versão anterior, failureCode
+    Upstream mudou -> UPSTREAM_CHANGED e remove uploads
+    3 tentativas -> GENERATION_ATTEMPTS_EXHAUSTED
+    Redis do progresso fora do ar -> generation null; a geração segue
+  end note
+
+  opt não gostou de uma ou mais imagens
+    Administrador -> Frontend: marca as imagens e (opcional) descreve o ajuste
+    Frontend -> API: POST /stages/regenerate-images (lockVersion, assetIds, instructions?)
+    API -> API: valida escolha (inexistente/conjunto -> 400; versão antiga -> 409)
+    API -> MySQL: pedido com checkpoint pronto: texto atual + URLs das imagens mantidas
+    note right of API
+      Algumas imagens -> reutiliza o prompt mestre da versão
+      Todas as imagens -> prompt mestre é escrito de novo
+    end note
+    note right of API
+      Segue a mesma tentativa em segundo plano:
+      só as imagens escolhidas são geradas
+      Falha -> status e versão anteriores; imagens mantidas intactas
+    end note
+  end
+
+  Administrador -> Frontend: edita e salva
+  Frontend -> API: PATCH /stages/content (lockVersion)
+  API -> MySQL: reconcilia AST sobre o dado do servidor -> nova versão;\nposteriores STALE só fora de um ciclo de revisão
+  Administrador -> Frontend: conclui
+  Frontend -> API: POST /stages/complete-production (lockVersion, acknowledgeStale?)
+  API -> MySQL: prontidão + etapa anterior concluída -> PRODUCER_APPROVED
+end
+
+== Revisão ==
+Frontend -> API: POST /package/submit-review
+API -> MySQL: PACKAGE_READY -> IN_REVIEW
+loop cada item
+  Frontend -> API: GET /stages/:stage/preview.pdf (lockVersion, versionId)
+  alt aprovar
+    Frontend -> API: POST /stages/approve (lockVersion)
+    API -> API: gera o PDF do item (fora do lock; cache por versão)
+    alt PDF não sai
+      API --> Frontend: 422/503 LESSON_9314 com o nome do item
+    else PDF gerado
+      API -> MySQL: versão sob lock = versão renderizada + prontidão -> APPROVED
+    end
+  else devolver
+    Frontend -> API: POST /stages/request-changes (lockVersion, note)
+    API -> MySQL: CHANGES_REQUESTED + observação aberta
+  end
+end
+opt erro notado após a última aprovação
+  Frontend -> API: POST /stages/reopen (lockVersion, note)
+  API -> MySQL: READY_FOR_PUBLICATION -> CHANGES_REQUESTED
+end
+opt correção de um item devolvido ou reaberto
+  Frontend -> API: PATCH /stages/content ou POST /stages/generate (só esse item)
+  API -> MySQL: item -> DRAFT; demais itens mantêm o status
+  Frontend -> API: complete-production + submit-review
+  API -> MySQL: só o item corrigido volta a IN_REVIEW
+end
+note right of API
+  Ciclo de revisão: alguma etapa IN_REVIEW, APPROVED ou CHANGES_REQUESTED.
+  Nele, salvar ou regenerar um item não invalida nenhum outro.
+  Item APPROVED ou IN_REVIEW não é regenerado (409): reabrir ou devolver antes.
+end note
+
+== Publicação ==
+Administrador -> Frontend: abre a confirmação
+Frontend -> API: GET /publication-preview
+API -> Week: página vinculada + materiais da mesma semana (ou mesmo título, no especial)
+API --> Frontend: título, quantidade de PDFs, material vinculado, duplicatas (aviso, não bloqueia)
+Administrador -> Frontend: publicar
+Frontend -> API: POST /publish-week-material
+API -> MySQL: lock da lição
+alt lição PUBLISHED com material existente
+  API --> Frontend: vínculo existente
+else READY_FOR_PUBLICATION, ou PUBLISHED com material apagado (republicar)
+  API -> MySQL: limpa vínculo antigo; PUBLISHING + lease (60 s) + versões reservadas
+  API -> Week: procura material por sourceLessonId
+  alt material já existe (recuperação)
+    API -> MySQL: PUBLISHED + weekMaterialId existente
+  else publicação
+    API -> API: um PDF por etapa aprovada (cache da aprovação);\nfalha -> LESSON_9314 com o nome do item
+    API -> MySQL: confere posse da lease
+    API -> Week: cria página (título, descrição, documentos, sourceLessonId,\nbase do path = "Semana N" no semanal)
+    Week -> Week: path livre: base, base_1, base_2 (colisão na gravação -> próximo sufixo)
+    Week --> API: weekMaterialId (aviso por e-mail: semana ou especial)
+    API -> MySQL: PUBLISHED + vínculo (a página criada é a fonte da verdade)
+  end
+end
+API --> Frontend: { lesson, weekMaterialId }
+note right of API
+  Falha antes de criar o material -> READY_FOR_PUBLICATION
+  Reconciliador a cada 5 s conclui ou libera publicações com lease vencida
+  Reserva perdida com página criada -> PUBLISHED; item reaberto na mesma
+  versão volta a APPROVED
+  Lição ARCHIVED não é publicada
+end note
+
+== Pós-publicação ==
+Frontend -> API: POST /archive ou /unarchive
+API -> MySQL: PUBLISHED <-> ARCHIVED
+@enduml

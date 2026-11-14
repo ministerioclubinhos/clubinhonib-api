@@ -1,4 +1,4 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   AppNotFoundException,
   AppInternalException,
@@ -6,19 +6,19 @@ import {
 } from 'src/shared/exceptions';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
-import { DocumentRepository } from '../document.repository';
-import { RouteService } from 'src/modules/routes/route.service';
+import { DocumentsRepository } from '../repositories/documents.repository';
+import { DeleteRouteService } from 'src/modules/routes/services/delete-route.service';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
+import { DOCUMENT_MEDIA_TARGET_TYPES } from '../constants';
 
 @Injectable()
 export class DeleteDocumentService {
   private readonly logger = new Logger(DeleteDocumentService.name);
 
   constructor(
-    @Inject(DocumentRepository)
-    private readonly documentRepo: DocumentRepository,
+    private readonly documentRepo: DocumentsRepository,
     private readonly s3Service: AwsS3Service,
-    private readonly routeService: RouteService,
+    private readonly deleteRouteService: DeleteRouteService,
 
     private readonly mediaItemProcessor: MediaItemProcessor,
   ) {}
@@ -26,7 +26,7 @@ export class DeleteDocumentService {
   async execute(id: string): Promise<void> {
     this.logger.log(`🗑️ [DELETE] Iniciando remoção do documento ID=${id}`);
 
-    const document = await this.documentRepo.findOneById(id);
+    const document = await this.documentRepo.findById(id);
     if (!document) {
       this.logger.warn(`⚠️ Documento não encontrado: ID=${id}`);
       throw new AppNotFoundException(
@@ -36,9 +36,9 @@ export class DeleteDocumentService {
     }
 
     try {
-      const media = await this.mediaItemProcessor.findMediaItemsByTarget(
+      const media = await this.mediaItemProcessor.findMediaItemsByTargetAnyType(
         id,
-        'document',
+        DOCUMENT_MEDIA_TARGET_TYPES,
       );
       if (media.length > 0) {
         await this.mediaItemProcessor.deleteMediaItems(media, (url: string) =>
@@ -48,7 +48,10 @@ export class DeleteDocumentService {
       }
 
       await this.documentRepo.remove(document);
-      await this.routeService.removeRouteByEntity(MediaTargetType.Document, id);
+      await this.deleteRouteService.removeRouteByEntity(
+        MediaTargetType.Document,
+        id,
+      );
       this.logger.log(`🛤️ Rota removida`);
 
       this.logger.log(`✅ Documento removido com sucesso: ID=${id}`);

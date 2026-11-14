@@ -1,0 +1,55 @@
+@startuml Events Management Flow - Clubinho NIB API
+!theme plain
+hide footbox
+
+title Events — administrative mutations
+
+actor Admin as admin
+participant "Guarded EventController" as controller
+participant "Create / Update / Delete\nEventService" as service
+database "MySQL\nEvent + media repositories" as db
+participant MediaItemProcessor as media
+participant "AWS S3" as s3
+participant "Route / Schedule /\nAnnouncement services" as support
+
+admin -> controller : POST, PATCH or DELETE /events
+controller -> service : validated DTO + optional file
+
+alt Create
+  service -> db : create event
+  service -> media : process optional media
+  media -> s3 : upload optional file
+  media -> db : persist optional media metadata
+  service -> support : calculate occurrences + announce created
+  service --> admin : 201 EventResponseDto
+else Update
+  service -> db : load event or CONTENT_8604
+  service -> service : reject club event (CONTENT_8613)
+  service -> db : save changed event fields
+  service -> media : replace media when supplied
+  media -> s3 : upload replacement, then delete old object
+  media -> db : persist replacement metadata
+  service -> support : calculate occurrences + announce updated
+  service --> admin : 200 EventResponseDto
+else Delete
+  service -> db : load event or CONTENT_8604
+  service -> service : reject club event (CONTENT_8613)
+  service -> media : remove media
+  media -> s3 : delete owned objects
+  media -> db : remove media rows
+  service -> support : remove owned route
+  service -> db : remove event and related rows
+  service -> support : announce cancellation
+  service --> admin : 204 No Content
+end
+
+note over db, s3
+  Club-linked events are maintained only by the club module.
+  Failed writes discard newly uploaded, unreferenced objects.
+end note
+
+note over support
+  Announcements start after persistence and never block the request.
+end note
+
+@enduml

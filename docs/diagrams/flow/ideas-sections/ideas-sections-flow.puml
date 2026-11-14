@@ -1,0 +1,66 @@
+@startuml
+hide footbox
+title Shared ideas — immutable submission, enhancement and review
+actor Teacher
+actor Admin
+participant "Ideas section services" as API
+database "MySQL: projection + snapshot\nattempts + choices" as DB
+participant "Lease worker" as Worker
+participant "Configured OpenAI / Gemini" as AI
+participant "Media service / S3" as S3
+Teacher -> API : POST title, description, typed uploads / YouTube
+API -> API : Validate MIME, extension, size, URL and ownership
+API -> S3 : Upload originals with rollback tracking
+API -> DB : Transaction: idea + media + immutable snapshot
+API --> Teacher : 201 persisted (immediate success)
+opt Automatic enhancement enabled and provider configured
+ API -> DB : Detached enqueue FULL PENDING (no wait for teacher)
+end
+Admin -> API : POST /:id/ai-enhancement {scope, mediaIds?, instructions?}
+API -> API : Provider ready? (400 IDEA_AI_8623 otherwise)
+API -> DB : Lock idea; refuse published / active / counted limit (5)
+API -> DB : Resolve scope: FULL | TEXT | MEDIA | FAILED;\nbase = current result for partial scopes
+API --> Admin : 202
+opt Admin cancels
+ Admin -> API : DELETE /:id/ai-enhancement/active
+ API -> DB : SKIPPED/CANCELLED (not counted)
+end
+Worker -> DB : Claim with lease on DB clock; claim_count + 1
+alt claim_count reached limit
+ Worker -> DB : FAILED / STALLED (not counted)
+end
+Worker -> AI : Only targeted text / documents / images\n(+ admin instructions for text and documents)
+AI --> Worker : Structured result
+Worker -> Worker : Per-field text guard, structure / image guards
+Worker -> AI : Independent essence judge
+Worker -> DB : Renew lease + progress per item
+Worker -> S3 : Stage approved PDF + DOCX / images
+Worker -> DB : Lock idea; verify owner; untargeted items and\nfailed redos carried over from base; save attempt
+note over Worker,DB
+ A partial attempt becomes current only if something it redid succeeded.
+ Queue outage / missing provider abort with uncounted codes.
+ Videos are skipped; people get no generative edits.
+ Invalidated lease discards late output and staged uploads.
+end note
+opt Admin restores an earlier result
+ Admin -> API : PATCH /:id/ai-enhancement/:attemptId/current
+ API -> DB : Lock; no active attempt; set current
+end
+Admin -> API : GET /:id
+API --> Admin : Original + active + current + history + published choices
+Admin -> API : Attach with version decisions + final (edited) text
+alt Active attempt and explicit publish-original confirmation
+ API -> DB : Cancel lease; publish the reviewed draft as sent
+else Current approved result
+ API -> DB : Validate enhancementId and per-item choices;\nkeep admin text, record edited flag
+end
+API -> DB : Save separate publication projection + choices atomically
+API -> S3 : Post-commit cleanup of unreferenced temporary assets
+note over DB,S3
+ Original sources and historical improvements remain referenced.
+ Only deletion of the idea/page removes their complete history.
+end note
+Admin -> API : Reject idea / delete page or section
+API -> DB : Transaction: lock, history, sources, artifacts, projection
+API -> S3 : Post-commit delete only unreferenced owned objects
+@enduml

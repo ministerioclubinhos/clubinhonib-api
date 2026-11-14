@@ -1,21 +1,12 @@
-import { InformativeEntity } from '../entities/informative.entity';
-
+/** Contrato de resposta de `/informatives`. */
 export class InformativeResponseDto {
   id: string;
   title: string;
   description: string;
+  /** Visível para quem não está autenticado. */
   public: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-
-  static fromEntity(entity: InformativeEntity): InformativeResponseDto {
-    return {
-      id: entity.id,
-      title: entity.title,
-      description: entity.description,
-      public: entity.public,
-      createdAt: entity.createdAt,
-      updatedAt: entity.updatedAt,
-    };
-  }
+  /** Endereço público do informativo; `null` quando não tem rota. */
+  routePath: string | null;
+  createdAt: string;
+  updatedAt: string;
 }

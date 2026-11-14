@@ -36,6 +36,20 @@ export class UserEntity extends BaseEntity {
   @Column({ nullable: true, type: 'text' })
   refreshToken: string | null;
 
+  /**
+   * Quando a pessoa pediu para parar de receber os avisos enviados a toda a
+   * base; `null` enquanto ela recebe.
+   *
+   * Guarda o instante, e não um sim/não: saber desde quando alguém saiu explica
+   * por que ela não recebeu um aviso, o que um booleano não conta.
+   *
+   * Só os avisos param. E-mail de recuperação de senha, de confirmação e de
+   * senha alterada continuam saindo: são resposta a uma ação que a pessoa
+   * acabou de fazer, e cortá-los a trancaria para fora da própria conta.
+   */
+  @Column({ type: 'datetime', nullable: true })
+  noticesUnsubscribedAt: Date | null;
+
   @OneToOne(() => TeacherProfileEntity, (p) => p.user)
   teacherProfile?: TeacherProfileEntity | null;
 

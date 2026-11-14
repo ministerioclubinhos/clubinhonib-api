@@ -1,32 +1,36 @@
 import {
+  Body,
   Controller,
+  Delete,
   Get,
+  Logger,
+  Param,
+  ParseUUIDPipe,
   Post,
   Put,
-  Delete,
-  Body,
-  Param,
-  UseGuards,
-  Request,
-  ForbiddenException,
   Query,
-  Logger,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
-import { Request as ExpressRequest } from 'express';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { AdminRoleGuard } from '../../auth/guards/role-guard';
-import { AuthContextService } from '../../auth/services/auth-context.service';
+import { Request } from 'express';
+
+import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
+import { AuthContextService } from 'src/core/auth/services/auth-context.service';
+import { AppUnauthorizedException, ErrorCode } from 'src/shared/exceptions';
+
 import { CreateCompleteProfileDto } from '../dto/create-complete-profile.dto';
 import { UpdateCompleteProfileDto } from '../dto/update-complete-profile.dto';
 import { CompleteProfileResponseDto } from '../dto/complete-profile-response.dto';
 import { QueryProfilesDto } from '../dto/query-profiles.dto';
 import { PaginatedProfilesResponseDto } from '../dto/paginated-profiles-response.dto';
+import { ProfileBirthdayResponseDto } from '../dto/profile-birthday-response.dto';
 import { CreateProfileService } from '../services/profile/create-profile.service';
 import { GetAllProfilesService } from '../services/profile/get-all-profiles.service';
 import { GetOneProfileService } from '../services/profile/get-one-profile.service';
 import { UpdateProfileService } from '../services/profile/update-profile.service';
 import { DeleteProfileService } from '../services/profile/delete-profile.service';
-import { UserRole } from '../../auth/auth.types';
+import { ProfileAccessContext } from '../types';
+import { assertCanListProfiles, assertCanManageOtherProfiles } from '../utils';
 
 @Controller('profiles')
 @UseGuards(JwtAuthGuard)
@@ -34,7 +38,7 @@ export class ProfileController {
   private readonly logger = new Logger(ProfileController.name);
 
   constructor(
-    private readonly authContextService: AuthContextService,
+    private readonly authContext: AuthContextService,
     private readonly createProfileService: CreateProfileService,
     private readonly getAllProfilesService: GetAllProfilesService,
     private readonly getOneProfileService: GetOneProfileService,
@@ -42,112 +46,117 @@ export class ProfileController {
     private readonly deleteProfileService: DeleteProfileService,
   ) {}
 
+  /**
+   * Quem está pedindo. Ler o token é transporte: os casos de uso recebem só o
+   * papel e o id, nunca a requisição.
+   */
+  private async contextOf(request: Request): Promise<ProfileAccessContext> {
+    const payload = await this.authContext.tryGetPayload(request);
+
+    if (!payload?.sub) {
+      throw new AppUnauthorizedException(
+        ErrorCode.TOKEN_MISSING,
+        'Sessão inválida',
+      );
+    }
+
+    // O papel vai como veio: quem normaliza é `normalizeRole`.
+    return { role: payload.role, userId: payload.sub };
+  }
+
   @Post()
   async createProfile(
-    @Request() req: ExpressRequest,
-    @Body() createProfileDto: CreateCompleteProfileDto,
+    @Req() request: Request,
+    @Body() dto: CreateCompleteProfileDto,
   ): Promise<CompleteProfileResponseDto> {
-    const userId = await this.authContextService.getUserId(req);
-    if (!userId) throw new ForbiddenException('User not authenticated');
-    this.logger.log(`Creating profile for user: ${userId}`);
-    const result = await this.createProfileService.execute(
-      userId,
-      createProfileDto,
-    );
-    this.logger.log(`Profile created successfully for user: ${userId}`);
-    return result;
+    const { userId } = await this.contextOf(request);
+    this.logger.debug('POST /profiles');
+
+    return this.createProfileService.execute(userId as string, dto);
   }
 
   @Get()
   async getAllProfiles(
-    @Request() req: ExpressRequest,
-    @Query() queryDto: QueryProfilesDto,
+    @Req() request: Request,
+    @Query() query: QueryProfilesDto,
   ): Promise<PaginatedProfilesResponseDto> {
-    const userId = await this.authContextService.getUserId(req);
-    if (!userId) throw new ForbiddenException('User not authenticated');
+    const context = await this.contextOf(request);
+    assertCanListProfiles(context);
+    this.logger.debug('GET /profiles');
 
-    const userRole = await this.authContextService.getRole(req);
-    if (!userRole) throw new ForbiddenException('User role not found');
+    return this.getAllProfilesService.execute(context, query);
+  }
 
-    if (userRole !== UserRole.ADMIN && userRole !== UserRole.COORDINATOR) {
-      throw new ForbiddenException(
-        'Only admins and coordinators can list profiles',
-      );
-    }
+  /**
+   * Aniversariantes do mês.
+   *
+   * A faixa da tela usava a listagem completa com `limit=1000` para descobrir
+   * isto, trazendo perfis inteiros de quem nem faz aniversário no mês.
+   */
+  @Get('birthdays')
+  async getBirthdays(
+    @Req() request: Request,
+  ): Promise<ProfileBirthdayResponseDto[]> {
+    const context = await this.contextOf(request);
+    assertCanListProfiles(context);
 
-    return this.getAllProfilesService.execute(userId, userRole, queryDto);
+    return this.getAllProfilesService.findBirthdaysOfCurrentMonth(context);
   }
 
   @Get('me')
   async getMyProfile(
-    @Request() req: ExpressRequest,
+    @Req() request: Request,
   ): Promise<CompleteProfileResponseDto> {
-    const userId = await this.authContextService.getUserId(req);
-    if (!userId) throw new ForbiddenException('User not authenticated');
-    return this.getOneProfileService.execute(userId);
-  }
-
-  @Get(':id')
-  @UseGuards(AdminRoleGuard)
-  async getProfileById(
-    @Param('id') id: string,
-  ): Promise<CompleteProfileResponseDto> {
-    return this.getOneProfileService.execute(id);
+    const { userId } = await this.contextOf(request);
+    return this.getOneProfileService.execute(userId as string);
   }
 
   @Put('me')
   async updateMyProfile(
-    @Request() req: ExpressRequest,
-    @Body() updateProfileDto: UpdateCompleteProfileDto,
+    @Req() request: Request,
+    @Body() dto: UpdateCompleteProfileDto,
   ): Promise<CompleteProfileResponseDto> {
-    const userId = await this.authContextService.getUserId(req);
-    if (!userId) throw new ForbiddenException('User not authenticated');
+    // Todo mundo edita o próprio perfil. A versão anterior liberava apenas
+    // administrador, coordenador e professor, então o usuário comum recebia
+    // 403 ao salvar os próprios dados em /meu-perfil.
+    const { userId } = await this.contextOf(request);
+    this.logger.debug('PUT /profiles/me');
 
-    const userRole = await this.authContextService.getRole(req);
+    return this.updateProfileService.execute(userId as string, dto);
+  }
 
-    if (userRole === UserRole.TEACHER || userRole === UserRole.COORDINATOR) {
-      this.logger.log(`Updating own profile for user: ${userId}`);
-      const result = await this.updateProfileService.execute(
-        userId,
-        updateProfileDto,
-      );
-      this.logger.log(`Own profile updated successfully for user: ${userId}`);
-      return result;
-    }
+  @Get(':id')
+  async getProfileById(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() request: Request,
+  ): Promise<CompleteProfileResponseDto> {
+    assertCanManageOtherProfiles(await this.contextOf(request));
 
-    if (userRole === UserRole.ADMIN) {
-      this.logger.log(`Admin updating profile for user: ${userId}`);
-      const result = await this.updateProfileService.execute(
-        userId,
-        updateProfileDto,
-      );
-      this.logger.log(`Profile updated successfully for user: ${userId}`);
-      return result;
-    }
-
-    throw new ForbiddenException('Insufficient permissions');
+    return this.getOneProfileService.execute(id);
   }
 
   @Put(':id')
-  @UseGuards(AdminRoleGuard)
   async updateProfileById(
-    @Param('id') id: string,
-    @Body() updateProfileDto: UpdateCompleteProfileDto,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateCompleteProfileDto,
+    @Req() request: Request,
   ): Promise<CompleteProfileResponseDto> {
-    this.logger.log(`Updating profile by ID: ${id}`);
-    const result = await this.updateProfileService.execute(
-      id,
-      updateProfileDto,
-    );
-    this.logger.log(`Profile updated successfully: ${id}`);
-    return result;
+    assertCanManageOtherProfiles(await this.contextOf(request));
+    this.logger.debug(`PUT /profiles/${id}`);
+
+    return this.updateProfileService.execute(id, dto);
   }
 
   @Delete(':id')
-  @UseGuards(AdminRoleGuard)
-  async deleteProfile(@Param('id') id: string): Promise<void> {
-    this.logger.log(`Deleting profile: ${id}`);
+  async deleteProfile(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() request: Request,
+  ): Promise<{ message: string }> {
+    assertCanManageOtherProfiles(await this.contextOf(request));
+    this.logger.debug(`DELETE /profiles/${id}`);
+
     await this.deleteProfileService.execute(id);
-    this.logger.log(`Profile deleted successfully: ${id}`);
+
+    return { message: 'Perfil removido com sucesso' };
   }
 }

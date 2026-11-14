@@ -1,0 +1,31 @@
+@startuml Profiles Flow - Clubinho NIB API
+!theme plain
+hide footbox
+title Profiles — composed account data
+
+actor "Authenticated user" as Client
+participant ProfileController as Controller
+participant "Create / Get / Update / Delete ProfileService" as Service
+participant "User service" as Users
+database "MySQL\nProfile + media repositories" as Repository
+participant MediaItemProcessor as Media
+participant "AWS S3" as S3
+
+Client -> Controller : /profiles request
+Controller -> Controller : build role and user access context
+Controller -> Service : validated DTO / query + context
+Service -> Users : load account allowed by scope
+Users --> Service : user or not found
+Service -> Repository : read or persist profile blocks
+Repository --> Service : personal data + preferences
+Service -> Media : load profile image when reading
+Media -> Repository : query media metadata
+Media --> Service : image or null
+Service --> Client : CompleteProfileResponseDto / page
+Client -> S3 : load image from returned URL
+
+note over Controller, Service
+  Owners manage /me. Admins manage any profile.
+  Coordinators only list profiles within their permitted scope.
+end note
+@enduml
