@@ -1,16 +1,23 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import { UnsubscribeTokenService } from 'src/shared/email/unsubscribe-token.service';
-import { AppValidationException, ErrorCode } from 'src/shared/exceptions';
+import {
+  AppNotFoundException,
+  AppValidationException,
+  ErrorCode,
+} from 'src/shared/exceptions';
 
+import { MyEmailPreferencesResponseDto } from '../dto/my-email-preferences.dto';
 import { EmailPreferencesResponseDto } from '../dto/unsubscribe-notices.dto';
 import { UserRepository } from '../user.repository';
+import { toMyEmailPreferences } from '../utils';
 
 /**
  * A preferência de recebimento de avisos.
  *
- * Quem chega aqui vem do link no rodapé de um e-mail, sem sessão: o token é a
- * única credencial, e ele só serve para isto.
+ * Dois caminhos gravam o mesmo campo (`noticesUnsubscribedAt`): o link no
+ * rodapé de um e-mail, sem sessão (o token é a única credencial), e a chave
+ * "Receber avisos por e-mail" nas configurações de notificação, com sessão.
  */
 @Injectable()
 export class UpdateEmailPreferencesService {
@@ -62,5 +69,35 @@ export class UpdateEmailPreferencesService {
         'E-mails de recuperação de senha e de confirmação de conta continuam ' +
         'chegando, porque respondem a algo que você mesmo pedir.',
     };
+  }
+
+  /**
+   * A pessoa logada liga ou desliga os avisos por e-mail.
+   *
+   * Desligar mantém a data da primeira saída (idempotente, como o link);
+   * religar limpa a data e a pessoa volta às listas de avisos.
+   */
+  async updateMine(
+    userId: string,
+    noticesEnabled: boolean,
+  ): Promise<MyEmailPreferencesResponseDto> {
+    const user = await this.userRepo.findById(userId);
+    if (!user) {
+      throw new AppNotFoundException(
+        ErrorCode.USER_NOT_FOUND,
+        'Usuário não encontrado.',
+      );
+    }
+
+    const unsubscribedAt = noticesEnabled
+      ? null
+      : (user.noticesUnsubscribedAt ?? new Date());
+    if (unsubscribedAt !== user.noticesUnsubscribedAt) {
+      await this.userRepo.setNoticesUnsubscribedAt(userId, unsubscribedAt);
+      this.logger.log(
+        `Usuário ${userId} ${noticesEnabled ? 'voltou à' : 'saiu da'} lista de avisos pelas configurações.`,
+      );
+    }
+    return toMyEmailPreferences(unsubscribedAt);
   }
 }

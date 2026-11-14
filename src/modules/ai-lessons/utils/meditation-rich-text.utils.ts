@@ -64,7 +64,7 @@ export function meditationRichNodes(
   const nodes = Array.isArray(document?.content)
     ? document.content.map(object)
     : [];
-  const activity = Number(field.match(/^activity([1-3])$/)?.[1]);
+  const activity = Number(field.match(/^activity([1-4])$/)?.[1]);
   const marker = activity ? MEDITATION_ACTIVITY_FIELDS[activity - 1] : field;
   const marked = nodes.filter(
     (node) => object(node.attrs).meditationField === marker,

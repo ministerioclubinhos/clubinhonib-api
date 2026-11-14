@@ -1,9 +1,7 @@
 import { LessonStageType } from '../enums/lesson.enums';
 import { LESSON_BASE_PROMPT } from './lesson-editorial.constants';
-import {
-  OLDER_MEDITATION_BASE_PROMPT,
-  YOUNGER_MEDITATION_BASE_PROMPT,
-} from './meditation-prompts.constants';
+import { YOUNGER_MEDITATION_BASE_PROMPT } from './meditation-prompts.constants';
+import { OLDER_MEDITATION_BASE_PROMPT } from './older-meditation-prompt.constants';
 
 /** Immutable base prompt of each regular stage; administrators only append to it. */
 export const LESSON_STAGE_BASE_PROMPTS: Record<LessonStageType, string> = {

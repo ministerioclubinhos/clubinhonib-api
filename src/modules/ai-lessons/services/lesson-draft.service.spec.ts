@@ -522,13 +522,22 @@ describe('LessonDraftService workflow safety', () => {
       LessonStageType.MEDITATION_OLDER,
       {
         title: 'Meditação para crianças maiores',
-        biblicalText: 'Hoje vamos descobrir...',
+        biblicalText: 'Ressurreição de Lázaro / O filho da viúva',
         introduction: 'Jesus tem poder sobre a morte.',
       },
     );
     expect(result.title).toBe(lesson.theme);
-    expect(result.biblicalText).toBe(lesson.biblicalReference);
+    // The subtitle names the stories, as in the printed sheets.
+    expect(result.biblicalText).toBe(
+      'Ressurreição de Lázaro / O filho da viúva',
+    );
     expect(result.introduction).toBe('Jesus tem poder sobre a morte.');
+    const withoutStories = target.validateCanonicalContent(
+      lesson,
+      LessonStageType.MEDITATION_OLDER,
+      { title: 'x', biblicalText: '', introduction: '' },
+    );
+    expect(withoutStories.biblicalText).toBe(lesson.biblicalReference);
   });
 
   it('entrega ao editor o cabeçalho separado de uma versão já salva', async () => {

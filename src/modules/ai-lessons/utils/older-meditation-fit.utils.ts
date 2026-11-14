@@ -1,5 +1,6 @@
 import { UnprocessableEntityException } from '@nestjs/common';
 import { isPuzzleGridBlock, isPuzzleGridRow } from './meditation-grid.utils';
+import { codeLegendPairs } from './meditation-code.utils';
 import { olderMeditationRichHeight } from './older-meditation-measure.utils';
 import { OLDER_MEDITATION_LAYOUT as O } from '../constants/older-meditation-layout.constants';
 import { OLDER_MEDITATION_MAX_ACTIVITIES } from '../constants/lesson-document.constants';
@@ -113,11 +114,23 @@ export function fitOlderMeditationSheet(
           // Grid letters are native cells, never prose words to be wrapped.
           const hasGrid = isPuzzleGridBlock(gridLines);
           const gridRows = hasGrid ? gridLines.length : 0;
-          const prose = hasGrid
-            ? lines.filter((line) => !isPuzzleGridRow(line)).join('\n')
-            : activity.instruction;
+          // Code legends print as boxed rows (symbol above, meaning below).
+          const legendRows = lines.reduce((sum, line) => {
+            const pairs = codeLegendPairs(line);
+            return (
+              sum +
+              (pairs ? Math.ceil(pairs.length / O.codeLegendColumns) * 2 : 0)
+            );
+          }, 0);
+          const prose = lines
+            .filter(
+              (line) =>
+                !(hasGrid && isPuzzleGridRow(line)) && !codeLegendPairs(line),
+            )
+            .join('\n');
           const textHeight =
             wrappedLines(prose, columns) * fontSize * O.lineHeight +
+            legendRows * (fontSize * O.lineHeight + O.gridPadding) +
             gridRows *
               Math.min(
                 O.gridCellSize,

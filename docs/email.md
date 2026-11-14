@@ -288,6 +288,21 @@ imagem, pré-cadastro — não levam o link: vão para uma lista de endereços d
 administradores, não para uma pessoa identificada, e não há assinatura a emitir
 nem lista da qual sair.
 
+### Também pelas configurações do site
+
+A mesma escolha aparece, com sessão, nas configurações de notificação (o
+sino): a chave **"Receber avisos por e-mail"**. `GET /email-preferences/me`
+responde `{ noticesEnabled }` e `PUT /email-preferences/me { noticesEnabled }`
+grava o **mesmo campo** do link do rodapé, `noticesUnsubscribedAt`:
+
+- desligar grava a data (ou mantém a da primeira saída);
+- religar limpa a data, e a pessoa volta às listas de avisos;
+- repetir a escolha não regrava nada.
+
+Não há preferência nova nem segundo interruptor: quem saiu pelo link vê a chave
+desligada no site, e vice-versa. Como no descadastro, e-mails de conta e de
+segurança continuam saindo.
+
 ### O token
 
 `UnsubscribeTokenService` emite `<userId>.<hmac>`, um HMAC-SHA256 do id com o

@@ -18,6 +18,7 @@ import {
   isPuzzleGridRow,
 } from './meditation-grid.utils';
 import { paragraph, table } from './meditation-layout.utils';
+import { codeLegendPairs } from './meditation-code.utils';
 import {
   meditationNodeText,
   meditationRichNodes,
@@ -40,6 +41,54 @@ function instructionLines(nodes: MeditationJson[]): MeditationJson[] {
     }
     return lines.map((content) => ({ ...node, content }));
   });
+}
+
+/** The legend as boxes, symbol above and meaning below, as in the printed sheets. */
+function codeLegendTable(pairs: Array<[string, string]>, size: number): Table {
+  const chunks: Array<Array<[string, string]>> = [];
+  for (let i = 0; i < pairs.length; i += O.codeLegendColumns)
+    chunks.push(pairs.slice(i, i + O.codeLegendColumns));
+  const columns = Math.min(O.codeLegendColumns, pairs.length);
+  const side = O.codeLegendCellWidth;
+  const box = (value: string, bold: boolean): TableCell =>
+    new TableCell({
+      width: { size: side, type: WidthType.DXA },
+      margins: { top: 20, bottom: 20, left: 0, right: 0 },
+      verticalAlign: VerticalAlign.CENTER,
+      borders: Object.fromEntries(
+        ['top', 'bottom', 'left', 'right'].map((border) => [
+          border,
+          { style: BorderStyle.SINGLE, size: 4, color: '252223' },
+        ]),
+      ),
+      children: [
+        paragraph(
+          [
+            new TextRun({
+              text: value,
+              bold,
+              font: O.codeLegendFont,
+              size: Math.min(O.gridFontSize, size),
+            }),
+          ],
+          true,
+        ),
+      ],
+    });
+  return table(
+    chunks.flatMap((chunk) =>
+      [0, 1].map(
+        (row) =>
+          new TableRow({
+            cantSplit: true,
+            children: Array.from({ length: columns }, (_, column) =>
+              box(chunk[column]?.[row] ?? '', row === 0),
+            ),
+          }),
+      ),
+    ),
+    Array.from({ length: columns }, () => side),
+  );
 }
 
 /** Native square cells keep printed puzzle letters aligned independently of prose fonts. */
@@ -132,6 +181,12 @@ export function olderMeditationActivityBlocks(
         cursor = end;
         continue;
       }
+    }
+    const legend = codeLegendPairs(meditationNodeText(nodes[cursor]));
+    if (legend) {
+      blocks.push(codeLegendTable(legend, size));
+      cursor += 1;
+      continue;
     }
     const node = nodes[cursor];
     // The outer block number belongs to the command, never to its first subitem.

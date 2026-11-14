@@ -157,6 +157,40 @@ describe('older meditation PDF layout', () => {
     expect(long).toContain('FIM DA ORAÇÃO.');
     expect(long).toContain('w:val="14700" w:hRule="atLeast"');
   });
+  it('prints the stories in parentheses under the theme and lays out four short questions', async () => {
+    const buffer = await Packer.toBuffer(
+      new Document({
+        sections: [
+          {
+            children: buildOlderMeditationSheet({
+              title: 'O poder de Jesus sobre as doenças',
+              verse: 'Jesus curou muitos. Mateus 4:23',
+              biblicalText:
+                'TEXTO BÍBLICO: A cura de um cego de nascença / A cura de um paralítico',
+              introduction: '',
+              prayer: 'Senhor Jesus, obrigado por cuidar de mim.',
+              logo: Buffer.from('test-logo'),
+              activities: [1, 2, 3, 4].map((number) => ({
+                instruction: `Contexto da questão ${number}. Circule a alternativa correta.\na) Pergunta ${number}?`,
+              })),
+            }),
+          },
+        ],
+      }),
+    );
+    const zip = await JSZip.loadAsync(buffer);
+    const xml = await zip.file('word/document.xml')!.async('string');
+    expect(xml).toContain('O PODER DE JESUS SOBRE AS DOENÇAS');
+    expect(xml).toContain(
+      '(A cura de um cego de nascença / A cura de um paralítico)',
+    );
+    expect(xml).not.toContain('TEXTO BÍBLICO');
+    expect(xml).toContain('>4. </w:t>');
+    expect(xml).toContain(
+      'Contexto da questão 4. Circule a alternativa correta.',
+    );
+    expect(xml.match(/w:hRule="atLeast"/g)).toHaveLength(5);
+  });
 });
 
 describe('older meditation overflow protection', () => {

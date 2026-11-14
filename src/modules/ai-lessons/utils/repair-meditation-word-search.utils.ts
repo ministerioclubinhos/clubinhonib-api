@@ -1,13 +1,12 @@
 import {
   MEDITATION_GRID_MINIMUM_ROWS,
-  MEDITATION_WORD_SEARCH_FILLER,
-  MEDITATION_WORD_SEARCH_GRID_PADDING,
   MEDITATION_WORD_SEARCH_MAX_WORD_LENGTH,
   MEDITATION_WORD_SEARCH_MAX_WORDS,
 } from '../constants/meditation-word-search.constants';
 import type { MeditationJson } from '../types/younger-meditation.types';
 import { isWordSearchGridRow } from './meditation-grid.utils';
 import { meditationWordSearchIssue } from './meditation-word-search.utils';
+import { buildMeditationWordSearchGrid } from './meditation-word-search-grid.utils';
 
 /**
  * Rebuild only recognizable broken text puzzles; ambiguous output still needs
@@ -16,6 +15,8 @@ import { meditationWordSearchIssue } from './meditation-word-search.utils';
  */
 export function repairMeditationWordSearch(
   content: MeditationJson,
+  /** Rebuild the grid even when it is valid (generated sheets). */
+  force = false,
 ): MeditationJson {
   if (!Array.isArray(content.activities)) return content;
   const activities = content.activities.map((value: unknown) => {
@@ -25,7 +26,7 @@ export function repairMeditationWordSearch(
     const instruction = activity.instruction;
     if (
       typeof instruction !== 'string' ||
-      !meditationWordSearchIssue(instruction)
+      (!force && !meditationWordSearchIssue(instruction))
     )
       return activity;
     const list = instruction.match(/^\s*palavras\s*:\s*([^\n]+)/im)?.[1];
@@ -64,33 +65,13 @@ export function repairMeditationWordSearch(
     }
     if (start < 0 || end - start < MEDITATION_GRID_MINIMUM_ROWS)
       return activity;
-    const width =
-      Math.max(...words.map((word) => word.length)) +
-      MEDITATION_WORD_SEARCH_GRID_PADDING;
-    const height = Math.max(
-      words.length + MEDITATION_WORD_SEARCH_GRID_PADDING,
-      MEDITATION_GRID_MINIMUM_ROWS,
-    );
-    const grid = Array.from({ length: height }, (_, row) =>
-      Array.from(
-        { length: width },
-        (_, column) =>
-          MEDITATION_WORD_SEARCH_FILLER[
-            (row * width + column) % MEDITATION_WORD_SEARCH_FILLER.length
-          ],
-      ),
-    );
-    const positions = words.map((word, index) => {
-      const offset = index % (width - word.length + 1);
-      const row = index + 1;
-      Array.from(word).forEach((letter, column) => {
-        grid[row][offset + column] = letter;
-      });
-      return `${word}: linha ${row + 1}, coluna ${offset + 1} até coluna ${offset + word.length} (esquerda para direita).`;
-    });
+    const built = buildMeditationWordSearchGrid(words);
+    if (!built) return activity;
+    const grid = built.rows;
+    const positions = built.positions;
     const correctedInstruction = [
       ...lines.slice(0, start),
-      ...grid.map((row) => row.join(' ')),
+      ...grid,
       ...lines.slice(end),
     ].join('\n');
     if (meditationWordSearchIssue(correctedInstruction)) return activity;

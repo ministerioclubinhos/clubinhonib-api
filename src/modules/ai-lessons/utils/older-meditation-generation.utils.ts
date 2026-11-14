@@ -5,7 +5,10 @@ import {
   OlderMeditationReviewSeverity as ReviewSeverity,
 } from '../enums/older-meditation.enums';
 import { ConflictException, Logger } from '@nestjs/common';
-import { OLDER_MEDITATION_LIMITS as L } from '../constants/older-meditation-contract.constants';
+import {
+  OLDER_MEDITATION_AGE_GROUP,
+  OLDER_MEDITATION_LIMITS as L,
+} from '../constants/older-meditation-contract.constants';
 import {
   LessonImagePurpose,
   type LessonLlmGenerationInput,
@@ -19,9 +22,15 @@ import {
   olderMeditationContentIssue,
   olderMeditationExpansionContext,
   olderMeditationInstructionWords,
+  olderMeditationReadingWords,
+  olderMeditationAssetIssue,
 } from './older-meditation-quality.utils';
 import { buildMeditationActivityImagePrompt } from './meditation-image.utils';
 import { fitOlderMeditationSheet } from './older-meditation-fit.utils';
+import { editedOlderMeditation } from './older-meditation-content.utils';
+import { lessonContentToTiptap } from './lesson-tiptap.utils';
+import { normalizeLessonVerseReference, unquoteLessonVerse } from '../utils';
+import { LessonStageType } from '../enums/lesson.enums';
 
 function object(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -31,6 +40,32 @@ function object(value: unknown): Record<string, unknown> {
 
 function text(value: unknown): string {
   return typeof value === 'string' ? value : '';
+}
+
+/** The sheet fit computed the same way the PDF export does. */
+export function olderMeditationExportFit(content: Record<string, unknown>) {
+  const data = editedOlderMeditation(
+    content,
+    lessonContentToTiptap(content, undefined, LessonStageType.MEDITATION_OLDER),
+  );
+  return fitOlderMeditationSheet({
+    title: text(data.title),
+    verse: `“${unquoteLessonVerse(text(data.verseText))}” (${normalizeLessonVerseReference(data.verseReference)})`,
+    biblicalText: text(data.biblicalText),
+    introduction: text(data.introduction),
+    prayer: text(data.prayer),
+    logo: Buffer.alloc(0),
+    document: object(data.meditationDocument),
+    activities: (Array.isArray(data.activities) ? data.activities : []).map(
+      (raw) => {
+        const activity = object(raw);
+        return {
+          instruction: text(activity.instruction),
+          ...(activity.visualRequired ? { image: Buffer.alloc(0) } : {}),
+        };
+      },
+    ),
+  });
 }
 
 export async function reviewOlderMeditation(
@@ -59,7 +94,7 @@ export async function reviewOlderMeditation(
     if (
       !Number.isInteger(issue.activityNumber) ||
       Number(issue.activityNumber) < 0 ||
-      Number(issue.activityNumber) > L.activities ||
+      Number(issue.activityNumber) > L.maximumActivities ||
       typeof issue.reason !== 'string' ||
       !issue.reason.trim() ||
       !Object.values(ReviewSeverity).includes(
@@ -70,7 +105,10 @@ export async function reviewOlderMeditation(
       throw new ConflictException(
         'A revisão da meditação retornou um problema sem identificação ou explicação.',
       );
+    // A reviewer that disproves its own issue while explaining it retracts it.
+    const retracted = issue.confirmed === false;
     const advisory =
+      retracted ||
       issue.severity === ReviewSeverity.SUGGESTION ||
       issue.code === ReviewCode.STYLE_SUGGESTION;
     const outsidePhase = images.length
@@ -88,7 +126,7 @@ export async function reviewOlderMeditation(
       olderMeditationSequenceKeyMatches(activity);
     if (advisory || outsidePhase || computedSequenceKey) {
       logger.log(
-        `[meditation-older] phase=review status=non-blocking responseId=${result.responseId} activity=${Number(issue.activityNumber)} severity=${String(issue.severity)} code=${String(issue.code)} disposition=${advisory ? 'advisory' : computedSequenceKey ? 'computed-sequence-key' : 'outside-phase'}`,
+        `[meditation-older] phase=review status=non-blocking responseId=${result.responseId} activity=${Number(issue.activityNumber)} severity=${String(issue.severity)} code=${String(issue.code)} disposition=${retracted ? 'retracted' : advisory ? 'advisory' : computedSequenceKey ? 'computed-sequence-key' : 'outside-phase'}`,
       );
       return [];
     }
@@ -114,11 +152,24 @@ export async function createOlderMeditation(
   const logger = new Logger('OlderMeditationGeneration');
   let current = generated;
   let previousLocalFailure: string | undefined;
+  let shortenRequested = false;
+  let expandRequested = false;
   for (let attempt = 0; ; attempt++) {
     const content = normalizeOlderMeditation({
       ...current.content,
       title: input.theme,
-      biblicalText: input.biblicalReference,
+      // The subtitle names the stories, as in the printed sheets; the
+      // reference is only a fallback.
+      biblicalText:
+        text(current.content.biblicalText) || input.biblicalReference,
+      // The verse was approved in the lesson: every attempt prints it as is.
+      ...(input.canonicalVerse
+        ? {
+            verseText: input.canonicalVerse.text,
+            verseReference: input.canonicalVerse.reference,
+            verseVersion: input.canonicalVerse.version,
+          }
+        : {}),
     });
     const metrics = {
       introductionWords: olderMeditationInstructionWords(content.introduction),
@@ -134,6 +185,7 @@ export async function createOlderMeditation(
             ? activity.subitems.length
             : 0,
           words: olderMeditationInstructionWords(activity.instruction),
+          readingWords: olderMeditationReadingWords(activity),
         };
       }),
     };
@@ -141,37 +193,51 @@ export async function createOlderMeditation(
       `[meditation-older] phase=local-validation attempt=${attempt + 1}/${L.correctionAttempts + 1} responseId=${current.responseId} metrics=${JSON.stringify(metrics)}`,
     );
     const localIssue = olderMeditationContentIssue(content);
-    const issues = localIssue
-      ? [localIssue]
-      : (await reviewOlderMeditation(llm, input, content)).map(
-          (issue) => `Desafio ${issue.activityNumber}: ${issue.reason}`,
-        );
+    // No AI reviewer: only deterministic checks (structure, answer keys,
+    // page fit) can send the sheet back; the output is reviewed by people.
+    const issues = localIssue ? [localIssue] : [];
     if (!issues.length) {
-      const fit = fitOlderMeditationSheet({
-        title: text(content.title),
-        verse: `${text(content.verseText)}\n${text(content.verseReference)}`,
-        biblicalText: text(content.biblicalText),
-        introduction: text(content.introduction),
-        prayer: text(content.prayer),
-        logo: Buffer.alloc(0),
-        activities: (Array.isArray(content.activities)
-          ? content.activities
-          : []
-        ).map((raw) => {
-          const activity = object(raw);
-          return {
-            instruction: text(activity.instruction),
-            ...(activity.visualRequired ? { image: Buffer.alloc(0) } : {}),
-          };
-        }),
-      });
-      const layoutLog = `[meditation-older] phase=layout status=${fit.fits ? 'fits' : 'needs-editing'} responseId=${current.responseId} fontPoints=${fit.fontSize / 2} availableHeight=${fit.activitySpace} requiredHeight=${fit.weights.reduce((sum, height) => sum + height, 0)} blockHeights=${JSON.stringify(fit.weights)} next=save-for-editing`;
+      // Measured exactly like the PDF export: from the editable document
+      // that will be saved, not from the plain instructions.
+      const fit = olderMeditationExportFit(content);
+      const required = fit.weights.reduce((sum, height) => sum + height, 0);
+      // One shortening request at most: an overflow the model cannot fix (a
+      // long theme, for instance) must not burn every correction attempt.
+      const canShorten =
+        !fit.fits && !shortenRequested && attempt < L.correctionAttempts;
+      // The printed sheets fill the page: a short sheet asks once for one
+      // more short question.
+      const questionCount = Array.isArray(content.activities)
+        ? content.activities.length
+        : 0;
+      const freeShare = 1 - required / fit.activitySpace;
+      const canExpand =
+        fit.fits &&
+        !expandRequested &&
+        freeShare > L.minimumFreeShareToExpand &&
+        questionCount < L.maximumActivities &&
+        attempt < L.correctionAttempts;
+      const layoutLog = `[meditation-older] phase=layout status=${fit.fits ? 'fits' : 'needs-editing'} responseId=${current.responseId} fontPoints=${fit.fontSize / 2} availableHeight=${fit.activitySpace} requiredHeight=${required} blockHeights=${JSON.stringify(fit.weights)} next=${canExpand ? 'expand' : fit.fits ? 'save' : canShorten ? 'shorten' : 'save-for-editing'}`;
       if (fit.fits) logger.log(layoutLog);
       else logger.warn(layoutLog);
-      logger.log(
-        `[meditation-older] phase=completed attempt=${attempt + 1} responseId=${current.responseId}`,
-      );
-      return { ...current, content };
+      if (canExpand) {
+        expandRequested = true;
+        issues.push(
+          `Folha: sobrou ${Math.floor(freeShare * 100)}% da página em branco. Acrescente uma questão curta (${questionCount + 1}ª) com mecânica diferente das demais, ligada à lição, mantendo as questões atuais.`,
+        );
+      } else if (canShorten) {
+        shortenRequested = true;
+        // A sheet that does not fit cannot be printed: ask for a shorter one
+        // while correction attempts remain, instead of saving it as is.
+        issues.push(
+          `Folha: passou ${Math.ceil((required / fit.activitySpace - 1) * 100)}% do espaço de uma página A4. Encurte contextos, enunciados e alternativas ou use menos subitens, sem tirar pistas, dados nem a mecânica.`,
+        );
+      } else {
+        logger.log(
+          `[meditation-older] phase=completed attempt=${attempt + 1} responseId=${current.responseId}`,
+        );
+        return { ...current, content };
+      }
     }
     const localFailure = localIssue
       ? JSON.stringify({ localIssue, metrics })
@@ -221,15 +287,11 @@ export async function createOlderMeditationImages(
     ? content.activities.map(object)
     : [];
   const buffers = new Map<string, Buffer>();
-  if (
-    assets.length !== L.activities ||
-    new Set(assets.map((asset) => String(asset.id))).size !== L.activities ||
-    assets.some((asset) => !['1', '2', '3'].includes(String(asset.id)))
-  )
-    throw new ConflictException(
-      'A meditação dos maiores exige três imagens, uma por questão, com IDs 1, 2 e 3.',
-    );
-  let issues: OlderMeditationReviewIssue[] = [];
+  const issue = olderMeditationAssetIssue(assets, activities);
+  if (issue) throw new ConflictException(issue);
+  // Folha sem imagem (só exercícios de texto): nada a gerar nem revisar.
+  if (!assets.length) return buffers;
+  const issues: OlderMeditationReviewIssue[] = [];
   for (let attempt = 0; ; attempt++) {
     for (const asset of assets) {
       const id = String(asset.id);
@@ -243,7 +305,7 @@ export async function createOlderMeditationImages(
         continue;
       const activity = activities[Number(id) - 1];
       const prompt = buildMeditationActivityImagePrompt(
-        '8 a 11 anos',
+        OLDER_MEDITATION_AGE_GROUP,
         String(activity.instruction),
         [
           String(asset.prompt),
@@ -281,19 +343,7 @@ export async function createOlderMeditationImages(
         );
       buffers.set(id, buffer);
     }
-    issues = await reviewOlderMeditation(
-      llm,
-      input,
-      content,
-      [...buffers].map(([id, data]) => ({
-        activityNumber: Number(id),
-        image: { data, mimeType: data[0] === 137 ? 'image/png' : 'image/jpeg' },
-      })),
-    );
-    if (!issues.length) return buffers;
-    if (attempt >= L.correctionAttempts)
-      throw new ConflictException(
-        `As artes da meditação não correspondem aos desafios: ${issues.map((issue) => issue.reason).join(' ')} A versão anterior foi preservada.`,
-      );
+    // No AI image reviewer: the art goes to people for review as generated.
+    return buffers;
   }
 }

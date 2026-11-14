@@ -16,6 +16,7 @@ import {
 } from '../constants/lesson-workflow.constants';
 import { LessonEntity } from '../entities/lesson.entity';
 import { withMissingActivityArt } from './meditation-assets.utils';
+import { canonicalVerseFromLesson } from './lesson-verse.utils';
 import {
   LessonCategory,
   LessonStageType,
@@ -214,7 +215,19 @@ export function validateCanonicalContent(
 
   if (LESSON_MEDITATION_STAGES.includes(type)) {
     generated.title = lesson.theme;
-    if (type === LessonStageType.MEDITATION_OLDER)
+    // Meditations print the verse approved in the lesson, never their own.
+    const verse = Array.isArray(lesson.stages)
+      ? canonicalVerseFromLesson(lesson)
+      : null;
+    if (verse) {
+      generated.verseText = verse.text;
+      generated.verseReference = verse.reference;
+      generated.verseVersion = verse.version;
+    }
+    if (
+      type === LessonStageType.MEDITATION_OLDER &&
+      !lessonString(generated.biblicalText).trim()
+    )
       generated.biblicalText = lesson.biblicalReference;
   }
   if (type === LessonStageType.MEDITATION_YOUNGER)

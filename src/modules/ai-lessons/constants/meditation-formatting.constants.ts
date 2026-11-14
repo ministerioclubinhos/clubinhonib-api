@@ -2,6 +2,7 @@ export const MEDITATION_ACTIVITY_FIELDS = [
   'firstActivity',
   'secondActivity',
   'thirdActivity',
+  'fourthActivity',
 ] as const;
 export const MEDITATION_FORMATTING_LABELS: Record<string, string> = {
   verseText: 'VERSÍCULO PARA MEMORIZAR',

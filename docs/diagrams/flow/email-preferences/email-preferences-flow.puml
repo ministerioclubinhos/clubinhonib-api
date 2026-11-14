@@ -2,10 +2,12 @@
 !theme plain
 hide footbox
 
-title E-mail preferences — public unsubscribe
+title E-mail preferences — public unsubscribe and signed-in settings
 
 actor Recipient
+actor "Signed-in user" as User
 participant EmailPreferencesController as Controller
+participant GetEmailPreferencesService as GetService
 participant UpdateEmailPreferencesService as Service
 participant UnsubscribeTokenService as Token
 database "MySQL\nUserRepository" as Database
@@ -25,6 +27,29 @@ end
 note over Recipient, Database
   The token is the only credential. The operation is idempotent
   and never reveals whether an account exists.
+end note
+
+== Notification settings (JWT) ==
+
+User -> Controller : GET /email-preferences/me
+Controller -> GetService : findMine(userId)
+GetService -> Database : find user
+GetService --> User : 200 { noticesEnabled: !noticesUnsubscribedAt }
+
+User -> Controller : PUT /email-preferences/me { noticesEnabled }
+Controller -> Service : updateMine(userId, noticesEnabled)
+Service -> Database : find user
+alt noticesEnabled = false
+  Service -> Database : keep or set noticesUnsubscribedAt
+else noticesEnabled = true
+  Service -> Database : clear noticesUnsubscribedAt
+end
+Service --> User : 200 { noticesEnabled }
+
+note over User, Database
+  Same field as the footer link: bulk notices (week material, events,
+  informatives, documents, club reminders) skip users with a date.
+  Account and security e-mails are always sent.
 end note
 
 @enduml

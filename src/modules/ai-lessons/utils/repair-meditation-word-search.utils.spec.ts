@@ -45,12 +45,14 @@ describe('repair meditation word search', () => {
       .filter((line) => /^[A-Z\s]{4,}$/.test(line))
       .map((row) => row.replace(/\s/g, ''));
     expect(new Set(grid.map((row) => row.length)).size).toBe(1);
-    expect(grid[1].slice(0, 5)).toBe('VIUVA');
-    expect(grid[2].slice(1, 7)).toBe('LAZARO');
-    expect(grid[3].slice(2, 14)).toBe('RESSURREICAO');
-    expect(activities[0].answer).toContain(
-      'RESSURREICAO: linha 4, coluna 3 até coluna 14',
-    );
+    // A real grid: at least 10 columns, every word listed in the answer key.
+    expect(grid[0].length).toBeGreaterThanOrEqual(12);
+    for (const word of ['VIUVA', 'LAZARO', 'RESSURREICAO'])
+      expect(String(activities[0].answer)).toMatch(
+        new RegExp(
+          `${word}: linha \\d+, coluna \\d+, na (horizontal|vertical|diagonal)\\.`,
+        ),
+      );
     expect(activities[1]).toBe(original.activities[1]);
     expect(repaired.printableAssets).toEqual(original.printableAssets);
     expect(original.activities[0].instruction).toBe(instruction);

@@ -56,14 +56,26 @@ describe('older meditation structured sequences', () => {
   });
   it('rejects missing events, duplicate positions and gaps instead of inventing chronology', () => {
     expect(olderMeditationSequenceIssue({})).not.toBeNull();
-    for (const order of [1, 3]) {
-      const invalid = activity();
-      (invalid.sequenceEvents as MeditationJson[])[0].order = order;
-      expect(olderMeditationSequenceIssue(invalid)).toContain(
-        'posições cronológicas',
-      );
-      expect(normalizeOlderMeditationSequence(invalid)).toEqual(invalid);
-    }
+    // A repeated position is never broken by guessing: it stays invalid.
+    const duplicated = activity();
+    (duplicated.sequenceEvents as MeditationJson[])[0].order = 1;
+    expect(olderMeditationSequenceIssue(duplicated)).toContain(
+      'posições cronológicas',
+    );
+    expect(
+      olderMeditationSequenceIssue(
+        normalizeOlderMeditationSequence(duplicated),
+      ),
+    ).toContain('posições cronológicas');
+    // A gap keeps the model's order and is closed: 3 after 2 becomes 2.
+    const gap = activity();
+    (gap.sequenceEvents as MeditationJson[])[0].order = 3;
+    expect(olderMeditationSequenceIssue(gap)).toContain(
+      'posições cronológicas',
+    );
+    expect(
+      olderMeditationSequenceIssue(normalizeOlderMeditationSequence(gap)),
+    ).toBeNull();
   });
   it('prints each event once, omits internal chronology and accepts a complete structured sequence', () => {
     const content = olderMeditationFixture();

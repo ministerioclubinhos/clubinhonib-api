@@ -72,7 +72,9 @@ export const DOCUMENT_IMAGE_BOXES = {
 export const DOCUMENT_FALLBACK_IMAGE_RATIO = 1.5;
 
 export const YOUNGER_MEDITATION_MAX_ACTIVITIES = 2;
-export const OLDER_MEDITATION_MAX_ACTIVITIES = 3;
+/** A meditação dos maiores tem de 2 a 4 questões, conforme o tamanho dos exercícios. */
+export const OLDER_MEDITATION_MIN_ACTIVITIES = 2;
+export const OLDER_MEDITATION_MAX_ACTIVITIES = 4;
 
 /** `**texto**` written by the model; becomes a bold mark instead of literal asterisks. */
 export const MARKDOWN_BOLD_PATTERN = /\*\*(.+?)\*\*/g;

@@ -16,7 +16,7 @@ export function meditationActivityAsset(
   return (
     objects.find(
       (asset) =>
-        Number(String(asset.id).match(/(?:^|[-_])([1-3])$/)?.[1]) === index + 1,
+        Number(String(asset.id).match(/(?:^|[-_])([1-4])$/)?.[1]) === index + 1,
     ) ??
     (objects.length === activityCount ? objects[index] : undefined) ??
     {}

@@ -8,6 +8,7 @@ import { UserRepository } from './user.repository';
 import { EmailModule } from 'src/shared/email/email.module';
 import { SiteUrlModule } from 'src/shared/site-url';
 import { EmailPreferencesController } from './email-preferences.controller';
+import { GetEmailPreferencesService } from './services/get-email-preferences.service';
 import { UpdateEmailPreferencesService } from './services/update-email-preferences.service';
 import { CreateUserService } from './services/create-user.service';
 import { GetUsersService } from './services/get-user.service';
@@ -47,6 +48,7 @@ import { ProfileModule } from '../profile/profile.module';
     UpdateOwnProfileService,
     ChangePasswordService,
     NotifyAccountChangesService,
+    GetEmailPreferencesService,
     UpdateEmailPreferencesService,
   ],
   controllers: [UserController, ProfileController, EmailPreferencesController],

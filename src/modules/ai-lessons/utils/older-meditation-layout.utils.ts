@@ -1,5 +1,6 @@
 import { UnprocessableEntityException } from '@nestjs/common';
 import {
+  meditationNodeText,
   meditationRichNodes,
   meditationRichParagraphs,
 } from './meditation-rich-text.utils';
@@ -14,7 +15,11 @@ import {
   VerticalAlign,
 } from 'docx';
 import { YOUNGER_MEDITATION_LAYOUT as L } from '../constants/younger-meditation-layout.constants';
-import { OLDER_MEDITATION_LAYOUT as O } from '../constants/older-meditation-layout.constants';
+import { youngerVerseParagraphs } from './younger-meditation-layout.utils';
+import {
+  OLDER_MEDITATION_LAYOUT as O,
+  OLDER_MEDITATION_REFERENCE_ONLY,
+} from '../constants/older-meditation-layout.constants';
 import { OLDER_MEDITATION_MAX_ACTIVITIES } from '../constants/lesson-document.constants';
 import type { OlderMeditationSheet } from '../types/older-meditation.types';
 import { olderMeditationActivityBlocks } from './older-meditation-activity.utils';
@@ -24,7 +29,6 @@ import {
   cell,
   paragraph,
   text,
-  textLines,
   imageParagraph,
   noBorders,
   meditationTitleBlocks,
@@ -32,6 +36,48 @@ import {
   framedSheet,
   verseLabelCell,
 } from './meditation-layout.utils';
+
+/**
+ * Os relatos estudados, sem rótulo nem parênteses: a folha os imprime entre
+ * parênteses logo abaixo do tema, como nos modelos feitos à mão.
+ */
+export function olderMeditationSubtitle(sheet: OlderMeditationSheet): string {
+  const nodes = meditationRichNodes(sheet.document, 'biblicalText');
+  const value = nodes.length
+    ? nodes.map(meditationNodeText).join(' ')
+    : sheet.biblicalText;
+  return value
+    .replace(/\s+/g, ' ')
+    .replace(/^\s*TEXTO BÍBLICO\s*:?\s*/i, '')
+    .trim()
+    .replace(/^\((.*)\)[\s.]*$/s, '$1')
+    .trim();
+}
+
+function olderMeditationTitleBlocks(
+  sheet: OlderMeditationSheet,
+): Array<Paragraph | Table> {
+  const blocks = meditationTitleBlocks(sheet.document, sheet.title, 24);
+  const subtitle = olderMeditationSubtitle(sheet);
+  // A title that already carries "(...)" prints its own subtitle.
+  if (!subtitle || /\(.+\)[\s.]*$/s.test(sheet.title.trim())) return blocks;
+  // Story names go between parentheses; a bare Bible reference is labelled,
+  // as in the printed sheets ("TEXTO BÍBLICO: Lc 15.11-32").
+  return [
+    ...blocks,
+    paragraph(
+      [
+        text(
+          OLDER_MEDITATION_REFERENCE_ONLY.test(subtitle)
+            ? `TEXTO BÍBLICO: ${subtitle.replace(/[\s.]+$/, '')}`
+            : `(${subtitle})`,
+          22,
+        ),
+      ],
+      true,
+    ),
+  ];
+}
 
 export function buildOlderMeditationSheet(
   sheet: OlderMeditationSheet,
@@ -79,10 +125,7 @@ export function buildOlderMeditationSheet(
                   }),
                   new TableRow({
                     children: [
-                      cell(
-                        meditationTitleBlocks(sheet.document, sheet.title, 24),
-                        bannerWidth,
-                      ),
+                      cell(olderMeditationTitleBlocks(sheet), bannerWidth),
                     ],
                   }),
                 ],
@@ -103,24 +146,8 @@ export function buildOlderMeditationSheet(
           verseLabelCell(3250),
           cell([paragraph([text('❯', 46, true, 'ED1C24')], true)], 430),
           new TableCell({
-            children: meditationRichNodes(sheet.document, 'verseText').length
-              ? [
-                  ...meditationRichParagraphs(
-                    sheet.document,
-                    'verseText',
-                    '',
-                    22,
-                    true,
-                  ),
-                  ...meditationRichParagraphs(
-                    sheet.document,
-                    'verseReference',
-                    '',
-                    22,
-                    true,
-                  ),
-                ]
-              : [paragraph(textLines(sheet.verse, 22), true)],
+            // As in the printed sheets: the verse, then "(Reference – NVI)".
+            children: youngerVerseParagraphs(sheet.verse, 22),
             width: { size: width - 3680, type: WidthType.DXA },
             margins: { top: 70, bottom: 70, left: 90, right: 90 },
             verticalAlign: VerticalAlign.CENTER,
@@ -146,21 +173,19 @@ export function buildOlderMeditationSheet(
     ]),
     new Paragraph({ spacing: { before: 0, after: 0, line: 100 } }),
     verse,
-    ...meditationRichParagraphs(
-      sheet.document,
-      'biblicalText',
-      sheet.biblicalText,
-      fontSize,
-      false,
-      'TEXTO BÍBLICO: ',
-    ),
     paragraph([text('Entendendo a lição:', fontSize, true)]),
-    ...meditationRichParagraphs(
-      sheet.document,
-      'introduction',
-      sheet.introduction,
-      fontSize,
-    ),
+    // The context lives inside each question; the intro is printed only when written.
+    ...(sheet.introduction.trim() ||
+    meditationRichNodes(sheet.document, 'introduction').some((node) =>
+      meditationNodeText(node).trim(),
+    )
+      ? meditationRichParagraphs(
+          sheet.document,
+          'introduction',
+          sheet.introduction,
+          fontSize,
+        )
+      : []),
   ];
   children.push(
     table(

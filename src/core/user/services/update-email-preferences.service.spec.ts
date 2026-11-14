@@ -1,7 +1,10 @@
 import { Test } from '@nestjs/testing';
 
 import { UnsubscribeTokenService } from 'src/shared/email/unsubscribe-token.service';
-import { AppValidationException } from 'src/shared/exceptions';
+import {
+  AppNotFoundException,
+  AppValidationException,
+} from 'src/shared/exceptions';
 
 import { UserEntity } from '../entities/user.entity';
 import { UserRepository } from '../user.repository';
@@ -86,5 +89,59 @@ describe('UpdateEmailPreferencesService', () => {
     await expect(
       service.unsubscribeFromNotices('token-de-usuario-removido'),
     ).rejects.toBeInstanceOf(AppValidationException);
+  });
+
+  describe('updateMine (configurações de notificação, com sessão)', () => {
+    it('desligar grava a data de saída da lista', async () => {
+      const service = await build();
+
+      const result = await service.updateMine('user-1', false);
+
+      expect(userRepo.setNoticesUnsubscribedAt).toHaveBeenCalledWith(
+        'user-1',
+        expect.any(Date),
+      );
+      expect(result).toEqual({ noticesEnabled: false });
+    });
+
+    it('religar limpa a data e devolve a pessoa às listas de avisos', async () => {
+      userRepo.findById.mockResolvedValue(
+        user({ noticesUnsubscribedAt: new Date('2026-01-01T00:00:00Z') }),
+      );
+      const service = await build();
+
+      const result = await service.updateMine('user-1', true);
+
+      expect(userRepo.setNoticesUnsubscribedAt).toHaveBeenCalledWith(
+        'user-1',
+        null,
+      );
+      expect(result).toEqual({ noticesEnabled: true });
+    });
+
+    it('é idempotente: repetir a escolha não regrava nada', async () => {
+      const service = await build();
+      await expect(service.updateMine('user-1', true)).resolves.toEqual({
+        noticesEnabled: true,
+      });
+
+      const since = new Date('2026-01-01T00:00:00Z');
+      userRepo.findById.mockResolvedValue(
+        user({ noticesUnsubscribedAt: since }),
+      );
+      await expect(service.updateMine('user-1', false)).resolves.toEqual({
+        noticesEnabled: false,
+      });
+      expect(userRepo.setNoticesUnsubscribedAt).not.toHaveBeenCalled();
+    });
+
+    it('falha quando a conta não existe mais', async () => {
+      userRepo.findById.mockResolvedValue(null);
+      const service = await build();
+
+      await expect(service.updateMine('user-1', true)).rejects.toBeInstanceOf(
+        AppNotFoundException,
+      );
+    });
   });
 });

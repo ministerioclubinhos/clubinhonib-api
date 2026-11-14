@@ -47,136 +47,17 @@ function provider() {
   };
 }
 
-describe('older meditation generation and independent review', () => {
-  it('reviews content even when it satisfies all local checks and regenerates semantic failures without replacing puzzles by questionnaires', async () => {
-    const llm = provider();
-    const generated = {
-      content: olderMeditationFixture(),
-      responseId: 'initial',
-    };
-    llm.generateStage
-      .mockResolvedValueOnce({
-        content: {
-          issues: [
-            {
-              activityNumber: 2,
-              severity: 'BLOCKER',
-              code: 'INCOMPLETE_EXERCISE',
-              reason: 'Alternativas não exigem compreender a história.',
-            },
-          ],
-        },
-        responseId: 'review-bad',
-      })
-      .mockResolvedValueOnce({ ...generated, responseId: 'corrected' })
-      .mockResolvedValueOnce({
-        content: { issues: [] },
-        responseId: 'review-ok',
-      });
-    const result = await createOlderMeditation(
-      llm as LessonLlmProviderContract,
-      input,
-      generated,
-    );
-    expect(result.responseId).toBe('corrected');
-    expect(
-      llm.generateStage.mock.calls[0][0].olderMeditationReview,
-    ).toBeDefined();
-    const correction = llm.generateStage.mock.calls[1][0];
-    expect(correction.revisionInstructions).toContain('Preserve a mecânica.');
-    expect(correction.revisionInstructions).toContain(
-      'Alternativas não exigem',
-    );
-    expect(correction).not.toHaveProperty('olderMeditationBlockRevision');
-    expect(result.content.activities).toMatchObject([
-      { mechanic: 'FILL_BLANK' },
-      { mechanic: 'MULTIPLE_CHOICE' },
-      { mechanic: 'SHORT_ANSWER' },
-    ]);
-  });
-  it('sends paraphrased evidence to the reviewer with the approved source instead of failing literal matching', async () => {
-    const llm = provider();
-    const content = olderMeditationFixture();
-    (content.activities as MeditationJson[])[0].sourceExcerpt =
-      'Um viajante ferido recebeu ajuda e cuidados de um samaritano.';
-    llm.generateStage.mockResolvedValue({
-      content: { issues: [] },
-      responseId: 'review-ok',
-    });
-    await expect(
-      createOlderMeditation(llm, input, { content, responseId: 'initial' }),
-    ).resolves.toMatchObject({ responseId: 'initial' });
-    expect(llm.generateStage).toHaveBeenCalledTimes(1);
-    expect(llm.generateStage.mock.calls[0][0]).toMatchObject({
-      approvedUpstream: OLDER_MEDITATION_SOURCE,
-      olderMeditationReview: {
-        content: {
-          activities: [
-            {
-              sourceExcerpt: (content.activities as MeditationJson[])[0]
-                .sourceExcerpt,
-            },
-            {},
-            {},
-          ],
-        },
-      },
-    });
-  });
-  it('still rejects unsupported facts through semantic review after bounded corrections', async () => {
-    const llm = provider();
-    const content = olderMeditationFixture();
-    (content.activities as MeditationJson[])[0].sourceExcerpt =
-      'O samaritano viajou de avião.';
-    llm.generateStage.mockImplementation((request) =>
-      Promise.resolve(
-        request.olderMeditationReview
-          ? {
-              content: {
-                issues: [
-                  {
-                    activityNumber: 1,
-                    severity: 'BLOCKER',
-                    code: 'INCOMPLETE_EXERCISE',
-                    reason: 'A lição não relata viagem de avião.',
-                  },
-                ],
-              },
-              responseId: 'rejected',
-            }
-          : { content, responseId: 'correction' },
-      ),
-    );
-    await expect(
-      createOlderMeditation(llm, input, { content, responseId: 'initial' }),
-    ).rejects.toThrow('A lição não relata viagem de avião.');
-    expect(
-      llm.generateStage.mock.calls.filter(
-        ([request]) => request.olderMeditationReview,
-      ),
-    ).toHaveLength(3);
-    expect(
-      llm.generateStage.mock.calls.filter(
-        ([request]) => !request.olderMeditationReview,
-      ),
-    ).toHaveLength(2);
-  });
-  it('reviews a shorter complete activity instead of regenerating it for a fixed count', async () => {
+describe('older meditation generation', () => {
+  it('accepts a shorter complete activity without any extra AI call', async () => {
     const llm = provider();
     const content = olderMeditationFixture();
     const first = (content.activities as MeditationJson[])[0];
     first.subitems = (first.subitems as MeditationJson[]).slice(0, 2);
-    llm.generateStage.mockResolvedValue({
-      content: { issues: [] },
-      responseId: 'review-ok',
-    });
     await expect(
       createOlderMeditation(llm, input, { content, responseId: 'initial' }),
     ).resolves.toMatchObject({ responseId: 'initial' });
-    expect(llm.generateStage).toHaveBeenCalledTimes(1);
-    expect(
-      llm.generateStage.mock.calls[0][0].olderMeditationReview,
-    ).toBeDefined();
+    // No AI reviewer: a complete sheet that fits is saved as generated.
+    expect(llm.generateStage).not.toHaveBeenCalled();
   });
   it('logs counts and phases without printing worksheet content and accepts short introductions without correction', async () => {
     const log = jest
@@ -186,10 +67,6 @@ describe('older meditation generation and independent review', () => {
       const llm = provider();
       const content = olderMeditationFixture();
       content.introduction = 'Reflita sobre a história.';
-      llm.generateStage.mockResolvedValue({
-        content: { issues: [] },
-        responseId: 'review-ok',
-      });
       await createOlderMeditation(llm, input, {
         content,
         responseId: 'initial',
@@ -197,103 +74,64 @@ describe('older meditation generation and independent review', () => {
       const lines = log.mock.calls.map((args) => String(args[0])).join('\n');
       expect(lines).toContain('introductionWords":4');
       expect(lines).toContain('phase=local-validation');
-      expect(lines).toContain('phase=text-review');
       expect(lines).toContain('phase=completed');
       expect(lines).not.toContain(content.introduction);
-      expect(llm.generateStage).toHaveBeenCalledTimes(1);
+      expect(llm.generateStage).not.toHaveBeenCalled();
     } finally {
       log.mockRestore();
     }
   });
-  it('preserves semantically approved content with layout overflow without paid regeneration', async () => {
+  it('asks once for one more question when the sheet leaves the page half empty', async () => {
+    const llm = provider();
+    const content = olderMeditationFixture();
+    // Two short questions leave most of the page blank.
+    const items = content.activities as MeditationJson[];
+    content.activities = [items[0], items[items.length - 1]];
+    content.printableAssets = (
+      content.printableAssets as MeditationJson[]
+    ).filter((asset) => asset.id === '1');
+    llm.generateStage.mockResolvedValueOnce({ content, responseId: 'fuller' });
+    const result = await createOlderMeditation(llm, input, {
+      content,
+      responseId: 'initial',
+    });
+    expect(result.responseId).toBe('fuller');
+    expect(llm.generateStage).toHaveBeenCalledTimes(1);
+    expect(
+      String(llm.generateStage.mock.calls[0][0].revisionInstructions),
+    ).toContain('Acrescente uma questão curta');
+  });
+  it('asks once for a shorter sheet when it does not fit, then saves it for editing', async () => {
     const warn = jest
       .spyOn(Logger.prototype, 'warn')
       .mockImplementation(() => undefined);
     try {
       const llm = provider();
       const content = olderMeditationFixture();
+      // A theme this long overflows the page whatever the model writes.
       content.title = 'Título '.repeat(150);
       const longInput = { ...input, theme: String(content.title) };
-      llm.generateStage.mockResolvedValue({
-        content: { issues: [] },
-        responseId: 'approved',
+      llm.generateStage.mockResolvedValueOnce({
+        content,
+        responseId: 'shorter',
       });
       await expect(
         createOlderMeditation(llm, longInput, {
           content,
           responseId: 'initial',
         }),
-      ).resolves.toMatchObject({ responseId: 'initial' });
+      ).resolves.toMatchObject({ responseId: 'shorter' });
+      // One shortening request, never a second one.
       expect(llm.generateStage).toHaveBeenCalledTimes(1);
       expect(
-        warn.mock.calls.map((args) => String(args[0])).join('\n'),
-      ).toContain('phase=layout status=needs-editing');
-      expect(
-        warn.mock.calls.map((args) => String(args[0])).join('\n'),
-      ).toContain('next=save-for-editing');
+        String(llm.generateStage.mock.calls[0][0].revisionInstructions),
+      ).toContain('do espaço de uma página A4');
+      const logs = warn.mock.calls.map((args) => String(args[0])).join('\n');
+      expect(logs).toContain('next=shorten');
+      expect(logs).toContain('next=save-for-editing');
     } finally {
       warn.mockRestore();
     }
-  });
-  it('does not regenerate for editorial suggestions or images missing before image generation', async () => {
-    const llm = provider();
-    llm.generateStage.mockResolvedValue({
-      content: {
-        issues: [
-          {
-            activityNumber: 2,
-            severity: 'SUGGESTION',
-            code: 'STYLE_SUGGESTION',
-            reason:
-              'A atividade está correta, mas seria benéfico incluir suporte textual.',
-          },
-          {
-            activityNumber: 3,
-            severity: 'SUGGESTION',
-            code: 'STYLE_SUGGESTION',
-            reason: 'A instrução poderia ser mais direta.',
-          },
-          {
-            activityNumber: 1,
-            severity: 'BLOCKER',
-            code: 'IMAGE_DEFECT',
-            reason: 'Falta uma imagem coerente.',
-          },
-        ],
-      },
-      responseId: 'review',
-    });
-    await expect(
-      createOlderMeditation(llm, input, {
-        content: olderMeditationFixture(),
-        responseId: 'initial',
-      }),
-    ).resolves.toMatchObject({ responseId: 'initial' });
-    expect(llm.generateStage).toHaveBeenCalledTimes(1);
-  });
-  it('does not reopen editorial text review while inspecting generated images', async () => {
-    const llm = provider();
-    llm.generateStage.mockResolvedValue({
-      content: {
-        issues: [
-          {
-            activityNumber: 3,
-            severity: 'BLOCKER',
-            code: 'APPLICATION_MISSING',
-            reason: 'Reescreva a questão.',
-          },
-        ],
-      },
-      responseId: 'image-review',
-    });
-    const result = await createOlderMeditationImages(
-      llm,
-      input,
-      normalizeOlderMeditation(olderMeditationFixture()),
-    );
-    expect(result.size).toBe(3);
-    expect(llm.generateImage).toHaveBeenCalledTimes(3);
-    expect(llm.generateStage).toHaveBeenCalledTimes(1);
   });
   it('still blocks a genuinely incorrect answer during text review', async () => {
     const llm = provider();
@@ -402,7 +240,7 @@ describe('older meditation generation and independent review', () => {
       reviewOlderMeditation(llm as LessonLlmProviderContract, input, {}),
     ).rejects.toThrow('verificável');
   });
-  it('generates three support images even for a textual worksheet', async () => {
+  it('generates art only for the questions marked visualRequired', async () => {
     const llm = provider();
     llm.generateStage.mockResolvedValue({
       content: { issues: [] },
@@ -413,71 +251,48 @@ describe('older meditation generation and independent review', () => {
       input,
       normalizeOlderMeditation(olderMeditationFixture()),
     );
-    expect([...result.keys()]).toEqual(['1', '2', '3']);
-    expect(llm.generateImage).toHaveBeenCalledTimes(3);
-    expect(llm.generateStage).toHaveBeenCalledTimes(1);
+    expect([...result.keys()]).toEqual(['1']);
+    expect(llm.generateImage).toHaveBeenCalledTimes(1);
+    // No AI image reviewer.
+    expect(llm.generateStage).not.toHaveBeenCalled();
   });
-  it('inspects actual images, retries incorrect artwork with concrete feedback, and never changes the saved exercise', async () => {
+  it('skips image generation when no question needs art', async () => {
     const llm = provider();
     const content = normalizeOlderMeditation(olderMeditationFixture());
-    const activity = (content.activities as MeditationJson[])[0];
-    activity.visualRequired = true;
-    const snapshot = JSON.stringify(content);
-    llm.generateStage
-      .mockResolvedValueOnce({
-        content: {
-          issues: [
-            {
-              activityNumber: 1,
-              severity: 'BLOCKER',
-              code: 'IMAGE_DEFECT',
-              reason: 'A arte acrescentou outro jogo e revelou a solução.',
-            },
-          ],
-        },
-        responseId: 'bad',
-      })
-      .mockResolvedValueOnce({ content: { issues: [] }, responseId: 'ok' });
+    (content.activities as MeditationJson[])[0].visualRequired = false;
+    content.printableAssets = [];
     const images = await createOlderMeditationImages(
       llm as LessonLlmProviderContract,
       input,
       content,
     );
-    expect(images.get('1')).toEqual(png);
-    expect(llm.generateImage).toHaveBeenCalledTimes(4);
-    expect(llm.generateImage.mock.calls[3][0]).toContain(
-      'A arte acrescentou outro jogo',
-    );
-    expect(
-      llm.generateStage.mock.calls[0][0].olderMeditationReview?.images[0].image
-        .data,
-    ).toEqual(png);
-    expect(JSON.stringify(content)).toBe(snapshot);
+    expect(images.size).toBe(0);
+    expect(llm.generateImage).not.toHaveBeenCalled();
+    expect(llm.generateStage).not.toHaveBeenCalled();
   });
-  it('rejects repeatedly broken artwork before uploading or publishing a version', async () => {
-    const llm = provider();
-    const content = normalizeOlderMeditation(olderMeditationFixture());
 
-    llm.generateStage.mockResolvedValue({
-      content: {
-        issues: [
-          {
-            activityNumber: 2,
-            severity: 'BLOCKER',
-            code: 'IMAGE_DEFECT',
-            reason: 'O enigma não tem solução.',
-          },
-        ],
-      },
-      responseId: 'bad',
+  describe('revisor da meditação dos maiores que desmente o próprio issue', () => {
+    it('não bloqueia um BLOCKER que o revisor marcou como não confirmado', async () => {
+      const llm = provider();
+      const content = normalizeOlderMeditation(olderMeditationFixture());
+      llm.generateStage.mockResolvedValueOnce({
+        content: {
+          issues: [
+            {
+              activityNumber: 1,
+              reason:
+                'A ordem correta é 4, 1, 5, 3, 2. Contudo, o gabarito já corresponde a essa ordem, então não há contradição.',
+              code: 'SOURCE_FACT',
+              severity: 'BLOCKER',
+              confirmed: false,
+            },
+          ],
+        },
+        responseId: 'retracted',
+      });
+      await expect(reviewOlderMeditation(llm, input, content)).resolves.toEqual(
+        [],
+      );
     });
-    await expect(
-      createOlderMeditationImages(
-        llm as LessonLlmProviderContract,
-        input,
-        content,
-      ),
-    ).rejects.toThrow('versão anterior foi preservada');
-    expect(llm.generateImage).toHaveBeenCalledTimes(5);
   });
 });

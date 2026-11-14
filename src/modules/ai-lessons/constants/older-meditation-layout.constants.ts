@@ -23,6 +23,13 @@ export const OLDER_MEDITATION_LAYOUT = {
   frameSideMargin: 160,
   frameBorderAllowance: 60,
   inlineOptionsMaximumCharacters: 60,
+  /** Code legends print as boxes: symbol above, meaning below. */
+  codeLegendMinimumPairs: 4,
+  codeLegendColumns: 13,
+  codeLegendCellWidth: 560,
+  codeLegendFont: 'Arial',
+  /** A line to write an open answer on. */
+  writingLine: '_'.repeat(70),
   prayerColumns: 70,
   /** Lines of title, verse and prayer already covered by `headerReserve`. */
   reservedHeaderLines: 2,
@@ -39,3 +46,7 @@ export const OLDER_MEDITATION_LAYOUT = {
   /** Average glyph advance, in twips per half-point of font size. */
   twipsPerCharacterUnit: 5,
 } as const;
+
+/** A subtitle that is only Bible references ("Lucas 16.19-31; João 11"). */
+export const OLDER_MEDITATION_REFERENCE_ONLY =
+  /^(?:[1-3]?\s?\p{L}{2,}\.?\s+\d+(?:[.:]\d+)?(?:\s*[-–]\s*\d+)?[a-z]?(?:\s*[;,]\s*)?)+[\s.]*$/u;

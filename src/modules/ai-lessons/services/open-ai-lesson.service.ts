@@ -1,3 +1,7 @@
+import {
+  OLDER_MEDITATION_MAX_ACTIVITIES,
+  OLDER_MEDITATION_MIN_ACTIVITIES,
+} from '../constants/lesson-document.constants';
 import type { LessonStructuredRequest } from '../types/lesson-image-brief.types';
 import {
   parseProviderJsonObject,
@@ -518,7 +522,10 @@ export function schemaFor(
     stage === LessonStageType.MEDITATION_YOUNGER ||
     stage === LessonStageType.MEDITATION_OLDER
   ) {
-    const count = stage === LessonStageType.MEDITATION_YOUNGER ? 2 : 3;
+    const older = stage === LessonStageType.MEDITATION_OLDER;
+    // Maiores: 2 a 4 questões, conforme o tamanho dos exercícios.
+    const minActivities = older ? OLDER_MEDITATION_MIN_ACTIVITIES : 2;
+    const count = older ? OLDER_MEDITATION_MAX_ACTIVITIES : 2;
     return {
       type: 'object',
       additionalProperties: false,
@@ -544,22 +551,18 @@ export function schemaFor(
         introduction: { type: 'string' },
         activities: {
           type: 'array',
-          minItems: count,
+          minItems: minActivities,
           maxItems: count,
-          items:
-            stage === LessonStageType.MEDITATION_OLDER
-              ? OLDER_MEDITATION_ACTIVITY_SCHEMA
-              : activity,
+          items: older ? OLDER_MEDITATION_ACTIVITY_SCHEMA : activity,
         },
         prayer: { type: 'string' },
         printableAssets: {
           type: 'array',
           minItems: stage === LessonStageType.MEDITATION_YOUNGER ? 1 : 0,
           maxItems: count,
-          description:
-            stage === LessonStageType.MEDITATION_OLDER
-              ? 'Exatamente uma arte por atividade (ids 1, 2 e 3), como anexo ou apoio visual da questão, sem expor a resposta nem duplicar o enunciado.'
-              : 'Artes das atividades, com ids correspondentes aos números das atividades.',
+          description: older
+            ? 'Uma arte para cada questão com visualRequired true (id = número da questão), nenhuma nas demais; sem expor a resposta nem duplicar o enunciado.'
+            : 'Artes das atividades, com ids correspondentes aos números das atividades.',
           items: {
             ...ASSET_SCHEMA,
             properties: {

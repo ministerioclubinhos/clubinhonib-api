@@ -9,13 +9,12 @@ export function olderMeditationFixture(
 ): MeditationJson {
   return {
     title: theme,
-    ageGroup: '8 a 11 anos',
+    ageGroup: '8 a 12 anos',
     verseText: 'Ame o seu próximo como a si mesmo.',
     verseReference: 'Lucas 10:27',
     verseVersion: 'NVI',
-    biblicalText: 'Lucas 10:25-37',
-    introduction:
-      'Na história estudada, pessoas tomaram decisões diferentes diante de alguém que precisava de ajuda. Observe suas atitudes e pense em como cuidar do próximo.',
+    biblicalText: 'O bom samaritano',
+    introduction: '',
     prayer:
       'Senhor, ajuda-me a perceber quem precisa de cuidado e agir com amor.',
     activities: [
@@ -59,7 +58,7 @@ export function olderMeditationFixture(
         context: 'Considere as decisões das pessoas do relato.',
         command: 'Marque uma resposta para cada pergunta.',
         supportText: '',
-        visualRequired: true,
+        visualRequired: false,
         subitems: [
           {
             prompt:
@@ -110,7 +109,7 @@ export function olderMeditationFixture(
           'No recreio, um colega está sozinho porque perdeu seu lanche. Você percebe que ele está triste.',
         command: 'Pense numa atitude possível e escreva respostas curtas.',
         supportText: '',
-        visualRequired: true,
+        visualRequired: false,
         subitems: [
           {
             prompt:
@@ -136,20 +135,6 @@ export function olderMeditationFixture(
           'Cena de apoio do caminho e da hospedaria, sem texto e sem destacar respostas.',
         purpose: 'Apoio à narrativa',
         altText: 'Caminho e hospedaria da história',
-      },
-      {
-        id: '2',
-        prompt:
-          'Cena de apoio do encontro no caminho, sem indicar alternativas corretas.',
-        purpose: 'Apoio à compreensão',
-        altText: 'Encontro no caminho',
-      },
-      {
-        id: '3',
-        prompt:
-          'Cena do recreio com uma criança triste, sem mostrar a solução da pergunta.',
-        purpose: 'Apoio à aplicação',
-        altText: 'Colega no recreio',
       },
     ],
   };

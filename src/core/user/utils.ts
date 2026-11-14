@@ -2,6 +2,7 @@ import { UserRole } from 'src/core/auth/auth.types';
 import { EmailRecipient } from 'src/shared/email';
 
 import { USER_ROLE_LABELS } from './constants';
+import type { MyEmailPreferencesResponseDto } from './dto/my-email-preferences.dto';
 import { UserEntity } from './entities/user.entity';
 
 /**
@@ -31,4 +32,11 @@ export function toEmailRecipient(user: UserEntity): EmailRecipient {
     email: user.email,
     active: user.active,
   };
+}
+
+/** Quem não tem data de saída da lista recebe os avisos por e-mail. */
+export function toMyEmailPreferences(
+  noticesUnsubscribedAt: Date | null | undefined,
+): MyEmailPreferencesResponseDto {
+  return { noticesEnabled: !noticesUnsubscribedAt };
 }

@@ -1381,7 +1381,7 @@ export class DocxExporterService implements OnApplicationBootstrap {
     ]);
     return buildOlderMeditationSheet({
       title: lessonString(data.title),
-      verse: `“${unquoteLessonVerse(lessonString(data.verseText))}”\n${normalizeLessonVerseReference(data.verseReference)} — NVI`,
+      verse: `“${unquoteLessonVerse(lessonString(data.verseText))}” (${normalizeLessonVerseReference(data.verseReference)})`,
       biblicalText: lessonString(data.biblicalText),
       introduction: lessonString(data.introduction),
       prayer: lessonString(data.prayer),

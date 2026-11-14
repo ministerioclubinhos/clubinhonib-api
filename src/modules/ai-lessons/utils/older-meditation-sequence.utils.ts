@@ -51,10 +51,64 @@ export function olderMeditationSequenceIssue(
   return null;
 }
 
-/** Printed identifiers are derived after shuffling; answer keys never depend on numeric sorting. */
-export function normalizeOlderMeditationSequence(
+/**
+ * Repairs what the model often gets wrong in a sequence without another
+ * call: gaps in the positions are closed (1, 3 → 1, 2, keeping the model's
+ * order) and stories left with a single event (the same story written two
+ * ways) are merged into the most used story name. Repeated positions are
+ * left as they are: breaking the tie would invent chronology.
+ */
+export function repairOlderMeditationSequenceEvents(
   activity: MeditationJson,
 ): MeditationJson {
+  if (!Array.isArray(activity.sequenceEvents)) return activity;
+  const events = activity.sequenceEvents
+    .map(object)
+    .filter((event) => text(event.text))
+    .map((event, index) => ({
+      ...event,
+      story: text(event.story) || 'História',
+      order: Number.isFinite(Number(event.order))
+        ? Number(event.order)
+        : index + 1,
+      position: index,
+    }));
+  const counts = new Map<string, number>();
+  for (const event of events)
+    counts.set(String(event.story), (counts.get(String(event.story)) ?? 0) + 1);
+  const mainStory = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+  const merge =
+    counts.size > 1 &&
+    [...counts.values()].some((count) => count < L.minimumSequenceEvents);
+  const grouped = new Map<string, typeof events>();
+  for (const event of events) {
+    const story = merge && mainStory ? mainStory : String(event.story);
+    grouped.set(story, [...(grouped.get(story) ?? []), { ...event, story }]);
+  }
+  const repaired = [...grouped.values()].flatMap((group) =>
+    new Set(group.map((event) => event.order)).size !== group.length
+      ? group.map((event) =>
+          Object.fromEntries(
+            Object.entries(event).filter(([key]) => key !== 'position'),
+          ),
+        )
+      : [...group]
+          .sort((a, b) => a.order - b.order || a.position - b.position)
+          .map((event, index) => ({
+            ...Object.fromEntries(
+              Object.entries(event).filter(([key]) => key !== 'position'),
+            ),
+            order: index + 1,
+          })),
+  );
+  return { ...activity, sequenceEvents: repaired };
+}
+
+/** Printed identifiers are derived after shuffling; answer keys never depend on numeric sorting. */
+export function normalizeOlderMeditationSequence(
+  input: MeditationJson,
+): MeditationJson {
+  const activity = repairOlderMeditationSequenceEvents(input);
   if (olderMeditationSequenceIssue(activity)) return activity;
   const events = (activity.sequenceEvents as unknown[]).map(object);
   const stories = [...new Set(events.map((event) => text(event.story)))];
@@ -88,11 +142,15 @@ export function normalizeOlderMeditationSequence(
       displayedId: index + 1,
     }));
     normalizedEvents.push(...printed);
+    // One story prints as in the handmade sheets, without a story label.
+    const single = stories.length === 1;
     supports.push(
-      `Relato: ${story}\n${printed.map((event) => `${event.displayedId}) ${event.text}`).join('\n')}`,
+      `${single ? '' : `Relato: ${story}\n`}${printed.map((event) => `${event.displayedId}) ${event.text}`).join('\n')}`,
     );
     subitems.push({
-      prompt: `${story}: ordem dos números ____________________`,
+      prompt: single
+        ? `Ordem correta: ${printed.map(() => '____').join('  ')}`
+        : `${story}: ordem dos números ____________________`,
       options: [],
       answer: [...printed]
         .sort((a, b) => a.order - b.order)
