@@ -6,7 +6,7 @@ const activity = (number: number, instruction: string) => ({
   answer: 'resposta',
 });
 
-describe('withMissingActivityArt (meditação dos menores: uma arte por atividade)', () => {
+describe('withMissingActivityArt (meditação dos menores)', () => {
   it('acrescenta a arte da atividade que pede para observar figuras', () => {
     const content = withMissingActivityArt({
       activities: [
@@ -21,7 +21,7 @@ describe('withMissingActivityArt (meditação dos menores: uma arte por atividad
     const assets = content.printableAssets as Array<Record<string, unknown>>;
     expect(assets.map((asset) => asset.id)).toEqual(['1', '2']);
     expect(String(assets[1].prompt)).toContain(
-      'somente as figuras indispensáveis citadas',
+      'somente os elementos indispensáveis citados',
     );
   });
 
@@ -39,21 +39,29 @@ describe('withMissingActivityArt (meditação dos menores: uma arte por atividad
     expect(withMissingActivityArt(complete)).toBe(complete);
   });
 
-  it('dá arte também à atividade escrita só com texto', () => {
-    const content = withMissingActivityArt({
+  it('deixa sem arte a múltipla escolha escrita da atividade 2', () => {
+    const textOnly = {
       activities: [
-        activity(1, 'Circule o lugar certo.'),
+        activity(1, 'Ajude o semeador a encontrar a terra boa no labirinto.'),
         activity(
           2,
-          'Marque o que Abraão disse: Moisés e os Profetas; os cães.',
+          'Circule a alternativa correta: a) Onde o homem vivia? casa / sepulcros / barco',
         ),
       ],
-      printableAssets: [{ id: '1', prompt: 'Três lugares' }],
+      printableAssets: [{ id: '1', prompt: 'Labirinto' }],
+    };
+    expect(withMissingActivityArt(textOnly)).toBe(textOnly);
+  });
+
+  it('a atividade 1 sempre recebe arte', () => {
+    const content = withMissingActivityArt({
+      activities: [activity(1, 'Circule a resposta certa: sim ou não.')],
+      printableAssets: [],
     });
     expect(
       (content.printableAssets as Array<Record<string, unknown>>).map(
         (asset) => asset.id,
       ),
-    ).toEqual(['1', '2']);
+    ).toEqual(['1']);
   });
 });

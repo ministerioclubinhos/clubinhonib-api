@@ -92,7 +92,7 @@ describe('AdminLessonPromptService', () => {
   );
 
   it.each([
-    [LessonStageType.MEDITATION_YOUNGER, '4 a 7 anos', 'contar objetos'],
+    [LessonStageType.MEDITATION_YOUNGER, '5 a 8 anos', 'labirinto de letras'],
     [LessonStageType.MEDITATION_OLDER, '8 a 11 anos', 'cruzadinhas'],
   ])(
     'preserva idade e desafios temáticos completos para %s',
