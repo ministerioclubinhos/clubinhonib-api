@@ -9,7 +9,6 @@ import { RouteType } from 'src/modules/routes/route-page.entity';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import {
-  MediaItemEntity,
   MediaType,
   UploadType,
 } from 'src/shared/media/media-item/media-item.entity';
@@ -56,8 +55,6 @@ describe('CreateVideosPageService', () => {
   };
   const mediaItemProcessor = {
     processMediaItemsPolymorphic: jest.fn(),
-    findMediaItemsByTarget: jest.fn(),
-    deleteMediaItems: jest.fn(),
     discardUnreferencedUploads: jest.fn(),
   };
 
@@ -172,24 +169,54 @@ describe('CreateVideosPageService', () => {
     expect(videosPageRepo.runInTransaction).not.toHaveBeenCalled();
   });
 
-  it('faz rollback e limpa mídia órfã quando a criação falha', async () => {
-    const orphan = Object.assign(new MediaItemEntity(), {
-      id: 'orphan',
-      isLocalFile: true,
-      url: 'https://s3/orphan.mp4',
-    });
-    mediaItemProcessor.processMediaItemsPolymorphic.mockRejectedValue(
-      new Error('s3 fora'),
+  it('grava as mídias dentro da transação e descarta os uploads se a criação falha', async () => {
+    s3.upload.mockResolvedValue('https://s3/novo.mp4');
+    mediaItemProcessor.processMediaItemsPolymorphic.mockImplementation(
+      async (
+        _items: unknown,
+        _id: string,
+        _type: string,
+        files: Record<string, Express.Multer.File>,
+        upload: (file: Express.Multer.File) => Promise<string>,
+      ) => {
+        await upload(files.video_0);
+        throw new Error('db fora');
+      },
     );
-    mediaItemProcessor.findMediaItemsByTarget.mockResolvedValue([orphan]);
 
-    await expect(service.execute(validDto(), {})).rejects.toBeInstanceOf(
-      AppInternalException,
-    );
+    await expect(
+      service.execute(
+        validDto({
+          videos: [
+            {
+              title: 'Novo',
+              description: '',
+              uploadType: UploadType.UPLOAD,
+              mediaType: MediaType.VIDEO,
+              isLocalFile: true,
+              fieldKey: 'video_0',
+            },
+          ],
+        }),
+        { video_0: { fieldname: 'video_0' } as Express.Multer.File },
+      ),
+    ).rejects.toBeInstanceOf(AppInternalException);
 
     expect(videosPageRepo.runInTransaction).toHaveBeenCalledTimes(1);
-    expect(mediaItemProcessor.deleteMediaItems).toHaveBeenCalledWith(
-      [orphan],
+    // A mídia vai na mesma transação da página: o rollback a desfaz sozinho.
+    expect(
+      mediaItemProcessor.processMediaItemsPolymorphic,
+    ).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'VideosPage',
+      expect.anything(),
+      expect.any(Function),
+      manager,
+    );
+    // O arquivo enviado nesta tentativa não fica órfão no bucket.
+    expect(mediaItemProcessor.discardUnreferencedUploads).toHaveBeenCalledWith(
+      ['https://s3/novo.mp4'],
       expect.any(Function),
     );
   });

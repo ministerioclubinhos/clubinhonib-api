@@ -1,3 +1,4 @@
+import type { PayloadLabels } from 'src/shared/media/payload-validation';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
 import { MediaType } from 'src/shared/media/media-item/media-item.entity';
 
@@ -57,3 +58,36 @@ export const EMPTY_CELEBRATION = {
   celebrated: false,
   celebrationCount: 0,
 } as const;
+
+/** Limite de caracteres do título da galeria e da legenda da seção. */
+export const IMAGE_TITLE_MAX_LENGTH = 255;
+
+/** A galeria precisa de ao menos uma seção, mesmo como rascunho. */
+export const IMAGE_PAGE_MIN_SECTIONS = 1;
+
+/** Como nomear a galeria, a seção e a imagem nas mensagens de validação. */
+const IMAGE_VALIDATION_FIELD_LABELS: Readonly<Record<string, string>> = {
+  title: 'Título',
+  description: 'Descrição',
+  public: 'Visibilidade',
+  sections: 'Seções',
+  caption: 'Legenda',
+  mediaItems: 'Imagens',
+  id: 'Identificador',
+  uploadType: 'Tipo de envio',
+  mediaType: 'Tipo de material',
+  isLocalFile: 'Arquivo enviado',
+  url: 'Link',
+  platformType: 'Plataforma',
+  originalName: 'Nome do arquivo',
+  size: 'Tamanho do arquivo',
+  fieldKey: 'Arquivo',
+  fileField: 'Arquivo',
+};
+
+export const IMAGE_PAYLOAD_LABELS: PayloadLabels = {
+  page: 'Galeria',
+  group: { property: 'sections', label: 'Seção' },
+  item: { property: 'mediaItems', label: 'Imagem' },
+  fields: IMAGE_VALIDATION_FIELD_LABELS,
+};

@@ -38,14 +38,20 @@ describe('DeleteVideosPageService', () => {
     removeRoute: jest.fn(),
     removeRouteByEntity: jest.fn(),
   };
-  const mediaItemProcessor = { deleteMediaItems: jest.fn() };
+  const mediaItemProcessor = {
+    findMediaItemsByTargetInTransaction: jest.fn(),
+    deleteMediaItemsByTargetInTransaction: jest.fn(),
+    discardUnreferencedUploads: jest.fn(),
+  };
 
   let service: DeleteVideosPageService;
 
   beforeEach(async () => {
     jest.clearAllMocks();
     getService.findEntityOrFail.mockResolvedValue(page);
-    getService.findVideosOf.mockResolvedValue([]);
+    mediaItemProcessor.findMediaItemsByTargetInTransaction.mockResolvedValue(
+      [],
+    );
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -61,29 +67,44 @@ describe('DeleteVideosPageService', () => {
     service = moduleRef.get(DeleteVideosPageService);
   });
 
-  it('remove vídeos, página e rota', async () => {
+  it('remove vídeos, página e rota; o arquivo só sai do S3 depois do commit', async () => {
     const video = Object.assign(new MediaItemEntity(), {
       id: 'v1',
       isLocalFile: true,
       url: 'https://s3/a.mp4',
     });
-    getService.findVideosOf.mockResolvedValue([video]);
+    const link = Object.assign(new MediaItemEntity(), {
+      id: 'v2',
+      isLocalFile: false,
+      url: 'https://youtu.be/x',
+    });
+    mediaItemProcessor.findMediaItemsByTargetInTransaction.mockResolvedValue([
+      video,
+      link,
+    ]);
 
     await service.execute('page-id');
 
-    expect(mediaItemProcessor.deleteMediaItems).toHaveBeenCalledWith(
-      [video],
+    expect(
+      mediaItemProcessor.deleteMediaItemsByTargetInTransaction,
+    ).toHaveBeenCalledWith(manager, 'page-id', 'VideosPage');
+    expect(videosPageRepo.removePage).toHaveBeenCalledWith(page, manager);
+    expect(s3.delete).not.toHaveBeenCalled();
+    expect(mediaItemProcessor.discardUnreferencedUploads).toHaveBeenCalledWith(
+      ['https://s3/a.mp4'],
       expect.any(Function),
     );
-    expect(videosPageRepo.removePage).toHaveBeenCalledWith(page, manager);
     expect(deleteRouteService.removeRoute).toHaveBeenCalledWith('route-id');
   });
 
-  it('não chama a exclusão de mídia quando não há vídeo', async () => {
+  it('sem vídeos, remove a página sem arquivos para apagar', async () => {
     await service.execute('page-id');
 
-    expect(mediaItemProcessor.deleteMediaItems).not.toHaveBeenCalled();
     expect(videosPageRepo.removePage).toHaveBeenCalledTimes(1);
+    expect(mediaItemProcessor.discardUnreferencedUploads).toHaveBeenCalledWith(
+      [],
+      expect.any(Function),
+    );
   });
 
   it('propaga o not found de uma página inexistente', async () => {
@@ -102,5 +123,26 @@ describe('DeleteVideosPageService', () => {
     await expect(service.execute('page-id')).rejects.toBeInstanceOf(
       AppInternalException,
     );
+  });
+
+  it('não apaga arquivo nem rota quando a remoção da página falha', async () => {
+    mediaItemProcessor.findMediaItemsByTargetInTransaction.mockResolvedValue([
+      Object.assign(new MediaItemEntity(), {
+        id: 'v1',
+        isLocalFile: true,
+        url: 'https://s3/a.mp4',
+      }),
+    ]);
+    videosPageRepo.removePage.mockRejectedValue(new Error('db down'));
+
+    await expect(service.execute('page-id')).rejects.toBeInstanceOf(
+      AppInternalException,
+    );
+
+    expect(
+      mediaItemProcessor.discardUnreferencedUploads,
+    ).not.toHaveBeenCalled();
+    expect(s3.delete).not.toHaveBeenCalled();
+    expect(deleteRouteService.removeRoute).not.toHaveBeenCalled();
   });
 });

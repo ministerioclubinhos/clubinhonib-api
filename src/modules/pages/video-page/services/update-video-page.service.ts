@@ -14,6 +14,7 @@ import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
 import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 import { MediaItemDto } from 'src/shared/share-dto/media-item-dto';
+import { assertOwnedUniqueIds } from 'src/shared/media/payload-validation';
 import { VideosPageRepository } from '../repositories/video-page.repository';
 import { UpdateVideosPageDto } from '../dto/update-videos-page.dto';
 import { VideosPageResponseDto } from '../dto/videos-page-response.dto';
@@ -23,6 +24,7 @@ import { MulterFilesDict, VideoPageContent } from '../types';
 import {
   assertUploadFieldKeys,
   assertUploadFilesPresent,
+  assertVideoLinks,
   isUploadedVideo,
   normalizeIncomingVideos,
   planVideoSync,
@@ -59,19 +61,27 @@ export class UpdateVideosPageService {
     const uploads = new S3UploadTracker((file: Express.Multer.File) =>
       this.s3.upload(file),
     );
+    // Arquivos que deixam de ser referenciados; apagados só após o commit.
+    const removedUrls: string[] = [];
 
     try {
       const page = await this.getService.findEntityOrFail(id);
       const route = await this.loadRoute(page.id);
       const existingVideos = await this.getService.findVideosOf(page.id);
 
-      await this.syncVideos(
-        page.id,
-        existingVideos,
+      // Valida tudo antes da primeira escrita: depois dela, uma recusa deixaria
+      // a página pela metade.
+      assertOwnedUniqueIds(
         incomingVideos,
-        filesDict,
-        uploads,
+        existingVideos,
+        'vídeo',
+        (index) => ({
+          field: `videos.${index}.id`,
+          label: `Vídeo ${index + 1}`,
+        }),
       );
+      assertVideoLinks(incomingVideos);
+      this.assertFilesForNewUploads(incomingVideos, existingVideos, filesDict);
 
       const content: VideoPageContent = {
         name: dto.title,
@@ -81,6 +91,17 @@ export class UpdateVideosPageService {
 
       const updatedPage = await this.videosPageRepo.runInTransaction(
         async (manager: EntityManager) => {
+          // Vídeos, rota e dados da página entram na mesma transação: uma
+          // falha em qualquer ponto desfaz tudo, sem página pela metade.
+          await this.syncVideos(
+            page.id,
+            incomingVideos,
+            filesDict,
+            uploads,
+            manager,
+            removedUrls,
+          );
+
           page.name = content.name;
           page.description = content.description;
           page.public = content.public;
@@ -88,6 +109,13 @@ export class UpdateVideosPageService {
 
           return this.videosPageRepo.savePage(page, manager);
         },
+      );
+
+      // Arquivos removidos ou substituídos só saem do S3 depois do commit: se a
+      // transação desfizesse, o banco ainda apontaria para eles.
+      await this.mediaItemProcessor.discardUnreferencedUploads(
+        removedUrls,
+        (url: string) => this.s3.delete(url),
       );
 
       this.logger.log(`Página de vídeos atualizada. ID=${updatedPage.id}`);
@@ -151,28 +179,51 @@ export class UpdateVideosPageService {
   }
 
   /**
-   * Aplica os vídeos recebidos: remove os que o cliente descartou, cria os
-   * novos e atualiza os que mantiveram o id.
+   * Só os vídeos novos e os links que viram upload precisam trazer o arquivo:
+   * um upload já salvo, enviado sem campo multipart, mantém o objeto no S3.
+   * Roda antes da primeira escrita.
+   */
+  private assertFilesForNewUploads(
+    incoming: MediaItemDto[],
+    existing: MediaItemEntity[],
+    filesDict: MulterFilesDict,
+  ): void {
+    const existingById = new Map(existing.map((item) => [item.id, item]));
+    const needsFile = incoming.filter(
+      (item) => !item.id || !existingById.get(item.id)?.isLocalFile,
+    );
+    assertUploadFieldKeys(needsFile.filter((item) => !item.id));
+    assertUploadFilesPresent(needsFile, filesDict);
+  }
+
+  /**
+   * Aplica os vídeos recebidos dentro da transação em curso: remove os que o
+   * cliente descartou, cria os novos e atualiza os que mantiveram o id.
    */
   private async syncVideos(
     pageId: string,
-    existingVideos: MediaItemEntity[],
     incomingVideos: MediaItemDto[],
     filesDict: MulterFilesDict,
     uploads: S3UploadTracker,
+    manager: EntityManager,
+    removedUrls: string[],
   ): Promise<void> {
+    const existingVideos =
+      await this.mediaItemProcessor.findMediaItemsByTargetInTransaction(
+        manager,
+        pageId,
+        VIDEO_PAGE_ENTITY_TYPE,
+      );
     const plan = planVideoSync(existingVideos, incomingVideos);
 
-    // Só os itens novos precisam trazer o arquivo: um upload já salvo, enviado
-    // sem campo multipart, mantém o objeto que está no S3.
-    assertUploadFieldKeys(plan.toCreate);
-    assertUploadFilesPresent(plan.toCreate, filesDict);
-
-    if (plan.toRemove.length > 0) {
-      await this.mediaItemProcessor.deleteMediaItems(
-        plan.toRemove,
-        (url: string) => this.s3.delete(url),
+    for (const item of plan.toRemove) {
+      await this.mediaItemProcessor.deleteMediaItemByIdInTransaction(
+        manager,
+        item.id,
       );
+      if (item.isLocalFile) removedUrls.push(item.url);
+    }
+    if (plan.toRemove.length > 0) {
       this.logger.debug(
         `${plan.toRemove.length} vídeo(s) removido(s) da página ${pageId}`,
       );
@@ -185,15 +236,13 @@ export class UpdateVideosPageService {
         VIDEO_PAGE_ENTITY_TYPE,
         filesDict,
         uploads.upload,
+        manager,
       );
     }
-
-    if (plan.toUpdate.length === 0) return;
 
     const existingById = new Map(
       existingVideos.map((item) => [item.id, item] as const),
     );
-
     for (const item of plan.toUpdate) {
       await this.updateExistingVideo(
         item,
@@ -201,6 +250,8 @@ export class UpdateVideosPageService {
         pageId,
         filesDict,
         uploads,
+        manager,
+        removedUrls,
       );
     }
   }
@@ -211,6 +262,8 @@ export class UpdateVideosPageService {
     pageId: string,
     filesDict: MulterFilesDict,
     uploads: S3UploadTracker,
+    manager: EntityManager,
+    removedUrls: string[],
   ): Promise<MediaItemEntity> {
     const previous = item.id ? existingById.get(item.id) : undefined;
     const media = this.mediaItemProcessor.buildBaseMediaItem(
@@ -227,21 +280,32 @@ export class UpdateVideosPageService {
       media.originalName = file.originalname;
       media.size = file.size;
       media.platformType = undefined;
+    } else if (isUploadedVideo(item) && previous?.isLocalFile) {
+      // O arquivo já guardado não pode ser redirecionado pelo cliente: URL,
+      // nome e tamanho vêm do registro, não do payload.
+      media.url = previous.url;
+      media.isLocalFile = true;
+      media.originalName = previous.originalName;
+      media.size = previous.size;
+      media.platformType = undefined;
     } else {
-      // Sem arquivo novo, o objeto já guardado no S3 é preservado.
-      media.url = item.url?.trim() || previous?.url || '';
-      media.isLocalFile = item.isLocalFile ?? previous?.isLocalFile ?? false;
-      media.originalName = item.originalName || previous?.originalName || '';
-      media.size = item.size ?? previous?.size ?? 0;
+      // Link: nada de arquivo guardado.
+      media.url = item.url?.trim() || '';
+      media.isLocalFile = false;
+      media.originalName = '';
+      media.size = 0;
       media.platformType = item.platformType ?? previous?.platformType;
     }
 
-    const saved = await this.mediaItemProcessor.upsertMediaItem(item.id, media);
+    if (previous) media.id = previous.id;
+    const saved = await this.mediaItemProcessor.saveMediaItemInTransaction(
+      manager,
+      media,
+    );
 
-    // O arquivo antigo só sai depois que o registro já aponta para o novo: na
-    // ordem inversa, uma falha no upload deixaria a mídia sem arquivo nenhum.
+    // O arquivo antigo só sai do S3 depois do commit.
     if (previous?.isLocalFile && previous.url && previous.url !== saved.url) {
-      await this.s3.delete(previous.url);
+      removedUrls.push(previous.url);
     }
 
     return saved;

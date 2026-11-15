@@ -1,12 +1,15 @@
-import { plainToInstance } from 'class-transformer';
-import { validate } from 'class-validator';
 import { AppValidationException, ErrorCode } from 'src/shared/exceptions';
 import {
   MediaItemEntity,
   UploadType,
 } from 'src/shared/media/media-item/media-item.entity';
 import { MediaItemDto } from 'src/shared/share-dto/media-item-dto';
+import {
+  assertMediaLinksAt,
+  parseAndValidatePayload as parseAndValidateSharedPayload,
+} from 'src/shared/media/payload-validation';
 import { MulterFilesDict, VideoSyncPlan } from './types';
+import { VIDEO_PAGE_PAYLOAD_FIELD, VIDEO_PAYLOAD_LABELS } from './constants';
 
 /** Indexa os arquivos enviados pelo nome do campo multipart. */
 export function buildFilesDict(
@@ -78,43 +81,23 @@ export function planVideoSync(
   };
 }
 
-/**
- * Lê e valida o JSON enviado junto dos arquivos, com as mesmas regras do
- * ValidationPipe global.
- */
-export async function parseAndValidatePayload<T extends object>(
+/** Lê e valida o JSON `videosPageData`, com erros por vídeo. */
+export function parseAndValidatePayload<T extends object>(
   raw: string | undefined,
   dtoClass: new () => T,
 ): Promise<T> {
-  if (!raw) {
-    throw new AppValidationException(
-      ErrorCode.INVALID_INPUT,
-      'videosPageData é obrigatório',
-    );
-  }
+  return parseAndValidateSharedPayload(
+    raw,
+    dtoClass,
+    VIDEO_PAGE_PAYLOAD_FIELD,
+    VIDEO_PAYLOAD_LABELS,
+  );
+}
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    throw new AppValidationException(
-      ErrorCode.INVALID_INPUT,
-      'videosPageData deve conter um JSON válido',
-    );
-  }
-
-  const dto = plainToInstance(dtoClass, parsed);
-  const errors = await validate(dto, {
-    whitelist: true,
-    forbidNonWhitelisted: true,
-  });
-
-  if (errors.length > 0) {
-    throw new AppValidationException(
-      ErrorCode.VALIDATION_ERROR,
-      'Dados inválidos na requisição',
-    );
-  }
-
-  return dto;
+/** Recusa link inválido apontando o vídeo. */
+export function assertVideoLinks(videos: MediaItemDto[]): void {
+  assertMediaLinksAt(videos, (index) => ({
+    field: `videos.${index}.url`,
+    label: `Vídeo ${index + 1}`,
+  }));
 }

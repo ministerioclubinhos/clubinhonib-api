@@ -31,28 +31,37 @@ export class ImagePageDeleteService {
     try {
       const sectionIds = collectSectionIds([page]);
 
-      if (sectionIds.length > 0) {
-        const media = await this.mediaItemProcessor.findManyMediaItemsByTargets(
-          sectionIds,
-          IMAGE_PAGE_ENTITY_TYPE,
-        );
-
-        if (media.length > 0) {
-          await this.mediaItemProcessor.deleteMediaItems(media, (url: string) =>
-            this.awsS3Service.delete(url),
-          );
-          this.logger.debug(
-            `${media.length} mídia(s) removida(s) da galeria ${id}`,
-          );
-        }
-      }
-
-      // A página sai antes da rota: com a página removida, a chave estrangeira
-      // deixa de apontar para a rota e a exclusão dela fica livre.
-      await this.imagePageRepository.runInTransaction(
+      // Mídias e galeria saem na mesma transação: se a remoção falhar, nada
+      // some pela metade. Os arquivos do S3 só são apagados depois do commit.
+      const urls = await this.imagePageRepository.runInTransaction(
         async (manager: EntityManager) => {
+          const files: string[] = [];
+          for (const sectionId of sectionIds) {
+            const media =
+              await this.mediaItemProcessor.findMediaItemsByTargetInTransaction(
+                manager,
+                sectionId,
+                IMAGE_PAGE_ENTITY_TYPE,
+              );
+            files.push(...media.filter((m) => m.isLocalFile).map((m) => m.url));
+            await this.mediaItemProcessor.deleteMediaItemsByTargetInTransaction(
+              manager,
+              sectionId,
+              IMAGE_PAGE_ENTITY_TYPE,
+            );
+          }
+          // A página sai antes da rota: com a página removida, a chave
+          // estrangeira deixa de apontar para a rota e a exclusão dela fica livre.
           await this.imagePageRepository.removePage(page, manager);
+          return files;
         },
+      );
+      await this.mediaItemProcessor.discardUnreferencedUploads(
+        urls,
+        (url: string) => this.awsS3Service.delete(url),
+      );
+      this.logger.debug(
+        `${urls.length} arquivo(s) da galeria ${id} apagado(s)`,
       );
 
       if (page.route?.id) {

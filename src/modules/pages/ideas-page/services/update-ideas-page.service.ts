@@ -31,7 +31,7 @@ import { IdeasPageGetService } from './get-ideas-page.service';
 import {
   assertUploadsHaveFiles,
   assertOwnedUniqueIds,
-  assertMediaLinks,
+  assertSectionMediaLinks,
   planSectionSync,
   toMediaItemInputs,
 } from '../utils';
@@ -85,8 +85,16 @@ export class IdeasPageUpdateService {
         filesDict,
       );
 
-      assertOwnedUniqueIds(dto.sections, page.sections ?? [], 'seção');
-      assertMediaLinks(dto.sections.flatMap((section) => section.medias));
+      assertOwnedUniqueIds(
+        dto.sections,
+        page.sections ?? [],
+        'seção',
+        (index) => ({
+          field: `sections.${index}.id`,
+          label: `Seção ${index + 1}`,
+        }),
+      );
+      assertSectionMediaLinks(dto.sections);
 
       await this.ideasPageRepository.runInTransaction(
         async (manager: EntityManager) => {

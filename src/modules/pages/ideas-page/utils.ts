@@ -7,6 +7,7 @@ import {
 } from 'src/shared/media/media-item/media-item.entity';
 import { MediaItemInput } from 'src/shared/media/media-item-processor';
 import { MediaItemDto } from 'src/shared/share-dto/media-item-dto';
+import { assertMediaLinksAt } from 'src/shared/media/payload-validation';
 import { IdeasSectionEntity } from './entities/ideas-section.entity';
 import {
   IdeasPageFieldError,
@@ -200,38 +201,19 @@ export function toMediaItemInputs(items: MediaItemDto[]): MediaItemInput[] {
   }));
 }
 
-/** Reject stale, foreign or duplicate identifiers instead of silently creating copies. */
-export function assertOwnedUniqueIds(
-  incoming: { id?: string }[],
-  existing: { id: string }[],
-  label: string,
-): void {
-  const owned = new Set(existing.map((item) => item.id));
-  const seen = new Set<string>();
-  for (const item of incoming) {
-    if (!item.id) continue;
-    if (!owned.has(item.id) || seen.has(item.id)) {
-      throw new AppValidationException(
-        ErrorCode.INVALID_INPUT,
-        `Identificador de ${label} inválido ou repetido. Recarregue a página e tente novamente.`,
-      );
-    }
-    seen.add(item.id);
-  }
-}
+export {
+  assertOwnedUniqueIds,
+  assertMediaLinks,
+} from 'src/shared/media/payload-validation';
 
-export function assertMediaLinks(items: MediaItemDto[]): void {
-  for (const item of items) {
-    if (item.uploadType !== UploadType.LINK) continue;
-    try {
-      const url = new URL(item.url?.trim() ?? '');
-      if (!['https:', 'http:'].includes(url.protocol))
-        throw new Error('protocol');
-    } catch {
-      throw new AppValidationException(
-        ErrorCode.INVALID_INPUT,
-        'Informe um link HTTP ou HTTPS válido para a mídia.',
-      );
-    }
-  }
+/** Recusa link inválido apontando a seção e o material. */
+export function assertSectionMediaLinks(
+  sections: { medias: MediaItemDto[] }[],
+): void {
+  sections.forEach((section, sectionIndex) =>
+    assertMediaLinksAt(section.medias, (mediaIndex) => ({
+      field: `sections.${sectionIndex}.medias.${mediaIndex}.url`,
+      label: `Seção ${sectionIndex + 1} · Material ${mediaIndex + 1}`,
+    })),
+  );
 }

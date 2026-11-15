@@ -99,11 +99,20 @@ describe('UpdateVideosPageService', () => {
   const getRouteService = rotaMockBase;
   const updateRouteService = rotaMockBase;
   const mediaItemProcessor = {
-    deleteMediaItems: jest.fn(),
+    findMediaItemsByTargetInTransaction: jest.fn(),
+    deleteMediaItemByIdInTransaction: jest.fn(),
+    saveMediaItemInTransaction: jest.fn(),
     processMediaItemsPolymorphic: jest.fn(),
     buildBaseMediaItem: jest.fn(),
-    upsertMediaItem: jest.fn(),
     discardUnreferencedUploads: jest.fn(),
+  };
+
+  /** Vídeos já gravados: lidos antes da escrita e de dentro da transação. */
+  const givenStored = (videos: MediaItemEntity[]): void => {
+    getService.findVideosOf.mockResolvedValue(videos);
+    mediaItemProcessor.findMediaItemsByTargetInTransaction.mockResolvedValue(
+      videos,
+    );
   };
 
   let service: UpdateVideosPageService;
@@ -112,7 +121,7 @@ describe('UpdateVideosPageService', () => {
     jest.clearAllMocks();
 
     getService.findEntityOrFail.mockResolvedValue(buildPage());
-    getService.findVideosOf.mockResolvedValue([]);
+    givenStored([]);
     getRouteService.findRouteByEntityId.mockResolvedValue(route);
     updateRouteService.upsertRouteWithAvailablePath.mockResolvedValue(route);
     videosPageRepo.savePage.mockImplementation((page: VideosPage) => page);
@@ -120,8 +129,11 @@ describe('UpdateVideosPageService', () => {
       (item: Record<string, unknown>) =>
         Object.assign(new MediaItemEntity(), item),
     );
-    mediaItemProcessor.upsertMediaItem.mockImplementation(
-      (_id: string, media: MediaItemEntity) => media,
+    mediaItemProcessor.saveMediaItemInTransaction.mockImplementation(
+      (_manager: EntityManager, media: MediaItemEntity) => media,
+    );
+    mediaItemProcessor.findMediaItemsByTargetInTransaction.mockResolvedValue(
+      [],
     );
 
     const moduleRef = await Test.createTestingModule({
@@ -160,14 +172,83 @@ describe('UpdateVideosPageService', () => {
 
   it('remove vídeos que sumiram do payload', async () => {
     const dropped = buildVideo('dropped');
-    getService.findVideosOf.mockResolvedValue([dropped]);
+    givenStored([dropped]);
 
     await service.execute('page-id', validDto({ videos: [] }), {});
 
-    expect(mediaItemProcessor.deleteMediaItems).toHaveBeenCalledWith(
-      [dropped],
+    expect(
+      mediaItemProcessor.deleteMediaItemByIdInTransaction,
+    ).toHaveBeenCalledWith(manager, 'dropped');
+  });
+
+  it('só apaga do S3 o arquivo removido depois do commit', async () => {
+    givenStored([
+      buildVideo('gone', {
+        uploadType: UploadType.UPLOAD,
+        isLocalFile: true,
+        url: 'https://s3/removido.mp4',
+      }),
+    ]);
+
+    await service.execute('page-id', validDto({ videos: [] }), {});
+
+    expect(s3.delete).not.toHaveBeenCalled();
+    expect(mediaItemProcessor.discardUnreferencedUploads).toHaveBeenCalledWith(
+      ['https://s3/removido.mp4'],
       expect.any(Function),
     );
+  });
+
+  it('não apaga os arquivos antigos quando a transação falha', async () => {
+    givenStored([
+      buildVideo('gone', {
+        uploadType: UploadType.UPLOAD,
+        isLocalFile: true,
+        url: 'https://s3/removido.mp4',
+      }),
+    ]);
+    videosPageRepo.savePage.mockRejectedValue(new Error('db down'));
+
+    await expect(
+      service.execute('page-id', validDto({ videos: [] }), {}),
+    ).rejects.toBeInstanceOf(AppInternalException);
+
+    // Só o que foi enviado nesta tentativa é descartado; o arquivo que o banco
+    // ainda referencia fica.
+    expect(
+      mediaItemProcessor.discardUnreferencedUploads,
+    ).not.toHaveBeenCalledWith(
+      ['https://s3/removido.mp4'],
+      expect.any(Function),
+    );
+    expect(s3.delete).not.toHaveBeenCalled();
+  });
+
+  it('desfaz tudo quando a escrita de um vídeo falha no meio', async () => {
+    givenStored([buildVideo('v1'), buildVideo('v2')]);
+    mediaItemProcessor.saveMediaItemInTransaction.mockRejectedValueOnce(
+      new Error('db down'),
+    );
+
+    await expect(
+      service.execute(
+        'page-id',
+        validDto({
+          videos: ['v1', 'v2'].map((id) => ({
+            id,
+            title: id,
+            description: '',
+            uploadType: UploadType.LINK,
+            mediaType: MediaType.VIDEO,
+            isLocalFile: false,
+            url: 'https://youtu.be/x',
+          })),
+        }),
+        {},
+      ),
+    ).rejects.toBeInstanceOf(AppInternalException);
+
+    expect(videosPageRepo.savePage).not.toHaveBeenCalled();
   });
 
   it('cria os vídeos que chegam sem id', async () => {
@@ -196,6 +277,7 @@ describe('UpdateVideosPageService', () => {
       'VideosPage',
       {},
       expect.any(Function),
+      manager,
     );
   });
 
@@ -207,7 +289,7 @@ describe('UpdateVideosPageService', () => {
       originalName: 'antigo.mp4',
       size: 99,
     });
-    getService.findVideosOf.mockResolvedValue([stored]);
+    givenStored([stored]);
 
     await service.execute(
       'page-id',
@@ -228,9 +310,10 @@ describe('UpdateVideosPageService', () => {
 
     expect(s3.upload).not.toHaveBeenCalled();
     expect(s3.delete).not.toHaveBeenCalled();
-    expect(mediaItemProcessor.upsertMediaItem).toHaveBeenCalledWith(
-      'v1',
+    expect(mediaItemProcessor.saveMediaItemInTransaction).toHaveBeenCalledWith(
+      manager,
       expect.objectContaining({
+        id: 'v1',
         url: 'https://s3/antigo.mp4',
         isLocalFile: true,
         originalName: 'antigo.mp4',
@@ -239,13 +322,87 @@ describe('UpdateVideosPageService', () => {
     );
   });
 
+  it('não deixa o cliente redirecionar o arquivo guardado para outra URL', async () => {
+    givenStored([
+      buildVideo('v1', {
+        uploadType: UploadType.UPLOAD,
+        isLocalFile: true,
+        url: 'https://s3/antigo.mp4',
+        originalName: 'antigo.mp4',
+        size: 99,
+      }),
+    ]);
+
+    await service.execute(
+      'page-id',
+      validDto({
+        videos: [
+          {
+            id: 'v1',
+            title: 'Vídeo',
+            description: '',
+            uploadType: UploadType.UPLOAD,
+            mediaType: MediaType.VIDEO,
+            isLocalFile: true,
+            url: 'blob:http://localhost/preview-local',
+            originalName: 'outro.mp4',
+            size: 1,
+          },
+        ],
+      }),
+      {},
+    );
+
+    expect(mediaItemProcessor.saveMediaItemInTransaction).toHaveBeenCalledWith(
+      manager,
+      expect.objectContaining({
+        id: 'v1',
+        url: 'https://s3/antigo.mp4',
+        originalName: 'antigo.mp4',
+        size: 99,
+      }),
+    );
+    expect(s3.delete).not.toHaveBeenCalled();
+  });
+
+  it('recusa link que vira upload sem o arquivo, antes de mexer na mídia', async () => {
+    givenStored([buildVideo('v1'), buildVideo('v2')]);
+
+    await expect(
+      service.execute(
+        'page-id',
+        validDto({
+          videos: [
+            {
+              id: 'v1',
+              title: 'v1',
+              description: '',
+              uploadType: UploadType.UPLOAD,
+              mediaType: MediaType.VIDEO,
+              isLocalFile: true,
+              fieldKey: 'video-0',
+            },
+          ],
+        }),
+        {},
+      ),
+    ).rejects.toBeInstanceOf(AppValidationException);
+
+    expect(
+      mediaItemProcessor.deleteMediaItemByIdInTransaction,
+    ).not.toHaveBeenCalled();
+    expect(
+      mediaItemProcessor.saveMediaItemInTransaction,
+    ).not.toHaveBeenCalled();
+  });
+
   it('troca o arquivo quando um novo é enviado', async () => {
     const stored = buildVideo('v1', {
       uploadType: UploadType.UPLOAD,
       isLocalFile: true,
       url: 'https://s3/antigo.mp4',
     });
-    getService.findVideosOf.mockResolvedValue([stored]);
+    givenStored([stored]);
     s3.upload.mockResolvedValue('https://s3/novo.mp4');
 
     const file = {
@@ -272,11 +429,17 @@ describe('UpdateVideosPageService', () => {
       { video_0: file },
     );
 
-    expect(s3.delete).toHaveBeenCalledWith('https://s3/antigo.mp4');
     expect(s3.upload).toHaveBeenCalledWith(file);
-    expect(mediaItemProcessor.upsertMediaItem).toHaveBeenCalledWith(
-      'v1',
+    // O arquivo antigo só sai depois do commit.
+    expect(s3.delete).not.toHaveBeenCalled();
+    expect(mediaItemProcessor.discardUnreferencedUploads).toHaveBeenCalledWith(
+      ['https://s3/antigo.mp4'],
+      expect.any(Function),
+    );
+    expect(mediaItemProcessor.saveMediaItemInTransaction).toHaveBeenCalledWith(
+      manager,
       expect.objectContaining({
+        id: 'v1',
         url: 'https://s3/novo.mp4',
         originalName: 'novo.mp4',
         size: 42,
@@ -285,7 +448,7 @@ describe('UpdateVideosPageService', () => {
   });
 
   it('atualiza um vídeo de link sem tocar no S3', async () => {
-    getService.findVideosOf.mockResolvedValue([buildVideo('v1')]);
+    givenStored([buildVideo('v1')]);
 
     await service.execute(
       'page-id',
@@ -307,9 +470,10 @@ describe('UpdateVideosPageService', () => {
     );
 
     expect(s3.upload).not.toHaveBeenCalled();
-    expect(mediaItemProcessor.upsertMediaItem).toHaveBeenCalledWith(
-      'v1',
+    expect(mediaItemProcessor.saveMediaItemInTransaction).toHaveBeenCalledWith(
+      manager,
       expect.objectContaining({
+        id: 'v1',
         url: 'https://youtube.com/embed/atualizado',
         isLocalFile: false,
       }),
@@ -317,7 +481,7 @@ describe('UpdateVideosPageService', () => {
   });
 
   it('recusa vídeo novo de upload sem o arquivo, antes de mexer na mídia', async () => {
-    getService.findVideosOf.mockResolvedValue([buildVideo('v1')]);
+    givenStored([buildVideo('v1')]);
 
     await expect(
       service.execute(
@@ -338,7 +502,9 @@ describe('UpdateVideosPageService', () => {
       ),
     ).rejects.toBeInstanceOf(AppValidationException);
 
-    expect(mediaItemProcessor.deleteMediaItems).not.toHaveBeenCalled();
+    expect(
+      mediaItemProcessor.deleteMediaItemByIdInTransaction,
+    ).not.toHaveBeenCalled();
     expect(
       mediaItemProcessor.processMediaItemsPolymorphic,
     ).not.toHaveBeenCalled();

@@ -28,24 +28,32 @@ export class DeleteVideosPageService {
     const page = await this.getService.findEntityOrFail(id);
 
     try {
-      const videos = await this.getService.findVideosOf(page.id);
-
-      if (videos.length > 0) {
-        await this.mediaItemProcessor.deleteMediaItems(videos, (url: string) =>
-          this.s3.delete(url),
-        );
-        this.logger.debug(
-          `${videos.length} vídeo(s) removido(s) da página ${id}`,
-        );
-      }
-
-      // A página sai antes da rota: com a página removida, a chave estrangeira
-      // deixa de apontar para a rota e a exclusão dela fica livre.
-      await this.videosPageRepo.runInTransaction(
+      // Vídeos e página saem na mesma transação: se a remoção falhar, nada some
+      // pela metade. Os arquivos do S3 só são apagados depois do commit.
+      const urls = await this.videosPageRepo.runInTransaction(
         async (manager: EntityManager) => {
+          const videos =
+            await this.mediaItemProcessor.findMediaItemsByTargetInTransaction(
+              manager,
+              page.id,
+              VIDEO_PAGE_ENTITY_TYPE,
+            );
+          await this.mediaItemProcessor.deleteMediaItemsByTargetInTransaction(
+            manager,
+            page.id,
+            VIDEO_PAGE_ENTITY_TYPE,
+          );
+          // A página sai antes da rota: com a página removida, a chave
+          // estrangeira deixa de apontar para a rota e a exclusão dela fica livre.
           await this.videosPageRepo.removePage(page, manager);
+          return videos.filter((v) => v.isLocalFile).map((v) => v.url);
         },
       );
+      await this.mediaItemProcessor.discardUnreferencedUploads(
+        urls,
+        (url: string) => this.s3.delete(url),
+      );
+      this.logger.debug(`${urls.length} arquivo(s) da página ${id} apagado(s)`);
 
       if (page.route?.id) {
         await this.deleteRouteService.removeRoute(page.route.id);

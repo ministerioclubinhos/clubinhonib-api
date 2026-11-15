@@ -8,6 +8,7 @@ import { MediaItemDto } from 'src/shared/share-dto/media-item-dto';
 import { CreateVideosPageDto } from './dto/create-videos-page.dto';
 import {
   assertUploadFieldKeys,
+  assertVideoLinks,
   assertUploadFilesPresent,
   buildFilesDict,
   isUploadedVideo,
@@ -180,5 +181,79 @@ describe('video page utils', () => {
         ),
       ).rejects.toBeInstanceOf(AppValidationException);
     });
+  });
+});
+
+describe('validação do payload da galeria de vídeos', () => {
+  const video = {
+    title: 'Vídeo',
+    description: 'Descrição',
+    uploadType: UploadType.LINK,
+    mediaType: MediaType.VIDEO,
+    isLocalFile: false,
+    url: 'https://youtu.be/abc',
+  };
+  const payload = (overrides: Record<string, unknown> = {}): string =>
+    JSON.stringify({
+      title: 'Galeria',
+      description: 'Descrição',
+      public: true,
+      videos: [video],
+      ...overrides,
+    });
+  const fieldErrorsOf = async (
+    raw: string,
+  ): Promise<{ field: string; message: string }[]> => {
+    try {
+      await parseAndValidatePayload(raw, CreateVideosPageDto);
+    } catch (error) {
+      return (
+        (error as AppValidationException).details as {
+          fieldErrors: { field: string; message: string }[];
+        }
+      ).fieldErrors;
+    }
+    throw new Error('deveria recusar');
+  };
+
+  it('aceita um payload válido, inclusive sem vídeos', async () => {
+    await expect(
+      parseAndValidatePayload(payload(), CreateVideosPageDto),
+    ).resolves.toMatchObject({ title: 'Galeria' });
+    await expect(
+      parseAndValidatePayload(payload({ videos: [] }), CreateVideosPageDto),
+    ).resolves.toBeDefined();
+  });
+
+  it('recusa título e descrição em branco e título acima de 255', async () => {
+    const blank = await fieldErrorsOf(
+      payload({ title: ' ', description: ' ' }),
+    );
+    const messages = blank.map((item) => item.message);
+    expect(messages).toContain(
+      'Galeria · Título: O título não pode ficar vazio.',
+    );
+    expect(messages).toContain(
+      'Galeria · Descrição: A descrição da página não pode ficar vazia.',
+    );
+    const long = await fieldErrorsOf(payload({ title: 'x'.repeat(256) }));
+    expect(long[0].message).toContain('Use até 255 caracteres.');
+  });
+
+  it('aponta o vídeo com problema, contando a partir de 1', async () => {
+    const errors = await fieldErrorsOf(
+      payload({ videos: [video, { ...video, uploadType: 'foo' }] }),
+    );
+    expect(
+      errors.find((item) => item.field === 'videos.1.uploadType')?.message,
+    ).toContain('Vídeo 2 · Tipo de envio');
+  });
+
+  it('assertVideoLinks aponta o vídeo de link inválido', () => {
+    expect(() =>
+      assertVideoLinks([
+        Object.assign(new MediaItemDto(), { ...video, url: 'youtube.com/x' }),
+      ]),
+    ).toThrow('Vídeo 1 · Link');
   });
 });

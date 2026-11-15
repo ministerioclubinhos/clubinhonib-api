@@ -7,6 +7,7 @@ import {
 import { CreateImagePageDto } from './dto/create-image.dto';
 import { ImageSectionEntity } from './entity/Image-section.entity';
 import {
+  assertNewUploadsHaveFiles,
   buildFilesDict,
   collectSectionIds,
   groupMediaBySection,
@@ -147,5 +148,141 @@ describe('image page utils', () => {
         ),
       ).rejects.toBeInstanceOf(AppValidationException);
     });
+  });
+});
+
+describe('validação do payload da galeria', () => {
+  const validMedia = {
+    title: 'Foto',
+    description: '',
+    uploadType: UploadType.LINK,
+    mediaType: MediaType.IMAGE,
+    isLocalFile: false,
+    url: 'https://exemplo.com/a.png',
+  };
+  const payload = (overrides: Record<string, unknown> = {}): string =>
+    JSON.stringify({
+      title: 'Galeria',
+      description: 'Descrição',
+      public: true,
+      sections: [
+        {
+          caption: 'Seção',
+          description: '',
+          public: true,
+          mediaItems: [validMedia],
+        },
+      ],
+      ...overrides,
+    });
+
+  const failure = async (raw: string): Promise<AppValidationException> =>
+    parseAndValidatePayload(raw, CreateImagePageDto).then(
+      () => {
+        throw new Error('deveria recusar');
+      },
+      (error: unknown) => error as AppValidationException,
+    );
+
+  const fieldErrorsOf = (
+    error: AppValidationException,
+  ): { field: string; message: string }[] =>
+    (error.details as { fieldErrors: { field: string; message: string }[] })
+      .fieldErrors;
+
+  it('aceita um payload válido', async () => {
+    await expect(
+      parseAndValidatePayload(payload(), CreateImagePageDto),
+    ).resolves.toMatchObject({
+      title: 'Galeria',
+    });
+  });
+
+  it('recusa título e descrição em branco, com mensagem em português', async () => {
+    const error = await failure(payload({ title: '   ', description: ' ' }));
+    const messages = fieldErrorsOf(error).map((item) => item.message);
+    expect(messages).toContain(
+      'Galeria · Título: O título não pode ficar vazio.',
+    );
+    expect(messages).toContain(
+      'Galeria · Descrição: A descrição da galeria não pode ficar vazia.',
+    );
+  });
+
+  it('exige ao menos uma seção', async () => {
+    const error = await failure(payload({ sections: [] }));
+    expect(fieldErrorsOf(error)[0].message).toContain(
+      'Adicione ao menos uma seção.',
+    );
+  });
+
+  it('aponta a seção e a imagem com problema, uma posição a partir de 1', async () => {
+    const error = await failure(
+      payload({
+        sections: [
+          {
+            caption: 'Ok',
+            description: '',
+            public: true,
+            mediaItems: [validMedia],
+          },
+          {
+            caption: 'x'.repeat(256),
+            description: '',
+            public: true,
+            mediaItems: [validMedia, { ...validMedia, uploadType: 'foo' }],
+          },
+        ],
+      }),
+    );
+    const byField = Object.fromEntries(
+      fieldErrorsOf(error).map((item) => [item.field, item.message]),
+    );
+    expect(byField['sections.1.caption']).toContain('Seção 2 · Legenda');
+    expect(byField['sections.1.mediaItems.1.uploadType']).toContain(
+      'Seção 2 · Imagem 2',
+    );
+  });
+
+  it('recusa JSON que não é objeto', async () => {
+    await expect(
+      parseAndValidatePayload('[]', CreateImagePageDto),
+    ).rejects.toBeInstanceOf(AppValidationException);
+  });
+});
+
+describe('assertNewUploadsHaveFiles', () => {
+  const upload = (extra: Record<string, unknown>) =>
+    ({
+      title: 'Foto',
+      uploadType: UploadType.UPLOAD,
+      mediaType: MediaType.IMAGE,
+      isLocalFile: true,
+      ...extra,
+    }) as never;
+  const file = { fieldname: 'f' } as Express.Multer.File;
+
+  it('aceita upload novo com arquivo e imagem já salva sem fieldKey', () => {
+    expect(() =>
+      assertNewUploadsHaveFiles(
+        [upload({ fieldKey: 'f' }), upload({ id: 'm1' })],
+        { f: file },
+      ),
+    ).not.toThrow();
+  });
+
+  it('recusa upload novo sem fieldKey ou sem o arquivo no multipart', () => {
+    expect(() => assertNewUploadsHaveFiles([upload({})], {})).toThrow(
+      AppValidationException,
+    );
+    expect(() =>
+      assertNewUploadsHaveFiles([upload({ fieldKey: 'f' })], {}),
+    ).toThrow(AppValidationException);
+  });
+
+  it('ignora links', () => {
+    expect(() =>
+      assertNewUploadsHaveFiles([upload({ uploadType: UploadType.LINK })], {}),
+    ).not.toThrow();
   });
 });

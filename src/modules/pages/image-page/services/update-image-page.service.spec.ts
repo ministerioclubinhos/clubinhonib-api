@@ -104,12 +104,12 @@ describe('ImagePageUpdateService', () => {
   const updateRouteService = rotaMockBase;
   const awsS3Service = { upload: jest.fn(), delete: jest.fn() };
   const mediaItemProcessor = {
-    findManyMediaItemsByTargets: jest.fn(),
-    findMediaItemsByTarget: jest.fn(),
-    deleteMediaItems: jest.fn(),
+    findMediaItemsByTargetInTransaction: jest.fn(),
+    deleteMediaItemByIdInTransaction: jest.fn(),
+    deleteMediaItemsByTargetInTransaction: jest.fn(),
+    saveMediaItemInTransaction: jest.fn(),
     processMediaItemsPolymorphic: jest.fn(),
     buildBaseMediaItem: jest.fn(),
-    upsertMediaItem: jest.fn(),
     discardUnreferencedUploads: jest.fn(),
   };
 
@@ -132,14 +132,15 @@ describe('ImagePageUpdateService', () => {
       return Promise.resolve(fresh);
     });
     imagePageRepository.createSection.mockResolvedValue(buildSection('nova'));
-    mediaItemProcessor.findManyMediaItemsByTargets.mockResolvedValue([]);
-    mediaItemProcessor.findMediaItemsByTarget.mockResolvedValue([]);
+    mediaItemProcessor.findMediaItemsByTargetInTransaction.mockResolvedValue(
+      [],
+    );
     mediaItemProcessor.buildBaseMediaItem.mockImplementation(
       (item: Record<string, unknown>) =>
         Object.assign(new MediaItemEntity(), item),
     );
-    mediaItemProcessor.upsertMediaItem.mockImplementation(
-      (_id: string, media: MediaItemEntity) => media,
+    mediaItemProcessor.saveMediaItemInTransaction.mockImplementation(
+      (_manager: EntityManager, media: MediaItemEntity) => media,
     );
 
     const moduleRef = await Test.createTestingModule({
@@ -203,17 +204,95 @@ describe('ImagePageUpdateService', () => {
       isLocalFile: true,
       url: 'https://s3/a.png',
     });
-    mediaItemProcessor.findManyMediaItemsByTargets.mockResolvedValue([media]);
+    mediaItemProcessor.findMediaItemsByTargetInTransaction.mockResolvedValue([
+      media,
+    ]);
 
     await service.updateImagePage('page-id', validDto({ sections: [] }), {});
 
-    expect(mediaItemProcessor.deleteMediaItems).toHaveBeenCalledWith(
-      [media],
+    expect(
+      mediaItemProcessor.deleteMediaItemsByTargetInTransaction,
+    ).toHaveBeenCalledWith(manager, 'dropped', 'ImagesPage');
+    expect(imagePageRepository.removeSectionsByIds).toHaveBeenCalledWith(
+      ['dropped'],
+      manager,
+    );
+    // O arquivo só sai do S3 depois do commit.
+    expect(awsS3Service.delete).not.toHaveBeenCalled();
+    expect(mediaItemProcessor.discardUnreferencedUploads).toHaveBeenCalledWith(
+      ['https://s3/a.png'],
       expect.any(Function),
     );
-    expect(imagePageRepository.removeSectionsByIds).toHaveBeenCalledWith([
-      'dropped',
+  });
+
+  it('não apaga os arquivos antigos quando a transação falha', async () => {
+    const dropped = buildSection('dropped');
+    getService.findEntityOrFail.mockResolvedValue(buildPage([dropped]));
+    mediaItemProcessor.findMediaItemsByTargetInTransaction.mockResolvedValue([
+      Object.assign(new MediaItemEntity(), {
+        id: 'm1',
+        isLocalFile: true,
+        url: 'https://s3/a.png',
+      }),
     ]);
+    imagePageRepository.savePage.mockRejectedValue(new Error('db down'));
+
+    await expect(
+      service.updateImagePage('page-id', validDto({ sections: [] }), {}),
+    ).rejects.toBeInstanceOf(AppInternalException);
+
+    expect(
+      mediaItemProcessor.discardUnreferencedUploads,
+    ).not.toHaveBeenCalledWith(['https://s3/a.png'], expect.any(Function));
+    expect(awsS3Service.delete).not.toHaveBeenCalled();
+  });
+
+  it('descarta os uploads desta tentativa quando a transação falha', async () => {
+    awsS3Service.upload.mockResolvedValue('https://s3/nova.png');
+    imagePageRepository.savePage.mockRejectedValue(new Error('db down'));
+    imagePageRepository.createSection.mockResolvedValue(buildSection('nova'));
+    mediaItemProcessor.processMediaItemsPolymorphic.mockImplementation(
+      async (
+        _items: unknown,
+        _id: string,
+        _type: string,
+        files: Record<string, Express.Multer.File>,
+        upload: (file: Express.Multer.File) => Promise<string>,
+      ) => {
+        await upload(files.f0);
+        return [];
+      },
+    );
+
+    await expect(
+      service.updateImagePage(
+        'page-id',
+        validDto({
+          sections: [
+            sectionInput({
+              mediaItems: [
+                {
+                  title: 'Foto',
+                  description: '',
+                  mediaType: MediaType.IMAGE,
+                  uploadType: UploadType.UPLOAD,
+                  isLocalFile: true,
+                  fieldKey: 'f0',
+                },
+              ],
+            }),
+          ],
+        }),
+        {
+          f0: { fieldname: 'f0', originalname: 'f.png' } as Express.Multer.File,
+        },
+      ),
+    ).rejects.toBeInstanceOf(AppInternalException);
+
+    expect(mediaItemProcessor.discardUnreferencedUploads).toHaveBeenCalledWith(
+      ['https://s3/nova.png'],
+      expect.any(Function),
+    );
   });
 
   it('cria as seções que chegam sem id', async () => {
@@ -226,6 +305,7 @@ describe('ImagePageUpdateService', () => {
     expect(imagePageRepository.createSection).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ caption: 'Abertura' }),
+      manager,
     );
   });
 
@@ -244,6 +324,7 @@ describe('ImagePageUpdateService', () => {
 
     expect(imagePageRepository.saveSection).toHaveBeenCalledWith(
       expect.objectContaining({ id: 's1', caption: 'Nova legenda' }),
+      manager,
     );
     // Nada a remover: o serviço nem chega a consultar o repositório.
     expect(imagePageRepository.removeSectionsByIds).not.toHaveBeenCalled();
@@ -263,7 +344,9 @@ describe('ImagePageUpdateService', () => {
       mediaType: MediaType.IMAGE,
       uploadType: UploadType.UPLOAD,
     });
-    mediaItemProcessor.findMediaItemsByTarget.mockResolvedValue([storedMedia]);
+    mediaItemProcessor.findMediaItemsByTargetInTransaction.mockResolvedValue([
+      storedMedia,
+    ]);
 
     await service.updateImagePage(
       'page-id',
@@ -289,9 +372,10 @@ describe('ImagePageUpdateService', () => {
 
     expect(awsS3Service.upload).not.toHaveBeenCalled();
     expect(awsS3Service.delete).not.toHaveBeenCalled();
-    expect(mediaItemProcessor.upsertMediaItem).toHaveBeenCalledWith(
-      'm1',
+    expect(mediaItemProcessor.saveMediaItemInTransaction).toHaveBeenCalledWith(
+      manager,
       expect.objectContaining({
+        id: 'm1',
         url: 'https://s3/antiga.png',
         isLocalFile: true,
         originalName: 'antiga.png',
@@ -310,7 +394,9 @@ describe('ImagePageUpdateService', () => {
       url: 'https://s3/antiga.png',
       isLocalFile: true,
     });
-    mediaItemProcessor.findMediaItemsByTarget.mockResolvedValue([storedMedia]);
+    mediaItemProcessor.findMediaItemsByTargetInTransaction.mockResolvedValue([
+      storedMedia,
+    ]);
     awsS3Service.upload.mockResolvedValue('https://s3/nova.png');
 
     const file = {
@@ -342,11 +428,17 @@ describe('ImagePageUpdateService', () => {
       { image_0: file },
     );
 
-    expect(awsS3Service.delete).toHaveBeenCalledWith('https://s3/antiga.png');
     expect(awsS3Service.upload).toHaveBeenCalledWith(file);
-    expect(mediaItemProcessor.upsertMediaItem).toHaveBeenCalledWith(
-      'm1',
+    // O arquivo antigo só sai depois do commit.
+    expect(awsS3Service.delete).not.toHaveBeenCalled();
+    expect(mediaItemProcessor.discardUnreferencedUploads).toHaveBeenCalledWith(
+      ['https://s3/antiga.png'],
+      expect.any(Function),
+    );
+    expect(mediaItemProcessor.saveMediaItemInTransaction).toHaveBeenCalledWith(
+      manager,
       expect.objectContaining({
+        id: 'm1',
         url: 'https://s3/nova.png',
         originalName: 'nova.png',
         size: 42,

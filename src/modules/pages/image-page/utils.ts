@@ -1,8 +1,15 @@
-import { plainToInstance } from 'class-transformer';
-import { validate } from 'class-validator';
 import { AppValidationException, ErrorCode } from 'src/shared/exceptions';
-import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
+import {
+  MediaItemEntity,
+  UploadType,
+} from 'src/shared/media/media-item/media-item.entity';
+import { MediaItemDto } from 'src/shared/share-dto/media-item-dto';
 import { ImageSectionEntity } from './entity/Image-section.entity';
+import {
+  assertMediaLinksAt,
+  parseAndValidatePayload as parseAndValidateSharedPayload,
+} from 'src/shared/media/payload-validation';
+import { IMAGE_PAGE_PAYLOAD_FIELD, IMAGE_PAYLOAD_LABELS } from './constants';
 import {
   CelebrationRow,
   CelebrationSummary,
@@ -66,45 +73,17 @@ export function planSectionSync<TSection extends { id?: string }>(
   };
 }
 
-/**
- * Lê e valida o JSON enviado junto dos arquivos, com as mesmas regras do
- * ValidationPipe global.
- */
-export async function parseAndValidatePayload<T extends object>(
+/** Lê e valida o JSON `imageData`, com erros por seção e imagem. */
+export function parseAndValidatePayload<T extends object>(
   raw: string | undefined,
   dtoClass: new () => T,
 ): Promise<T> {
-  if (!raw) {
-    throw new AppValidationException(
-      ErrorCode.INVALID_INPUT,
-      'imageData é obrigatório',
-    );
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    throw new AppValidationException(
-      ErrorCode.INVALID_INPUT,
-      'imageData deve conter um JSON válido',
-    );
-  }
-
-  const dto = plainToInstance(dtoClass, parsed);
-  const errors = await validate(dto, {
-    whitelist: true,
-    forbidNonWhitelisted: true,
-  });
-
-  if (errors.length > 0) {
-    throw new AppValidationException(
-      ErrorCode.VALIDATION_ERROR,
-      'Dados inválidos na requisição',
-    );
-  }
-
-  return dto;
+  return parseAndValidateSharedPayload(
+    raw,
+    dtoClass,
+    IMAGE_PAGE_PAYLOAD_FIELD,
+    IMAGE_PAYLOAD_LABELS,
+  );
 }
 
 /** Agrupa as celebrações por seção, preservando a ordem de chegada. */
@@ -126,4 +105,43 @@ export function summarizeCelebrations(
     bySection.set(row.sectionId, summary);
   }
   return bySection;
+}
+
+/**
+ * Toda imagem nova enviada como upload precisa do arquivo no multipart. As já
+ * gravadas voltam do cliente só com o id e a URL, sem `fieldKey`.
+ */
+export function assertNewUploadsHaveFiles(
+  items: MediaItemDto[],
+  filesDict: MulterFilesDict,
+): void {
+  for (const item of items) {
+    if (item.uploadType !== UploadType.UPLOAD) continue;
+    const fieldKey = item.fieldKey ?? item.fileField;
+    if (item.id && !fieldKey) continue;
+    if (!fieldKey) {
+      throw new AppValidationException(
+        ErrorCode.MEDIA_FIELD_MISSING,
+        `fieldKey ausente para a mídia "${item.title ?? ''}"`,
+      );
+    }
+    if (!Object.hasOwn(filesDict, fieldKey)) {
+      throw new AppValidationException(
+        ErrorCode.MEDIA_FILE_NOT_FOUND,
+        `Arquivo ausente para a mídia "${item.title ?? ''}"`,
+      );
+    }
+  }
+}
+
+/** Recusa link inválido apontando a seção e a imagem. */
+export function assertSectionMediaLinks(
+  sections: { mediaItems: MediaItemDto[] }[],
+): void {
+  sections.forEach((section, sectionIndex) =>
+    assertMediaLinksAt(section.mediaItems, (mediaIndex) => ({
+      field: `sections.${sectionIndex}.mediaItems.${mediaIndex}.url`,
+      label: `Seção ${sectionIndex + 1} · Imagem ${mediaIndex + 1}`,
+    })),
+  );
 }

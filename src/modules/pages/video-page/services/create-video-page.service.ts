@@ -10,7 +10,6 @@ import { CreateRouteService } from 'src/modules/routes/services/create-route.ser
 import { RouteType } from 'src/modules/routes/route-page.entity';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
-import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 import { VideosPageRepository } from '../repositories/video-page.repository';
 import { CreateVideosPageDto } from '../dto/create-videos-page.dto';
 import { VideosPageResponseDto } from '../dto/videos-page-response.dto';
@@ -20,6 +19,7 @@ import { MulterFilesDict } from '../types';
 import {
   assertUploadFieldKeys,
   assertUploadFilesPresent,
+  assertVideoLinks,
   normalizeIncomingVideos,
 } from '../utils';
 import {
@@ -45,12 +45,9 @@ export class CreateVideosPageService {
     filesDict: MulterFilesDict,
   ): Promise<VideosPageResponseDto> {
     const incomingVideos = normalizeIncomingVideos(dto.videos);
+    assertVideoLinks(incomingVideos);
     assertUploadFieldKeys(incomingVideos);
     assertUploadFilesPresent(incomingVideos, filesDict);
-
-    // Fica fora do bloco porque o `catch` precisa do id para varrer a mídia
-    // que tenha sobrado da tentativa.
-    let savedPage: VideosPage | undefined;
 
     // Cada arquivo enviado fica registrado: se a criação falhar depois do
     // upload, o objeto é apagado do bucket em vez de ficar órfão.
@@ -64,7 +61,6 @@ export class CreateVideosPageService {
       const { page, videos } = await this.videosPageRepo.runInTransaction(
         async (manager) => {
           const created = await this.persistPageWithRoute(dto, manager);
-          savedPage = created;
 
           const media =
             await this.mediaItemProcessor.processMediaItemsPolymorphic(
@@ -73,6 +69,7 @@ export class CreateVideosPageService {
               VIDEO_PAGE_ENTITY_TYPE,
               filesDict,
               uploads.upload,
+              manager,
             );
 
           return { page: created, videos: media };
@@ -83,7 +80,6 @@ export class CreateVideosPageService {
 
       return toVideosPageResponse(page, videos);
     } catch (error: unknown) {
-      await this.discardOrphanMedia(savedPage?.id);
       await this.mediaItemProcessor.discardUnreferencedUploads(
         uploads.uploadedUrls,
         (url: string) => this.s3.delete(url),
@@ -141,28 +137,4 @@ export class CreateVideosPageService {
    * As mídias são gravadas fora da transação da página: no rollback, apagar o
    * que já foi persistido evita registro e arquivo órfãos.
    */
-  private async discardOrphanMedia(pageId?: string): Promise<void> {
-    if (!pageId) return;
-
-    try {
-      const orphans: MediaItemEntity[] =
-        await this.mediaItemProcessor.findMediaItemsByTarget(
-          pageId,
-          VIDEO_PAGE_ENTITY_TYPE,
-        );
-      if (orphans.length === 0) return;
-
-      await this.mediaItemProcessor.deleteMediaItems(orphans, (url: string) =>
-        this.s3.delete(url),
-      );
-      this.logger.warn(
-        `Compensação executada: ${orphans.length} mídia(s) órfã(s) removida(s). pageId=${pageId}`,
-      );
-    } catch (cleanupError: unknown) {
-      this.logger.error(
-        `Falha ao remover mídias órfãs da página ${pageId}`,
-        cleanupError instanceof Error ? cleanupError.stack : undefined,
-      );
-    }
-  }
 }

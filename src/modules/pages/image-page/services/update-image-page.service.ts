@@ -4,6 +4,7 @@ import {
   AppException,
   AppInternalException,
   AppNotFoundException,
+  AppValidationException,
   ErrorCode,
 } from 'src/shared/exceptions';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
@@ -17,13 +18,19 @@ import {
   UploadType,
 } from 'src/shared/media/media-item/media-item.entity';
 import { MediaItemDto } from 'src/shared/share-dto/media-item-dto';
+import { assertOwnedUniqueIds } from 'src/shared/media/payload-validation';
 import { ImagePageRepository } from '../repositories/image-page.repository';
 import { UpdateImagePageDto, UpdateSectionDto } from '../dto/update-image.dto';
 import { ImagePageResponseDto } from '../dto/image-page-response.dto';
 import { ImagePageEntity } from '../entity/Image-page.entity';
 import { ImagePageGetService } from './get-image-page.service';
 import { toImagePageResponse } from '../mappers';
-import { collectSectionIds, planSectionSync } from '../utils';
+import {
+  assertNewUploadsHaveFiles,
+  assertSectionMediaLinks,
+  collectSectionIds,
+  planSectionSync,
+} from '../utils';
 import { MulterFilesDict } from '../types';
 import {
   IMAGE_PAGE_ENTITY_TYPE,
@@ -55,15 +62,43 @@ export class ImagePageUpdateService {
     const uploads = new S3UploadTracker((file: Express.Multer.File) =>
       this.awsS3Service.upload(file),
     );
+    // Arquivos que deixam de ser referenciados; apagados só após o commit.
+    const removedUrls: string[] = [];
 
     try {
       const page = await this.getService.findEntityOrFail(id);
       const route = await this.loadRoute(page.id);
 
-      await this.syncSections(page, dto.sections, filesDict, uploads);
+      // Valida tudo antes da primeira escrita: depois dela, uma recusa deixaria
+      // a galeria pela metade.
+      assertOwnedUniqueIds(
+        dto.sections,
+        page.sections ?? [],
+        'seção',
+        (index) => ({
+          field: `sections.${index}.id`,
+          label: `Seção ${index + 1}`,
+        }),
+      );
+      assertNewUploadsHaveFiles(
+        dto.sections.flatMap((section) => section.mediaItems),
+        filesDict,
+      );
+      assertSectionMediaLinks(dto.sections);
 
       const updatedPage = await this.imagePageRepository.runInTransaction(
         async (manager: EntityManager) => {
+          // Seções, imagens, rota e dados da galeria entram na mesma transação:
+          // uma falha em qualquer ponto desfaz tudo, sem galeria pela metade.
+          await this.syncSections(
+            page,
+            dto.sections,
+            filesDict,
+            uploads,
+            manager,
+            removedUrls,
+          );
+
           // A galeria carregada trouxe as seções antigas, e a relação tem
           // `cascade`: salvar essa instância regravava as seções que a
           // sincronização acabou de renomear ou remover, desfazendo a edição.
@@ -77,6 +112,13 @@ export class ImagePageUpdateService {
 
           return this.imagePageRepository.savePage(target, manager);
         },
+      );
+
+      // Arquivos removidos ou substituídos só saem do S3 depois do commit: se a
+      // transação desfizesse, o banco ainda apontaria para eles.
+      await this.mediaItemProcessor.discardUnreferencedUploads(
+        removedUrls,
+        (url: string) => this.awsS3Service.delete(url),
       );
 
       this.logger.log(`Galeria atualizada. ID=${updatedPage.id}`);
@@ -147,44 +189,61 @@ export class ImagePageUpdateService {
 
   /**
    * Aplica as seções recebidas: remove as que sumiram do payload, atualiza as
-   * que mantiveram o id e cria o restante.
+   * que mantiveram o id e cria o restante. Tudo dentro da transação em curso.
    */
   private async syncSections(
     page: ImagePageEntity,
     incoming: UpdateSectionDto[],
     filesDict: MulterFilesDict,
     uploads: S3UploadTracker,
+    manager: EntityManager,
+    removedUrls: string[],
   ): Promise<void> {
-    const existing = page.sections ?? [];
-    const plan = planSectionSync(existing, incoming);
+    const plan = planSectionSync(page.sections ?? [], incoming);
 
-    await this.removeSections(plan.toRemove);
+    await this.removeSections(plan.toRemove, manager, removedUrls);
 
     for (const section of plan.toUpdate) {
-      await this.updateSection(section, filesDict, uploads);
+      await this.updateSection(
+        section,
+        filesDict,
+        uploads,
+        manager,
+        removedUrls,
+      );
     }
 
     for (const section of plan.toCreate) {
-      await this.createSection(page, section, filesDict, uploads);
+      await this.createSection(page, section, filesDict, uploads, manager);
     }
   }
 
   /** Remove as seções e tudo que pendurava nelas: mídias e arquivos no S3. */
-  private async removeSections(sectionIds: string[]): Promise<void> {
+  private async removeSections(
+    sectionIds: string[],
+    manager: EntityManager,
+    removedUrls: string[],
+  ): Promise<void> {
     if (sectionIds.length === 0) return;
 
-    const media = await this.mediaItemProcessor.findManyMediaItemsByTargets(
-      sectionIds,
-      IMAGE_PAGE_ENTITY_TYPE,
-    );
-
-    if (media.length > 0) {
-      await this.mediaItemProcessor.deleteMediaItems(media, (url: string) =>
-        this.awsS3Service.delete(url),
+    for (const sectionId of sectionIds) {
+      const media =
+        await this.mediaItemProcessor.findMediaItemsByTargetInTransaction(
+          manager,
+          sectionId,
+          IMAGE_PAGE_ENTITY_TYPE,
+        );
+      removedUrls.push(
+        ...media.filter((item) => item.isLocalFile).map((item) => item.url),
+      );
+      await this.mediaItemProcessor.deleteMediaItemsByTargetInTransaction(
+        manager,
+        sectionId,
+        IMAGE_PAGE_ENTITY_TYPE,
       );
     }
 
-    await this.imagePageRepository.removeSectionsByIds(sectionIds);
+    await this.imagePageRepository.removeSectionsByIds(sectionIds, manager);
     this.logger.debug(`${sectionIds.length} seção(ões) removida(s)`);
   }
 
@@ -192,25 +251,32 @@ export class ImagePageUpdateService {
     input: UpdateSectionDto,
     filesDict: MulterFilesDict,
     uploads: S3UploadTracker,
+    manager: EntityManager,
+    removedUrls: string[],
   ): Promise<void> {
     const section = await this.imagePageRepository.findSectionById(
       input.id as string,
+      manager,
     );
     if (!section) {
-      this.logger.warn(`Seção não encontrada, ignorada. ID=${input.id}`);
-      return;
+      throw new AppValidationException(
+        ErrorCode.INVALID_INPUT,
+        'Seção não pertence a esta galeria.',
+      );
     }
 
     section.caption = input.caption;
     section.description = input.description;
     section.public = input.public;
-    await this.imagePageRepository.saveSection(section);
+    await this.imagePageRepository.saveSection(section, manager);
 
     await this.syncSectionMedia(
       section.id,
       input.mediaItems,
       filesDict,
       uploads,
+      manager,
+      removedUrls,
     );
   }
 
@@ -219,12 +285,18 @@ export class ImagePageUpdateService {
     input: UpdateSectionDto,
     filesDict: MulterFilesDict,
     uploads: S3UploadTracker,
+    manager: EntityManager,
   ): Promise<void> {
-    const section = await this.imagePageRepository.createSection(page, {
-      caption: input.caption,
-      description: input.description,
-      public: input.public,
-    });
+    assertOwnedUniqueIds(input.mediaItems, [], 'imagem');
+    const section = await this.imagePageRepository.createSection(
+      page,
+      {
+        caption: input.caption,
+        description: input.description,
+        public: input.public,
+      },
+      manager,
+    );
 
     await this.mediaItemProcessor.processMediaItemsPolymorphic(
       input.mediaItems.map((item) => ({ ...item, fileField: item.fieldKey })),
@@ -232,6 +304,7 @@ export class ImagePageUpdateService {
       IMAGE_PAGE_ENTITY_TYPE,
       filesDict,
       uploads.upload,
+      manager,
     );
   }
 
@@ -244,21 +317,26 @@ export class ImagePageUpdateService {
     incoming: MediaItemDto[],
     filesDict: MulterFilesDict,
     uploads: S3UploadTracker,
+    manager: EntityManager,
+    removedUrls: string[],
   ): Promise<void> {
-    const existing = await this.mediaItemProcessor.findMediaItemsByTarget(
-      sectionId,
-      IMAGE_PAGE_ENTITY_TYPE,
-    );
+    const existing =
+      await this.mediaItemProcessor.findMediaItemsByTargetInTransaction(
+        manager,
+        sectionId,
+        IMAGE_PAGE_ENTITY_TYPE,
+      );
+    assertOwnedUniqueIds(incoming, existing, 'imagem');
 
     const incomingIds = new Set(
       incoming.map((item) => item.id).filter((id): id is string => Boolean(id)),
     );
-    const toRemove = existing.filter((item) => !incomingIds.has(item.id));
-
-    if (toRemove.length > 0) {
-      await this.mediaItemProcessor.deleteMediaItems(toRemove, (url: string) =>
-        this.awsS3Service.delete(url),
+    for (const item of existing.filter((media) => !incomingIds.has(media.id))) {
+      await this.mediaItemProcessor.deleteMediaItemByIdInTransaction(
+        manager,
+        item.id,
       );
+      if (item.isLocalFile) removedUrls.push(item.url);
     }
 
     const toCreate = incoming.filter((item) => !item.id);
@@ -269,6 +347,7 @@ export class ImagePageUpdateService {
         IMAGE_PAGE_ENTITY_TYPE,
         filesDict,
         uploads.upload,
+        manager,
       );
     }
 
@@ -276,22 +355,25 @@ export class ImagePageUpdateService {
     for (const item of incoming.filter((media) => Boolean(media.id))) {
       await this.updateMediaItem(
         item,
-        existingById,
+        existingById.get(item.id as string),
         sectionId,
         filesDict,
         uploads,
+        manager,
+        removedUrls,
       );
     }
   }
 
   private async updateMediaItem(
     item: MediaItemDto,
-    existingById: ReadonlyMap<string, MediaItemEntity>,
+    previous: MediaItemEntity | undefined,
     sectionId: string,
     filesDict: MulterFilesDict,
     uploads: S3UploadTracker,
+    manager: EntityManager,
+    removedUrls: string[],
   ): Promise<MediaItemEntity> {
-    const previous = item.id ? existingById.get(item.id) : undefined;
     const media = this.mediaItemProcessor.buildBaseMediaItem(
       item,
       sectionId,
@@ -308,21 +390,37 @@ export class ImagePageUpdateService {
       media.originalName = file.originalname;
       media.size = file.size;
       media.platformType = undefined;
+    } else if (isUpload) {
+      if (!previous?.isLocalFile || !previous.url) {
+        throw new AppValidationException(
+          ErrorCode.MEDIA_FILE_NOT_FOUND,
+          `Arquivo ausente para a mídia "${item.title ?? ''}"`,
+        );
+      }
+      // O arquivo já guardado não pode ser redirecionado pelo cliente: URL,
+      // nome e tamanho vêm do registro, não do payload.
+      media.url = previous.url;
+      media.isLocalFile = true;
+      media.originalName = previous.originalName;
+      media.size = previous.size;
+      media.platformType = undefined;
     } else {
-      // Sem arquivo novo, o objeto já guardado no S3 é preservado.
-      media.url = item.url?.trim() || previous?.url || '';
-      media.isLocalFile = item.isLocalFile ?? previous?.isLocalFile ?? false;
-      media.originalName = item.originalName || previous?.originalName || '';
-      media.size = item.size ?? previous?.size ?? 0;
+      media.url = item.url?.trim() || '';
+      media.isLocalFile = false;
+      media.originalName = '';
+      media.size = 0;
       media.platformType = item.platformType ?? previous?.platformType;
     }
 
-    const saved = await this.mediaItemProcessor.upsertMediaItem(item.id, media);
+    if (previous) media.id = previous.id;
+    const saved = await this.mediaItemProcessor.saveMediaItemInTransaction(
+      manager,
+      media,
+    );
 
-    // O arquivo antigo só sai depois que o registro já aponta para o novo: na
-    // ordem inversa, uma falha no upload deixaria a mídia sem arquivo nenhum.
+    // O arquivo antigo só sai do S3 depois do commit.
     if (previous?.isLocalFile && previous.url && previous.url !== saved.url) {
-      await this.awsS3Service.delete(previous.url);
+      removedUrls.push(previous.url);
     }
 
     return saved;

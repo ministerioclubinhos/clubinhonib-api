@@ -19,6 +19,7 @@ import { ImagePageResponseDto } from '../dto/image-page-response.dto';
 import { ImagePageEntity } from '../entity/Image-page.entity';
 import { toImagePageResponse } from '../mappers';
 import { MediaBySection, MulterFilesDict } from '../types';
+import { assertSectionMediaLinks } from '../utils';
 import {
   IMAGE_PAGE_ENTITY_TYPE,
   IMAGE_PAGE_ROUTE_IMAGE_URL,
@@ -42,10 +43,7 @@ export class ImagePageCreateService {
     filesDict: MulterFilesDict,
   ): Promise<ImagePageResponseDto> {
     this.assertUploadedFiles(dto, filesDict);
-
-    // Fica fora do bloco porque o `catch` precisa do id para varrer a mídia
-    // que tenha sobrado da tentativa.
-    let savedPage: ImagePageEntity | undefined;
+    assertSectionMediaLinks(dto.sections);
 
     // Cada arquivo enviado fica registrado: se a criação falhar depois do
     // upload, o objeto é apagado do bucket em vez de ficar órfão.
@@ -66,11 +64,9 @@ export class ImagePageCreateService {
             },
             manager,
           );
-          savedPage = created;
 
           created.route = await this.createRoute(dto, created, manager);
           created = await this.imagePageRepository.savePage(created, manager);
-          savedPage = created;
 
           const media = await this.createSections(
             dto,
@@ -92,7 +88,6 @@ export class ImagePageCreateService {
 
       return toImagePageResponse(page, mediaBySection);
     } catch (error: unknown) {
-      await this.discardOrphanMedia(savedPage?.id);
       await this.mediaItemProcessor.discardUnreferencedUploads(
         uploads.uploadedUrls,
         (url: string) => this.awsS3Service.delete(url),
@@ -195,44 +190,12 @@ export class ImagePageCreateService {
           IMAGE_PAGE_ENTITY_TYPE,
           filesDict,
           uploads.upload,
+          manager,
         );
 
       mediaBySection.set(section.id, mediaItems);
     }
 
     return mediaBySection;
-  }
-
-  /**
-   * As mídias são gravadas fora da transação da galeria: no rollback, apagar o
-   * que já foi persistido evita registro e arquivo órfãos.
-   */
-  private async discardOrphanMedia(pageId?: string): Promise<void> {
-    if (!pageId) return;
-
-    try {
-      const sections =
-        await this.imagePageRepository.findSectionsOfPage(pageId);
-      const sectionIds = sections.map((section) => section.id);
-      if (sectionIds.length === 0) return;
-
-      const orphans = await this.mediaItemProcessor.findManyMediaItemsByTargets(
-        sectionIds,
-        IMAGE_PAGE_ENTITY_TYPE,
-      );
-      if (orphans.length === 0) return;
-
-      await this.mediaItemProcessor.deleteMediaItems(orphans, (url: string) =>
-        this.awsS3Service.delete(url),
-      );
-      this.logger.warn(
-        `Compensação executada: ${orphans.length} mídia(s) órfã(s) removida(s). pageId=${pageId}`,
-      );
-    } catch (cleanupError: unknown) {
-      this.logger.error(
-        `Falha ao remover mídias órfãs da galeria ${pageId}`,
-        cleanupError instanceof Error ? cleanupError.stack : undefined,
-      );
-    }
   }
 }

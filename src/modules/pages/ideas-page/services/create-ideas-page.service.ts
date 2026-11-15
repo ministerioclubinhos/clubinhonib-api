@@ -17,7 +17,7 @@ import { IdeasPageEntity } from '../entities/ideas-page.entity';
 import { toIdeasPageResponse } from '../mappers';
 import {
   assertUploadsHaveFiles,
-  assertMediaLinks,
+  assertSectionMediaLinks,
   toMediaItemInputs,
 } from '../utils';
 import { MediaBySection, MulterFilesDict } from '../types';
@@ -51,7 +51,7 @@ export class IdeasPageCreateService {
       filesDict,
     );
 
-    assertMediaLinks(dto.sections.flatMap((section) => section.medias));
+    assertSectionMediaLinks(dto.sections);
 
     // Cada arquivo enviado fica registrado: se a criação falhar depois do
     // upload, o objeto é apagado do bucket em vez de ficar órfão.

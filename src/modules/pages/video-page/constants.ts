@@ -1,3 +1,4 @@
+import type { PayloadLabels } from 'src/shared/media/payload-validation';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
 
 /** Prefixo aplicado ao path da rota pública da galeria de vídeos. */
@@ -39,3 +40,28 @@ export const VIDEO_PAGE_SORT_COLUMNS = {
 
 /** Tamanho máximo do texto de busca. */
 export const VIDEO_PAGE_SEARCH_MAX_LENGTH = 200;
+
+/** Limite de caracteres do título da galeria de vídeos. */
+export const VIDEO_TITLE_MAX_LENGTH = 255;
+
+/** Como nomear a galeria e o vídeo nas mensagens de validação. */
+export const VIDEO_PAYLOAD_LABELS: PayloadLabels = {
+  page: 'Galeria',
+  item: { property: 'videos', label: 'Vídeo' },
+  fields: {
+    title: 'Título',
+    description: 'Descrição',
+    public: 'Visibilidade',
+    videos: 'Vídeos',
+    id: 'Identificador',
+    uploadType: 'Tipo de envio',
+    mediaType: 'Tipo de material',
+    isLocalFile: 'Arquivo enviado',
+    url: 'Link',
+    platformType: 'Plataforma',
+    originalName: 'Nome do arquivo',
+    size: 'Tamanho do arquivo',
+    fieldKey: 'Arquivo',
+    fileField: 'Arquivo',
+  },
+};
