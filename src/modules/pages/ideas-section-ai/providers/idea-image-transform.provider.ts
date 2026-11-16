@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import sharp from 'sharp';
+import { sharp } from 'src/modules/ai-lessons/utils/sharp.utils';
 import { IDEA_AI } from '../constants';
+import { ImagePdfPage } from '../image-pdf.utils';
 import { IdeaAiGuard, PreparedIdeaImage, IdeaImageFormat } from '../types';
 @Injectable()
 export class IdeaImageTransformProvider {
@@ -39,6 +40,14 @@ export class IdeaImageTransformProvider {
       .sharpen({ sigma: 0.5 })
       .png()
       .toBuffer();
+  }
+  /** Página tratada → JPEG para remontar o PDF (sem transparência, fundo branco). */
+  async toJpeg(buffer: Buffer, quality: number): Promise<ImagePdfPage> {
+    const { data, info } = await sharp(buffer)
+      .flatten({ background: '#ffffff' })
+      .jpeg({ quality })
+      .toBuffer({ resolveWithObject: true });
+    return { jpeg: data, width: info.width, height: info.height };
   }
   async output(buffer: Buffer, format: IdeaImageFormat): Promise<Buffer> {
     return sharp(buffer)

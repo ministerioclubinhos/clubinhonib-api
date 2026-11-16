@@ -17,6 +17,7 @@ import { IdeasSectionAiEnhancementEntity } from '../entities/ideas-section-ai-en
 import { IdeasSectionAiMediaEnhancementEntity } from '../entities/ideas-section-ai-media-enhancement.entity';
 import { IdeasSectionSubmissionSnapshotEntity } from '../entities/ideas-section-submission-snapshot.entity';
 import { EnhanceIdeaTextService } from './enhance-idea-text.service';
+import { GetIdeaAiContextService } from './get-idea-ai-context.service';
 import { EnhanceIdeaDocumentService } from './enhance-idea-document.service';
 import { EnhanceIdeaImageService } from './enhance-idea-image.service';
 import {
@@ -42,6 +43,7 @@ export class ProcessIdeaAiEnhancementService {
   constructor(
     private readonly repo: IdeasSectionAiRepository,
     private readonly settingsService: GetAiProviderSettingsService,
+    private readonly context: GetIdeaAiContextService,
     private readonly text: EnhanceIdeaTextService,
     private readonly documents: EnhanceIdeaDocumentService,
     private readonly images: EnhanceIdeaImageService,
@@ -75,6 +77,14 @@ export class ProcessIdeaAiEnhancementService {
       };
       if (!(await this.repo.renew(attempt.id, owner, { ...progress }))) return;
 
+      // A ideia inteira: o texto enxerga os arquivos e os arquivos enxergam o texto.
+      const idea = await this.context.get(
+        snapshot.submittedTitle,
+        snapshot.submittedDescription,
+        [...snapshot.medias]
+          .sort((a, b) => a.position - b.position)
+          .map((m) => m.sourceMedia),
+      );
       let text: IdeaAiTextResult | null = null;
       let textError: IdeaAiErrorCode | null = null;
       if (attempt.includeText) {
@@ -84,8 +94,10 @@ export class ProcessIdeaAiEnhancementService {
             snapshot.submittedTitle,
             snapshot.submittedDescription,
             attempt.instructions,
+            idea.materials,
           );
         } catch (error: unknown) {
+          this.logFailure(attempt.id, 'texto', error);
           textError = this.itemError(error);
           text = {
             title: null,
@@ -116,6 +128,7 @@ export class ProcessIdeaAiEnhancementService {
         try {
           const context = {
             source,
+            idea,
             settings,
             imageIndex,
             instructions: attempt.instructions,
@@ -132,6 +145,7 @@ export class ProcessIdeaAiEnhancementService {
               skipReason: IdeaAiSkipReason.NOT_SUPPORTED,
             });
         } catch (error: unknown) {
+          this.logFailure(attempt.id, `material ${source.id}`, error);
           results.push({
             sourceMediaId: source.id,
             status: IdeaAiMediaStatus.FAILED,
@@ -142,6 +156,15 @@ export class ProcessIdeaAiEnhancementService {
         if (!(await this.repo.renew(attempt.id, owner, { ...progress })))
           return;
       }
+
+      // Um material pulado ou com falha não gera erro, mas precisa deixar rastro.
+      for (const result of results)
+        if (result.status !== IdeaAiMediaStatus.ENHANCED)
+          this.logger.log(
+            `Melhoria ${attempt.id}: material ${result.sourceMediaId} ${result.status}${
+              result.skipReason ? ` (${result.skipReason})` : ''
+            }${result.errorCode ? ` (${result.errorCode})` : ''}.`,
+          );
 
       const staged: StagedIdeaAiMedia[] = [];
       for (const result of results) {
@@ -221,6 +244,22 @@ export class ProcessIdeaAiEnhancementService {
     if (!settings[settings.llmProvider].apiKey)
       throw new IdeaAiAbort(IdeaAiErrorCode.PROVIDER_NOT_CONFIGURED);
     return settings;
+  }
+
+  /**
+   * O código que vai para a tela é genérico (`PROVIDER_REQUEST_FAILED` cobre
+   * qualquer erro inesperado); a causa de verdade só existe aqui. Sem este log
+   * um erro de código parecia "o provedor não respondeu a tempo".
+   */
+  private logFailure(attemptId: string, what: string, error: unknown): void {
+    const cause =
+      error instanceof Error
+        ? `${error.name}: ${error.message}`
+        : 'erro desconhecido';
+    this.logger.error(
+      `Melhoria ${attemptId}: falha em ${what} — ${cause}`,
+      error instanceof Error ? error.stack : undefined,
+    );
   }
 
   /** Infra failures abort everything; anything else fails only the item. */
@@ -328,6 +367,7 @@ export class ProcessIdeaAiEnhancementService {
           skipReason: result.skipReason ?? null,
           enhancedMediaId: saved?.id ?? null,
           editableMediaId: editable?.id ?? null,
+          editableDocumentJson: result.editableDocument ?? null,
           guard: result.guard ? { ...result.guard } : null,
           errorCode: result.errorCode ?? null,
           carriedOver: false,
@@ -388,6 +428,9 @@ export class ProcessIdeaAiEnhancementService {
         skipReason: previous.skipReason,
         enhancedMediaId: previous.enhancedMediaId,
         editableMediaId: previous.editableMediaId,
+        // O conteúdo editado e a data da edição acompanham os arquivos reaproveitados.
+        editableDocumentJson: previous.editableDocumentJson,
+        documentEditedAt: previous.documentEditedAt,
         guard: previous.guard,
         errorCode,
         carriedOver: true,

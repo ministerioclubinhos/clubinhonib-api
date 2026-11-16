@@ -29,7 +29,9 @@ Worker -> DB : Claim with lease on DB clock; claim_count + 1
 alt claim_count reached limit
  Worker -> DB : FAILED / STALLED (not counted)
 end
-Worker -> AI : Only targeted text / documents / images\n(+ admin instructions for text and documents)
+Worker -> Worker : Visual PDF (no text or with images): rasterize pages,\nsharpen (no AI), rebuild PDF
+Worker -> Worker : Build whole-idea context\n(title, description, document texts)
+Worker -> AI : Only targeted text / documents / images\n(text sees the files; files see the text)\n(+ admin instructions for text and documents)
 AI --> Worker : Structured result
 Worker -> Worker : Per-field text guard, structure / image guards
 Worker -> AI : Independent essence judge

@@ -2,6 +2,7 @@ import { EnhanceIdeaTextService } from './enhance-idea-text.service';
 import { IdeaAiGatewayProvider } from '../providers/idea-ai-gateway.provider';
 import { IdeaEssenceGuardService } from './idea-essence-guard.service';
 import { settings } from '../testing/fixtures';
+import { MediaType } from 'src/shared/media/media-item/media-item.entity';
 import { IDEA_AI_ADMIN_INSTRUCTIONS_PREFIX } from '../constants';
 
 describe('EnhanceIdeaTextService', () => {
@@ -39,6 +40,31 @@ describe('EnhanceIdeaTextService', () => {
     expect(request.instructions).toContain(
       `${IDEA_AI_ADMIN_INSTRUCTIONS_PREFIX} Mais curto`,
     );
+  });
+
+  it('sends the materials as context and still guards against facts taken from them', async () => {
+    gateway.json.mockResolvedValue({
+      title: 'Gincana das bolas',
+      description: 'Separe 3 bolas e leia João 3:16. Forme 4 grupos.',
+      changes: [],
+    });
+    const result = await service.enhance(settings, title, description, null, [
+      { name: 'molde.pdf', type: MediaType.DOCUMENT, text: 'Forme 4 grupos.' },
+      { name: 'foto.png', type: MediaType.IMAGE, text: null },
+    ]);
+    const calls = gateway.json.mock.calls as unknown as Array<
+      [unknown, { data: unknown }]
+    >;
+    expect(calls[0][1].data).toEqual({
+      title,
+      description,
+      materials: [
+        { name: 'molde.pdf', extractedText: 'Forme 4 grupos.' },
+        { name: 'foto.png', extractedText: null },
+      ],
+    });
+    // O número 4 veio do arquivo, não do professor na descrição: a guarda barra.
+    expect(result.description).toBeNull();
   });
 
   it('keeps a good title when the description loses a fact', async () => {

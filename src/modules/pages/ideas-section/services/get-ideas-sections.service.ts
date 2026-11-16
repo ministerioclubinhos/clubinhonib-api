@@ -42,6 +42,8 @@ export class GetIdeasSectionsService {
   async findPendingPaginated(
     query: QueryIdeasSectionsDto,
   ): Promise<Paginated<IdeasSectionResponseDto>> {
+    // Flag desligada: o recorte por IA não existe.
+    if (!(await this.ai.isEnabled())) query = { ...query, aiStatus: undefined };
     const page = query.page ?? IDEAS_SECTIONS_DEFAULT_PAGE;
     const limit = query.limit ?? IDEAS_SECTIONS_DEFAULT_LIMIT;
 
@@ -76,7 +78,10 @@ export class GetIdeasSectionsService {
 
     return {
       ...toIdeasSectionResponse(section, medias),
-      aiEnhancement: await this.ai.get(id),
+      // Flag desligada: a resposta não traz nada de IA.
+      ...((await this.ai.isEnabled())
+        ? { aiEnhancement: await this.ai.get(id) }
+        : {}),
     };
   }
 

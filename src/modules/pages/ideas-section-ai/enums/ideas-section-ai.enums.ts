@@ -86,3 +86,11 @@ export enum IdeaAiQueueFilter {
   /** Nenhuma tentativa até agora. */
   NONE = 'NONE',
 }
+
+/** De onde veio o conteúdo aberto no editor do documento melhorado. */
+export enum IdeaAiDocumentSource {
+  /** O JSON guardado quando a IA gerou (ou quando um administrador salvou). */
+  STORED = 'STORED',
+  /** Resultado antigo, sem JSON guardado: texto extraído do PDF melhorado. */
+  EXTRACTED = 'EXTRACTED',
+}

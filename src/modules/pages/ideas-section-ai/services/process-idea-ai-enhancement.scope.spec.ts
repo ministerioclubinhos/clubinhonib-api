@@ -12,6 +12,7 @@ import {
 import { IdeasSectionAiRepository } from '../repositories/ideas-section-ai.repository';
 import { ProcessIdeaAiEnhancementService } from './process-idea-ai-enhancement.service';
 import { EnhanceIdeaTextService } from './enhance-idea-text.service';
+import { GetIdeaAiContextService } from './get-idea-ai-context.service';
 import { EnhanceIdeaDocumentService } from './enhance-idea-document.service';
 import { EnhanceIdeaImageService } from './enhance-idea-image.service';
 import {
@@ -95,6 +96,13 @@ describe('targeted idea regeneration', () => {
     mediaResults: jest.fn(),
   };
   const text = { enhance: jest.fn() };
+  const idea = {
+    title: 'Gincana',
+    description: 'Separe bolas.',
+    materials: [],
+    prepared: new Map(),
+  };
+  const context = { get: jest.fn() };
   const documents = { enhance: jest.fn() };
   const images = { enhance: jest.fn() };
   const media = {
@@ -106,6 +114,7 @@ describe('targeted idea regeneration', () => {
 
   beforeEach(async () => {
     jest.resetAllMocks();
+    context.get.mockResolvedValue(idea);
     repo.transaction.mockImplementation(
       (run: (m: EntityManager) => Promise<unknown>) => run(manager),
     );
@@ -147,6 +156,7 @@ describe('targeted idea regeneration', () => {
           },
         },
         { provide: EnhanceIdeaTextService, useValue: text },
+        { provide: GetIdeaAiContextService, useValue: context },
         { provide: EnhanceIdeaDocumentService, useValue: documents },
         { provide: EnhanceIdeaImageService, useValue: images },
         { provide: MediaItemProcessor, useValue: media },
@@ -171,6 +181,7 @@ describe('targeted idea regeneration', () => {
       snapshot.submittedTitle,
       snapshot.submittedDescription,
       'Mais curto',
+      idea.materials,
     );
     expect(documents.enhance).not.toHaveBeenCalled();
     expect(images.enhance).not.toHaveBeenCalled();

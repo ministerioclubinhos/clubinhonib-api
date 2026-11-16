@@ -78,6 +78,9 @@ export function toIdeaAiAttempt(
         editableMedia: m.editableMedia
           ? toIdeasSectionMediaResponse(m.editableMedia)
           : null,
+        documentEditedAt: m.documentEditedAt
+          ? m.documentEditedAt.toISOString()
+          : null,
         errorCode: m.errorCode,
         carriedOver: m.carriedOver,
       })),

@@ -4,7 +4,7 @@ import { IdeaAiGatewayProvider } from '../providers/idea-ai-gateway.provider';
 import { IdeaEssenceGuardService } from './idea-essence-guard.service';
 import { EnhancedIdeaTextDto } from '../dto/enhanced-idea.dto';
 import { IDEA_TEXT_SCHEMA } from '../schemas';
-import { IdeaAiTextResult } from '../types';
+import { IdeaAiMaterialContext, IdeaAiTextResult } from '../types';
 import {
   checkIdeaTextField,
   combineIdeaTextGuard,
@@ -33,6 +33,7 @@ export class EnhanceIdeaTextService {
     title: string,
     description: string,
     instructions: string | null = null,
+    materials: IdeaAiMaterialContext[] = [],
   ): Promise<IdeaAiTextResult> {
     const result = await this.gateway.json(
       settings,
@@ -42,7 +43,14 @@ export class EnhanceIdeaTextService {
           IDEA_AI_TEXT_INSTRUCTIONS,
           instructions,
         ),
-        data: { title, description },
+        data: {
+          title,
+          description,
+          materials: materials.map(({ name, text }) => ({
+            name,
+            extractedText: text,
+          })),
+        },
       },
       EnhancedIdeaTextDto,
     );

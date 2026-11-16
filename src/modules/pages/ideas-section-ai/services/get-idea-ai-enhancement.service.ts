@@ -16,9 +16,14 @@ export class GetIdeaAiEnhancementService {
     private readonly settings: GetAiProviderSettingsService,
     private readonly flags: GetFeatureFlagsService,
   ) {}
+  /** Flag `idea_ai_enhancement`: desligada, a IA some da administração. */
+  isEnabled(): Promise<boolean> {
+    return this.flags.isSwitchedOn(FeatureFlagKeys.IDEA_AI_ENHANCEMENT, false);
+  }
   async summaries(
     ids: string[],
   ): Promise<Map<string, IdeaAiEnhancementStatus>> {
+    if (!(await this.isEnabled())) return new Map();
     const rows = await this.repo.attempts(ids);
     const result = new Map<string, IdeaAiEnhancementStatus>();
     for (const row of rows)
@@ -31,7 +36,7 @@ export class GetIdeaAiEnhancementService {
       this.repo.attempts([sectionId]),
       this.repo.publicationChoices(sectionId),
       this.settings.getInternalSettings(),
-      this.flags.isSwitchedOn(FeatureFlagKeys.IDEA_AI_ENHANCEMENT, false),
+      this.isEnabled(),
     ]);
     const medias = await this.repo.mediaResults(attempts.map((a) => a.id));
     const active = attempts.find((a) => IDEA_AI_ACTIVE.includes(a.status));

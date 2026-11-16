@@ -1,5 +1,8 @@
 import { InternalAiProviderSettings } from 'src/modules/ai-lessons/types/ai-provider-settings.types';
-import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
+import {
+  MediaItemEntity,
+  MediaType,
+} from 'src/shared/media/media-item/media-item.entity';
 import {
   IdeaAiErrorCode,
   IdeaAiMediaStatus,
@@ -50,9 +53,33 @@ export interface IdeaAiMediaResult {
   errorCode?: IdeaAiErrorCode;
   artifact?: IdeaAiArtifact;
   editable?: IdeaAiArtifact;
+  /** Conteúdo do documento melhorado no formato do editor, para edição manual. */
+  editableDocument?: IdeaTiptapDocument;
+}
+/** Um arquivo da ideia, visto pelas outras etapas como contexto. */
+export interface IdeaAiMaterialContext {
+  name: string;
+  type: MediaType;
+  /** Texto extraído (truncado); null quando o arquivo não tem texto ou não foi lido. */
+  text: string | null;
+}
+/** PDF já convertido e lido, reaproveitado pela etapa do documento. */
+export interface IdeaAiPreparedDocument {
+  pdf: Buffer;
+  text: string;
+  pages: number;
+  images: number;
+}
+/** A ideia inteira: o que cada etapa da IA enxerga além do seu próprio item. */
+export interface IdeaAiIdeaContext {
+  title: string;
+  description: string;
+  materials: IdeaAiMaterialContext[];
+  prepared: Map<string, IdeaAiPreparedDocument>;
 }
 export interface IdeaAiProcessContext {
   settings: InternalAiProviderSettings;
+  idea: IdeaAiIdeaContext;
   source: MediaItemEntity;
   imageIndex: number;
   /** Admin guidance for this attempt (documents only; images stay literal). */
@@ -74,8 +101,9 @@ export interface IdeaAiProviderResponse {
 export interface ParsedIdeaPdf {
   text: string;
   numpages: number;
+  /** Imagens embutidas grandes o bastante para fazer parte do conteúdo. */
+  images: number;
 }
-
 export type IdeaImageFormat = 'jpeg' | 'png' | 'webp' | 'gif';
 export interface PreparedIdeaImage extends IdeaAiAttachment {
   format: IdeaImageFormat;
@@ -84,8 +112,29 @@ export interface PreparedIdeaImage extends IdeaAiAttachment {
 export interface RenderedIdeaDocument {
   artifact: IdeaAiArtifact;
   editable: IdeaAiArtifact;
+  document: IdeaTiptapDocument;
 }
-export type IdeaPdfParser = (data: Buffer) => Promise<ParsedIdeaPdf>;
+
+/** Marca de texto do editor de documentos das ideias (negrito, cor, link…). */
+export interface IdeaTiptapMark {
+  type: string;
+  attrs?: Record<string, unknown>;
+}
+/** Nó do documento do editor das ideias (formato JSON do TipTap). */
+export interface IdeaTiptapNode {
+  type: string;
+  attrs?: Record<string, unknown>;
+  content?: IdeaTiptapNode[];
+  text?: string;
+  marks?: IdeaTiptapMark[];
+}
+export interface IdeaTiptapDocument {
+  type: 'doc';
+  content: IdeaTiptapNode[];
+}
+export type IdeaPdfParser = (
+  data: Buffer,
+) => Promise<Omit<ParsedIdeaPdf, 'images'>>;
 
 export interface StagedIdeaAiMedia {
   result: IdeaAiMediaResult;

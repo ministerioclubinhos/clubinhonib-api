@@ -13,11 +13,16 @@ import { DeleteIdeaAiAssetsService } from './services/delete-idea-ai-assets.serv
 import { ProcessIdeaAiEnhancementService } from './services/process-idea-ai-enhancement.service';
 import { EnhanceIdeaTextService } from './services/enhance-idea-text.service';
 import { EnhanceIdeaDocumentService } from './services/enhance-idea-document.service';
+import { GetIdeaAiContextService } from './services/get-idea-ai-context.service';
 import { EnhanceIdeaImageService } from './services/enhance-idea-image.service';
 import { IdeaEssenceGuardService } from './services/idea-essence-guard.service';
 import { IdeaAiGatewayProvider } from './providers/idea-ai-gateway.provider';
 import { IdeaDocumentRendererProvider } from './providers/idea-document-renderer.provider';
 import { IdeaImageTransformProvider } from './providers/idea-image-transform.provider';
+import { IdeaPdfRasterizerProvider } from './providers/idea-pdf-rasterizer.provider';
+import { GetIdeaAiDocumentService } from './services/get-idea-ai-document.service';
+import { UpdateIdeaAiDocumentService } from './services/update-idea-ai-document.service';
+import { IdeaTiptapDocxProvider } from './providers/idea-tiptap-docx.provider';
 import { IdeasSectionAiEnhancementJob } from './jobs/ideas-section-ai-enhancement.job';
 import { UpdateIdeaAiEnhancementService } from './services/update-idea-ai-enhancement.service';
 import { IdeasSectionAiController } from './ideas-section-ai.controller';
@@ -38,14 +43,19 @@ import { IdeasSectionAiController } from './ideas-section-ai.controller';
     UpdateIdeaAiPublicationService,
     UpdateIdeaAiEnhancementService,
     DeleteIdeaAiAssetsService,
+    GetIdeaAiDocumentService,
+    UpdateIdeaAiDocumentService,
+    IdeaTiptapDocxProvider,
     ProcessIdeaAiEnhancementService,
     EnhanceIdeaTextService,
     EnhanceIdeaDocumentService,
+    GetIdeaAiContextService,
     EnhanceIdeaImageService,
     IdeaEssenceGuardService,
     IdeaAiGatewayProvider,
     IdeaDocumentRendererProvider,
     IdeaImageTransformProvider,
+    IdeaPdfRasterizerProvider,
     IdeasSectionAiEnhancementJob,
   ],
   exports: [

@@ -1,21 +1,39 @@
 import { Injectable } from '@nestjs/common';
-import { Document, HeadingLevel, Packer, Paragraph, TextRun } from 'docx';
 import { PdfLibreOfficeService } from 'src/modules/ai-lessons/services/pdf-libreoffice.service';
+import type { EnhancedIdeaDocumentDto } from '../dto/enhanced-idea.dto';
+import { ideaDocumentToTiptap } from '../idea-document.utils';
 import {
-  EnhancedIdeaDocumentDto,
-  IdeaDocumentBlockType,
-} from '../dto/enhanced-idea.dto';
-import { RenderedIdeaDocument, ParsedIdeaPdf, IdeaPdfParser } from '../types';
+  IdeaPdfParser,
+  IdeaTiptapDocument,
+  ParsedIdeaPdf,
+  RenderedIdeaDocument,
+} from '../types';
+import { IdeaTiptapDocxProvider } from './idea-tiptap-docx.provider';
 import { createRequire } from 'node:module';
+import { IDEA_AI } from '../constants';
+import { countPdfImages } from '../pdf-images.utils';
 @Injectable()
 export class IdeaDocumentRendererProvider {
-  constructor(private readonly pdf: PdfLibreOfficeService) {}
+  constructor(
+    private readonly pdf: PdfLibreOfficeService,
+    private readonly tiptap: IdeaTiptapDocxProvider,
+  ) {}
+  /** Texto, páginas e imagens embutidas do PDF, sem IA e sem renderizar nada. */
   async inspect(buffer: Buffer): Promise<ParsedIdeaPdf> {
     // Import the parser entry directly: package index runs a sample PDF on require.
     const parse = createRequire(__filename)(
       'pdf-parse/lib/pdf-parse.js',
     ) as IdeaPdfParser;
-    return parse(buffer);
+    const images = countPdfImages(buffer, IDEA_AI.embeddedImageMinPixels);
+    try {
+      return { ...(await parse(buffer)), images };
+    } catch (error: unknown) {
+      // O leitor de texto estoura em alguns PDFs com imagem (ex.: "bad XRef
+      // entry"). Com imagens de verdade o documento é mantido como enviado;
+      // sem elas, o erro continua sendo um erro.
+      if (images > 0) return { text: '', numpages: 0, images };
+      throw error;
+    }
   }
   async toPdf(buffer: Buffer, name: string): Promise<Buffer> {
     if (name.toLowerCase().endsWith('.pdf')) return buffer;
@@ -24,55 +42,16 @@ export class IdeaDocumentRendererProvider {
       name.toLowerCase().endsWith('.doc') ? '.doc' : '.docx',
     );
   }
-  async render(
-    document: EnhancedIdeaDocumentDto,
+  /** Documento estruturado da IA → DOCX editável + PDF, pelo mesmo caminho do editor. */
+  render(document: EnhancedIdeaDocumentDto): Promise<RenderedIdeaDocument> {
+    return this.renderTiptap(ideaDocumentToTiptap(document));
+  }
+
+  /** Conteúdo do editor (gerado pela IA ou editado à mão) → DOCX + PDF. */
+  async renderTiptap(
+    document: IdeaTiptapDocument,
   ): Promise<RenderedIdeaDocument> {
-    const children: Paragraph[] = [
-      new Paragraph({
-        text: 'Clubinho Bíblico • Nova Igreja Batista',
-        heading: HeadingLevel.HEADING_2,
-      }),
-      new Paragraph({ text: document.title, heading: HeadingLevel.TITLE }),
-    ];
-    for (const section of document.sections) {
-      if (section.heading)
-        children.push(
-          new Paragraph({
-            text: section.heading,
-            heading: HeadingLevel.HEADING_1,
-          }),
-        );
-      for (const block of section.blocks) {
-        if (block.text)
-          children.push(
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: block.text,
-                  italics: block.type === IdeaDocumentBlockType.VERSE,
-                }),
-              ],
-              spacing: { after: 160 },
-            }),
-          );
-        for (const [index, item] of block.items.entries())
-          children.push(
-            new Paragraph({
-              text:
-                block.type === IdeaDocumentBlockType.NUMBERED_LIST
-                  ? `${index + 1}. ${item}`
-                  : item,
-              ...(block.type === IdeaDocumentBlockType.BULLET_LIST
-                ? { bullet: { level: 0 } }
-                : {}),
-              spacing: { after: 120 },
-            }),
-          );
-      }
-    }
-    const docx = await Packer.toBuffer(
-      new Document({ sections: [{ children }] }),
-    );
+    const docx = await this.tiptap.toDocx(document);
     const pdf = await this.pdf.convertDocxToPdf(docx);
     return {
       artifact: {
@@ -86,6 +65,7 @@ export class IdeaDocumentRendererProvider {
         mimeType:
           'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       },
+      document,
     };
   }
 }

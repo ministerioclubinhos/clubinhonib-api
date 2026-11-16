@@ -38,6 +38,8 @@ class "ideas_section_ai_media_enhancements" as result {
   * source_media_id : UUID <<RESTRICT>>
   enhanced_media_id : UUID <<RESTRICT>>
   editable_media_id : UUID <<RESTRICT>>
+  editable_document_json : json nullable (editor content)
+  document_edited_at : datetime nullable
   status : enum
   guard : json
   error_code : enum nullable

@@ -22,7 +22,8 @@ export function checkIdeaEssence(
     ...new Set(text.match(pattern) ?? []),
   ];
   const references = /(?:[1-3]\s*)?[A-ZÀ-Ý][a-zà-ÿ]+\s+\d+:\d+(?:[-–,]\d+)*/g;
-  const numbers = /\b\d+(?:[.,:]\d+)*(?:[-–]\d+)?\b/g;
+  // Sem \b: medidas coladas como 60x60 ou 10cm contam os mesmos números de 60 x 60 e 10 cm.
+  const numbers = /\d+(?:[.,:]\d+)*(?:[-–]\d+)?/g;
   const urls = /https?:\/\/[^\s)]+/g;
   const names = /\b[A-ZÀ-Ý][a-zà-ÿ]+(?:\s+[A-ZÀ-Ý][a-zà-ÿ]+)+/g;
   for (const reference of tokens(enhanced, references))
@@ -38,16 +39,14 @@ export function checkIdeaEssence(
       violations.push('Uma quantidade ou etapa numérica foi acrescentada.');
   for (const name of tokens(original, names))
     if (
-      !enhanced
-        .toLocaleLowerCase('pt-BR')
-        .includes(
-          name
-            .replace(
-              /^(?:Leia|Use|Forme|Separe|Conte|Com|Para|Depois|Antes)\s+/,
-              '',
-            )
-            .toLocaleLowerCase('pt-BR'),
-        )
+      !foldIdeaText(enhanced).includes(
+        foldIdeaText(
+          name.replace(
+            /^(?:Leia|Use|Forme|Separe|Conte|Com|Para|Depois|Antes)\s+/,
+            '',
+          ),
+        ),
+      )
     )
       violations.push('Um nome próprio pode ter sido alterado.');
   for (const url of tokens(enhanced, urls))
@@ -177,18 +176,65 @@ export function ideaAiProviderReady(
   return Boolean(configured?.apiKey && configured.generalModel);
 }
 
-/** Palavras-chave de um texto: minúsculas, sem pontuação, com tamanho mínimo. */
+/**
+ * Minúsculas e sem acentos: corrigir "oracao" para "oração" ou "Jose" para
+ * "José" é o upgrade que a IA foi pedida a fazer, não uma troca de palavra.
+ */
+export function foldIdeaText(text: string): string {
+  return text
+    .toLocaleLowerCase('pt-BR')
+    .normalize('NFD')
+    .replace(/\p{M}+/gu, '');
+}
+
+/** Palavras-chave de um texto: sem acento nem pontuação, com tamanho mínimo. */
 function ideaKeywords(text: string): Set<string> {
   return new Set(
-    (text.toLocaleLowerCase('pt-BR').match(/[\p{L}\p{N}]+/gu) ?? []).filter(
+    (foldIdeaText(text).match(/[\p{L}\p{N}]+/gu) ?? []).filter(
       (word) => word.length >= IDEA_AI.preservationMinWordLength,
     ),
   );
 }
 
+/** Distância de edição (inserir, apagar, trocar) com corte em `limit`. */
+export function ideaEditDistance(a: string, b: string, limit: number): number {
+  if (a === b) return 0;
+  if (Math.abs(a.length - b.length) > limit) return limit + 1;
+  let previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= a.length; i++) {
+    const current = [i];
+    let rowMin = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      const value = Math.min(
+        previous[j] + 1,
+        current[j - 1] + 1,
+        previous[j - 1] + cost,
+      );
+      current.push(value);
+      if (value < rowMin) rowMin = value;
+    }
+    if (rowMin > limit) return limit + 1;
+    previous = current;
+  }
+  return previous[b.length];
+}
+
+/**
+ * Quantas letras de diferença uma palavra aceita para ainda contar como a
+ * mesma: erro de digitação e plural passam; palavras curtas exigem igualdade,
+ * senão "bola" viraria "bala".
+ */
+function ideaTypoTolerance(word: string): number {
+  if (word.length >= IDEA_AI.preservationFuzzyLongLength) return 2;
+  if (word.length >= IDEA_AI.preservationFuzzyMinLength) return 1;
+  return 0;
+}
+
 /**
  * Quanto do original continua na versão da IA (0–1): fração das palavras-chave
- * do original presentes na proposta. Mede "upgrade" contra "reescrita": a
+ * do original presentes na proposta, ignorando acento, maiúscula e pequenos
+ * erros de grafia. Mede "upgrade" contra "reescrita": a
  * ordem pode mudar, o vocabulário de quem escreveu precisa ficar.
  */
 export function ideaWordPreservation(
@@ -198,8 +244,20 @@ export function ideaWordPreservation(
   const before = ideaKeywords(original);
   if (!before.size) return 1;
   const after = ideaKeywords(enhanced);
+  const candidates = [...after];
   let kept = 0;
-  for (const word of before) if (after.has(word)) kept++;
+  for (const word of before) {
+    const tolerance = ideaTypoTolerance(word);
+    if (
+      after.has(word) ||
+      (tolerance > 0 &&
+        candidates.some(
+          (candidate) =>
+            ideaEditDistance(word, candidate, tolerance) <= tolerance,
+        ))
+    )
+      kept++;
+  }
   return kept / before.size;
 }
 

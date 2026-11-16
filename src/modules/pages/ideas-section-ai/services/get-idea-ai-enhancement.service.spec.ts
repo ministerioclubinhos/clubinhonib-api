@@ -131,3 +131,16 @@ it('reports progress, base attempt, carried media and uncounted attempts', async
     errorCode: IdeaAiErrorCode.GUARD_REJECTED,
   });
 });
+
+it('hides AI statuses of the queue when the flag is off', async () => {
+  const repo = { attempts: jest.fn() };
+  const summaries = await new GetIdeaAiEnhancementService(
+    repo as unknown as IdeasSectionAiRepository,
+    providerSettings as unknown as GetAiProviderSettingsService,
+    {
+      isSwitchedOn: jest.fn().mockResolvedValue(false),
+    } as unknown as GetFeatureFlagsService,
+  ).summaries(['section']);
+  expect(summaries.size).toBe(0);
+  expect(repo.attempts).not.toHaveBeenCalled();
+});

@@ -800,6 +800,8 @@ New shared-idea media validation returns `400` with the existing error envelope 
 | `IDEA_AI_8625` | 400 | Invalid regeneration scope (no current result, unknown/unsupported media, nothing failed) |
 | `IDEA_AI_8626` | 409 | No active attempt to cancel |
 | `IDEA_AI_8627` | 404 | The attempt has no result to restore |
+| `IDEA_AI_8628` | 404 | The document has no enhanced version to edit |
+| `IDEA_AI_8629` | 422 | The edited document is invalid (shape, unsupported element, size or empty) |
 | `VALIDATION_ERROR` | 422 | An AI publication choice has no available approved result |
 
 Worker errors are sanitized `errorCode` values on attempts and media results, not failed submission responses: `PROVIDER_NOT_CONFIGURED`, `PROVIDER_REQUEST_FAILED`, `INVALID_PROVIDER_RESPONSE`, `GUARD_REJECTED`, `LIMIT_REACHED`, `CANCELLED`, `STALLED`, `SNAPSHOT_MISSING`, `QUEUE_UNAVAILABLE`. The last five, with `CANCELLED`, do not count toward the attempt limit. The teacher's persisted submission and the previous successful result remain available. See [shared idea enhancement](api-ideas-enhancement.md).

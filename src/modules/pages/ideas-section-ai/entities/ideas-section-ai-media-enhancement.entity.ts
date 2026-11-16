@@ -8,6 +8,7 @@ import {
   IdeaAiMediaStatus,
   IdeaAiSkipReason,
 } from '../enums/ideas-section-ai.enums';
+import type { IdeaTiptapDocument } from '../types';
 import { IdeasSectionAiEnhancementEntity } from './ideas-section-ai-enhancement.entity';
 
 @Entity('ideas_section_ai_media_enhancements')
@@ -62,6 +63,18 @@ export class IdeasSectionAiMediaEnhancementEntity extends BaseEntity {
     foreignKeyConstraintName: 'fk_idea_ai_media_editable',
   })
   editableMedia: MediaItemEntity | null;
+
+  /**
+   * Conteúdo do documento melhorado no formato do editor (JSON do TipTap).
+   * Alimenta a edição manual; o PDF e o DOCX em `enhancedMedia` e
+   * `editableMedia` são gerados a partir dele.
+   */
+  @Column({ name: 'editable_document_json', type: 'json', nullable: true })
+  editableDocumentJson: IdeaTiptapDocument | null;
+
+  /** Quando um administrador editou o documento à mão (null = como a IA gerou). */
+  @Column({ name: 'document_edited_at', type: 'datetime', nullable: true })
+  documentEditedAt: Date | null;
 
   @Column({ type: 'enum', enum: IdeaAiMediaKind })
   kind: IdeaAiMediaKind;

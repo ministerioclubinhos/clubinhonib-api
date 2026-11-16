@@ -9,6 +9,9 @@ import {
   ideaAiErrorCodeFrom,
   ideaAiProviderReady,
   ideaWordPreservation,
+  ideaEditDistance,
+  foldIdeaText,
+  checkIdeaEssence,
   isIdeaTextEdited,
   trimIdeaAiInstructions,
   withAdminInstructions,
@@ -144,6 +147,63 @@ describe('targeted regeneration helpers', () => {
         1,
       );
       expect(ideaWordPreservation('a e o', 'outro texto')).toBe(1);
+    });
+    it('counts accent and spelling fixes as the same words', () => {
+      const typos =
+        'Faca uma oracao com as criancas e distribua os materiaes da atividade.';
+      const fixed =
+        'Faça uma oração com as crianças e distribua os materiais da atividade.';
+      expect(ideaWordPreservation(typos, fixed)).toBe(1);
+      expect(checkIdeaTextField(typos, fixed, 2000).approved).toBe(true);
+    });
+    it('does not treat a different short word as a typo', () => {
+      expect(ideaWordPreservation('bola', 'bala')).toBe(0);
+      expect(ideaWordPreservation('bolas coloridas', 'balas coloridas')).toBe(
+        0.5,
+      );
+    });
+    it('still rejects a rewrite hidden behind accents', () => {
+      expect(
+        ideaWordPreservation(
+          'Separe bolas coloridas para a gincana das equipes',
+          'Organize objetos variados para o desafio dos grupos',
+        ),
+      ).toBeLessThan(0.7);
+    });
+    it('accepts a proper name once its accent is corrected', () => {
+      expect(
+        checkIdeaEssence(
+          'A historia de Jose Maria foi contada.',
+          'A história de José Maria foi contada.',
+        ).approved,
+      ).toBe(true);
+      expect(
+        checkIdeaEssence(
+          'A historia de Jose Maria foi contada.',
+          'A história de Pedro Paulo foi contada.',
+        ).approved,
+      ).toBe(false);
+    });
+    it('treats 60x60 and 60 x 60 as the same measure, but still catches new numbers', () => {
+      const original = 'Após a impressão (tamanho 60x60) em papel gloss.';
+      expect(
+        checkIdeaEssence(
+          original,
+          'Após a impressão (tamanho 60 x 60) em papel gloss.',
+        ).approved,
+      ).toBe(true);
+      expect(
+        checkIdeaEssence(
+          original,
+          'Após a impressão (tamanho 60 x 80) em papel gloss.',
+        ).approved,
+      ).toBe(false);
+    });
+    it('computes a bounded edit distance', () => {
+      expect(ideaEditDistance('oracao', 'oração', 2)).toBe(2);
+      expect(ideaEditDistance('materiaes', 'materiais', 1)).toBe(1);
+      expect(ideaEditDistance('gincana', 'corrida', 1)).toBe(2);
+      expect(foldIdeaText('JOSÉ Çá')).toBe('jose ca');
     });
     it('titles use their own, lower threshold', () => {
       expect(

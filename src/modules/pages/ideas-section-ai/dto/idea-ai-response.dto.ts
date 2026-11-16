@@ -1,6 +1,7 @@
 import { IdeasSectionMediaResponseDto } from '../../ideas-section/dto/ideas-section-response.dto';
 import {
   IdeaAiDecision,
+  IdeaAiDocumentSource,
   IdeaAiPublicationField,
   IdeaAiEnhancementStatus,
   IdeaAiErrorCode,
@@ -9,7 +10,7 @@ import {
   IdeaAiSkipReason,
   IdeaSubmissionSnapshotSource,
 } from '../enums/ideas-section-ai.enums';
-import { IdeaAiGuard, IdeaAiTextGuard } from '../types';
+import { IdeaAiGuard, IdeaAiTextGuard, IdeaTiptapDocument } from '../types';
 export class IdeaAiSnapshotDto {
   title: string;
   description: string;
@@ -25,6 +26,8 @@ export class IdeaAiMediaResultDto {
   decision: IdeaAiDecision;
   enhancedMedia: IdeasSectionMediaResponseDto | null;
   editableMedia: IdeasSectionMediaResponseDto | null;
+  /** Quando um administrador editou o documento à mão (ISO); null = como a IA gerou. */
+  documentEditedAt: string | null;
   /** Falha técnica deste material (também quando a versão anterior foi mantida). */
   errorCode: IdeaAiErrorCode | null;
   /** Veio da tentativa base, sem nova chamada à IA. */
@@ -82,4 +85,13 @@ export class IdeaAiQueuedDto {
   id: string;
   attempt: number;
   status: IdeaAiEnhancementStatus;
+}
+
+/** Documento melhorado aberto no editor. */
+export class IdeaAiDocumentDto {
+  enhancementId: string;
+  sourceMediaId: string;
+  document: IdeaTiptapDocument;
+  source: IdeaAiDocumentSource;
+  editedAt: string | null;
 }

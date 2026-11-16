@@ -78,6 +78,54 @@ export class IdeasSectionAiRepository {
   ): Promise<MediaResult> {
     return manager.save(MediaResult, data);
   }
+  /** Tentativa cujo resultado está em comparação/publicação (a "atual"). */
+  currentAttempt(
+    sectionId: string,
+    manager = this.db.manager,
+  ): Promise<Attempt | null> {
+    return manager.findOne(Attempt, {
+      where: { sectionId, currentResultSectionId: sectionId },
+    });
+  }
+  /** Resultado de um material numa tentativa, com os arquivos e a origem. */
+  mediaResult(
+    enhancementId: string,
+    sourceMediaId: string,
+    manager = this.db.manager,
+  ): Promise<MediaResult | null> {
+    return manager.findOne(MediaResult, {
+      where: { enhancementId, sourceMediaId },
+      relations: {
+        enhancedMedia: true,
+        editableMedia: true,
+        sourceMedia: true,
+      },
+    });
+  }
+  /** Quantos resultados (de qualquer tentativa) usam este arquivo, fora o indicado. */
+  async mediaReferences(
+    mediaId: string,
+    exceptResultId: string,
+    manager = this.db.manager,
+  ): Promise<number> {
+    return manager
+      .createQueryBuilder(MediaResult, 'r')
+      .where('r.id <> :exceptResultId', { exceptResultId })
+      .andWhere(
+        '(r.enhanced_media_id = :mediaId OR r.editable_media_id = :mediaId)',
+        {
+          mediaId,
+        },
+      )
+      .getCount();
+  }
+  updateMediaResult(
+    id: string,
+    data: DeepPartial<MediaResult>,
+    manager: EntityManager,
+  ): Promise<unknown> {
+    return manager.update(MediaResult, { id }, data as never);
+  }
   publicationChoices(sectionId: string): Promise<Choice[]> {
     return this.db.manager.find(Choice, { where: { sectionId } });
   }

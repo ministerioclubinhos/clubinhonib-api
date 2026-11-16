@@ -7,6 +7,7 @@ import { MediaType } from 'src/shared/media/media-item/media-item.entity';
 import { IdeasSectionAiRepository } from '../repositories/ideas-section-ai.repository';
 import { ProcessIdeaAiEnhancementService } from './process-idea-ai-enhancement.service';
 import { EnhanceIdeaTextService } from './enhance-idea-text.service';
+import { GetIdeaAiContextService } from './get-idea-ai-context.service';
 import { EnhanceIdeaDocumentService } from './enhance-idea-document.service';
 import { EnhanceIdeaImageService } from './enhance-idea-image.service';
 import {
@@ -37,6 +38,15 @@ describe('durable idea processing', () => {
     mediaResults: jest.fn(),
   };
   const text = { enhance: jest.fn() };
+  const idea = {
+    title: 'Gincana',
+    description: 'Separe bolas.',
+    materials: [
+      { name: 'molde.pdf', type: MediaType.DOCUMENT, text: 'Use 3 bolas.' },
+    ],
+    prepared: new Map(),
+  };
+  const context = { get: jest.fn() };
   const documents = { enhance: jest.fn() };
   const images = { enhance: jest.fn() };
   const media = {
@@ -47,6 +57,7 @@ describe('durable idea processing', () => {
   let service: ProcessIdeaAiEnhancementService;
   beforeEach(async () => {
     jest.resetAllMocks();
+    context.get.mockResolvedValue(idea);
     repo.transaction.mockImplementation((run) => run(manager));
     repo.snapshot.mockResolvedValue(snapshot);
     repo.renew.mockResolvedValue(true);
@@ -82,6 +93,7 @@ describe('durable idea processing', () => {
           },
         },
         { provide: EnhanceIdeaTextService, useValue: text },
+        { provide: GetIdeaAiContextService, useValue: context },
         { provide: EnhanceIdeaDocumentService, useValue: documents },
         { provide: EnhanceIdeaImageService, useValue: images },
         { provide: MediaItemProcessor, useValue: media },
@@ -98,7 +110,10 @@ describe('durable idea processing', () => {
       snapshot.submittedTitle,
       snapshot.submittedDescription,
       null,
+      idea.materials,
     );
+    // A ideia inteira é montada uma vez e vai para o texto e para os documentos.
+    expect(context.get).toHaveBeenCalledTimes(1);
     expect(repo.saveAttempt).toHaveBeenCalledWith(
       expect.objectContaining({
         status: IdeaAiEnhancementStatus.COMPLETED,
