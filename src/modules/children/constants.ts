@@ -14,6 +14,8 @@ export const CHILDREN_MAX_LIMIT = 100;
 
 /** Campo pelo qual a listagem pode ser ordenada. */
 export enum ChildSortField {
+  /** Presenças lançadas nas pagelas: as crianças mais assíduas primeiro. */
+  ATTENDANCE = 'attendance',
   NAME = 'name',
   BIRTH_DATE = 'birthDate',
   JOINED_AT = 'joinedAt',
@@ -27,8 +29,9 @@ export enum SortOrder {
   DESC = 'DESC',
 }
 
-export const CHILDREN_DEFAULT_SORT = ChildSortField.NAME;
-export const CHILDREN_DEFAULT_ORDER = SortOrder.ASC;
+/** Padrão da listagem: as mais assíduas primeiro (desempate por nome). */
+export const CHILDREN_DEFAULT_SORT = ChildSortField.ATTENDANCE;
+export const CHILDREN_DEFAULT_ORDER = SortOrder.DESC;
 
 /**
  * Coluna do banco por campo de ordenação.
@@ -36,6 +39,7 @@ export const CHILDREN_DEFAULT_ORDER = SortOrder.ASC;
  * A consulta nunca interpola o valor recebido: só um destes nomes chega ao SQL.
  */
 export const CHILD_SORT_COLUMNS: Record<ChildSortField, string> = {
+  [ChildSortField.ATTENDANCE]: 'presences',
   [ChildSortField.NAME]: 'c.name',
   [ChildSortField.BIRTH_DATE]: 'c.birthDate',
   [ChildSortField.JOINED_AT]: 'c.joinedAt',
@@ -50,11 +54,11 @@ export const CHILD_TEXT_MIN_LENGTH = 2;
 /**
  * Ordenação fixa da listagem enxuta.
  *
- * `/children/simple` alimenta seletores: ativas primeiro, em ordem alfabética.
+ * `/children/simple` alimenta seletores: ativas primeiro, depois as mais assíduas e, no empate, em ordem alfabética.
  * Não aceita ordenação do cliente, e o contrato declara qual usou.
  */
-export const CHILDREN_SIMPLE_ORDER_BY = ChildSortField.NAME;
-export const CHILDREN_SIMPLE_ORDER = SortOrder.ASC;
+export const CHILDREN_SIMPLE_ORDER_BY = ChildSortField.ATTENDANCE;
+export const CHILDREN_SIMPLE_ORDER = SortOrder.DESC;
 
 /**
  * Decisões que contam como "aceitou a Jesus".

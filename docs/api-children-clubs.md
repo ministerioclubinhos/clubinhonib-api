@@ -35,7 +35,7 @@ Paginated list of children with filters.
   joinedFrom?: string;          // Initial join date (YYYY-MM-DD)
   joinedTo?: string;            // Final join date (YYYY-MM-DD)
   isActive?: boolean;           // Filter by active/inactive status
-  orderBy?: ChildSortField;     // 'name' | 'birthDate' | 'joinedAt' | 'createdAt' | 'updatedAt'
+  orderBy?: ChildSortField;     // 'attendance' | 'name' | 'birthDate' | 'joinedAt' | 'createdAt' | 'updatedAt'
   order?: 'ASC' | 'DESC';       // Default: 'ASC'; case-insensitive
   page?: number;                // Default: 1
   limit?: number;               // Default: 20, maximum 100

@@ -170,6 +170,37 @@ export class ChildrenRepository {
 
     // O desempate por id mantém a paginação estável quando duas linhas têm o
     // mesmo valor na coluna ordenada.
+    if (orderBy === ChildSortField.ATTENDANCE) {
+      // Assiduidade = presenças lançadas. A contagem vem de uma subconsulta
+      // agrupada por criança, e quem nunca teve pagela conta zero. Os joins
+      // da consulta são todos de um para um, então `offset/limit` pagina por
+      // linha sem o `skip/take` (que não aceita ordenar por coluna calculada).
+      const presences = this.repo.manager
+        .createQueryBuilder()
+        .select('p.child_id', 'child_id')
+        .addSelect('COUNT(*)', 'presences')
+        .from('pagelas', 'p')
+        .where('p.present = 1')
+        .groupBy('p.child_id');
+
+      qb.leftJoin(
+        `(${presences.getQuery()})`,
+        'att',
+        'att.child_id = c.id',
+      ).addSelect('COALESCE(att.presences, 0)', 'presences');
+      qb.orderBy('presences', order)
+        .addOrderBy('c.name', SortOrder.ASC)
+        .addOrderBy('c.id', SortOrder.ASC)
+        .offset((page - 1) * limit)
+        .limit(limit);
+
+      const [items, total] = await Promise.all([
+        qb.getMany(),
+        qb.getCount(),
+      ]);
+      return { items, total, page, limit, orderBy, order };
+    }
+
     qb.orderBy(orderColumn, order)
       .addOrderBy('c.id', SortOrder.ASC)
       .skip((page - 1) * limit)
@@ -252,7 +283,14 @@ export class ChildrenRepository {
 
     this.applyRoleFilter(qb as unknown as SelectQueryBuilder<ChildEntity>, ctx);
 
-    qb.orderBy('c.isActive', SortOrder.DESC)
+    // Ativas primeiro; entre elas, as mais assíduas (mais presenças lançadas)
+    // e, no empate, a ordem alfabética.
+    qb.addSelect(
+      '(SELECT COUNT(*) FROM pagelas p WHERE p.child_id = c.id AND p.present = 1)',
+      'presences',
+    )
+      .orderBy('c.isActive', SortOrder.DESC)
+      .addOrderBy('presences', SortOrder.DESC)
       .addOrderBy('c.name', SortOrder.ASC)
       .addOrderBy('c.id', SortOrder.ASC);
 
