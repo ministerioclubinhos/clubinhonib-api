@@ -10,6 +10,7 @@ import {
 } from '../../constants';
 import { PaginatedProfilesResponseDto } from '../../dto/paginated-profiles-response.dto';
 import { ProfileBirthdayResponseDto } from '../../dto/profile-birthday-response.dto';
+import { ProfileSummaryResponseDto } from '../../dto/profile-summary-response.dto';
 import { QueryProfilesDto } from '../../dto/query-profiles.dto';
 import {
   toCompleteProfileResponse,
@@ -94,6 +95,15 @@ export class GetAllProfilesService {
         hasPreviousPage: page > 1,
       },
     };
+  }
+
+  /** Totais do topo da tela, no recorte que o papel enxerga. */
+  async summarize(
+    context: ProfileAccessContext,
+  ): Promise<ProfileSummaryResponseDto> {
+    const role = assertCanListProfiles(context);
+
+    return this.listingRepository.summarize(role, context.userId ?? '');
   }
 
   /** Aniversariantes do mês, no recorte mínimo que a faixa da tela mostra. */

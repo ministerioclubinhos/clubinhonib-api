@@ -57,3 +57,6 @@ export const PROFILE_BIRTHDAY_MAX_RESULTS = 200;
 
 /** Tamanho máximo dos textos livres do perfil. */
 export const PROFILE_TEXT_MAX_LENGTH = 255;
+
+/** Valores de gênero gravados nos dados pessoais, aceitos como filtro. */
+export const PROFILE_FILTERABLE_GENDERS = ['Masculino', 'Feminino'] as const;

@@ -23,6 +23,7 @@ import { UpdateCompleteProfileDto } from '../dto/update-complete-profile.dto';
 import { CompleteProfileResponseDto } from '../dto/complete-profile-response.dto';
 import { QueryProfilesDto } from '../dto/query-profiles.dto';
 import { PaginatedProfilesResponseDto } from '../dto/paginated-profiles-response.dto';
+import { ProfileSummaryResponseDto } from '../dto/profile-summary-response.dto';
 import { ProfileBirthdayResponseDto } from '../dto/profile-birthday-response.dto';
 import { CreateProfileService } from '../services/profile/create-profile.service';
 import { GetAllProfilesService } from '../services/profile/get-all-profiles.service';
@@ -101,6 +102,16 @@ export class ProfileController {
     assertCanListProfiles(context);
 
     return this.getAllProfilesService.findBirthdaysOfCurrentMonth(context);
+  }
+
+  /** Totais por papel, aniversariantes e perfis incompletos. */
+  @Get('summary')
+  async getSummary(
+    @Req() request: Request,
+  ): Promise<ProfileSummaryResponseDto> {
+    const context = await this.contextOf(request);
+
+    return this.getAllProfilesService.summarize(context);
   }
 
   @Get('me')

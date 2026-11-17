@@ -461,8 +461,9 @@ export class StatisticsService {
   }
 
   async getPagelasStatistics(
-    filters: PagelasStatsQueryDto,
+    rawFilters: PagelasStatsQueryDto,
   ): Promise<PagelasStatsResponseDto> {
+    const filters = this.periodService.applyPeriodFilter(rawFilters);
     const [overall, byWeek, topPerformers] = await Promise.all([
       this.pagelasRepository.getPagelasOverallStats(filters),
       this.pagelasRepository.getPagelasWeeklyStats(filters),
@@ -483,8 +484,9 @@ export class StatisticsService {
   }
 
   async getAcceptedChristsStatistics(
-    filters: AcceptedChristsStatsQueryDto,
+    rawFilters: AcceptedChristsStatsQueryDto,
   ): Promise<AcceptedChristsStatsResponseDto> {
+    const filters = this.periodService.applyPeriodFilter(rawFilters);
     const [overall, byPeriod, recentDecisions] = await Promise.all([
       this.acceptedChristsRepository.getAcceptedChristsOverallStats(filters),
       this.acceptedChristsRepository.getAcceptedChristsByPeriod(filters),

@@ -385,6 +385,12 @@ export class ClubControlController {
         w,
         p,
         l,
+        {
+          status: query.status,
+          severity: query.severity,
+          weekday: query.weekday,
+          hasProblems: query.hasProblems,
+        },
       );
       const weekCheck = result as WeekCheckResult;
       const listed = Array.isArray(weekCheck?.clubs)

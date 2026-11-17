@@ -32,3 +32,14 @@ export interface ProfileBirthdayRow {
   /** `YYYY-MM-DD` ou `Date`, conforme o driver. */
   birthDate: string | Date;
 }
+
+/** Totais do topo da listagem de perfis. */
+export interface ProfileSummaryRow {
+  total: number;
+  admins: number;
+  coordinators: number;
+  teachers: number;
+  birthdaysThisMonth: number;
+  /** Sem data de nascimento ou sem preferências. */
+  incomplete: number;
+}

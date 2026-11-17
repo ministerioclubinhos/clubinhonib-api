@@ -15,6 +15,7 @@ describe('GetAllProfilesService', () => {
   const listingRepository = {
     findPage: jest.fn(),
     findBirthdaysOfCurrentMonth: jest.fn(),
+    summarize: jest.fn(),
   };
   const personalDataRepository = { findByUserIds: jest.fn() };
   const userPreferencesRepository = { findByUserIds: jest.fn() };
@@ -131,6 +132,42 @@ describe('GetAllProfilesService', () => {
       PROFILES_MAX_LIMIT,
       0,
     );
+  });
+
+  describe('resumo', () => {
+    it('barra quem não pode listar perfis', async () => {
+      const service = await buildService();
+
+      await expect(
+        service.summarize({ role: UserRole.TEACHER, userId: 'u1' }),
+      ).rejects.toBeInstanceOf(AppForbiddenException);
+
+      expect(listingRepository.summarize).not.toHaveBeenCalled();
+    });
+
+    it('pede os totais no recorte do papel de quem chamou', async () => {
+      const summary = {
+        total: 3,
+        admins: 1,
+        coordinators: 1,
+        teachers: 1,
+        birthdaysThisMonth: 0,
+        incomplete: 2,
+      };
+      listingRepository.summarize.mockResolvedValue(summary);
+      const service = await buildService();
+
+      const result = await service.summarize({
+        role: UserRole.COORDINATOR,
+        userId: 'coord-1',
+      });
+
+      expect(result).toEqual(summary);
+      expect(listingRepository.summarize).toHaveBeenCalledWith(
+        UserRole.COORDINATOR,
+        'coord-1',
+      );
+    });
   });
 
   describe('aniversariantes', () => {

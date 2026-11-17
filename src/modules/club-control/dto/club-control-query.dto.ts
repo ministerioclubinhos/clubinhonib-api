@@ -47,7 +47,35 @@ export class DateParamDto {
   date: string;
 }
 
-export class WeekQueryDto extends PaginationQueryDto {
+/** Filtros da lista de clubinhos da semana; todos opcionais e aplicados no back. */
+export class WeekClubsFilterDto extends PaginationQueryDto {
+  @IsOptional()
+  @IsIn([
+    'ok',
+    'pending',
+    'partial',
+    'missing',
+    'exception',
+    'inactive',
+    'out_of_period',
+  ])
+  status?: string;
+
+  @IsOptional()
+  @IsIn(['success', 'info', 'warning', 'critical'])
+  severity?: string;
+
+  @IsOptional()
+  @IsEnum(Weekday)
+  weekday?: Weekday;
+
+  @IsOptional()
+  @Transform(parseStrictBoolean)
+  @IsBoolean()
+  hasProblems?: boolean;
+}
+
+export class WeekQueryDto extends WeekClubsFilterDto {
   @ValidateIf((query: WeekQueryDto) => query.week !== undefined)
   @IsDefined()
   @Type(() => Number)

@@ -54,3 +54,45 @@ export function toDateOnlyOrNull(
   if (!value) return null;
   return value instanceof Date ? toDateOnly(value) : value.slice(0, 10);
 }
+
+/** Filtros da lista de clubinhos da semana. */
+export interface WeekClubsFilters {
+  status?: string;
+  severity?: string;
+  weekday?: string;
+  hasProblems?: boolean;
+}
+
+/** Status que não contam como problema: o que está em dia, no prazo ou justificado. */
+const STATUSES_WITHOUT_PROBLEM = ['ok', 'pending', 'exception', 'out_of_period'];
+
+/**
+ * Aplica os filtros da tela à lista de clubinhos, antes de paginar — assim o
+ * total e as páginas refletem o que foi filtrado, e não só a página corrente.
+ */
+export function filterWeekClubs<
+  T extends {
+    status: string;
+    weekday?: string | null;
+    indicators?: { severity: string }[];
+  },
+>(clubs: T[], filters: WeekClubsFilters): T[] {
+  return clubs.filter((club) => {
+    if (filters.status && club.status !== filters.status) return false;
+    if (
+      filters.weekday &&
+      (club.weekday ?? '').toLowerCase() !== filters.weekday.toLowerCase()
+    )
+      return false;
+    if (
+      filters.severity &&
+      !(club.indicators ?? []).some((i) => i.severity === filters.severity)
+    )
+      return false;
+    if (filters.hasProblems === true) {
+      return !STATUSES_WITHOUT_PROBLEM.includes(club.status);
+    }
+    if (filters.hasProblems === false) return club.status === 'ok';
+    return true;
+  });
+}

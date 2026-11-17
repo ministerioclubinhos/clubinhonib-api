@@ -12,7 +12,11 @@ import {
   ProfileSortOrder,
 } from '../constants';
 import { QueryProfilesDto } from '../dto/query-profiles.dto';
-import { ProfileBirthdayRow, ProfileUserSource } from '../types';
+import {
+  ProfileBirthdayRow,
+  ProfileSummaryRow,
+  ProfileUserSource,
+} from '../types';
 
 interface CountRow {
   total: string | number;
@@ -62,10 +66,10 @@ export class ProfilesListingRepository {
   /** Filtros de texto e de papel, com os valores sempre parametrizados. */
   private filterClause(query: QueryProfilesDto): {
     sql: string;
-    params: string[];
+    params: Array<string | number>;
   } {
     const conditions: string[] = [];
-    const params: string[] = [];
+    const params: Array<string | number> = [];
 
     if (query.q) {
       conditions.push('(u.name LIKE ? OR u.email LIKE ?)');
@@ -82,6 +86,14 @@ export class ProfilesListingRepository {
     if (query.role) {
       conditions.push('u.role = ?');
       params.push(query.role);
+    }
+    if (query.gender) {
+      conditions.push('pd.gender = ?');
+      params.push(query.gender);
+    }
+    if (query.birthMonth) {
+      conditions.push('pd.birthDate IS NOT NULL AND MONTH(pd.birthDate) = ?');
+      params.push(query.birthMonth);
     }
     if (query.loveLanguages) {
       conditions.push('up.loveLanguages LIKE ?');
@@ -160,6 +172,46 @@ export class ProfilesListingRepository {
     ]);
 
     return { users, total: Number(countRows[0]?.total ?? 0) };
+  }
+
+  /**
+   * Números do topo da tela, no mesmo recorte que a listagem enxerga.
+   *
+   * Uma única consulta agrega tudo; `incomplete` conta quem ainda não tem
+   * data de nascimento nem preferências preenchidas.
+   */
+  async summarize(
+    role: UserRole,
+    requestingUserId: string,
+  ): Promise<ProfileSummaryRow> {
+    const scope = this.scopeClause(role);
+    const scopeParams = role === UserRole.COORDINATOR ? [requestingUserId] : [];
+
+    const sql =
+      `SELECT COUNT(DISTINCT u.id) AS total,` +
+      ` COUNT(DISTINCT CASE WHEN u.role = 'admin' THEN u.id END) AS admins,` +
+      ` COUNT(DISTINCT CASE WHEN u.role = 'coordinator' THEN u.id END) AS coordinators,` +
+      ` COUNT(DISTINCT CASE WHEN u.role = 'teacher' THEN u.id END) AS teachers,` +
+      ` COUNT(DISTINCT CASE WHEN pd.birthDate IS NOT NULL` +
+      ` AND MONTH(pd.birthDate) = MONTH(CURDATE()) THEN u.id END) AS birthdaysThisMonth,` +
+      ` COUNT(DISTINCT CASE WHEN pd.birthDate IS NULL OR up.userId IS NULL` +
+      ` THEN u.id END) AS incomplete` +
+      `${scope.from}${scope.where}`;
+
+    const rows = await this.dataSource.query<Array<Record<string, string | number>>>(
+      sql,
+      scopeParams,
+    );
+    const row = rows[0] ?? {};
+
+    return {
+      total: Number(row.total ?? 0),
+      admins: Number(row.admins ?? 0),
+      coordinators: Number(row.coordinators ?? 0),
+      teachers: Number(row.teachers ?? 0),
+      birthdaysThisMonth: Number(row.birthdaysThisMonth ?? 0),
+      incomplete: Number(row.incomplete ?? 0),
+    };
   }
 
   /**

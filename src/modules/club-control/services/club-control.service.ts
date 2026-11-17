@@ -34,7 +34,7 @@ import { ClubCheckResultDto } from '../dto/club-check-result.dto';
 import { ClubWeekStatus } from '../constants';
 import { ClubWeekPendency } from '../types';
 import { AnnounceClubExceptionService } from './announce-club-exception.service';
-import { isPendingStatus } from '../utils';
+import { filterWeekClubs, isPendingStatus, type WeekClubsFilters } from '../utils';
 import { ChildNotAttendingDto } from '../dto/club-control-contracts.dto';
 
 @Injectable()
@@ -302,6 +302,7 @@ export class ClubControlService {
     week?: number,
     page: number = 1,
     limit: number = 50,
+    filters: WeekClubsFilters = {},
   ): Promise<ClubsWeekCheckResponseDto> {
     let finalYear = year;
     let finalWeek = week;
@@ -387,7 +388,13 @@ export class ClubControlService {
       }
     }
 
-    return this.checkAllClubsWeekLogic(finalYear!, finalWeek!, page, limit);
+    return this.checkAllClubsWeekLogic(
+      finalYear!,
+      finalWeek!,
+      page,
+      limit,
+      filters,
+    );
   }
 
   private async checkAllClubsWeekLogic(
@@ -395,6 +402,7 @@ export class ClubControlService {
     week: number,
     page: number,
     limit: number,
+    filters: WeekClubsFilters = {},
   ): Promise<ClubsWeekCheckResponseDto> {
     const period = await this.clubControlRepository.findPeriodByYear(year);
 
@@ -561,10 +569,12 @@ export class ClubControlService {
       inactiveClubsCount: inactiveClubs.length,
     };
 
-    const total = clubsResults.length;
+    // O resumo acima é da semana inteira; a lista e a paginação, do que foi filtrado.
+    const visibleClubs = filterWeekClubs(clubsResults, filters);
+    const total = visibleClubs.length;
     const start = (page - 1) * limit;
     const end = start + limit;
-    const pagedClubs = clubsResults.slice(start, end);
+    const pagedClubs = visibleClubs.slice(start, end);
     const pagination = {
       page,
       limit,
