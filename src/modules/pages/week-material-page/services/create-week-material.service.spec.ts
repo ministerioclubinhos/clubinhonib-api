@@ -19,7 +19,10 @@ import { WeekMaterialsPageEntity } from '../entities/week-material-page.entity';
 import { CreateWeekMaterialsPageDto } from '../dto/create-week-material.dto';
 import { WeekMaterialsPageCreateService } from './create-week-material.service';
 import { AnnounceWeekMaterialService } from './announce-week-material.service';
-import { WEEK_MATERIAL_ROUTE_PATH_PREFIX } from '../constants';
+import {
+  WEEK_MATERIAL_ROUTE_IMAGE_URL,
+  WEEK_MATERIAL_ROUTE_PATH_PREFIX,
+} from '../constants';
 
 const validDto = (
   overrides: Partial<CreateWeekMaterialsPageDto> = {},
@@ -251,6 +254,55 @@ describe('WeekMaterialsPageCreateService', () => {
       expect.objectContaining({ title: 'Semana 27 — O Bom Pastor' }),
       WEEK_MATERIAL_ROUTE_PATH_PREFIX,
       'Semana 27',
+    );
+  });
+
+  it('uses the image given by the caller as the route image', async () => {
+    await service.createWeekMaterialsPage(
+      validDto(),
+      {},
+      { routeImageUrl: 'https://bucket.s3.amazonaws.com/cover.png' },
+    );
+
+    expect(
+      createRouteService.createRouteWithAvailablePath,
+    ).toHaveBeenCalledWith(
+      manager,
+      expect.objectContaining({
+        image: 'https://bucket.s3.amazonaws.com/cover.png',
+      }),
+      WEEK_MATERIAL_ROUTE_PATH_PREFIX,
+      undefined,
+    );
+  });
+
+  it('ignores a route image that is not an https address', async () => {
+    await service.createWeekMaterialsPage(
+      validDto(),
+      {},
+      { routeImageUrl: 'javascript:alert(1)' },
+    );
+
+    expect(
+      createRouteService.createRouteWithAvailablePath,
+    ).toHaveBeenCalledWith(
+      manager,
+      expect.objectContaining({ image: WEEK_MATERIAL_ROUTE_IMAGE_URL }),
+      WEEK_MATERIAL_ROUTE_PATH_PREFIX,
+      undefined,
+    );
+  });
+
+  it('falls back to the shared card when no image is given', async () => {
+    await service.createWeekMaterialsPage(validDto(), {});
+
+    expect(
+      createRouteService.createRouteWithAvailablePath,
+    ).toHaveBeenCalledWith(
+      manager,
+      expect.objectContaining({ image: WEEK_MATERIAL_ROUTE_IMAGE_URL }),
+      WEEK_MATERIAL_ROUTE_PATH_PREFIX,
+      undefined,
     );
   });
 

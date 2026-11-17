@@ -28,6 +28,7 @@ Prefixo `/api/v1/lessons`. Todas as rotas exigem JWT e papel de administrador. S
 | `GET /prompt-preferences/me` | `category` | Per-admin guidance, one item per stage: `{ stage, basePrompt, customPrompt, effectivePrompt, lockVersion, updatedAt }`. `updatedAt` (2026-11-11) is when **this admin** last saved or reset the stage, `null` when never customised. |
 | `GET /` filter `weekNumber` | integer ≥ 1 | (2026-11-11) Narrows the listing to the lessons planned for that week; the app uses it to warn before creating a second lesson for the same week. |
 | `GET /dashboard` | — | `{ total, byStatus, active, recent }`. `active` (2026-11-11) lists up to 20 lessons still in the works — every status except `PUBLISHED` and `ARCHIVED` — most recently touched first, with their stages; it feeds the Studio work queue. `recent` is the last 5 of any status. |
+| `POST /:id/cover/regenerate` | — | (2026-11-17) Desenha de novo a imagem de apresentação da lição (síncrono, ~1 imagem); os itens não mudam. Responde a lição com `coverImageUrl` novo e apaga a imagem substituída do bucket. 409 se a lição está `PUBLISHED`/`ARCHIVED`/`PUBLISHING`, se há geração em andamento, se o item 1 ainda não tem conteúdo ou se o item 1 mudou enquanto a imagem era gerada. Ver [seção 7.2](#72-imagem-de-apresentação). |
 | `POST /:id/stages/regenerate-images` | `{ stage, lockVersion, assetIds[], instructions? }` | (2026-11-12) Gera de novo só as imagens escolhidas da versão atual; texto e demais imagens são mantidos. Responde a lição com a etapa em `GENERATING`. Ver [seção 4.7](#47-regerar-imagens-escolhidas). |
 | `GET /generations/active` | — | (2026-11-12) Gerações em andamento em todo o estúdio, da mais antiga para a mais nova: `{ lessonId, theme, stage, phase, totalImages, completedImages, percent, startedAt, updatedAt }[]`. Lista vazia quando não há nenhuma ou quando o Redis do progresso está fora do ar. Ver [seção 4.6](#46-progresso-da-geração). |
 | `GET /:id` | `view?` = `full` (padrão) ou `compact` | Leitura pura. `compact` devolve só a versão atual de cada etapa. Inclui `generation`. |
@@ -343,8 +344,23 @@ A descrição não leva mais `[origem:licao:<id>]`: o vínculo é `sourceLessonI
 ```
 
 - `title`: o título que a publicação vai gravar (mesma função usada ao publicar).
+- `coverImageUrl`: a imagem de apresentação que a rota vai usar; `null` quando a lição não tem uma (a rota fica com o card padrão).
 - `weekMaterial`: `null` se a lição nunca foi publicada; `exists: false` (com `routePath: null`, `currentWeek: false`) quando a página vinculada foi apagada.
 - `duplicates`: até 5 páginas existentes, exceto a da própria lição, que são o mesmo material — `REGULAR`: título com `Semana N` para o mesmo número inteiro (Semana 1 não casa com Semana 12; páginas com a marca de especial ficam fora); `SPECIAL`: mesmo título normalizado (sem acento, caixa e pontuação). É aviso: a publicação nunca é bloqueada por duplicata.
+
+### 7.2 Imagem de apresentação
+
+(2026-11-17) Cada lição tem uma imagem de apresentação, guardada em `lessons.cover_image_url` (nullable). Ela substitui o card único (`WEEK_MATERIAL_ROUTE_IMAGE_URL`) como imagem da rota do material publicado.
+
+- **Geração em duas etapas.** Ao gerar o item 1 (`LESSON`), depois do texto, a API faz (1) um **briefing** com o modelo de texto (`generateStructured`, até 2 tentativas): título curto para a arte, protagonista (nome e ficha de aparência), cena e paleta; e (2) a imagem, com o prompt montado a partir do briefing. A capa mistura **o título curto escrito na arte com o personagem principal**, em ilustração horizontal 3:2 no estilo padrão do Clubinho. A imagem é cortada para 3:2, validada e enviada ao S3; a URL entra na coluna **na mesma transação** que grava a versão do item 1. Gerar o item 1 de novo substitui a imagem e apaga a anterior do bucket depois do commit.
+- **Título curto.** No máximo 4 palavras e 28 caracteres, em caixa-alta e com acentos. O modelo simplifica títulos longos (corta subtítulo e palavras de ligação, mantém nomes próprios); se o título devolvido ainda não couber, ou se o briefing falhar, `simplifyLessonTitle` encurta sem modelo (parte antes do subtítulo, palavras que cabem, nunca terminando em conectivo). O prompt soletra o título letra a letra, proíbe qualquer outro texto e exige margem de segurança de 8% (a imagem é cortada nas bordas).
+- **Texto na arte.** Os provedores prefixam todo prompt com "sem letras, palavras…". A capa usa o propósito `LessonImagePurpose.COVER`, cuja política (`lessonImageTextPolicy`) autoriza **somente** o título pedido.
+- **Sem briefing.** Se o provedor não oferece `generateStructured` ou as duas tentativas falham, a capa é desenhada com o tema e o relato (o prompt pede o protagonista do relato). O briefing nunca derruba a capa.
+- **Falha não derruba o texto.** Se só a imagem falhar, o item 1 é gravado normalmente, a coluna fica como estava e o erro vai para o log. Tentativa abortada (lease perdida) continua abortando. O envio feito por uma tentativa que não commitou é descartado como os demais assets.
+- **Fora do conteúdo.** A URL não entra no JSON da versão: o checksum do item 1 não muda ao trocar a imagem, então os itens 2–8 não ficam desatualizados e não recebem a imagem no prompt.
+- **Regerar.** `POST /:id/cover/regenerate` refaz só a imagem (lições ainda não publicadas). Serve também para lições cujo item 1 foi gerado antes deste recurso.
+- **Publicação.** Só o material semanal ou especial usa a capa: `publishToWeekMaterial` repassa `coverImageUrl` como `routeImageUrl` ao criar a página, e a criação só aceita endereço `https`; sem imagem (ou endereço inválido), usa o card padrão. Nenhuma outra rota do sistema é afetada (`CreateRouteService` não mudou). Editar a página depois **mantém** a imagem da rota (antes a edição regravava o card padrão).
+- **Exclusão.** Excluir uma lição não publicada apaga a imagem; lição publicada ou arquivada não é excluída, então a imagem da rota nunca fica sem arquivo.
 
 ## 8. Arquivos, imagens e PDF
 

@@ -37,6 +37,7 @@ entity lessons {
   status : enum
   createdById : varchar(36)
   week_material_id : varchar(36) nullable <<index>>
+  cover_image_url : varchar(1000) nullable
   publication_lease_owner : varchar(36) nullable
   publication_lease_until : datetime nullable
   publication_reserved_versions_json : json nullable

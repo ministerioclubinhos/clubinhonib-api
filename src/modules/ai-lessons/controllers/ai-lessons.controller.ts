@@ -192,6 +192,16 @@ export class AiLessonsController {
       { generation: await this.progress.get(id) },
     );
   }
+  /** Draws the presentation image again; the items are not touched. */
+  @Post(':id/cover/regenerate') @HttpCode(HttpStatus.OK) async regenerateCover(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthRequest,
+  ): Promise<LessonResponseDto> {
+    return toLessonResponse(
+      await this.service.regenerateCover(id, req.user.userId),
+      { generation: await this.progress.get(id) },
+    );
+  }
   @Patch(':id/stages/content') async save(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: SaveTiptapContentDto,

@@ -162,6 +162,15 @@ random suffix.
   `materiais_semanal_semana_27`. The option is not part of the HTTP payload;
   the admin form always derives the path from the title.
 
+## Route image
+
+The route `image` is the shared card (`WEEK_MATERIAL_ROUTE_IMAGE_URL`) unless
+the server-side caller gives `WeekMaterialCreateOptions.routeImageUrl`; the
+Studio passes the presentation image of the lesson (see
+[api-ai-lessons.md](api-ai-lessons.md#72-imagem-de-apresentação)). Updating a
+page keeps the image its route already has, falling back to the shared card
+only when the route has none.
+
 ## Internal markers and duplicates
 
 A Material Especial is a weekly material with its own title and description;

@@ -8,6 +8,8 @@ export enum LessonImagePurpose {
   CUTOUT_SHEET = 'CUTOUT_SHEET',
   /** Fun-game infographic: short Portuguese labels are part of the art. */
   GAME_SUMMARY = 'GAME_SUMMARY',
+  /** Lesson cover: a short title is part of the art, nothing else is text. */
+  COVER = 'COVER',
 }
 
 export enum LessonLlmProvider {

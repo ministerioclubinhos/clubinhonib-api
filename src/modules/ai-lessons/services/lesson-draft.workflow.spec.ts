@@ -7,7 +7,7 @@ import type { LessonGenerationProgress } from '../types/lesson-generation-progre
 import { ConfigService } from '@nestjs/config';
 import { WeekMaterialsPageCreateService } from 'src/modules/pages/week-material-page/services/create-week-material.service';
 import { WeekMaterialsPageGetService } from 'src/modules/pages/week-material-page/services/get-week-material.service';
-import { ErrorCode } from 'src/shared/exceptions';
+import { AppConflictException, ErrorCode } from 'src/shared/exceptions';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { AiQueueException } from 'src/shared/providers/ai-queue/ai-queue.exception';
 import { AiQueueFailure } from 'src/shared/providers/ai-queue/enums';
@@ -61,6 +61,8 @@ const LESSON_ID = 'lesson-1';
 const USER_ID = 'admin-1';
 const ASSET_URL =
   'https://bucket.s3.amazonaws.com/test/uploads/1762700000000_ab12cd34_lesson-1-MANUAL_WORK-manual.png';
+const COVER_URL =
+  'https://bucket.s3.amazonaws.com/test/uploads/1762700000000_ab12cd34_lesson-1-cover.png';
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]);
 
 type StageFixture = LessonStageEntity & {
@@ -451,6 +453,29 @@ describe('LessonDraftService studio workflow', () => {
       expect(dto.sourceLessonId).toBe(lesson.id);
       // The route is addressed by the week alone: materiais_semanal_semana_7.
       expect(options).toEqual({ routePathSource: 'Semana 7' });
+    });
+
+    it('usa a imagem de apresentação da lição como imagem da rota', async () => {
+      const lesson = ready();
+      lesson.coverImageUrl = COVER_URL;
+      weekMaterials.createWeekMaterialsPage.mockResolvedValue({ id: 'page-1' });
+
+      await service.publishToWeekMaterial(LESSON_ID, USER_ID);
+
+      const [, , options] = weekMaterials.createWeekMaterialsPage.mock
+        .calls[0] as [unknown, unknown, { routeImageUrl?: string }];
+      expect(options.routeImageUrl).toBe(COVER_URL);
+    });
+
+    it('sem imagem de apresentação não envia imagem: a rota usa o card padrão', async () => {
+      ready();
+      weekMaterials.createWeekMaterialsPage.mockResolvedValue({ id: 'page-1' });
+
+      await service.publishToWeekMaterial(LESSON_ID, USER_ID);
+
+      const [, , options] = weekMaterials.createWeekMaterialsPage.mock
+        .calls[0] as [unknown, unknown, { routeImageUrl?: string }];
+      expect(options.routeImageUrl).toBeUndefined();
     });
 
     it('publica o Material Especial com a marca de tipo e o path derivado do título', async () => {
@@ -2270,6 +2295,129 @@ describe('LessonDraftService studio workflow', () => {
     });
   });
 
+  describe('imagem de apresentação', () => {
+    const lessonWithItemOne = (status = LessonStatus.IN_PROGRESS) => {
+      const lesson = makeLesson(status, LessonStageStatus.PRODUCER_APPROVED);
+      stageOf(lesson, LessonStageType.LESSON).versions[0].structuredDataJson = {
+        story: '### Davi e Golias\nDavi venceu o gigante com uma funda.',
+      };
+      repo.findLessonById.mockResolvedValue(lesson);
+      return lesson;
+    };
+
+    it('desenha a capa com o título curto e o protagonista escolhidos pelo briefing', async () => {
+      lessonWithItemOne();
+      llm.generateStructured.mockResolvedValue({
+        content: {
+          headline: 'Davi e Golias: a vitória da fé no Senhor dos exércitos',
+          character: { name: 'Davi', appearance: 'menino pastor, túnica azul' },
+          scene: 'Davi segura a funda num vale ensolarado.',
+          palette: ['azul-céu', 'verde-pasto'],
+        },
+      });
+      llm.generateImage.mockResolvedValue(PNG);
+      s3.upload.mockResolvedValue(COVER_URL);
+
+      await studio.coverUpdate.regenerate(LESSON_ID, USER_ID);
+
+      const [prompt, orientation, , , purpose] = llm.generateImage.mock
+        .calls[0] as [string, string, unknown, unknown, string];
+      expect(orientation).toBe('LANDSCAPE');
+      expect(purpose).toBe('COVER');
+      expect(prompt).toContain('"DAVI E GOLIAS"');
+      expect(prompt).toContain('Davi. Aparência fixa');
+      expect(prompt).toContain('Davi venceu o gigante');
+      expect(prompt).not.toContain('###');
+      expect(repo.updateLesson).toHaveBeenCalledWith(
+        LESSON_ID,
+        { coverImageUrl: COVER_URL },
+        expect.anything(),
+      );
+    });
+
+    it('desenha a capa só com o tema quando o briefing falha', async () => {
+      lessonWithItemOne();
+      llm.generateStructured.mockRejectedValue(new Error('provedor fora do ar'));
+      llm.generateImage.mockResolvedValue(PNG);
+      s3.upload.mockResolvedValue(COVER_URL);
+
+      await studio.coverUpdate.regenerate(LESSON_ID, USER_ID);
+
+      const [prompt] = llm.generateImage.mock.calls[0] as [string];
+      expect(prompt).toContain('"TEMA"');
+      expect(prompt).toContain('O protagonista da história abaixo');
+      expect(repo.updateLesson).toHaveBeenCalledWith(
+        LESSON_ID,
+        { coverImageUrl: COVER_URL },
+        expect.anything(),
+      );
+    });
+
+    it('apaga do bucket a imagem substituída', async () => {
+      const lesson = lessonWithItemOne();
+      lesson.coverImageUrl = ASSET_URL;
+      llm.generateImage.mockResolvedValue(PNG);
+      s3.upload.mockResolvedValue(COVER_URL);
+
+      await studio.coverUpdate.regenerate(LESSON_ID, USER_ID);
+
+      expect(s3.delete).toHaveBeenCalledWith(ASSET_URL);
+      expect(s3.delete).not.toHaveBeenCalledWith(COVER_URL);
+    });
+
+    it('não altera a imagem de uma lição publicada: a rota já a exibe', async () => {
+      lessonWithItemOne(LessonStatus.PUBLISHED);
+
+      await expect(
+        studio.coverUpdate.regenerate(LESSON_ID, USER_ID),
+      ).rejects.toBeInstanceOf(AppConflictException);
+      expect(llm.generateImage).not.toHaveBeenCalled();
+    });
+
+    it('descarta a imagem nova quando o item 1 mudou durante o desenho', async () => {
+      const lesson = lessonWithItemOne();
+      // Read under the lock, the lesson already points to another version.
+      const moved = {
+        ...lesson,
+        stages: lesson.stages.map((stage) =>
+          stage.type === LessonStageType.LESSON
+            ? { ...stage, currentVersionId: 'outra-versao' }
+            : stage,
+        ),
+      };
+      repo.findLessonById
+        .mockResolvedValueOnce(lesson)
+        .mockResolvedValue(moved);
+      llm.generateImage.mockResolvedValue(PNG);
+      s3.upload.mockResolvedValue(COVER_URL);
+
+      await expect(
+        studio.coverUpdate.regenerate(LESSON_ID, USER_ID),
+      ).rejects.toBeInstanceOf(AppConflictException);
+      expect(s3.delete).toHaveBeenCalledWith(COVER_URL);
+    });
+
+    it('a geração do item 1 não falha quando só a imagem falha', async () => {
+      const lesson = lessonWithItemOne();
+      llm.generateImage.mockRejectedValue(new Error('provedor fora do ar'));
+
+      const url = await (
+        studio.generation as unknown as {
+          generateCover: (
+            id: string,
+            lesson: LessonEntity,
+            content: Record<string, unknown>,
+            provider: unknown,
+            input: unknown,
+            uploads: string[],
+          ) => Promise<string | null>;
+        }
+      ).generateCover(LESSON_ID, lesson, {}, llm, {}, []);
+
+      expect(url).toBeNull();
+    });
+  });
+
   describe('prévia da publicação', () => {
     beforeEach(() => {
       weekMaterialsGet.findPossibleDuplicates.mockResolvedValue([]);
@@ -2294,6 +2442,7 @@ describe('LessonDraftService studio workflow', () => {
         title: 'Semana 7 — Tema',
         isSpecial: false,
         documentCount: 8,
+        coverImageUrl: null,
         weekMaterial: null,
         duplicates,
       });

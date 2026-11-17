@@ -141,7 +141,7 @@ end note
 Administrador -> Frontend: abre a confirmação
 Frontend -> API: GET /publication-preview
 API -> Week: página vinculada + materiais da mesma semana (ou mesmo título, no especial)
-API --> Frontend: título, quantidade de PDFs, material vinculado, duplicatas (aviso, não bloqueia)
+API --> Frontend: título, quantidade de PDFs, imagem de apresentação, material vinculado, duplicatas (aviso, não bloqueia)
 Administrador -> Frontend: publicar
 Frontend -> API: POST /publish-week-material
 API -> MySQL: lock da lição
@@ -155,7 +155,7 @@ else READY_FOR_PUBLICATION, ou PUBLISHED com material apagado (republicar)
   else publicação
     API -> API: um PDF por etapa aprovada (cache da aprovação);\nfalha -> LESSON_9314 com o nome do item
     API -> MySQL: confere posse da lease
-    API -> Week: cria página (título, descrição, documentos, sourceLessonId,\nbase do path = "Semana N" no semanal)
+    API -> Week: cria página (título, descrição, documentos, sourceLessonId,\nbase do path = "Semana N" no semanal,\nimagem da rota = capa da lição; sem capa, o card padrão)
     Week -> Week: path livre: base, base_1, base_2 (colisão na gravação -> próximo sufixo)
     Week --> API: weekMaterialId (aviso por e-mail: semana ou especial)
     API -> MySQL: PUBLISHED + vínculo (a página criada é a fonte da verdade)

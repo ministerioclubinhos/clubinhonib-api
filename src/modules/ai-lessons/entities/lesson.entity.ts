@@ -48,6 +48,18 @@ export class LessonEntity extends BaseEntity {
   })
   weekMaterialId: string | null;
 
+  /**
+   * Presentation image of the lesson: generated with item 1 and used as the
+   * route image of the published weekly material (instead of the shared card).
+   */
+  @Column({
+    name: 'cover_image_url',
+    type: 'varchar',
+    length: 1000,
+    nullable: true,
+  })
+  coverImageUrl: string | null;
+
   @Column({
     name: 'publication_lease_owner',
     type: 'varchar',

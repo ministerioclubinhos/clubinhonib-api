@@ -49,6 +49,8 @@ export class LessonResponseDto {
   editorialPurpose: string | null;
   status: LessonStatus;
   weekMaterialId: string | null;
+  /** Presentation image generated with item 1; null until it exists. */
+  coverImageUrl: string | null;
   publicationFailureMessage: string | null;
   publicationState: LessonPublicationState;
   createdAt: Date;
@@ -189,6 +191,7 @@ export const toLessonResponse = (
     editorialPurpose: lesson.editorialPurpose ?? null,
     status: lesson.status,
     weekMaterialId: lesson.weekMaterialId,
+    coverImageUrl: lesson.coverImageUrl ?? null,
     publicationFailureMessage: lesson.publicationFailureMessage ?? null,
     publicationState: resolvePublicationState(lesson),
     createdAt: lesson.createdAt,

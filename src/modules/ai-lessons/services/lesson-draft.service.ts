@@ -22,6 +22,7 @@ import { GetLessonService } from './get-lesson.service';
 import { GetLessonPublicationService } from './get-lesson-publication.service';
 import { LessonGenerationService } from './lesson-generation.service';
 import { PublishLessonService } from './publish-lesson.service';
+import { UpdateLessonCoverService } from './update-lesson-cover.service';
 import { UpdateLessonContentService } from './update-lesson-content.service';
 import { UpdateLessonReviewService } from './update-lesson-review.service';
 
@@ -41,6 +42,7 @@ export class LessonDraftService {
     private readonly publication: PublishLessonService,
     private readonly deletion: DeleteLessonService,
     private readonly publicationPreview: GetLessonPublicationService,
+    private readonly cover: UpdateLessonCoverService,
   ) {}
 
   create(dto: GenerateLessonRequestDto, userId: string): Promise<LessonEntity> {
@@ -77,6 +79,10 @@ export class LessonDraftService {
     userId: string,
   ): Promise<LessonEntity> {
     return this.generation.regenerateImages(id, dto, userId);
+  }
+
+  regenerateCover(id: string, actorId?: string): Promise<LessonEntity> {
+    return this.cover.regenerate(id, actorId);
   }
 
   saveContent(

@@ -70,4 +70,6 @@ export interface WeekMaterialCreateOptions {
    * the title stays "Semana 27 — tema").
    */
   routePathSource?: string;
+  /** Image of the route card; without it the shared week-material card is used. */
+  routeImageUrl?: string;
 }

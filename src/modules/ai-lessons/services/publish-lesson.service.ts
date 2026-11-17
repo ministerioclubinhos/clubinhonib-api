@@ -337,7 +337,11 @@ export class PublishLessonService {
       const page = await this.weekMaterials.createWeekMaterialsPage(
         dto,
         files,
-        { routePathSource: lessonPublicationRoutePathSource(lesson) },
+        {
+          routePathSource: lessonPublicationRoutePathSource(lesson),
+          // The lesson's own presentation image; without one, the shared card.
+          routeImageUrl: lesson.coverImageUrl ?? undefined,
+        },
       );
       createdPageId = page.id;
       await this.confirmPublication(

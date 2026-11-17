@@ -21,6 +21,8 @@ import { MemoryLessonProgressStore } from './memory-lesson-progress.store';
 import { LessonStudioSupportService } from '../services/lesson-studio-support.service';
 import { PdfLibreOfficeService } from '../services/pdf-libreoffice.service';
 import { PublishLessonService } from '../services/publish-lesson.service';
+import { GenerateLessonCoverService } from '../services/generate-lesson-cover.service';
+import { UpdateLessonCoverService } from '../services/update-lesson-cover.service';
 import { UpdateLessonContentService } from '../services/update-lesson-content.service';
 import { UpdateLessonReviewService } from '../services/update-lesson-review.service';
 
@@ -37,6 +39,7 @@ export interface LessonStudioServices {
   pdfExport: ExportLessonPdfService;
   publication: PublishLessonService;
   deletion: DeleteLessonService;
+  coverUpdate: UpdateLessonCoverService;
 }
 
 /**
@@ -60,6 +63,7 @@ export function createLessonStudio(
   const assets = new LessonAssetGenerationService(s3);
   const progressStore = new MemoryLessonProgressStore();
   const progress = new LessonGenerationProgressService(progressStore);
+  const covers = new GenerateLessonCoverService(s3);
   const generation = new LessonGenerationService(
     repo,
     llm,
@@ -70,6 +74,7 @@ export function createLessonStudio(
     assets,
     progress,
     new LessonImageBriefService(),
+    covers,
   );
   const content = new UpdateLessonContentService(repo, support, lessons);
   const pdfExport = new ExportLessonPdfService(docx, pdf, lessons);
@@ -88,6 +93,13 @@ export function createLessonStudio(
     pdfExport,
   );
   const deletion = new DeleteLessonService(repo, config, support);
+  const coverUpdate = new UpdateLessonCoverService(
+    repo,
+    llm,
+    lessons,
+    support,
+    covers,
+  );
   const service = new LessonDraftService(
     new CreateLessonService(repo, support, lessons),
     lessons,
@@ -98,6 +110,7 @@ export function createLessonStudio(
     publication,
     deletion,
     new GetLessonPublicationService(lessons, weekMaterialsGet),
+    coverUpdate,
   );
   return {
     service,
@@ -112,5 +125,6 @@ export function createLessonStudio(
     pdfExport,
     publication,
     deletion,
+    coverUpdate,
   };
 }

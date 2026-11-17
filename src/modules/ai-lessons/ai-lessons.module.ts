@@ -17,6 +17,8 @@ import { ExportLessonPdfService } from './services/export-lesson-pdf.service';
 import { GetLessonService } from './services/get-lesson.service';
 import { GetLessonPublicationService } from './services/get-lesson-publication.service';
 import { LessonAssetGenerationService } from './services/lesson-asset-generation.service';
+import { GenerateLessonCoverService } from './services/generate-lesson-cover.service';
+import { UpdateLessonCoverService } from './services/update-lesson-cover.service';
 import { LessonGenerationService } from './services/lesson-generation.service';
 import { LessonStudioSupportService } from './services/lesson-studio-support.service';
 import { PublishLessonService } from './services/publish-lesson.service';
@@ -61,6 +63,8 @@ import { LessonImageBriefService } from './services/lesson-image-brief.service';
     GetLessonPublicationService,
     LessonStudioSupportService,
     LessonAssetGenerationService,
+    GenerateLessonCoverService,
+    UpdateLessonCoverService,
     { provide: LESSON_PROGRESS_STORE, useClass: RedisLessonProgressStore },
     LessonGenerationProgressService,
     LessonImageBriefService,

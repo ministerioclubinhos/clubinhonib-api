@@ -188,7 +188,8 @@ export class WeekMaterialsPageUpdateService {
         public: route.public,
         current: route.current,
         type: RouteType.PAGE,
-        image: WEEK_MATERIAL_ROUTE_IMAGE_URL,
+        // Editing the page keeps the image it was published with.
+        image: route.image || WEEK_MATERIAL_ROUTE_IMAGE_URL,
       },
       WEEK_MATERIAL_ROUTE_PATH_PREFIX,
       manager,

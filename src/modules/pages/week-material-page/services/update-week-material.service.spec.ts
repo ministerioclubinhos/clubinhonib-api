@@ -149,6 +149,25 @@ describe('WeekMaterialsPageUpdateService', () => {
   });
 
   describe('updateWeekMaterialsPage', () => {
+    it('keeps the image the route was published with', async () => {
+      const cover = 'https://bucket.s3.amazonaws.com/cover.png';
+      getRouteService.findRouteByEntityId.mockResolvedValue({
+        ...buildPage().route,
+        image: cover,
+      });
+
+      await service.updateWeekMaterialsPage('page-id', validDto(), {});
+
+      expect(
+        updateRouteService.upsertRouteWithAvailablePath,
+      ).toHaveBeenCalledWith(
+        'route-id',
+        expect.objectContaining({ image: cover }),
+        'materiais_semanal_',
+        manager,
+      );
+    });
+
     it('updates the page content and its route inside a transaction', async () => {
       const result = await service.updateWeekMaterialsPage(
         'page-id',

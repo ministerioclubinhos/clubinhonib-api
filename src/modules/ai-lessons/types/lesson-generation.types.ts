@@ -119,6 +119,8 @@ export interface LessonPublicationPreview {
   title: string;
   isSpecial: boolean;
   documentCount: number;
+  /** Image the route of the published page will use; null falls back to the shared card. */
+  coverImageUrl: string | null;
   weekMaterial: LessonPublicationMaterial | null;
   duplicates: LessonPublicationDuplicate[];
 }

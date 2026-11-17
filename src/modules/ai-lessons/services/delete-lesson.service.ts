@@ -65,6 +65,8 @@ export class DeleteLessonService {
       removableUrls = [...ownedUrls].filter(
         (url) => !referencedElsewhere.has(url),
       );
+      // The lesson was never published, so no route shows its cover.
+      if (lesson.coverImageUrl) removableUrls.push(lesson.coverImageUrl);
       await this.repo.removeLesson(lesson, manager);
     });
 

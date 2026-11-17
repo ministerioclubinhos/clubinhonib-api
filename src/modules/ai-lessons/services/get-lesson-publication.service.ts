@@ -39,6 +39,7 @@ export class GetLessonPublicationService {
       title,
       isSpecial,
       documentCount: getLessonStageOrder(lesson.category).length,
+      coverImageUrl: lesson.coverImageUrl ?? null,
       weekMaterial,
       duplicates,
     };

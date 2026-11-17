@@ -105,6 +105,7 @@ import { AdminLessonPromptService } from './admin-lesson-prompt.service';
 import { GetLessonService } from './get-lesson.service';
 import { LessonStudioSupportService } from './lesson-studio-support.service';
 import { LessonAssetGenerationService } from './lesson-asset-generation.service';
+import { GenerateLessonCoverService } from './generate-lesson-cover.service';
 import { LessonImageBriefService } from './lesson-image-brief.service';
 import { withoutImageBrief } from '../utils/lesson-image-brief.utils';
 import {
@@ -149,6 +150,7 @@ export class LessonGenerationService
     private readonly assets: LessonAssetGenerationService,
     private readonly progress: LessonGenerationProgressService,
     private readonly imageBriefs: LessonImageBriefService,
+    private readonly covers: GenerateLessonCoverService,
   ) {
     this.maxConcurrentGenerations = Math.max(
       1,
@@ -420,6 +422,46 @@ export class LessonGenerationService
       versionId: stage.currentVersionId ?? undefined,
     });
     return this.announceGeneration(id, type, userId, plan.totalImages);
+  }
+
+  /**
+   * The presentation image is an extra of item 1: a failure to draw it never
+   * fails the text (the admin can generate it again), but an aborted attempt
+   * still stops.
+   */
+  private async generateCover(
+    id: string,
+    lesson: LessonEntity,
+    content: LessonJsonObject,
+    llmProvider: LessonLlmProviderContract,
+    generationInput: LessonLlmGenerationInput,
+    freshUploads: string[],
+    signal?: AbortSignal,
+  ): Promise<string | null> {
+    await this.progress.advance(id, {
+      phase: LessonGenerationPhase.IMAGES,
+      totalImages: 1,
+      completedImages: 0,
+    });
+    try {
+      const url = await this.covers.generate({
+        lessonId: id,
+        lesson,
+        content,
+        llmProvider,
+        generationInput,
+        signal,
+      });
+      freshUploads.push(url);
+      await this.progress.advance(id, { completedImages: 1 });
+      return url;
+    } catch (error: unknown) {
+      if (error instanceof LessonGenerationAbortedError) throw error;
+      this.logger.warn(
+        `Imagem de apresentação da lição ${id} não foi gerada: ${String(error)}`,
+      );
+      return null;
+    }
   }
 
   /** Opens the progress record and wakes the worker loop. */
@@ -982,6 +1024,19 @@ export class LessonGenerationService
         },
       );
       throwIfGenerationAborted(signal);
+      // Item 1 also draws the presentation image of the lesson.
+      const coverUrl =
+        type === LessonStageType.LESSON
+          ? await this.generateCover(
+              id,
+              lesson,
+              content,
+              attemptLlm,
+              generationInput,
+              freshUploads,
+              signal,
+            )
+          : null;
       await this.progress.advance(id, { phase: LessonGenerationPhase.SAVING });
 
       const nextVersion =
@@ -1030,6 +1085,7 @@ export class LessonGenerationService
         ...new Set([...(request.uploadedAssetUrls ?? []), ...freshUploads]),
       ];
       let outcome: 'COMMITTED' | 'UPSTREAM_CHANGED' | 'NOT_OWNER' = 'NOT_OWNER';
+      let previousCoverUrl: string | null = null;
       await this.repo.runInTransaction(async (manager) => {
         const locked = await this.repo.findLessonByIdForUpdate(id, manager);
         if (!locked) return;
@@ -1086,6 +1142,14 @@ export class LessonGenerationService
 
         const previousStatus =
           lockedStage.generationRequestJson?.previousState?.status;
+        if (coverUrl) {
+          previousCoverUrl = locked.coverImageUrl;
+          await this.repo.updateLesson(
+            id,
+            { coverImageUrl: coverUrl },
+            manager,
+          );
+        }
         const version = await this.repo.saveVersion(entity, manager);
         lockedStage.currentVersionId = version.id;
         lockedStage.status = LessonStageStatus.DRAFT;
@@ -1118,9 +1182,16 @@ export class LessonGenerationService
         | 'NOT_OWNER';
       if (finalOutcome === 'COMMITTED') {
         const kept = new Set(lessonContentAssetUrls(content));
-        await this.support.discardUploads(
-          trackedUploads().filter((url) => !kept.has(url)),
-        );
+        if (coverUrl) kept.add(coverUrl);
+        // The replaced cover is only the lesson's: nothing else points to it.
+        const replacedCover =
+          coverUrl && previousCoverUrl && previousCoverUrl !== coverUrl
+            ? [previousCoverUrl]
+            : [];
+        await this.support.discardUploads([
+          ...trackedUploads().filter((url) => !kept.has(url)),
+          ...replacedCover,
+        ]);
       } else if (finalOutcome === 'UPSTREAM_CHANGED') {
         await this.support.discardUploads(trackedUploads());
       } else {

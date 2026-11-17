@@ -163,7 +163,7 @@ export class WeekMaterialsPageCreateService {
         entityId: page.id,
         idToFetch: page.id,
         entityType: WEEK_MATERIAL_ENTITY_TYPE,
-        image: WEEK_MATERIAL_ROUTE_IMAGE_URL,
+        image: this.routeImageFor(options),
         public: true,
         current: false,
       },
@@ -172,6 +172,18 @@ export class WeekMaterialsPageCreateService {
     );
 
     return this.pageRepo.savePage(page, manager);
+  }
+
+  /**
+   * Image of the route card. Only a server-side caller can choose it (the
+   * Studio's lesson cover) and only an https address is accepted; anything
+   * else keeps the shared week-material card.
+   */
+  private routeImageFor(options: WeekMaterialCreateOptions): string {
+    const image = options.routeImageUrl?.trim();
+    return image && image.startsWith('https://')
+      ? image
+      : WEEK_MATERIAL_ROUTE_IMAGE_URL;
   }
 
   /**
