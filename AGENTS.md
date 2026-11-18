@@ -53,6 +53,21 @@ The backend best-practices document is the canonical detailed guide. This file i
 
 When existing code conflicts with the canonical guide, do not copy the inconsistency and do not perform an unrelated mass refactor. Apply the standard within scope and report remaining debt.
 
+## Running tests and heavy checks (CPU and RAM limits)
+
+Tests, type-check, lint, build, Playwright and the dev servers started for them can freeze the developer's machine. **Every** such command MUST run limited in CPU and RAM, one process at a time:
+
+```bash
+LIMIT="nice -n 19 systemd-run --user --scope -q -p MemoryMax=3G -p CPUQuota=200%"
+$LIMIT env NODE_OPTIONS='--max-old-space-size=2048' npx jest <path> --maxWorkers=1
+```
+
+- Playwright: always `--workers=1 --trace off`. Jest: always `--maxWorkers=1` (or `--runInBand`). Never run suites in parallel.
+- Put a `timeout` on long runs and prefer the narrowest target (one spec, `-t "name"`) before the full suite.
+- A secondary API or app started only for a test run (for example a `fake` AI instance on another port) is also started under `$LIMIT`, and stopped when the run ends.
+- If `systemd-run` is unavailable, fall back to `nice -n 19` + `taskset -c 0,1` + `NODE_OPTIONS=--max-old-space-size=2048`.
+- Do not skip the limits "just this once": an unlimited run is what freezes the machine.
+
 ## Verification
 
 ```bash

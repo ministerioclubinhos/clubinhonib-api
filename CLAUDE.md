@@ -14,5 +14,6 @@ Mandatory summary:
 - Every schema migration must come from the official TypeORM CLI/core `migration:generate` command. Never use `migration:create`, create/edit migrations manually, or use `synchronize` to deploy schema changes.
 - When a backend change creates or modifies a database schema or feature flow, create its PlantUML diagram if missing or update the existing one under `docs/diagrams/database/` or `docs/diagrams/flow/<feature-name>/`. Leave diagrams outside the current change untouched. Whenever a diagram is created or edited, ALWAYS generate its `.png` immediately (`npm run diagrams:generate`).
 - Behavior changes require Jest tests and synchronized docs.
+- Run every test, type-check, lint, build or Playwright command limited in CPU and RAM (`nice -n 19 systemd-run --user --scope -p MemoryMax=3G -p CPUQuota=200%`, `--workers=1`/`--maxWorkers=1`, `NODE_OPTIONS=--max-old-space-size=2048`); unlimited runs freeze the machine. See `AGENTS.md`.
 
 If this summary and the detailed guide differ, the detailed guide controls.

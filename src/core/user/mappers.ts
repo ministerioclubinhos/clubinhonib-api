@@ -29,6 +29,8 @@ function toClub(club: ClubEntity): MyProfileClubDto {
     weekday: club.weekday,
     time: club.time ?? null,
     isActive: club.isActive,
+    district: club.address?.district ?? null,
+    city: club.address?.city ?? null,
   };
 }
 

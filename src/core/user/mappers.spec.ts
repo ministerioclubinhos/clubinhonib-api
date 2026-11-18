@@ -31,6 +31,7 @@ describe('toMyProfileResponse (contrato do próprio perfil)', () => {
         weekday: 'saturday',
         time: '14:30',
         isActive: true,
+        address: { district: 'Centro', city: 'Recife' },
       },
     },
     coordinatorProfile: null,
@@ -84,6 +85,8 @@ describe('toMyProfileResponse (contrato do próprio perfil)', () => {
         weekday: 'saturday',
         time: '14:30',
         isActive: true,
+        district: 'Centro',
+        city: 'Recife',
       },
     });
     expect(response.coordinatorProfile).toBeNull();

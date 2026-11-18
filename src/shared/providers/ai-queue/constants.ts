@@ -113,6 +113,17 @@ export const AI_FAKE_TEXT = 'Resposta simulada (AI_PROVIDER_MODE=fake).';
 /** PNG 1×1 transparente devolvido pelas rotas de imagem no modo simulado. */
 export const AI_FAKE_PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aR1sAAAAASUVORK5CYII=';
+/** Identificador de resposta simulado: o Estúdio exige um id para encadear versões. */
+export const AI_FAKE_RESPONSE_ID = 'resp_fake_ai_provider_mode';
+/**
+ * Versículo principal simulado: a lição só é aceita com texto, referência
+ * bíblica e versão NVI, e o resto do Estúdio parte dele.
+ */
+export const AI_FAKE_MEMORY_VERSE = {
+  text: 'Porque Deus tanto amou o mundo que deu o seu Filho Unigênito, para que todo o que nele crê não pereça, mas tenha a vida eterna.',
+  reference: 'João 3:16',
+  version: 'NVI',
+} as const;
 export const AI_FAKE_MODELS = {
   text: 'fake-text-model',
   image: 'fake-image-model',

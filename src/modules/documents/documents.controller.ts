@@ -32,7 +32,11 @@ import { DeleteDocumentService } from './services/delete-document.service';
 import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 import { AdminRoleGuard } from 'src/core/auth/guards/role-guard';
 
-import { findMediaFile, parseAndValidatePayload } from './utils';
+import {
+  assertAcceptedDocumentFile,
+  findMediaFile,
+  parseAndValidatePayload,
+} from './utils';
 import { DOCUMENT_PAYLOAD_FIELD } from './constants';
 
 @Controller('documents')
@@ -57,6 +61,7 @@ export class DocumentsController {
 
     const dto = await parseAndValidatePayload(raw, CreateDocumentDto);
     const file = findMediaFile(files, dto.media?.fileField);
+    assertAcceptedDocumentFile(file);
 
     if (dto.media?.fileField && !file) {
       this.logger.warn(
@@ -104,6 +109,7 @@ export class DocumentsController {
     dto.id = id;
 
     const file = findMediaFile(files, dto.media?.fileField);
+    assertAcceptedDocumentFile(file);
 
     if (dto.media?.fileField && !file) {
       this.logger.warn(

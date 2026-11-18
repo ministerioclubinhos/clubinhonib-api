@@ -3,7 +3,11 @@ import { validate } from 'class-validator';
 
 import { AppValidationException, ErrorCode } from 'src/shared/exceptions';
 
-import { DOCUMENT_PAYLOAD_FIELD } from './constants';
+import {
+  DOCUMENT_ACCEPTED_FILE_TYPES,
+  DOCUMENT_GENERIC_MIME_TYPES,
+  DOCUMENT_PAYLOAD_FIELD,
+} from './constants';
 
 /**
  * Lê e valida o JSON enviado junto do arquivo, com as mesmas regras do
@@ -62,4 +66,32 @@ export function findMediaFile(
 ): Express.Multer.File | undefined {
   if (!fileField) return undefined;
   return files?.find((file) => file.fieldname === fileField);
+}
+
+/**
+ * Recusa arquivo que não seja PDF, DOCX ou PPTX. A extensão precisa ser uma das
+ * aceitas e o MIME, quando informado com precisão, precisa combinar com ela.
+ * Só olha o arquivo novo: documentos antigos (ex.: .doc) seguem editáveis.
+ */
+export function assertAcceptedDocumentFile(
+  file: Express.Multer.File | undefined,
+): void {
+  if (!file) return;
+
+  const name = file.originalname?.toLowerCase() ?? '';
+  const extension = Object.keys(DOCUMENT_ACCEPTED_FILE_TYPES).find((ext) =>
+    name.endsWith(ext),
+  );
+  const mime = (file.mimetype ?? '').toLowerCase();
+  const mimeMatches =
+    extension !== undefined &&
+    (DOCUMENT_GENERIC_MIME_TYPES.includes(mime) ||
+      DOCUMENT_ACCEPTED_FILE_TYPES[extension].includes(mime));
+
+  if (!extension || !mimeMatches) {
+    throw new AppValidationException(
+      ErrorCode.INVALID_INPUT,
+      'Formato de arquivo não aceito. Envie um PDF, DOCX ou PPTX.',
+    );
+  }
 }

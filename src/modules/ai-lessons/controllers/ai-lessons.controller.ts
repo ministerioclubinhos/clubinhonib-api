@@ -40,6 +40,7 @@ import {
   LessonActiveGenerationResponseDto,
   toActiveGenerationResponse,
 } from '../dto/lesson-generation-progress.dto';
+import { ChangeMemoryVerseRequestDto } from '../dto/change-memory-verse.dto';
 import { SaveTiptapContentDto } from '../dto/save-tiptap-content.dto';
 import { LessonStageType } from '../enums/lesson.enums';
 import { AdminLessonPromptService } from '../services/admin-lesson-prompt.service';
@@ -189,6 +190,20 @@ export class AiLessonsController {
   ): Promise<LessonResponseDto> {
     return toLessonResponse(
       await this.service.regenerateImages(id, dto, req.user.userId),
+      { generation: await this.progress.get(id) },
+    );
+  }
+  /**
+   * Changes only the memory verse: item 1 gets a new version and goes back to
+   * production, and every later item already generated becomes outdated.
+   */
+  @Patch(':id/memory-verse') async changeMemoryVerse(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ChangeMemoryVerseRequestDto,
+    @Req() req: AuthRequest,
+  ): Promise<LessonResponseDto> {
+    return toLessonResponse(
+      await this.service.changeMemoryVerse(id, dto, req.user.userId),
       { generation: await this.progress.get(id) },
     );
   }

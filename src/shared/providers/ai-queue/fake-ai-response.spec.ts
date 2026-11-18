@@ -15,7 +15,12 @@ import {
   AiQueueMethod,
   AiQueueProviderName,
 } from './enums';
-import { AI_FAKE_PNG_BASE64, AI_FAKE_TEXT } from './constants';
+import {
+  AI_FAKE_MEMORY_VERSE,
+  AI_FAKE_PNG_BASE64,
+  AI_FAKE_RESPONSE_ID,
+  AI_FAKE_TEXT,
+} from './constants';
 import { AiQueueRequest } from './types';
 import {
   IDEA_JUDGE_SCHEMA,
@@ -216,5 +221,53 @@ describe('fake AI responses', () => {
         }),
       ).data,
     ).toMatchObject({ models: [{ name: 'models/fake-text-model' }, {}] });
+  });
+
+  it('devolve um versículo principal NVI válido para a lição simulada', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        memoryVerse: {
+          type: 'object',
+          properties: {
+            text: { type: 'string' },
+            reference: { type: 'string' },
+            version: { type: 'string' },
+          },
+        },
+      },
+    };
+
+    expect(fakeFromSchema(schema, {})).toEqual({
+      memoryVerse: AI_FAKE_MEMORY_VERSE,
+    });
+  });
+
+  it('mantém o versículo que já existe nos dados de origem', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        memoryVerse: {
+          type: 'object',
+          properties: { text: { type: 'string' } },
+        },
+      },
+    };
+    const echoed = {
+      memoryVerse: { text: 'Salmo 23:1 — o Senhor é meu pastor.' },
+    };
+
+    expect(fakeFromSchema(schema, echoed)).toEqual(echoed);
+  });
+
+  it('inclui um identificador na resposta simulada da OpenAI, exigido pelo Estúdio', () => {
+    const response = fakeAiResponse({
+      provider: AiQueueProviderName.OPENAI,
+      method: AiQueueMethod.POST,
+      url: 'https://api.openai.com/v1/responses',
+      body: { kind: AiQueueBodyKind.JSON, json: {} },
+    } as AiQueueRequest);
+
+    expect((response.data as { id: string }).id).toBe(AI_FAKE_RESPONSE_ID);
   });
 });

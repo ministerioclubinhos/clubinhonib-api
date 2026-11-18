@@ -1701,6 +1701,228 @@ describe('LessonDraftService studio workflow', () => {
     });
   });
 
+  describe('alteração do versículo', () => {
+    const OLD_VERSE = {
+      text: 'Pois Deus tanto amou o mundo.',
+      reference: 'João 3:16',
+      version: 'NVI',
+    };
+    const NEW_VERSE = {
+      text: '“O Senhor é o meu pastor; nada me faltará.”',
+      reference: 'Salmo 23:1 — NVI',
+    };
+    const document = (verse: string) => ({
+      type: 'doc',
+      content: [
+        {
+          type: 'heading',
+          attrs: { level: 2 },
+          content: [{ type: 'text', text: 'VERSÍCULO PARA MEMORIZAR' }],
+        },
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: `“${verse}”` }],
+        },
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: 'João 3:16 — NVI' }],
+        },
+        {
+          type: 'heading',
+          attrs: { level: 2 },
+          content: [{ type: 'text', text: 'LIÇÃO BÍBLICA' }],
+        },
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'text',
+              text: 'Davi e a funda.',
+              marks: [{ type: 'bold' }],
+            },
+          ],
+        },
+      ],
+    });
+    const withVerse = (
+      status: LessonStatus,
+      stageStatus: LessonStageStatus,
+      overrides: Partial<Record<LessonStageType, LessonStageStatus>> = {},
+    ) => {
+      const lesson = makeLesson(status, stageStatus, overrides);
+      const version = stageOf(lesson, LessonStageType.LESSON).versions[0];
+      version.structuredDataJson = {
+        story: 'Davi e a funda.',
+        memoryVerse: OLD_VERSE,
+      };
+      version.tiptapAstJson = document(OLD_VERSE.text);
+      repo.findLessonById.mockResolvedValue(lesson);
+      return lesson;
+    };
+    const change = (
+      extra: Partial<{ acknowledgeImpact: boolean; lockVersion: number }> = {},
+      verse = NEW_VERSE,
+    ) =>
+      service.changeMemoryVerse(
+        LESSON_ID,
+        { ...verse, lockVersion: 1, acknowledgeImpact: true, ...extra },
+        USER_ID,
+      );
+
+    it('grava uma versão do item 1 só com o versículo trocado, sempre em NVI, e mantém o resto do documento', async () => {
+      withVerse(LessonStatus.IN_PROGRESS, LessonStageStatus.PRODUCER_APPROVED);
+
+      await change();
+
+      const saved = repo.saveVersion.mock.calls[0][0] as {
+        structuredDataJson: {
+          story: string;
+          memoryVerse: Record<string, string>;
+        };
+        tiptapAstJson: { content: Array<Record<string, unknown>> };
+        changeSummary: string;
+      };
+      expect(saved.structuredDataJson.story).toBe('Davi e a funda.');
+      expect(saved.structuredDataJson.memoryVerse).toEqual({
+        text: 'O Senhor é o meu pastor; nada me faltará.',
+        reference: 'Salmo 23:1',
+        version: 'NVI',
+      });
+      const texts = JSON.stringify(saved.tiptapAstJson);
+      expect(texts).toContain('“O Senhor é o meu pastor; nada me faltará.”');
+      expect(texts).toContain('Salmo 23:1 — NVI');
+      expect(texts).not.toContain('Pois Deus tanto amou');
+      // The rest of the document, with its formatting, is untouched.
+      expect(texts).toContain('"marks":[{"type":"bold"}]');
+      expect(saved.changeSummary).toBe(
+        'Versículo alterado: João 3:16 → Salmo 23:1',
+      );
+    });
+
+    it('devolve o item 1 para produção e deixa desatualizados todos os itens seguintes já gerados', async () => {
+      const lesson = withVerse(
+        LessonStatus.IN_PROGRESS,
+        LessonStageStatus.PRODUCER_APPROVED,
+        { [LessonStageType.MANUAL_WORK]: LessonStageStatus.NOT_STARTED },
+      );
+
+      await change();
+
+      expect(stageOf(lesson, LessonStageType.LESSON).status).toBe(
+        LessonStageStatus.DRAFT,
+      );
+      for (const type of [
+        LessonStageType.LESSON_VISUALS,
+        LessonStageType.STANDARD_GAME,
+        LessonStageType.VERSE_VISUALS,
+        LessonStageType.VERSE_FIXATION,
+        LessonStageType.MEDITATION_YOUNGER,
+        LessonStageType.MEDITATION_OLDER,
+      ])
+        expect(stageOf(lesson, type).status).toBe(LessonStageStatus.STALE);
+      // What was never generated stays as it was.
+      expect(stageOf(lesson, LessonStageType.MANUAL_WORK).status).toBe(
+        LessonStageStatus.NOT_STARTED,
+      );
+    });
+
+    it('atinge os itens seguintes mesmo no ciclo de revisão, que normalmente os protege', async () => {
+      const lesson = withVerse(
+        LessonStatus.IN_REVIEW,
+        LessonStageStatus.IN_REVIEW,
+      );
+
+      await change();
+
+      expect(stageOf(lesson, LessonStageType.LESSON).status).toBe(
+        LessonStageStatus.DRAFT,
+      );
+      expect(stageOf(lesson, LessonStageType.VERSE_VISUALS).status).toBe(
+        LessonStageStatus.STALE,
+      );
+    });
+
+    it('exige a confirmação do aviso quando há itens seguintes gerados', async () => {
+      withVerse(LessonStatus.IN_PROGRESS, LessonStageStatus.PRODUCER_APPROVED);
+
+      await expect(change({ acknowledgeImpact: false })).rejects.toMatchObject({
+        response: expect.objectContaining({
+          code: ErrorCode.LESSON_VERSE_CHANGE_NOT_ACKNOWLEDGED,
+        }),
+      });
+      expect(repo.saveVersion).not.toHaveBeenCalled();
+    });
+
+    it('não pede confirmação quando só o item 1 existe e ainda é rascunho', async () => {
+      const lesson = withVerse(
+        LessonStatus.IN_PROGRESS,
+        LessonStageStatus.NOT_STARTED,
+        { [LessonStageType.LESSON]: LessonStageStatus.DRAFT },
+      );
+
+      await change({ acknowledgeImpact: false });
+
+      expect(repo.saveVersion).toHaveBeenCalledTimes(1);
+      expect(stageOf(lesson, LessonStageType.LESSON).status).toBe(
+        LessonStageStatus.DRAFT,
+      );
+    });
+
+    it('não cria versão quando o versículo é o mesmo', async () => {
+      withVerse(LessonStatus.IN_PROGRESS, LessonStageStatus.PRODUCER_APPROVED);
+
+      await change(
+        {},
+        { text: `“${OLD_VERSE.text}”`, reference: 'João 3:16 — NVI' },
+      );
+
+      expect(repo.saveVersion).not.toHaveBeenCalled();
+      expect(repo.updateStage).not.toHaveBeenCalled();
+    });
+
+    it('recusa uma referência que não é Livro capítulo:versículo', async () => {
+      withVerse(LessonStatus.IN_PROGRESS, LessonStageStatus.PRODUCER_APPROVED);
+
+      await expect(
+        change({}, { text: NEW_VERSE.text, reference: 'qualquer coisa' }),
+      ).rejects.toBeInstanceOf(AppConflictException);
+      expect(repo.saveVersion).not.toHaveBeenCalled();
+    });
+
+    it('recusa a troca em lição publicada e em edição de outra sessão', async () => {
+      withVerse(LessonStatus.PUBLISHED, LessonStageStatus.APPROVED);
+      await expect(change()).rejects.toBeInstanceOf(AppConflictException);
+
+      withVerse(LessonStatus.IN_PROGRESS, LessonStageStatus.PRODUCER_APPROVED);
+      await expect(change({ lockVersion: 9 })).rejects.toMatchObject({
+        response: expect.objectContaining({
+          code: ErrorCode.LESSON_STAGE_LOCK_CONFLICT,
+        }),
+      });
+      expect(repo.saveVersion).not.toHaveBeenCalled();
+    });
+
+    it('reconstrói o documento quando ele não tem a seção do versículo', async () => {
+      const lesson = withVerse(
+        LessonStatus.IN_PROGRESS,
+        LessonStageStatus.PRODUCER_APPROVED,
+      );
+      stageOf(lesson, LessonStageType.LESSON).versions[0].tiptapAstJson = {
+        type: 'doc',
+        content: [{ type: 'paragraph' }],
+      };
+
+      await change();
+
+      const saved = repo.saveVersion.mock.calls[0][0] as {
+        tiptapAstJson: unknown;
+      };
+      expect(JSON.stringify(saved.tiptapAstJson)).toContain(
+        'O Senhor é o meu pastor',
+      );
+    });
+  });
+
   describe('edição e conclusão', () => {
     it('não cria versão nem invalida itens quando o conteúdo salvo é idêntico', async () => {
       const lesson = makeLesson(
@@ -2337,7 +2559,9 @@ describe('LessonDraftService studio workflow', () => {
 
     it('desenha a capa só com o tema quando o briefing falha', async () => {
       lessonWithItemOne();
-      llm.generateStructured.mockRejectedValue(new Error('provedor fora do ar'));
+      llm.generateStructured.mockRejectedValue(
+        new Error('provedor fora do ar'),
+      );
       llm.generateImage.mockResolvedValue(PNG);
       s3.upload.mockResolvedValue(COVER_URL);
 

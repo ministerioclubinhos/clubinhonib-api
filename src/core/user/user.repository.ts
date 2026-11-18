@@ -126,8 +126,8 @@ export class UserRepository {
     return this.repo.findOne({
       where: { id },
       relations: {
-        teacherProfile: { club: true },
-        coordinatorProfile: { clubs: true },
+        teacherProfile: { club: { address: true } },
+        coordinatorProfile: { clubs: { address: true } },
       },
     });
   }

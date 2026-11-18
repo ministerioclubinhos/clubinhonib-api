@@ -1,5 +1,7 @@
 import {
   AI_FAKE_BOOLEANS,
+  AI_FAKE_MEMORY_VERSE,
+  AI_FAKE_RESPONSE_ID,
   AI_FAKE_MODELS,
   AI_FAKE_PNG_BASE64,
   AI_FAKE_TEXT,
@@ -55,6 +57,15 @@ export function extractSourceData(body: unknown): JsonRecord {
   return {};
 }
 
+/** A verse already present in the source data is echoed, not replaced. */
+function hasEchoedVerse(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.text === 'string' &&
+    value.text.trim().length > 0
+  );
+}
+
 function schemaType(schema: JsonRecord): string | undefined {
   const type = schema.type;
   if (typeof type === 'string') return type;
@@ -91,7 +102,9 @@ export function fakeFromSchema(
       return Object.fromEntries(
         Object.entries(properties).map(([name, child]) => [
           name,
-          fakeFromSchema(child, nested, name),
+          name === 'memoryVerse' && !hasEchoedVerse(nested[name])
+            ? { ...AI_FAKE_MEMORY_VERSE }
+            : fakeFromSchema(child, nested, name),
         ]),
       );
     }
@@ -185,6 +198,7 @@ export function fakeAiResponse(request: AiQueueRequest): AiQueueResponse {
       ? JSON.stringify(fakeFromSchema(schema, source))
       : AI_FAKE_TEXT;
     return ok({
+      id: AI_FAKE_RESPONSE_ID,
       status: 'completed',
       output: [
         {

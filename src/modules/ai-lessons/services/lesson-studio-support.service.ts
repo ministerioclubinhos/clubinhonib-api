@@ -55,13 +55,17 @@ export class LessonStudioSupportService {
     type: LessonStageType,
     manager?: EntityManager,
     previousStatus?: LessonStageStatus,
+    /** The change reaches every later item, review cycle or not (the memory verse). */
+    forceAll = false,
   ): Promise<void> {
     const stageOrder = getLessonStageOrder(lesson.category);
     const index = stageOrder.indexOf(type);
-    const reviewCycle = isLessonInReviewCycle([
-      previousStatus,
-      ...lesson.stages.map((item) => item.status),
-    ]);
+    const reviewCycle =
+      !forceAll &&
+      isLessonInReviewCycle([
+        previousStatus,
+        ...lesson.stages.map((item) => item.status),
+      ]);
     const outdated = reviewCycle
       ? []
       : lesson.stages.filter(

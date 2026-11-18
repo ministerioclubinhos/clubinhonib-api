@@ -40,3 +40,24 @@ export const DOCUMENT_PAYLOAD_FIELD = 'documentData';
 
 /** Prefixo do caminho público gerado para cada documento. */
 export const DOCUMENT_ROUTE_PREFIX = 'documento_';
+
+/**
+ * Extensões aceitas no envio de arquivo de documento, com o tipo MIME que o
+ * navegador informa para cada uma. Mantida igual à lista do front.
+ */
+export const DOCUMENT_ACCEPTED_FILE_TYPES: Readonly<Record<string, string[]>> =
+  {
+    '.pdf': ['application/pdf'],
+    '.docx': [
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ],
+    '.pptx': [
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    ],
+  };
+
+/** Tipos MIME genéricos que alguns navegadores enviam; a extensão decide. */
+export const DOCUMENT_GENERIC_MIME_TYPES: readonly string[] = [
+  'application/octet-stream',
+  '',
+];

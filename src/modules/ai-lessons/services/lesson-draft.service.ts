@@ -5,6 +5,7 @@ import {
   RegenerateStageImagesRequestDto,
 } from '../dto/generate-stage-request.dto';
 import { QueryLessonsDto } from '../dto/query-lessons.dto';
+import { ChangeMemoryVerseRequestDto } from '../dto/change-memory-verse.dto';
 import { SaveTiptapContentDto } from '../dto/save-tiptap-content.dto';
 import { LessonEntity } from '../entities/lesson.entity';
 import { LessonStageType } from '../enums/lesson.enums';
@@ -23,6 +24,7 @@ import { GetLessonPublicationService } from './get-lesson-publication.service';
 import { LessonGenerationService } from './lesson-generation.service';
 import { PublishLessonService } from './publish-lesson.service';
 import { UpdateLessonCoverService } from './update-lesson-cover.service';
+import { UpdateLessonVerseService } from './update-lesson-verse.service';
 import { UpdateLessonContentService } from './update-lesson-content.service';
 import { UpdateLessonReviewService } from './update-lesson-review.service';
 
@@ -43,6 +45,7 @@ export class LessonDraftService {
     private readonly deletion: DeleteLessonService,
     private readonly publicationPreview: GetLessonPublicationService,
     private readonly cover: UpdateLessonCoverService,
+    private readonly verse: UpdateLessonVerseService,
   ) {}
 
   create(dto: GenerateLessonRequestDto, userId: string): Promise<LessonEntity> {
@@ -79,6 +82,14 @@ export class LessonDraftService {
     userId: string,
   ): Promise<LessonEntity> {
     return this.generation.regenerateImages(id, dto, userId);
+  }
+
+  changeMemoryVerse(
+    id: string,
+    dto: ChangeMemoryVerseRequestDto,
+    userId: string,
+  ): Promise<LessonEntity> {
+    return this.verse.changeMemoryVerse(id, dto, userId);
   }
 
   regenerateCover(id: string, actorId?: string): Promise<LessonEntity> {

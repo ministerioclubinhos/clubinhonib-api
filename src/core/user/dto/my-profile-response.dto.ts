@@ -12,6 +12,10 @@ export class MyProfileClubDto {
   /** `HH:mm`, ou `null` quando não cadastrado. */
   time: string | null;
   isActive: boolean;
+  /** Bairro do endereço do clubinho, ou `null` quando não cadastrado. */
+  district: string | null;
+  /** Cidade do endereço do clubinho, ou `null` quando não cadastrada. */
+  city: string | null;
 }
 
 /** Vínculo de professor, quando existe. */

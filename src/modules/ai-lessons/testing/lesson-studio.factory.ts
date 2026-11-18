@@ -22,6 +22,7 @@ import { LessonStudioSupportService } from '../services/lesson-studio-support.se
 import { PdfLibreOfficeService } from '../services/pdf-libreoffice.service';
 import { PublishLessonService } from '../services/publish-lesson.service';
 import { GenerateLessonCoverService } from '../services/generate-lesson-cover.service';
+import { UpdateLessonVerseService } from '../services/update-lesson-verse.service';
 import { UpdateLessonCoverService } from '../services/update-lesson-cover.service';
 import { UpdateLessonContentService } from '../services/update-lesson-content.service';
 import { UpdateLessonReviewService } from '../services/update-lesson-review.service';
@@ -40,6 +41,7 @@ export interface LessonStudioServices {
   publication: PublishLessonService;
   deletion: DeleteLessonService;
   coverUpdate: UpdateLessonCoverService;
+  verseUpdate: UpdateLessonVerseService;
 }
 
 /**
@@ -100,6 +102,7 @@ export function createLessonStudio(
     support,
     covers,
   );
+  const verseUpdate = new UpdateLessonVerseService(repo, support, lessons);
   const service = new LessonDraftService(
     new CreateLessonService(repo, support, lessons),
     lessons,
@@ -111,6 +114,7 @@ export function createLessonStudio(
     deletion,
     new GetLessonPublicationService(lessons, weekMaterialsGet),
     coverUpdate,
+    verseUpdate,
   );
   return {
     service,
@@ -126,5 +130,6 @@ export function createLessonStudio(
     publication,
     deletion,
     coverUpdate,
+    verseUpdate,
   };
 }
