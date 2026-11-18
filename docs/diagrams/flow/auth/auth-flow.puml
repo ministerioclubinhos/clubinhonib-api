@@ -1,0 +1,45 @@
+@startuml Authentication Flow - Clubinho NIB API
+!theme plain
+hide footbox
+autonumber
+
+title Authentication — login
+
+actor User as client
+participant "AuthController" as controller
+participant "AuthService" as service
+database "MySQL\nUserRepository" as repo
+participant "JwtService" as jwt
+
+client -> controller : POST /auth/login (LoginDto)
+activate controller
+
+controller -> service : login(loginDto)
+activate service
+
+service -> repo : findByEmail(email)
+activate repo
+repo --> service : User entity | null
+deactivate repo
+
+alt User not found or inactive
+    service --> controller : throw UnauthorizedException ("Credentials invalid")
+    controller --> client : 401 Unauthorized { success: false, error: ... }
+else Valid user
+    service -> service : verifyPassword(password, passwordHash)
+    alt Password mismatch
+        service --> controller : throw UnauthorizedException ("Credentials invalid")
+        controller --> client : 401 Unauthorized { success: false, error: ... }
+    else Password valid
+        service -> jwt : signToken({ sub: userId, role, clubId })
+        activate jwt
+        jwt --> service : accessToken
+        deactivate jwt
+        service --> controller : LoginResponseDto { accessToken, user }
+        deactivate service
+        controller --> client : 200 OK { success: true, data: { accessToken, user } }
+        deactivate controller
+    end
+end
+
+@enduml

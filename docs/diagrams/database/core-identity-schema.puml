@@ -1,0 +1,87 @@
+@startuml Core Identity Schema - Clubinho NIB API
+!theme plain
+left to right direction
+skinparam linetype ortho
+hide circle
+
+title MySQL — core identity
+
+entity "users" as Users {
+  * id : UUID <<PK>>
+  --
+  email : varchar <<UQ>>
+  cpf : varchar? <<UQ>>
+  role : enum
+  active : boolean
+  noticesUnsubscribedAt : datetime?
+}
+
+entity "personal_data" as Personal {
+  * id : UUID <<PK>>
+  --
+  userId : UUID <<FK,UQ>>
+}
+
+entity "user_preferences" as Preferences {
+  * id : UUID <<PK>>
+  --
+  userId : UUID <<FK,UQ>>
+}
+
+entity "teacher_profiles" as Teacher {
+  * id : UUID <<PK>>
+  --
+  user_id : UUID <<FK,UQ>>
+  club_id : UUID? <<FK>>
+  active : boolean
+}
+
+entity "coordinator_profiles" as Coordinator {
+  * id : UUID <<PK>>
+  --
+  user_id : UUID <<FK,UQ>>
+  active : boolean
+}
+
+entity "email_verification_tokens" as Verification {
+  * id : UUID <<PK>>
+  --
+  userId : UUID <<FK>>
+  tokenHash : char(64) <<UQ>>
+  expiresAt : datetime
+}
+
+entity "password_reset_tokens" as Reset {
+  * id : UUID <<PK>>
+  --
+  userId : UUID <<FK>>
+  token : varchar
+  expiresAt : datetime
+}
+
+entity "feature_flags" as Flags {
+  * id : UUID <<PK>>
+  --
+  key : varchar(255) <<UQ>>
+  enabled : boolean
+  target_roles : json?
+}
+
+Users ||--o| Personal
+Users ||--o| Preferences
+Users ||--o| Teacher
+Users ||--o| Coordinator
+Users ||--o{ Verification
+Users ||--o{ Reset
+
+note bottom of Users
+  All six user foreign keys use ON DELETE CASCADE.
+  Profile blocks are unique per user; tokens are one-to-many.
+end note
+
+note bottom of Teacher
+  club_id uses SET NULL. Staff-to-club relations are
+  detailed in clubs-attendance-schema.
+end note
+
+@enduml

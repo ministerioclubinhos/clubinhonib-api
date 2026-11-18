@@ -1,11 +1,17 @@
-import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  Inject,
+  Optional,
+  forwardRef,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { CreateUserService } from 'src/core/user/services/create-user.service';
 import { UserEntity } from 'src/core/user/entities/user.entity';
 import { OAuth2Client } from 'google-auth-library';
-import { UserRepository } from 'src/core/user/user.repository';
+import { MyProfileResponseDto } from 'src/core/user/dto/my-profile-response.dto';
 import { GetUsersService } from 'src/core/user/services/get-user.service';
 import { UpdateUserService } from 'src/core/user/services/update-user.service';
 import { AuthRepository } from '../auth.repository';
@@ -13,18 +19,27 @@ import { CompleteUserDto } from '../dto/complete-register.dto';
 import { RegisterUserDto } from '../dto/register.dto';
 import { LoginDto } from '../dto/login.dto';
 import { UserRole, JwtPayload } from '../auth.types';
-import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
-import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
-import { PersonalDataRepository } from 'src/core/profile/repositories/personal-data.repository';
-import { UserPreferencesRepository } from 'src/core/profile/repositories/user-preferences.repository';
-import { SesIdentityService } from 'src/shared/providers/aws/ses-identity.service';
-import { TeacherProfilesRepository } from 'src/modules/teacher-profiles/repositories/teacher-profiles.repository';
+import { EmailVerificationService } from './email-verification.service';
+import { UpdateTeacherProfilesService } from 'src/modules/teacher-profiles/services/update-teacher-profiles.service';
+import { NotificationService } from 'src/shared/providers/notification/notification.service';
+import { RequestContextService } from 'src/core/request-context/request-context.service';
+import { actorDisplayName } from 'src/core/request-context/utils';
+import { normalizeRole } from '../role.utils';
 import {
   AppUnauthorizedException,
   AppNotFoundException,
   AppConflictException,
   ErrorCode,
 } from 'src/shared/exceptions';
+import {
+  AuthGoogleLoginResponseDto,
+  AuthLoginResponseDto,
+  AuthLogoutResponseDto,
+  AuthRegisterResponseDto,
+  AuthTokensResponseDto,
+  AuthUserDto,
+  LinkClubResponseDto,
+} from '../dto/auth-response.dto';
 
 @Injectable()
 export class AuthService {
@@ -38,23 +53,41 @@ export class AuthService {
     private readonly createUserService: CreateUserService,
     private readonly updateUserService: UpdateUserService,
     private readonly getUsersService: GetUsersService,
-    private readonly userRepo: UserRepository,
-    private readonly mediaItemProcessor: MediaItemProcessor,
-    @Inject(forwardRef(() => PersonalDataRepository))
-    private readonly personalDataRepository: PersonalDataRepository,
-    @Inject(forwardRef(() => UserPreferencesRepository))
-    private readonly userPreferencesRepository: UserPreferencesRepository,
-    private readonly sesIdentityService: SesIdentityService,
-    @Inject(forwardRef(() => TeacherProfilesRepository))
-    private readonly teacherProfilesRepository: TeacherProfilesRepository,
+    private readonly emailVerificationService: EmailVerificationService,
+    @Inject(forwardRef(() => UpdateTeacherProfilesService))
+    private readonly updateTeacherProfilesService: UpdateTeacherProfilesService,
+    private readonly notificationService: NotificationService,
+    @Optional() private readonly requestContext?: RequestContextService,
   ) {
     this.googleClient = new OAuth2Client(
       configService.getOrThrow<string>('GOOGLE_CLIENT_ID'),
     );
   }
 
+  /**
+   * Informa ao contexto quem acabou de ser identificado.
+   *
+   * Login, cadastro e refresh são as únicas ações em que o ator só é conhecido
+   * depois do boundary; sem isto a auditoria as gravaria como anônimas. Saem
+   * daqui o UUID, o papel e o nome de exibição — nunca token ou e-mail.
+   */
+  private announceActor(user: UserEntity): void {
+    this.requestContext?.assignActor({
+      actorId: user.id,
+      actorRole: normalizeRole(user.role) ?? null,
+      actorName: actorDisplayName(user.name),
+    });
+  }
+
   private generateTokens(user: UserEntity) {
-    const payload = { sub: user.id, email: user.email, role: user.role };
+    this.announceActor(user);
+    // O nome vai no token para a auditoria mostrar quem agiu sem consultar o banco.
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      name: actorDisplayName(user.name) ?? undefined,
+    };
 
     const accessToken = this.jwtService.sign(payload);
     const refreshToken = this.jwtService.sign(payload, {
@@ -67,7 +100,7 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  async login({ email, password }: LoginDto) {
+  async login({ email, password }: LoginDto): Promise<AuthLoginResponseDto> {
     const user = await this.authRepo.validateUser(email);
     if (!user || !(await bcrypt.compare(password, user.password))) {
       throw new AppUnauthorizedException(
@@ -76,22 +109,15 @@ export class AuthService {
       );
     }
 
-    const sesVerification =
-      await this.sesIdentityService.checkAndResendSesVerification(email);
+    const emailVerification =
+      await this.emailVerificationService.sendIfPending(user);
 
     if (!user.active) {
       return {
         message:
           'User is inactive. Please verify your email to activate your account.',
         user: this.buildUserResponse(user),
-        emailVerification: {
-          verificationEmailSent: sesVerification.verificationEmailSent,
-          message: sesVerification.verificationEmailSent
-            ? 'Um email de verificação foi enviado para o seu endereço. Por favor, verifique sua caixa de entrada.'
-            : sesVerification.alreadyVerified
-              ? 'Email já verificado.'
-              : undefined,
-        },
+        emailVerification,
       };
     }
 
@@ -102,18 +128,11 @@ export class AuthService {
       message: 'Login successful',
       user: this.buildUserResponse(user),
       ...tokens,
-      emailVerification: {
-        verificationEmailSent: sesVerification.verificationEmailSent,
-        message: sesVerification.verificationEmailSent
-          ? 'Um email de verificação foi enviado para o seu endereço. Por favor, verifique sua caixa de entrada.'
-          : sesVerification.alreadyVerified
-            ? 'Email já verificado.'
-            : undefined,
-      },
+      emailVerification,
     };
   }
 
-  async googleLogin(token: string) {
+  async googleLogin(token: string): Promise<AuthGoogleLoginResponseDto> {
     try {
       const ticket = await this.googleClient.verifyIdToken({
         idToken: token,
@@ -143,8 +162,13 @@ export class AuthService {
           role: UserRole.COORDINATOR,
         });
 
-        const sesVerification =
-          await this.sesIdentityService.verifyEmailIdentitySES(email);
+        const emailVerification =
+          await this.emailVerificationService.sendIfPending(user);
+
+        await this.notificationService.notifyNewUserRegistration(
+          user,
+          'google',
+        );
 
         return {
           email,
@@ -152,53 +176,38 @@ export class AuthService {
           completed: user.completed,
           commonUser: user.commonUser,
           newUser: true,
-          emailVerification: {
-            verificationEmailSent: sesVerification.verificationEmailSent,
-            message: sesVerification.verificationEmailSent
-              ? 'Um email de verificação foi enviado para o seu endereço. Por favor, verifique sua caixa de entrada.'
-              : undefined,
-          },
+          emailVerification,
         };
       }
 
       if (!user.completed) {
-        const sesVerification =
-          await this.sesIdentityService.checkAndResendSesVerification(email);
+        const emailVerification =
+          await this.emailVerificationService.sendIfPending(user);
         return {
           email,
           name,
           completed: false,
           commonUser: user.commonUser,
           newUser: true,
-          emailVerification: {
-            verificationEmailSent: sesVerification.verificationEmailSent,
-            message: sesVerification.verificationEmailSent
-              ? 'Um email de verificação foi enviado para o seu endereço. Por favor, verifique sua caixa de entrada.'
-              : undefined,
-          },
+          emailVerification,
         };
       }
 
       if (!user.active) {
-        const sesVerification =
-          await this.sesIdentityService.checkAndResendSesVerification(email);
+        const emailVerification =
+          await this.emailVerificationService.sendIfPending(user);
         return {
           message: 'User is inactive',
           active: false,
           completed: user.completed,
           commonUser: user.commonUser,
           newUser: false,
-          emailVerification: {
-            verificationEmailSent: sesVerification.verificationEmailSent,
-            message: sesVerification.verificationEmailSent
-              ? 'Um email de verificação foi enviado para o seu endereço. Por favor, verifique sua caixa de entrada.'
-              : undefined,
-          },
+          emailVerification,
         };
       }
 
-      const sesVerification =
-        await this.sesIdentityService.checkAndResendSesVerification(email);
+      const emailVerification =
+        await this.emailVerificationService.sendIfPending(user);
 
       const tokens = this.generateTokens(user);
       await this.updateRefreshToken(user.id, tokens.refreshToken);
@@ -208,16 +217,9 @@ export class AuthService {
         isNewUser: false,
         user: this.buildUserResponse(user),
         ...tokens,
-        emailVerification: {
-          verificationEmailSent: sesVerification.verificationEmailSent,
-          message: sesVerification.verificationEmailSent
-            ? 'Um email de verificação foi enviado para o seu endereço. Por favor, verifique sua caixa de entrada.'
-            : sesVerification.alreadyVerified
-              ? 'Email já verificado.'
-              : undefined,
-        },
+        emailVerification,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       const err = error as Error;
       this.logger.error(`Error during Google login: ${err.message}`, err.stack);
 
@@ -245,7 +247,7 @@ export class AuthService {
     }
   }
 
-  async refreshToken(token: string) {
+  async refreshToken(token: string): Promise<AuthTokensResponseDto> {
     if (!token) {
       throw new AppUnauthorizedException(
         ErrorCode.TOKEN_MISSING,
@@ -278,174 +280,25 @@ export class AuthService {
     }
   }
 
-  async logout(userId: string) {
+  async logout(userId: string): Promise<AuthLogoutResponseDto> {
     await this.updateRefreshToken(userId, null);
     return { message: 'User logged out' };
   }
 
-  private buildMeResponse(
-    user: UserEntity,
-    imageMedia?: MediaItemEntity | null,
-  ) {
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      active: user.active,
-      completed: user.completed,
-      commonUser: user.commonUser,
-      phone: user.phone,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-      role: user.role,
-      image: imageMedia
-        ? {
-            id: imageMedia.id,
-            title: imageMedia.title,
-            description: imageMedia.description,
-            url: imageMedia.url,
-            uploadType: imageMedia.uploadType,
-            mediaType: imageMedia.mediaType,
-            isLocalFile: imageMedia.isLocalFile,
-            platformType: imageMedia.platformType,
-            originalName: imageMedia.originalName,
-            size: imageMedia.size,
-            createdAt: imageMedia.createdAt,
-            updatedAt: imageMedia.updatedAt,
-          }
-        : null,
-      teacherProfile: user.teacherProfile
-        ? {
-            id: user.teacherProfile.id,
-            active: user.teacherProfile.active,
-            club: user.teacherProfile.club
-              ? {
-                  id: user.teacherProfile.club.id,
-                  number: user.teacherProfile.club.number,
-                  weekday: user.teacherProfile.club.weekday,
-                  time: user.teacherProfile.club.time,
-                  isActive: user.teacherProfile.club.isActive,
-                }
-              : null,
-          }
-        : null,
-      coordinatorProfile: user.coordinatorProfile
-        ? {
-            id: user.coordinatorProfile.id,
-            active: user.coordinatorProfile.active,
-            clubs: user.coordinatorProfile.clubs
-              ? user.coordinatorProfile.clubs.map((club) => ({
-                  id: club.id,
-                  number: club.number,
-                  weekday: club.weekday,
-                  time: club.time,
-                  isActive: club.isActive,
-                }))
-              : [],
-          }
-        : null,
-    };
+  /**
+   * Perfil de quem está logado.
+   *
+   * Delega ao dono do contrato: `/auth/me` e `GET /profile` respondem a mesma
+   * coisa, e antes cada um montava a sua versão — `/auth/me` esquecia
+   * `active`, `completed`, `createdAt` e `updatedAt`.
+   */
+  async getMe(userId: string): Promise<MyProfileResponseDto> {
+    return this.getUsersService.findOneForProfile(userId);
   }
 
-  async getMe(userId: string) {
-    const user = await this.userRepo.findByIdWithProfiles(userId);
-    if (!user) {
-      throw new AppUnauthorizedException(
-        ErrorCode.USER_NOT_FOUND,
-        'Usuário não encontrado',
-      );
-    }
-
-    const imageMedia = await this.mediaItemProcessor.findMediaItemByTarget(
-      userId,
-      'UserEntity',
-    );
-
-    const personalData = await this.personalDataRepository.findByUserId(userId);
-    const preferences =
-      await this.userPreferencesRepository.findByUserId(userId);
-
-    return {
-      id: user.id,
-      email: user.email,
-      phone: user.phone,
-      name: user.name,
-      role: user.role,
-      commonUser: user.commonUser,
-      cpf: user.cpf,
-      image: imageMedia
-        ? {
-            id: imageMedia.id,
-            title: imageMedia.title,
-            description: imageMedia.description,
-            url: imageMedia.url,
-            uploadType: imageMedia.uploadType,
-            mediaType: imageMedia.mediaType,
-            isLocalFile: imageMedia.isLocalFile,
-            platformType: imageMedia.platformType,
-            originalName: imageMedia.originalName,
-            size: imageMedia.size,
-            createdAt: imageMedia.createdAt,
-            updatedAt: imageMedia.updatedAt,
-          }
-        : null,
-      personalData: personalData
-        ? {
-            birthDate: personalData.birthDate
-              ? personalData.birthDate instanceof Date
-                ? personalData.birthDate.toISOString().split('T')[0]
-                : String(personalData.birthDate).split('T')[0]
-              : undefined,
-            gender: personalData.gender,
-            gaLeaderName: personalData.gaLeaderName,
-            gaLeaderContact: personalData.gaLeaderContact,
-          }
-        : undefined,
-      preferences: preferences
-        ? {
-            loveLanguages: preferences.loveLanguages,
-            temperaments: preferences.temperaments,
-            favoriteColor: preferences.favoriteColor,
-            favoriteFood: preferences.favoriteFood,
-            favoriteMusic: preferences.favoriteMusic,
-            whatMakesYouSmile: preferences.whatMakesYouSmile,
-            skillsAndTalents: preferences.skillsAndTalents,
-          }
-        : undefined,
-      teacherProfile: user.teacherProfile
-        ? {
-            id: user.teacherProfile.id,
-            active: user.teacherProfile.active,
-            club: user.teacherProfile.club
-              ? {
-                  id: user.teacherProfile.club.id,
-                  number: user.teacherProfile.club.number,
-                  weekday: user.teacherProfile.club.weekday,
-                  time: user.teacherProfile.club.time,
-                  isActive: user.teacherProfile.club.isActive,
-                }
-              : null,
-          }
-        : null,
-      coordinatorProfile: user.coordinatorProfile
-        ? {
-            id: user.coordinatorProfile.id,
-            active: user.coordinatorProfile.active,
-            clubs: user.coordinatorProfile.clubs
-              ? user.coordinatorProfile.clubs.map((club) => ({
-                  id: club.id,
-                  number: club.number,
-                  weekday: club.weekday,
-                  time: club.time,
-                  isActive: club.isActive,
-                }))
-              : [],
-          }
-        : null,
-    };
-  }
-
-  async completeRegister(data: CompleteUserDto) {
+  async completeRegister(
+    data: CompleteUserDto,
+  ): Promise<AuthRegisterResponseDto> {
     const user = await this.getUsersService.findByEmail(data.email);
     if (!user) {
       throw new AppNotFoundException(
@@ -461,6 +314,7 @@ export class AuthService {
       );
     }
 
+    this.announceActor(user);
     await this.updateUserService.update(user.id, {
       name: data.name,
       phone: data.phone,
@@ -469,21 +323,16 @@ export class AuthService {
       role: data.role,
     });
 
-    const sesVerification =
-      await this.sesIdentityService.verifyEmailIdentitySES(data.email);
+    const emailVerification =
+      await this.emailVerificationService.sendIfPending(user);
 
     return {
       message: 'Registration completed successfully',
-      emailVerification: {
-        verificationEmailSent: sesVerification.verificationEmailSent,
-        message: sesVerification.verificationEmailSent
-          ? 'Um email de verificação foi enviado para o seu endereço. Por favor, verifique sua caixa de entrada.'
-          : undefined,
-      },
+      emailVerification,
     };
   }
 
-  async register(data: RegisterUserDto) {
+  async register(data: RegisterUserDto): Promise<AuthRegisterResponseDto> {
     const existingUser = await this.getUsersService.findByEmail(data.email);
     if (existingUser) {
       throw new AppConflictException(
@@ -503,22 +352,20 @@ export class AuthService {
       role: data.role,
     });
 
-    const sesVerification =
-      await this.sesIdentityService.verifyEmailIdentitySES(data.email);
+    this.announceActor(user);
+    const emailVerification =
+      await this.emailVerificationService.sendIfPending(user);
+
+    await this.notificationService.notifyNewUserRegistration(user, 'normal');
 
     return {
       message: 'Registration successful',
       user: this.buildUserResponse(user),
-      emailVerification: {
-        verificationEmailSent: sesVerification.verificationEmailSent,
-        message: sesVerification.verificationEmailSent
-          ? 'Um email de verificação foi enviado para o seu endereço. Por favor, verifique sua caixa de entrada para completar o cadastro.'
-          : undefined,
-      },
+      emailVerification,
     };
   }
 
-  private buildUserResponse(user: UserEntity): Partial<UserEntity> {
+  private buildUserResponse(user: UserEntity): AuthUserDto {
     return {
       id: user.id,
       email: user.email,
@@ -537,14 +384,14 @@ export class AuthService {
     userId: string,
     token: string | null,
   ): Promise<void> {
-    await this.userRepo.updateRefreshToken(userId, token);
+    await this.updateUserService.updateRefreshToken(userId, token);
   }
 
   async linkTeacherToClub(
     userId: string,
     clubNumber: number,
-  ): Promise<{ message: string }> {
-    const profile = await this.teacherProfilesRepository.linkTeacherToClubByNumber(
+  ): Promise<LinkClubResponseDto> {
+    const profile = await this.updateTeacherProfilesService.linkOwnClubByNumber(
       userId,
       clubNumber,
     );

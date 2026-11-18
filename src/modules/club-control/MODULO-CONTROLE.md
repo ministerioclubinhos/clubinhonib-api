@@ -104,6 +104,27 @@
 * Se uma semana terminar e o Clubinho **não tiver realizado atividade nem lançado pagelas**, essa semana é considerada **falha** ("semana furada").
 * A ausência de atividade semanal impacta diretamente nas **estatísticas de regularidade** do Clubinho.
 
+## 1.1. Quem pode mexer no calendário
+
+**Ano letivo e exceções são exclusivos do administrador** — criar, editar e
+excluir. Não é preferência de tela: o período letivo define em que dias **todo**
+clubinho se reúne, e uma exceção apaga uma data do calendário de todos eles de
+uma vez, em alguns casos de todos os anos seguintes. Nenhum dos dois é decisão
+de um coordenador sobre o próprio clubinho.
+
+A regra é imposta em quatro pontos, e nenhum deles depende dos outros:
+
+| Onde | O quê |
+| --- | --- |
+| `ClubControlController` | `@UseGuards(JwtAuthGuard, AdminRoleGuard)` na classe — o guarda exige `role === ADMIN` estrito e cobre as seis rotas de escrita |
+| Caminhos alternativos | Não existem: nenhum outro módulo grava em `academic_periods` ou `weekday_exceptions` (estatísticas só lê) |
+| Rota do painel | `/adm/controle-clubinhos` está dentro de `ProtectedRoute requiredRole={[ADMIN]}` |
+| Menu e painel | A rota não está em `COORDINATOR_ROUTES`, então o coordenador não vê o item nem o card |
+
+`club-control.controller.spec.ts` prende isso: o teste falha se o guarda da
+classe for trocado por um que aceite coordenador **ou** se uma rota de escrita
+declarar um guarda próprio mais frouxo.
+
 ## 2. Período Letivo ⭐ CRÍTICO
 
 * Cada Clubinho possui um **período letivo anual GLOBAL**, definido por:
@@ -142,6 +163,58 @@ Então:
 * Quando uma exceção é registrada:
   * O sistema **desconsidera a semana na estatística**
   * Nenhuma cobrança de pagela é gerada para aquele período (caso definido assim)
+  * O dia **sai da agenda** de todos os clubinhos que se reúnem naquele dia da semana
+* Excluir ou inativar a exceção **devolve** o dia à agenda.
+* **Recorrência é escolha explícita.** `isRecurrent` nasce desligado: marcar uma
+  data como recorrente a apaga do calendário em **todos os anos seguintes**.
+  Feriado nacional é recorrente; obra no salão não é. Os feriados sugeridos pelo
+  painel já vêm com a marcação certa.
+
+### 3.1. O período letivo e as exceções definem a agenda dos clubinhos
+
+O calendário **não guarda** as datas dos encontros de clubinho. Cada linha em
+`events` guarda só a definição da recorrência (dia da semana e horário), e as
+datas são calculadas a cada leitura:
+
+```
+dias de clubinho = (dia da semana do clubinho) ∩ (período letivo ativo) − (exceções ativas)
+```
+
+Consequências, todas automáticas — **nenhuma rotina varre clubinhos**:
+
+| Ação do administrador | O que acontece na agenda |
+| --- | --- |
+| Cadastrar um clubinho **sem período letivo** no ano | Nenhum dia de clubinho existe |
+| Cadastrar o período letivo depois | Todos os clubinhos ganham suas datas na consulta seguinte |
+| Editar as datas do período | Todas as agendas se ajustam juntas |
+| Cadastrar uma exceção | A data some para os clubinhos daquele dia da semana |
+| Excluir a exceção | A data volta |
+| Marcar exceção como `isRecurrent` | Vale para o mesmo dia e mês em qualquer ano |
+| Desativar ou excluir o clubinho | **Todos** os dias saem do calendário. Clubinho inativo não tem dia de clubinho |
+| Reativar o clubinho | Os dias voltam, valendo a partir do dia da reativação |
+
+Guardar uma linha por data exigiria regravar dezenas de linhas por clubinho a
+cada mudança de período ou exceção — com risco de duplicar encontro. O cálculo
+na leitura elimina os dois problemas.
+
+O serviço que expõe essas regras para a agenda é
+`ClubControlService.getCalendarRules()`; quem as aplica é
+`ClubMeetingScheduleService`, no módulo de eventos.
+
+O encontro de clubinho **nunca** dispara e-mail — nem ao ser criado, nem ao ser
+alterado, nem ao ser removido — e não pode ser editado nem excluído pela agenda:
+`PATCH`/`DELETE /events/:id` recusam com `CLUB_MEETING_NOT_EDITABLE`. Quem manda
+nele é o cadastro do clubinho.
+
+### 3.2. Por que o controle de pagela e a agenda não divergem
+
+São duas contas diferentes: o controle chega ao dia esperado pela semana letiva
+(`getExpectedDateForAcademicWeek`), a agenda cruza dia da semana com o período.
+Elas concordam porque o controle verifica `isExpectedDateWithinPeriod` antes de
+cobrar — sem essa verificação, um período que começasse no meio da semana faria
+a semana 1 cobrar pagela de um dia que o calendário não tem. A garantia está
+fixada em teste (`academic-week.service.spec.ts`), para que uma mudança futura
+não a desfaça em silêncio.
 
 ## 4. Pagelas e Verificação Semanal
 
@@ -456,6 +529,34 @@ O **painel administrativo** é o centro de gestão e verificação, permitindo:
 * Visualizar **indicadores de regularidade** por semana e por Clubinho
 * Gerenciar **status de crianças** (ativa/inativa)
 * Respeitar **data de entrada** das crianças automaticamente
+
+---
+
+## 9. Resumo Semanal do Coordenador
+
+O painel da seção 8 é do administrador. O **resumo semanal**
+(`GET /club-control/weekly-summary`) é a leitura equivalente para quem coordena
+— e é a tela que o e-mail de segunda-feira abre.
+
+* Uma **linha por semana letiva** e uma **célula por clubinho**: o período
+  inteiro, e não só a semana que fechou.
+* **É a tela do coordenador.** A flag `club_weekly_summary` tem `coordinator`
+  como único perfil alvo: o administrador já tem as Estatísticas, que cobrem a
+  base inteira com muito mais detalhe. Fora do público da flag, a rota responde
+  `403 PERM_3003` — e ampliar isso é mexer em `targetRoles` no painel, não no
+  código.
+* O alcance vem do módulo de clubinhos: o coordenador vê os clubinhos dele.
+  `clubId` **recorta** esse conjunto, nunca o amplia — um clubinho de fora
+  responde `404`.
+* Os status são os mesmos sete da seção 4, produzidos pelo mesmo
+  `ClubStatusService.determineStatus`. A régua de criança da seção 7 (data de
+  entrada) e a de clubinho desativado da seção 6.2 valem igual.
+* Os números do período (`highlights`) consideram **apenas as semanas já
+  decorridas**: as futuras nascem sem pagela, e somá-las faria março parecer um
+  ano atrasado.
+* O levantamento custa **três consultas para o período inteiro** — crianças,
+  pagelas e exceções —, e não as quatro por clubinho e por semana que
+  `checkClubWeek` cobra.
 
 ---
 

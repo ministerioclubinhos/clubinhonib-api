@@ -5,97 +5,118 @@ import {
   AppValidationException,
   ErrorCode,
 } from 'src/shared/exceptions';
-import { DataSource, QueryRunner } from 'typeorm';
+import { EntityManager } from 'typeorm';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
-import { RouteService } from 'src/modules/routes/route.service';
+import { CreateRouteService } from 'src/modules/routes/services/create-route.service';
 import { RouteType } from 'src/modules/routes/route-page.entity';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
+import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
 import { MediaType } from 'src/shared/media/media-item/media-item.entity';
-import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
+import {
+  DOCUMENT_MEDIA_TARGET_TYPE,
+  DOCUMENT_ROUTE_PREFIX,
+} from '../constants';
 import { CreateDocumentDto } from '../dto/create-document.dto';
-import { DocumentDto } from '../dto/document-response.dto';
-import { DocumentRepository } from '../document.repository';
+import { DocumentResponseDto } from '../dto/document-response.dto';
+import { toDocumentResponse } from '../mappers';
+import { DocumentsRepository } from '../repositories/documents.repository';
+
 import { DocumentEntity } from '../entities/document.entity';
+import { AnnounceDocumentService } from './announce-document.service';
 
 @Injectable()
 export class CreateDocumentService {
   private readonly logger = new Logger(CreateDocumentService.name);
 
   constructor(
-    private readonly dataSource: DataSource,
-    private readonly documentRepo: DocumentRepository,
+    private readonly documentRepo: DocumentsRepository,
     private readonly s3Service: AwsS3Service,
-    private readonly routeService: RouteService,
+    private readonly createRouteService: CreateRouteService,
     private readonly mediaProcessor: MediaItemProcessor,
+    private readonly announceService: AnnounceDocumentService,
   ) {}
 
   async createDocument(
     dto: CreateDocumentDto,
     file?: Express.Multer.File,
-  ): Promise<DocumentDto> {
+  ): Promise<DocumentResponseDto> {
     this.logger.verbose(`→ createDocument | name="${dto.name}"`);
 
-    const runner = this.dataSource.createQueryRunner();
-    await runner.connect();
-    await runner.startTransaction();
-    this.logger.debug('▶️  Transaction started');
+    // O arquivo sobe antes do commit e sobrevive ao rollback: o rastreador
+    // permite apagá-lo do bucket quando a criação falha.
+    const uploads = new S3UploadTracker((uploaded: Express.Multer.File) =>
+      this.s3Service.upload(uploaded),
+    );
 
     try {
-      const savedDoc = await this.persistDocument(runner, dto);
-      await this.attachRoute(runner, savedDoc, dto);
-      const media = await this.processMedia(runner, savedDoc.id, dto, file);
+      // A transação é aberta pelo repositório; aqui só se decide o que entra
+      // nela. O rollback acontece sozinho quando o bloco lança.
+      const { savedDoc, media } = await this.documentRepo.runInTransaction(
+        async (manager) => {
+          const document = await this.persistDocument(manager, dto);
+          await this.attachRoute(manager, document, dto);
+          const savedMedia = await this.processMedia(
+            document.id,
+            dto,
+            uploads,
+            file,
+          );
 
-      await runner.commitTransaction();
+          return { savedDoc: document, media: savedMedia };
+        },
+      );
+
       this.logger.debug('✅  Transaction committed');
 
-      return DocumentDto.fromEntity(savedDoc, media);
+      // Depois do commit e fora da requisição, como no material da semana.
+      this.announceService.announceInBackground(savedDoc);
+
+      return toDocumentResponse(savedDoc, media);
     } catch (err: unknown) {
-      await runner.rollbackTransaction();
+      await this.mediaProcessor.discardUnreferencedUploads(
+        uploads.uploadedUrls,
+        (url: string) => this.s3Service.delete(url),
+      );
+
       const error = err instanceof Error ? err : new Error(String(err));
       this.logger.error('💥  Transaction rolled‑back', error.stack);
       throw new AppBusinessException(
         ErrorCode.VALIDATION_ERROR,
         `Erro ao criar o documento: ${error.message}`,
       );
-    } finally {
-      await runner.release();
-      this.logger.debug('⛔  QueryRunner released');
     }
   }
 
   private async persistDocument(
-    runner: QueryRunner,
+    manager: EntityManager,
     dto: CreateDocumentDto,
   ): Promise<DocumentEntity> {
     this.logger.debug('📝 persistDocument()');
 
-    const docRepo = runner.manager.getRepository(DocumentEntity);
-
-    const doc = docRepo.create({
+    const saved = await this.documentRepo.createInTransaction(manager, {
       name: dto.name,
       description: dto.description,
     });
-    const saved = await docRepo.save(doc);
     this.logger.debug(`   ↳ Document saved (ID=${saved.id})`);
 
     return saved;
   }
 
   private async attachRoute(
-    runner: QueryRunner,
+    manager: EntityManager,
     document: DocumentEntity,
     dto: CreateDocumentDto,
   ): Promise<void> {
     this.logger.debug('🛤️  attachRoute()');
 
-    const path = await this.routeService.generateAvailablePath(
+    const path = await this.createRouteService.generateAvailablePath(
       dto.name,
-      'documento_',
+      DOCUMENT_ROUTE_PREFIX,
     );
     this.logger.debug(`   ↳ availablePath="${path}"`);
 
-    const route = await this.routeService.createRouteWithManager(
-      runner.manager,
+    const route = await this.createRouteService.createRouteWithManager(
+      manager,
       {
         title: dto.name,
         subtitle: dto.media.title || '',
@@ -112,14 +133,14 @@ export class CreateDocumentService {
     );
 
     document.route = route;
-    await runner.manager.save(document);
+    await this.documentRepo.saveInTransaction(manager, document);
     this.logger.verbose(`   ↩  attachRoute() OK | routeID=${route.id}`);
   }
 
   private async processMedia(
-    runner: QueryRunner,
     documentId: string,
     dto: CreateDocumentDto,
+    uploads: S3UploadTracker,
     file?: Express.Multer.File,
   ) {
     this.logger.debug('🎞️  processMedia()');
@@ -139,7 +160,7 @@ export class CreateDocumentService {
 
       this.logger.log(`⬆️ Upload para S3: ${file.originalname}`);
       try {
-        mediaUrl = await this.s3Service.upload(file);
+        mediaUrl = await uploads.upload(file);
         originalName = file.originalname;
         size = file.size;
       } catch (error: unknown) {
@@ -169,7 +190,7 @@ export class CreateDocumentService {
         size,
       },
       documentId,
-      MediaTargetType.Document,
+      DOCUMENT_MEDIA_TARGET_TYPE,
     );
 
     const savedMedia = await this.mediaProcessor.saveMediaItem(mediaEntity);

@@ -1,0 +1,78 @@
+@startuml Content Schema - Clubinho NIB API
+!theme plain
+left to right direction
+skinparam linetype ortho
+hide circle
+
+title MySQL — content and communication
+
+entity "comments" as e_comments {
+  * id : UUID <<PK>>
+  --
+  published : boolean
+}
+
+entity "contacts" as e_contacts {
+  * id : UUID <<PK>>
+  --
+  email : varchar
+  read : boolean
+}
+
+entity "site_feedbacks" as e_feedback {
+  * id : UUID <<PK>>
+  --
+  rating : int
+  category : enum
+  read : boolean
+}
+
+entity "routes" as e_route {
+  * id : UUID <<PK>>
+  --
+  path : varchar(255) <<UQ>>
+  entityType + entityId : logical target
+  public : boolean
+  current : boolean
+}
+
+entity "documents" as e_document {
+  * id : UUID <<PK>>
+  --
+  routeId : UUID? <<FK,UQ>>
+  name : varchar
+}
+
+entity "informatives" as e_informative {
+  * id : UUID <<PK>>
+  --
+  routeId : UUID? <<FK,UQ>>
+  title : varchar(255)
+  public : boolean
+}
+
+entity "meditations" as e_meditation {
+  * id : UUID <<PK>>
+  --
+  startDate : date
+  endDate : date
+}
+
+entity "meditation_days" as e_meditation_day {
+  * id : UUID <<PK>>
+  --
+  meditationId : UUID <<FK>>
+  day : enum
+}
+
+e_route "0..1" -- "0..1" e_document
+e_route "0..1" -- "0..1" e_informative
+e_meditation "1" -- "0..*" e_meditation_day
+
+note bottom of e_route
+  comments, contacts and site_feedbacks are independent tables.
+  Other route owners are shown in pages-media-schema.
+  Owned routes and meditation days use ON DELETE CASCADE.
+end note
+
+@enduml

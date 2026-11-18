@@ -64,7 +64,16 @@ export class OverviewStatsResponseDto {
   indicators?: {
     clubsWithLowAttendance: number;
     childrenWithLowEngagement: number;
+    /**
+     * Clubinhos que deviam pagela na semana letiva corrente e não lançaram.
+     * `0` fora do período letivo — ver `currentAcademicWeek`.
+     */
     clubsMissingPagelas: number;
+    /**
+     * A semana letiva a que `clubsMissingPagelas` se refere; `null` fora do
+     * período letivo, quando o indicador não se aplica.
+     */
+    currentAcademicWeek: { year: number; week: number } | null;
     growthRate: {
       children: number;
       decisions: number;

@@ -23,8 +23,8 @@ export class FeatureFlagEntity {
   @Column({ default: false })
   enabled: boolean;
 
-  @Column({ length: 50, nullable: true })
-  environment: string;
+  @Column({ type: 'json', nullable: true, name: 'target_roles' })
+  targetRoles: string[];
 
   @Column({ type: 'json', nullable: true })
   metadata: Record<string, any>;

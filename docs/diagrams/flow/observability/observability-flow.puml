@@ -1,0 +1,45 @@
+@startuml Observability and Audit Flow - Clubinho NIB API
+!theme plain
+hide footbox
+title Observability — request and job capture
+
+actor Caller
+participant RequestContextMiddleware as Context
+participant "Controller / JobRunner" as Execution
+participant "AuditInterceptor / ExceptionFilter" as Audit
+participant StructuredLoggerService as Logs
+queue LogDeliveryQueue as Queue
+participant LogStorageProvider as Storage
+database "AWS DynamoDB\nproduction logs" as DynamoDB
+collections "JSONL files\nlocal development" as Files
+
+Caller -> Context : HTTP request
+Context -> Context : generate X-Request-Id
+Context -> Execution : continue with request context
+
+alt Successful mutation
+  Execution -> Audit : record succeeded action once
+else Rejected or failed request
+  Execution -> Audit : record denied/rejected/not_found/failed once
+  Execution -> Logs : technical warning or error
+end
+
+Audit -> Audit : noise filter\n(skip successful heartbeat, token refresh,\nnotification read)
+Audit -> Queue : enqueue audit record\n(actor id, role and display name)
+Logs -> Logs : noise filter\n(skip 401 and unmatched 404,\nskip filter echo of an error already recorded)
+Logs -> Logs : repeat window (60 s)\nfirst record now, repeats counted
+Logs -> Queue : enqueue observability record\n(error/fatal, 4xx as warn, repeat summary)
+Queue -> Storage : sequential best-effort delivery
+alt Configured storage is DynamoDB
+  Storage -> DynamoDB : PutItem / UpdateItem
+else Configured storage is file
+  Storage -> Files : append protected JSONL record
+end
+Storage --> Queue : stored or failed
+
+note over Queue, Storage
+  Queue timeout/retry/failure never blocks the request.
+  Sensitive request and personal data are not persisted,
+  except the actor display name in audit records.
+end note
+@enduml

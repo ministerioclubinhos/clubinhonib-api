@@ -1,32 +1,38 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Param,
-  Patch,
+  Controller,
   Delete,
-  UploadedFile,
-  UseInterceptors,
+  Get,
   HttpCode,
+  HttpStatus,
   Logger,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
-import { AppValidationException, ErrorCode } from 'src/shared/exceptions';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { plainToInstance } from 'class-transformer';
-import { validateOrReject, validateSync } from 'class-validator';
-import { CreateEventDto } from './dto/create-event.dto';
-import { UpdateEventDto } from './dto/update-event.dto';
-import { EventEntity } from './entities/event.entity';
-import { CreateEventService } from './services/create-event-service';
-import { UpdateEventService } from './services/update-event-service';
-import { DeleteEventService } from './services/delete-event-service';
-import { GetEventService } from './services/get-event-service';
-import { EventResponseDto } from './dto/event-response-dto';
+import { Request } from 'express';
 
 import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 import { AdminRoleGuard } from 'src/core/auth/guards/role-guard';
+import { AuthContextService } from 'src/core/auth/services/auth-context.service';
+
+import { CreateEventDto } from './dto/create-event.dto';
+import { UpdateEventDto } from './dto/update-event.dto';
+import { EventResponseDto } from './dto/event-response.dto';
+import { QueryEventsDto } from './dto/query-events.dto';
+import { CreateEventService } from './services/create-event.service';
+import { UpdateEventService } from './services/update-event.service';
+import { DeleteEventService } from './services/delete-event.service';
+import { GetEventService } from './services/get-event.service';
+import { parseAndValidatePayload } from './utils';
+import { EVENT_FILE_FIELD, EVENT_PAYLOAD_FIELD } from './constants';
 
 @Controller('events')
 export class EventController {
@@ -37,115 +43,78 @@ export class EventController {
     private readonly updateService: UpdateEventService,
     private readonly deleteService: DeleteEventService,
     private readonly getService: GetEventService,
+    private readonly authContext: AuthContextService,
   ) {}
 
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Post()
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor(EVENT_FILE_FIELD))
   async create(
     @UploadedFile() file: Express.Multer.File,
-    @Body('eventData') eventDataRaw: string,
-  ): Promise<EventEntity> {
-    this.logger.log('📥 [POST /events] Criando novo evento');
+    @Body(EVENT_PAYLOAD_FIELD) raw: string,
+  ): Promise<EventResponseDto> {
+    this.logger.debug('POST /events');
 
-    try {
-      const parsed = JSON.parse(eventDataRaw) as Record<string, unknown>;
-      const dto = plainToInstance(CreateEventDto, parsed);
-      await validateOrReject(dto, {
-        whitelist: true,
-        forbidNonWhitelisted: true,
-      });
+    const dto = await parseAndValidatePayload(raw, CreateEventDto);
 
-      const result = await this.createService.create(dto, file);
-      this.logger.log(`✅ Evento criado: ID=${result.id}`);
-      return result;
-    } catch (error: unknown) {
-      const errStack = error instanceof Error ? error.stack : undefined;
-      this.logger.error('❌ Erro ao criar evento', errStack);
-      const message = Array.isArray(error)
-        ? error
-            .map((e: { constraints?: Record<string, string> }) =>
-              Object.values(e.constraints || {}),
-            )
-            .flat()
-            .join('; ')
-        : error instanceof Error
-          ? error.message
-          : 'Erro ao criar evento.';
-      throw new AppValidationException(ErrorCode.VALIDATION_ERROR, message);
-    }
+    return this.createService.create(dto, file);
   }
 
   @Get()
-  async findAll(): Promise<EventResponseDto[]> {
-    this.logger.log('📦 [GET /events] Listando todos os eventos');
-    return this.getService.findAll();
+  async findAll(
+    @Req() request: Request,
+    @Query() query: QueryEventsDto,
+  ): Promise<EventResponseDto[]> {
+    this.logger.debug('GET /events');
+
+    // Ler a sessão é transporte; a regra de visibilidade fica no caso de uso,
+    // que recebe apenas o booleano.
+    return this.getService.findAll(
+      await this.authContext.isLoggedIn(request),
+      query,
+    );
   }
 
-  @Get('/upcoming')
-  async getUpcoming(): Promise<EventResponseDto[]> {
-    this.logger.log(
-      '📅 [GET /events/upcoming] Buscando eventos futuros ou do dia',
+  @Get('upcoming')
+  async findUpcoming(
+    @Req() request: Request,
+    @Query() query: QueryEventsDto,
+  ): Promise<EventResponseDto[]> {
+    this.logger.debug('GET /events/upcoming');
+    return this.getService.findUpcoming(
+      await this.authContext.isLoggedIn(request),
+      query,
     );
-    return this.getService.getUpcomingOrTodayEvents();
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string): Promise<EventResponseDto> {
-    this.logger.log(`🔍 [GET /events/${id}] Buscando evento`);
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<EventResponseDto> {
+    this.logger.debug(`GET /events/${id}`);
     return this.getService.findOne(id);
   }
 
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Patch(':id')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor(EVENT_FILE_FIELD))
   async update(
-    @Param('id') id: string,
-    @Body('eventData') rawEventData: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(EVENT_PAYLOAD_FIELD) raw: string,
     @UploadedFile() file?: Express.Multer.File,
-  ): Promise<EventEntity> {
-    this.logger.log(`✏️ [PATCH /events/${id}] Atualizando evento`);
+  ): Promise<EventResponseDto> {
+    this.logger.debug(`PATCH /events/${id}`);
 
-    let dto: UpdateEventDto;
-    try {
-      const parsed = JSON.parse(rawEventData) as Record<string, unknown>;
-      dto = plainToInstance(UpdateEventDto, parsed);
-    } catch (err: unknown) {
-      const error = err instanceof Error ? err : new Error(String(err));
-      this.logger.error(`❌ JSON inválido para evento`, error.stack);
-      throw new AppValidationException(
-        ErrorCode.VALIDATION_ERROR,
-        'JSON inválido no campo eventData',
-      );
-    }
+    const dto = await parseAndValidatePayload(raw, UpdateEventDto);
 
-    const errors = validateSync(dto, {
-      whitelist: true,
-      forbidNonWhitelisted: true,
-    });
-    if (errors.length > 0) {
-      const message = errors
-        .map((err) => Object.values(err.constraints ?? {}).join(', '))
-        .join(' | ');
-      this.logger.warn(`❌ Erros de validação: ${message}`);
-      throw new AppValidationException(ErrorCode.VALIDATION_ERROR, message);
-    }
-
-    const result = await this.updateService.update(
-      id,
-      { ...dto, isLocalFile: !!file },
-      file,
-    );
-    this.logger.log(`✅ Evento atualizado: ID=${result.id}`);
-    return result;
+    return this.updateService.update(id, dto, file);
   }
 
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Delete(':id')
-  @HttpCode(204)
-  async remove(@Param('id') id: string): Promise<void> {
-    this.logger.log(`🗑️ [DELETE /events/${id}] Excluindo evento`);
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    this.logger.debug(`DELETE /events/${id}`);
     await this.deleteService.remove(id);
-    this.logger.log(`✅ Evento excluído: ID=${id}`);
   }
 }

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { UserRepository } from '../user.repository';
+import { NotifyAccountChangesService } from './notify-account-changes.service';
 import { ChangePasswordDto } from '../dto/change-password.dto';
 import {
   AppNotFoundException,
@@ -13,7 +14,10 @@ import {
 export class ChangePasswordService {
   private readonly logger = new Logger(ChangePasswordService.name);
 
-  constructor(private readonly userRepo: UserRepository) {}
+  constructor(
+    private readonly userRepo: UserRepository,
+    private readonly notifyAccountChanges: NotifyAccountChangesService,
+  ) {}
 
   async changePassword(
     userId: string,
@@ -67,6 +71,10 @@ export class ChangePasswordService {
     this.logger.log(
       `Senha alterada para o usuário: ${userId} (commonUser: ${user.commonUser})`,
     );
+
+    // Depois de gravar e fora da requisição: é assim que a pessoa descobre uma
+    // troca que não foi ela quem fez, e o aviso não pode desfazer a troca.
+    this.notifyAccountChanges.passwordChangedInBackground(user);
 
     return { message: 'Senha alterada com sucesso' };
   }

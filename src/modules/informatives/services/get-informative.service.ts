@@ -1,40 +1,29 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
-import {
-  AppNotFoundException,
-  AppInternalException,
-  ErrorCode,
-} from 'src/shared/exceptions';
-import { InformativeRepository } from '../informative.repository';
+import { Injectable, Logger } from '@nestjs/common';
+
+import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
+import { Paginated } from 'src/shared/dto/paginated.dto';
+
+import { InformativesRepository } from '../repositories/informatives.repository';
+import { InformativeEntity } from '../entities/informative.entity';
 import { InformativeResponseDto } from '../dto/informative-response.dto';
+import { QueryInformativesDto } from '../dto/query-informatives.dto';
+import { toInformativeResponse } from '../mappers';
+import {
+  INFORMATIVES_DEFAULT_LIMIT,
+  INFORMATIVES_DEFAULT_PAGE,
+} from '../constants';
 
 @Injectable()
 export class GetInformativeService {
   private readonly logger = new Logger(GetInformativeService.name);
 
-  constructor(
-    @Inject(InformativeRepository)
-    private readonly informativeRepo: InformativeRepository,
-  ) {}
+  constructor(private readonly informativeRepo: InformativesRepository) {}
 
-  async findAll(): Promise<InformativeResponseDto[]> {
-    this.logger.log('📢 Buscando todos os banners informativos');
-    try {
-      const list = await this.informativeRepo.findAllSorted();
-      return list.map((entity) => InformativeResponseDto.fromEntity(entity));
-    } catch (error: unknown) {
-      const errStack = error instanceof Error ? error.stack : undefined;
-      this.logger.error('❌ Erro ao buscar banners', errStack);
-      throw new AppInternalException(
-        ErrorCode.DATABASE_ERROR,
-        'Erro ao buscar banners informativos',
-      );
-    }
-  }
+  /** Entidade crua, para os serviços de escrita deste módulo. */
+  async findEntityOrFail(id: string): Promise<InformativeEntity> {
+    const found = await this.informativeRepo.findById(id);
 
-  async findOne(id: string): Promise<InformativeResponseDto> {
-    this.logger.log(`🔍 Buscando banner por ID=${id}`);
-    const item = await this.informativeRepo.findOneById(id);
-    if (!item) {
+    if (!found) {
       this.logger.warn(`⚠️ Banner não encontrado: ID=${id}`);
       throw new AppNotFoundException(
         ErrorCode.INFORMATIVE_NOT_FOUND,
@@ -42,6 +31,28 @@ export class GetInformativeService {
       );
     }
 
-    return InformativeResponseDto.fromEntity(item);
+    return found;
+  }
+
+  async findAllPaginated(
+    query: QueryInformativesDto,
+  ): Promise<Paginated<InformativeResponseDto>> {
+    const page = query.page ?? INFORMATIVES_DEFAULT_PAGE;
+    const limit = query.limit ?? INFORMATIVES_DEFAULT_LIMIT;
+
+    const { items, total } = await this.informativeRepo.findAllPaginated(query);
+
+    return {
+      data: items.map(toInformativeResponse),
+      total,
+      page,
+      limit,
+      pageCount: Math.ceil(total / limit),
+    };
+  }
+
+  async findOne(id: string): Promise<InformativeResponseDto> {
+    const found = await this.findEntityOrFail(id);
+    return toInformativeResponse(found);
   }
 }

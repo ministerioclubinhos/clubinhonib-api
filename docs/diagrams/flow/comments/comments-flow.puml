@@ -1,0 +1,28 @@
+@startuml Comments Flow - Clubinho NIB API
+!theme plain
+hide footbox
+title Comments — submission and publication
+
+actor "Authenticated user / Visitor / Admin" as Client
+participant CommentController as Controller
+participant "Create / Get / Update / Delete CommentService" as Service
+database "MySQL\nCommentsRepository" as Repository
+participant NotificationService as Notify
+
+alt Submit comment
+  Client -> Controller : POST /comments (authenticated)
+  Controller -> Service : validated DTO
+  Service -> Repository : create with published=false
+  Service -> Notify : notify admins without failing submission
+  Service --> Client : CommentResponseDto
+else Public feed
+  Client -> Controller : GET /comments/published
+  Controller -> Repository : list published only
+  Repository --> Client : CommentResponseDto[]
+else Moderation
+  Client -> Controller : admin list/update/publish/unpublish/delete
+  Controller -> Service : id + filters or DTO
+  Service -> Repository : scoped moderation operation
+  Repository --> Client : page, DTO, count or message
+end
+@enduml

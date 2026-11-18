@@ -1,0 +1,39 @@
+@startuml Children Registration Flow - Clubinho NIB API
+!theme plain
+hide footbox
+autonumber
+
+title Children — registration and club access
+
+actor "Coordinator / Teacher" as actor
+participant "ChildrenController" as controller
+participant "CreateChildrenService" as service
+participant "ClubsService" as clubs_service
+database "MySQL\nChildrenRepository" as repo
+
+actor -> controller : POST /children (CreateChildDto)
+activate controller
+
+controller -> service : create(createChildDto, authenticatedUser)
+activate service
+
+service -> clubs_service : getById(clubId)
+activate clubs_service
+clubs_service --> service : Club entity | null
+deactivate clubs_service
+
+alt Club not found or user lacks club access
+    service --> controller : throw ForbiddenException / NotFoundException
+    controller --> actor : 403 / 404 Error Response
+else Authorized access
+    service -> repo : createChild(childData)
+    activate repo
+    repo --> service : Child entity
+    deactivate repo
+    service --> controller : ChildResponseDto
+    deactivate service
+    controller --> actor : 201 Created { success: true, data: child }
+    deactivate controller
+end
+
+@enduml

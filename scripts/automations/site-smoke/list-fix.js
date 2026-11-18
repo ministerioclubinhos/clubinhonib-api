@@ -1,150 +1,59 @@
-const { fetchAllPages } = require('../common/pagination');
+const { expectHttpError } = require('../common/errors');
 
-async function run({ http, logger }) {
-  logger.info('[site-smoke/list-fix] smoke testing GET endpoints from content/site controllers...');
+/**
+ * O site como o visitante o vê: rotas públicas respondem sem token e as
+ * protegidas recusam com 401.
+ */
+async function run({ http, logger, ctx }) {
+  logger.section('site-smoke/list-fix');
+  const anonymous = http.anonymous();
 
-  
-  try {
-    const events = await http.request('get', '/events');
-    logger.info(`[site-smoke] OK /events total=${Array.isArray(events.data) ? events.data.length : 0}`);
-  } catch (e) {
-    logger.warn(`[site-smoke] /events failed: ${e.response?.data?.message || e.message}`);
-  }
-  try {
-    const upcoming = await http.request('get', '/events/upcoming');
-    logger.info(`[site-smoke] OK /events/upcoming total=${Array.isArray(upcoming.data) ? upcoming.data.length : 0}`);
-  } catch (e) {
-    logger.warn(`[site-smoke] /events/upcoming failed: ${e.response?.data?.message || e.message}`);
-  }
-
-  
-  try {
-    const pages = await http.request('get', '/ideas-pages');
-    const arr = Array.isArray(pages.data) ? pages.data : [];
-    logger.info(`[site-smoke] OK /ideas-pages total=${arr.length}`);
-    if (arr[0]?.id) await http.request('get', `/ideas-pages/${arr[0].id}`);
-  } catch (e) {
-    logger.warn(`[site-smoke] /ideas-pages failed: ${e.response?.data?.message || e.message}`);
-  }
-
-  try {
-    const sections = await http.request('get', '/ideas-sections');
-    const arr = Array.isArray(sections.data) ? sections.data : [];
-    logger.info(`[site-smoke] OK /ideas-sections total=${arr.length}`);
-    if (arr[0]?.id) await http.request('get', `/ideas-sections/${arr[0].id}`);
-  } catch (e) {
-    logger.warn(`[site-smoke] /ideas-sections failed: ${e.response?.data?.message || e.message}`);
+  const publicRoutes = [
+    ['/', (d) => typeof d === 'string' || d != null],
+    ['/health', (d) => d?.status === 'ok'],
+    ['/routes', Array.isArray],
+    ['/comments/published', Array.isArray],
+    ['/events', Array.isArray],
+    ['/events/upcoming', Array.isArray],
+    ['/feature-flags/map', (d) => typeof d === 'object'],
+    ['/feature-flags/check/statistics', (d) => typeof d?.enabled === 'boolean'],
+  ];
+  for (const [path, assert] of publicRoutes) {
+    await logger.check(`GET ${path} (anônimo)`, async () => {
+      const res = await anonymous.request('get', path);
+      if (!assert(res.data)) throw new Error(`resposta inesperada: ${JSON.stringify(res.data).slice(0, 80)}`);
+      return Array.isArray(res.data) ? `total=${res.data.length}` : 'ok';
+    });
   }
 
-  
-  try {
-    const imgPages = await http.request('get', '/image-pages');
-    const arr = Array.isArray(imgPages.data) ? imgPages.data : [];
-    logger.info(`[site-smoke] OK /image-pages total=${arr.length}`);
-    if (arr[0]?.id) {
-      await http.request('get', `/image-pages/${arr[0].id}`);
-
-      
-      const sections = await fetchAllPages(
-        http.request,
-        'get',
-        `/image-pages/${arr[0].id}/sections`,
-        {},
-        { limit: 2, maxPages: 50 },
-      );
-      logger.info(`[site-smoke] OK /image-pages/:id/sections totalFetched=${sections.length}`);
-    }
-  } catch (e) {
-    logger.warn(`[site-smoke] /image-pages failed: ${e.response?.data?.message || e.message}`);
+  const detailRoutes = [
+    ['/documents', ctx.createdDocuments?.[0]?.id],
+    ['/image-pages', ctx.createdImagePages?.[0]?.id],
+    ['/video-pages', ctx.createdVideoPages?.[0]?.id],
+    ['/ideas-pages', ctx.createdIdeasPages?.[0]?.id],
+    ['/events', ctx.createdEvents?.[0]?.id],
+  ];
+  for (const [base, id] of detailRoutes) {
+    if (!id) continue;
+    await logger.check(`GET ${base}/:id (anônimo)`, async () => {
+      const res = await anonymous.request('get', `${base}/${id}`);
+      return `id=${res.data?.id}`;
+    });
+  }
+  if (ctx.createdImagePages?.[0]?.id) {
+    await logger.check('GET /image-pages/:id/sections (anônimo, paginado)', async () => {
+      const res = await anonymous.request('get', `/image-pages/${ctx.createdImagePages[0].id}/sections`, { params: { page: 1, limit: 2 } });
+      return `sections=${res.data.sections?.length ?? 0} total=${res.data.total}`;
+    });
   }
 
-  try {
-    const imgSections = await http.request('get', '/image-sections');
-    const arr = Array.isArray(imgSections.data) ? imgSections.data : [];
-    logger.info(`[site-smoke] OK /image-sections total=${arr.length}`);
-    if (arr[0]?.id) await http.request('get', `/image-sections/${arr[0].id}`);
-  } catch (e) {
-    logger.warn(`[site-smoke] /image-sections failed: ${e.response?.data?.message || e.message}`);
+  const protectedRoutes = ['/users', '/clubs', '/children', '/pagelas', '/statistics/overview', '/club-control/dashboard', '/meditations', '/informatives', '/documents', '/image-pages', '/video-pages', '/ideas-pages', '/week-material-pages', '/profile', '/profiles', '/teacher-profiles', '/coordinator-profiles', '/contact', '/site-feedbacks', '/comments', '/ideas-sections', '/image-sections', '/feature-flags'];
+  for (const path of protectedRoutes) {
+    await logger.check(`GET ${path} anônimo responde 401`, () => expectHttpError(() => anonymous.request('get', path), 401, path));
   }
 
-  
-  try {
-    const vids = await http.request('get', '/video-pages');
-    const arr = Array.isArray(vids.data) ? vids.data : [];
-    logger.info(`[site-smoke] OK /video-pages total=${arr.length}`);
-    if (arr[0]?.id) await http.request('get', `/video-pages/${arr[0].id}`);
-  } catch (e) {
-    logger.warn(`[site-smoke] /video-pages failed: ${e.response?.data?.message || e.message}`);
-  }
-
-  
-  try {
-    const w = await http.request('get', '/week-material-pages');
-    const arr = Array.isArray(w.data) ? w.data : [];
-    logger.info(`[site-smoke] OK /week-material-pages total=${arr.length}`);
-  } catch (e) {
-    logger.warn(`[site-smoke] /week-material-pages failed: ${e.response?.data?.message || e.message}`);
-  }
-  try {
-    await http.request('get', '/week-material-pages/current-week');
-    logger.info('[site-smoke] OK /week-material-pages/current-week');
-  } catch (e) {
-    logger.warn(`[site-smoke] /week-material-pages/current-week failed: ${e.response?.data?.message || e.message}`);
-  }
-
-  
-  try {
-    const m = await http.request('get', '/meditations');
-    const arr = Array.isArray(m.data) ? m.data : [];
-    logger.info(`[site-smoke] OK /meditations total=${arr.length}`);
-  } catch (e) {
-    logger.warn(`[site-smoke] /meditations failed: ${e.response?.data?.message || e.message}`);
-  }
-  try {
-    await http.request('get', '/meditations/this-week');
-    logger.info('[site-smoke] OK /meditations/this-week');
-  } catch (e) {
-    logger.warn(`[site-smoke] /meditations/this-week failed: ${e.response?.data?.message || e.message}`);
-  }
-
-  try {
-    const inf = await http.request('get', '/informatives');
-    const arr = Array.isArray(inf.data) ? inf.data : [];
-    logger.info(`[site-smoke] OK /informatives total=${arr.length}`);
-  } catch (e) {
-    logger.warn(`[site-smoke] /informatives failed: ${e.response?.data?.message || e.message}`);
-  }
-
-  
-  try {
-    const docs = await http.request('get', '/documents');
-    const arr = Array.isArray(docs.data) ? docs.data : [];
-    logger.info(`[site-smoke] OK /documents total=${arr.length}`);
-    if (arr[0]?.id) await http.request('get', `/documents/${arr[0].id}`);
-  } catch (e) {
-    logger.warn(`[site-smoke] /documents failed: ${e.response?.data?.message || e.message}`);
-  }
-
-  
-  try {
-    const published = await http.request('get', '/comments/published');
-    const arr = Array.isArray(published.data) ? published.data : [];
-    logger.info(`[site-smoke] OK /comments/published total=${arr.length}`);
-  } catch (e) {
-    logger.warn(`[site-smoke] /comments/published failed: ${e.response?.data?.message || e.message}`);
-  }
-
-  
-  try {
-    await http.request('get', '/');
-    logger.info('[site-smoke] OK GET /');
-  } catch (e) {
-    logger.warn(`[site-smoke] GET / failed: ${e.response?.status ?? ''}`);
-  }
-
+  await logger.check('GET /rota-inexistente responde 404', () => expectHttpError(() => anonymous.request('get', '/rota-inexistente'), 404, '404'));
   return { ok: true };
 }
 
 module.exports = { run };
-
-

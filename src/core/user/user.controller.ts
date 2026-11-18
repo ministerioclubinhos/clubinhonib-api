@@ -1,32 +1,44 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Param,
-  Put,
-  Patch,
+  Controller,
   Delete,
-  UseGuards,
+  Get,
   Logger,
-  Query,
+  Param,
   ParseUUIDPipe,
+  Patch,
+  Post,
+  Put,
+  Query,
   UploadedFiles,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
-import { CreateUserService } from './services/create-user.service';
-import { CreateUserDto } from './dto/create-user.dto';
+
 import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 import { AdminRoleGuard } from 'src/core/auth/guards/role-guard';
-import { GetUsersQueryDto } from './dto/get-users-query.dto';
-import { GetUsersService } from './services/get-user.service';
-import { DeleteUserService } from './services/delete-user.service';
-import { UpdateUserService } from './services/update-user.service';
-import { UpdateUserDto } from './dto/update-user.dto';
-import { UpdateUserImageService } from './services/update-user-image.service';
-import { UserEntity } from './entities/user.entity';
 
+import { CreateUserDto } from './dto/create-user.dto';
+import { GetUsersQueryDto } from './dto/get-users-query.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import {
+  PaginatedUsersResponseDto,
+  UserResponseDto,
+} from './dto/user-response.dto';
+import { toUserResponse } from './mappers';
+import { CreateUserService } from './services/create-user.service';
+import { DeleteUserService } from './services/delete-user.service';
+import { GetUsersService } from './services/get-user.service';
+import { UpdateUserImageService } from './services/update-user-image.service';
+import { UpdateUserService } from './services/update-user.service';
+
+/**
+ * Administração de usuários.
+ *
+ * Toda resposta passa por `toUserResponse`: a entidade carrega o hash da senha
+ * e o refresh token, e nenhum deles pode sair daqui.
+ */
 @UseGuards(JwtAuthGuard, AdminRoleGuard)
 @Controller('users')
 export class UserController {
@@ -40,63 +52,53 @@ export class UserController {
     private readonly updateUserImageService: UpdateUserImageService,
   ) {}
 
-  /**
-   * Criar novo usuário (apenas admin)
-   */
   @Post()
-  async create(@Body() dto: CreateUserDto) {
-    this.logger.log('Creating new user');
-    const result = await this.createUserService.create(dto);
-    this.logger.log(`User created successfully: ${result.id}`);
-    return result;
+  async create(@Body() dto: CreateUserDto): Promise<UserResponseDto> {
+    const user = await this.createUserService.create(dto);
+    this.logger.log(`Usuário criado: ${user.id}`);
+
+    return toUserResponse(user);
   }
 
-  /**
-   * Listar todos os usuários com paginação (apenas admin)
-   */
   @Get()
-  findAll(@Query() query: GetUsersQueryDto) {
+  findAll(
+    @Query() query: GetUsersQueryDto,
+  ): Promise<PaginatedUsersResponseDto> {
     return this.getUsersService.findAllPaginated(query);
   }
 
-  /**
-   * Buscar usuário por ID (apenas admin)
-   */
   @Get(':id')
-  async findOne(@Param('id', new ParseUUIDPipe()) id: string) {
-    return this.getUsersService.findOne(id);
+  async findOne(
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ): Promise<UserResponseDto> {
+    return toUserResponse(await this.getUsersService.findOne(id));
   }
 
   /**
-   * Atualizar usuário (apenas admin)
-   * Admin pode alterar TUDO: name, email, phone, password, role, active, completed, commonUser
-   * Para alterar senha, admin apenas envia a nova senha no campo "password" (não precisa da senha atual)
+   * O administrador altera qualquer campo, inclusive a senha — e, para trocá-la,
+   * não precisa informar a senha atual.
    */
   @Put(':id')
   async update(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateUserDto,
-  ): Promise<UserEntity> {
-    this.logger.log(`Updating user: ${id}`);
-    const result = await this.updateUserService.update(id, dto);
-    this.logger.log(`User updated successfully: ${id}`);
+  ): Promise<UserResponseDto> {
+    const user = await this.updateUserService.update(id, dto);
+    this.logger.log(`Usuário atualizado: ${id}`);
+
+    return toUserResponse(user);
+  }
+
+  @Delete(':id')
+  async remove(
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ): Promise<{ message: string }> {
+    const result = await this.deleteUserService.remove(id);
+    this.logger.log(`Usuário removido: ${id}`);
+
     return result;
   }
 
-  /**
-   * Deletar usuário (apenas admin)
-   */
-  @Delete(':id')
-  async remove(@Param('id', new ParseUUIDPipe()) id: string) {
-    this.logger.log(`Deleting user: ${id}`);
-    await this.deleteUserService.remove(id);
-    this.logger.log(`User deleted successfully: ${id}`);
-    return { message: 'User removed successfully' };
-  }
-
-  /**
-   * Atualizar imagem de perfil de qualquer usuário (apenas admin)
-   */
   @Patch(':id/image')
   @UseInterceptors(AnyFilesInterceptor())
   async updateImage(
@@ -104,17 +106,16 @@ export class UserController {
     @UploadedFiles() files: Express.Multer.File[] = [],
     @Body('imageData') imageDataRaw?: string,
     @Body() body?: Record<string, unknown>,
-  ): Promise<UserEntity> {
-    this.logger.log(`Updating user image: ${id}`);
-    const bodyToProcess = imageDataRaw
-      ? { imageData: imageDataRaw }
-      : body || {};
-    const result = await this.updateUserImageService.updateUserImage(
+  ): Promise<UserResponseDto> {
+    // A imagem chega como JSON puro ou como campo `imageData` do form-data.
+    const payload = imageDataRaw ? { imageData: imageDataRaw } : (body ?? {});
+    const user = await this.updateUserImageService.updateUserImage(
       id,
-      bodyToProcess,
+      payload,
       files,
     );
-    this.logger.log(`User image updated successfully: ${id}`);
-    return result;
+    this.logger.log(`Foto do usuário atualizada: ${id}`);
+
+    return toUserResponse(user);
   }
 }

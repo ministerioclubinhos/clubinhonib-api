@@ -21,3 +21,15 @@ export type AuthRequest = Omit<Request, 'user'> & {
     email: string;
   };
 };
+
+/**
+ * Quem está pedindo a operação.
+ *
+ * Os casos de uso recebem isto, e não a requisição HTTP: quem lê o token é a
+ * camada que enxerga o transporte. Antes cada módulo declarava a sua própria
+ * cópia deste formato, e elas já haviam divergido no tipo do papel.
+ */
+export type AccessContext = {
+  role?: UserRole;
+  userId: string | null;
+};

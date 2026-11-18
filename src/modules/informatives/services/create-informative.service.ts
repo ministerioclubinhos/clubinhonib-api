@@ -4,44 +4,53 @@ import {
   AppInternalException,
   ErrorCode,
 } from 'src/shared/exceptions';
-import { DataSource, QueryRunner } from 'typeorm';
-import { RouteService } from 'src/modules/routes/route.service';
+import { EntityManager } from 'typeorm';
+import { CreateRouteService } from 'src/modules/routes/services/create-route.service';
 import { RouteType } from 'src/modules/routes/route-page.entity';
 import { CreateInformativeDto } from '../dto/create-informative.dto';
-import { InformativeRepository } from '../informative.repository';
+import { InformativesRepository } from '../repositories/informatives.repository';
+import { InformativeResponseDto } from '../dto/informative-response.dto';
 import { InformativeEntity } from '../entities/informative.entity';
+import { toInformativeResponse } from '../mappers';
+import { INFORMATIVE_ROUTE_PREFIX } from '../constants';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
+import { AnnounceInformativeService } from './announce-informative.service';
 
 @Injectable()
 export class CreateInformativeService {
   private readonly logger = new Logger(CreateInformativeService.name);
 
   constructor(
-    private readonly dataSource: DataSource,
-    private readonly informativeRepo: InformativeRepository,
-    private readonly routeService: RouteService,
+    private readonly informativesRepo: InformativesRepository,
+    private readonly createRouteService: CreateRouteService,
+    private readonly announceService: AnnounceInformativeService,
   ) {}
 
   async createInformative(
     dto: CreateInformativeDto,
-  ): Promise<InformativeEntity> {
+  ): Promise<InformativeResponseDto> {
     this.logger.verbose(`→ createInformative | title="${dto.title}"`);
 
-    const runner = this.dataSource.createQueryRunner();
-    await runner.connect();
-    await runner.startTransaction();
-    this.logger.debug('▶️  Transaction started');
-
     try {
-      const informative = await this.persistInformative(runner, dto);
-      await this.attachRoute(runner, informative, dto);
+      // A transação é aberta pelo repositório; aqui só se decide o que entra
+      // nela. O rollback acontece sozinho quando o bloco lança.
+      const informative = await this.informativesRepo.runInTransaction(
+        async (manager) => {
+          const saved = await this.persistInformative(manager, dto);
+          await this.attachRoute(manager, saved, dto);
 
-      await runner.commitTransaction();
+          return saved;
+        },
+      );
+
       this.logger.debug('✅  Transaction committed');
 
-      return informative;
+      // Depois do commit e fora da requisição: o informativo já existe, e o
+      // aviso é consequência dele, não condição.
+      this.announceService.announceInBackground(informative);
+
+      return toInformativeResponse(informative);
     } catch (err: unknown) {
-      await runner.rollbackTransaction();
       const error = err instanceof Error ? err : new Error(String(err));
       this.logger.error('💥  Transaction rolled‑back', error.stack);
       if (err instanceof AppException) {
@@ -51,45 +60,40 @@ export class CreateInformativeService {
         ErrorCode.INTERNAL_ERROR,
         'Erro ao criar o banner informativo.',
       );
-    } finally {
-      await runner.release();
-      this.logger.debug('⛔  QueryRunner released');
     }
   }
 
   private async persistInformative(
-    runner: QueryRunner,
+    manager: EntityManager,
     dto: CreateInformativeDto,
   ): Promise<InformativeEntity> {
     this.logger.debug('📝 persistInformative()');
 
-    const repo = runner.manager.getRepository(InformativeEntity);
-    const entity = repo.create({
+    const saved = await this.informativesRepo.createInTransaction(manager, {
       title: dto.title,
       description: dto.description,
       public: dto.public,
     });
-    const saved = await repo.save(entity);
     this.logger.debug(`   ↳ Informative saved (ID=${saved.id})`);
 
     return saved;
   }
 
   private async attachRoute(
-    runner: QueryRunner,
+    manager: EntityManager,
     informative: InformativeEntity,
     dto: CreateInformativeDto,
   ): Promise<void> {
     this.logger.debug('🛤️  attachRoute()');
 
-    const path = await this.routeService.generateAvailablePath(
+    const path = await this.createRouteService.generateAvailablePath(
       dto.title,
-      'informativo_',
+      INFORMATIVE_ROUTE_PREFIX,
     );
     this.logger.debug(`   ↳ availablePath="${path}"`);
 
-    const route = await this.routeService.createRouteWithManager(
-      runner.manager,
+    const route = await this.createRouteService.createRouteWithManager(
+      manager,
       {
         title: dto.title,
         subtitle: dto.description,
@@ -105,7 +109,7 @@ export class CreateInformativeService {
     );
 
     informative.route = route;
-    await runner.manager.save(informative);
+    await this.informativesRepo.saveInTransaction(manager, informative);
     this.logger.verbose(`   ↩  attachRoute() OK | routeID=${route.id}`);
   }
 }

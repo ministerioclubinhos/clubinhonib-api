@@ -1,0 +1,43 @@
+@startuml Week Materials Flow - Clubinho NIB API
+!theme plain
+hide footbox
+title Week materials — authoring and publication
+
+actor "Authenticated reader / Admin" as Client
+participant WeekMaterialPageController as Controller
+participant "WeekMaterial operation service" as Service
+database "MySQL\nWeek materials + media rows" as Repository
+participant "Route + Media services" as Content
+participant "AWS S3" as S3
+participant AnnounceWeekMaterialService as Notify
+
+alt Read
+  Client -> Controller : list, detail or GET /current-week
+  Controller -> Service : query or id
+  Service -> Repository : load page/current page
+  Service -> Content : load associated media
+  Service --> Client : DTO, page or null
+else Admin create or update
+  Client -> Controller : multipart POST/PATCH
+  Controller -> Service : validated page and media payload
+  Service -> Repository : transaction: persist page
+  Service -> Content : create/upsert route and synchronize media\n(new page: free path base, base_1, base_2;\ninsert collision retries the next suffix in a savepoint)
+  Content -> S3 : upload/replace/delete changed files
+  Service -> Notify : announce newly created material after commit
+  Service --> Client : WeekMaterialsPageResponseDTO
+else Publish current week
+  Client -> Controller : POST /current-week/:id
+  Controller -> Service : target id
+  Service -> Repository : transaction: clear previous and publish target + route
+  Service --> Client : published page DTO
+end
+
+note over Repository, S3
+  Publishing is exclusive to /current-week/:id.
+  Page, route and media rows share one transaction.
+  A failure before the commit deletes the uploaded files;
+  after the commit nothing is compensated.
+  A Material Especial is a weekly page tagged in its description
+  and announced as "Novo material especial".
+end note
+@enduml

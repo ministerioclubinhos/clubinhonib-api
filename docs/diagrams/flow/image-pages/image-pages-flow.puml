@@ -1,0 +1,35 @@
+@startuml Image Pages Flow - Clubinho NIB API
+!theme plain
+hide footbox
+title Image pages — gallery lifecycle
+
+actor "Reader / Admin" as Client
+participant ImagePageController as Controller
+participant "ImagePage operation service" as Service
+database "MySQL\nImage pages + media rows" as Repository
+participant RouteService as Route
+participant MediaItemProcessor as Media
+participant "AWS S3" as S3
+
+alt Read
+  Client -> Controller : authenticated list or public detail/sections
+  Controller -> Service : query, id and session visibility
+  Service -> Repository : load gallery and allowed sections
+  Service -> Media : batch-load section images
+  Service --> Client : summary, page or paginated sections
+else Admin create or update
+  Client -> Controller : multipart POST/PATCH
+  Controller -> Service : page + complete section payload
+  Service -> Repository : transaction: page and section diff
+  Service -> Route : create/upsert route
+  Service -> Media : persist the image diff
+  Media -> S3 : upload/replace/delete changed images
+  Service --> Client : ImagePageResponseDto
+else Admin delete
+  Service -> Media : remove section media rows
+  Media -> S3 : delete owned objects
+  Service -> Route : remove route
+  Service -> Repository : remove sections and page
+  Service --> Client : 204
+end
+@enduml

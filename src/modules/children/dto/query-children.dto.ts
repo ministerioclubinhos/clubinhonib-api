@@ -1,17 +1,35 @@
 import {
-  IsIn,
+  IsBoolean,
+  IsDateString,
+  IsEnum,
   IsInt,
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   Min,
-  IsNumber,
-  IsBoolean,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+
+import {
+  toOptionalBoolean,
+  toOptionalText,
+  toUpperCaseText,
+} from 'src/shared/dto/query-transforms';
+
+import {
+  CHILDREN_DEFAULT_LIMIT,
+  CHILDREN_DEFAULT_ORDER,
+  CHILDREN_DEFAULT_PAGE,
+  CHILDREN_DEFAULT_SORT,
+  CHILDREN_MAX_LIMIT,
+  ChildSortField,
+  SortOrder,
+} from '../constants';
 
 export class QueryChildrenDto {
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) => toOptionalText(value))
   @IsString()
   searchString?: string;
 
@@ -19,105 +37,101 @@ export class QueryChildrenDto {
   @IsUUID()
   clubId?: string;
 
-  @Transform(({ value }: { value: unknown }) => Number(value))
   @IsOptional()
-  @IsNumber()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
   clubNumber?: number;
 
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) => toOptionalText(value))
   @IsString()
   city?: string;
 
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) => toOptionalText(value))
   @IsString()
   state?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   birthDate?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   birthDateFrom?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   birthDateTo?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   joinedAt?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   joinedFrom?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   joinedTo?: string;
 
-  @Transform(({ value }: { value: unknown }) => {
-    if (value === 'true') return true;
-    if (value === 'false') return false;
-    return value as boolean;
-  })
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) => toOptionalBoolean(value))
   @IsBoolean()
   isActive?: boolean;
 
   @IsOptional()
-  @IsString()
-  orderBy?: 'name' | 'birthDate' | 'joinedAt' | 'createdAt';
+  @IsEnum(ChildSortField)
+  orderBy: ChildSortField = CHILDREN_DEFAULT_SORT;
 
   @IsOptional()
-  @IsIn(['ASC', 'DESC'])
-  order?: 'ASC' | 'DESC' = 'ASC';
+  @Transform(({ value }: { value: unknown }) => toUpperCaseText(value))
+  @IsEnum(SortOrder)
+  order: SortOrder = CHILDREN_DEFAULT_ORDER;
 
-  @Transform(({ value }: { value: unknown }) => Number(value))
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(1)
-  page?: number = 1;
+  page: number = CHILDREN_DEFAULT_PAGE;
 
-  @Transform(({ value }: { value: unknown }) => Number(value))
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(1)
-  limit?: number = 20;
+  @Max(CHILDREN_MAX_LIMIT)
+  limit: number = CHILDREN_DEFAULT_LIMIT;
 }
 
 export class QueryChildrenSimpleDto {
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) => toOptionalText(value))
   @IsString()
   searchString?: string;
 
-  @Transform(({ value }: { value: unknown }) => {
-    if (value === 'true') return true;
-    if (value === 'false') return false;
-    return value as boolean;
-  })
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) => toOptionalBoolean(value))
   @IsBoolean()
   isActive?: boolean;
 
-  @Transform(({ value }: { value: unknown }) => {
-    if (value === 'true') return true;
-    if (value === 'false') return false;
-    return value as boolean;
-  })
+  /** Só quem já registrou uma decisão, ou só quem ainda não registrou. */
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) => toOptionalBoolean(value))
   @IsBoolean()
   acceptedChrist?: boolean;
 
-  @Transform(({ value }: { value: unknown }) => Number(value))
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(1)
-  page?: number = 1;
+  page: number = CHILDREN_DEFAULT_PAGE;
 
-  @Transform(({ value }: { value: unknown }) => Number(value))
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(1)
-  limit?: number = 20;
+  @Max(CHILDREN_MAX_LIMIT)
+  limit: number = CHILDREN_DEFAULT_LIMIT;
 }

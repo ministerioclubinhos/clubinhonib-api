@@ -5,6 +5,8 @@ export enum MediaTargetType {
   ImagesSection = 'ImagesSection',
   Meditation = 'Meditation',
   IdeasSection = 'IdeasSection',
+  IdeasSectionSubmissionSource = 'IdeasSectionSubmissionSource',
+  IdeasSectionAiEnhancedMedia = 'IdeasSectionAiEnhancedMedia',
   IdeasPage = 'IdeasPage',
   Document = 'Document',
   Event = 'Event',

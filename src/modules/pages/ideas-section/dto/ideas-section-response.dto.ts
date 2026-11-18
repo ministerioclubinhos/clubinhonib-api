@@ -1,40 +1,30 @@
-import { IdeasSectionEntity } from 'src/modules/pages/ideas-page/entities/ideas-section.entity';
-import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
-import { MediaItemDto } from 'src/shared/share-dto/media-item-dto';
+import { IdeaAiDetailDto } from '../../ideas-section-ai/dto/idea-ai-response.dto';
+import { IdeaAiEnhancementStatus } from '../../ideas-section-ai/enums/ideas-section-ai.enums';
+/** Uma mídia da ideia compartilhada, no recorte que a tela usa. */
+export class IdeasSectionMediaResponseDto {
+  id: string;
+  title: string | null;
+  description: string | null;
+  uploadType: string;
+  mediaType: string;
+  isLocalFile: boolean;
+  url: string;
+  platformType: string | null;
+  originalName: string | null;
+  size: number | null;
+}
 
+/** Contrato de resposta de `/ideas-sections`. */
 export class IdeasSectionResponseDto {
+  aiEnhancement?: IdeaAiDetailDto;
+  aiStatus?: IdeaAiEnhancementStatus | null;
   id: string;
   title: string;
   description: string;
   public: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-  medias: MediaItemDto[];
-
-  static fromEntity(
-    section: IdeasSectionEntity,
-    medias: MediaItemEntity[],
-  ): IdeasSectionResponseDto {
-    return {
-      id: section.id,
-      title: section.title,
-      description: section.description,
-      public: section.public,
-      createdAt: section.createdAt,
-      updatedAt: section.updatedAt,
-      medias: medias.map((item) => ({
-        id: item.id,
-        title: item.title,
-        description: item.description,
-        uploadType: item.uploadType,
-        mediaType: item.mediaType,
-        isLocalFile: item.isLocalFile,
-        url: item.url,
-        platformType: item.platformType,
-        originalName: item.originalName,
-        size: item.size,
-        fieldKey: undefined,
-      })),
-    };
-  }
+  /** Página onde a ideia foi publicada; `null` enquanto está pendente. */
+  pageId: string | null;
+  medias: IdeasSectionMediaResponseDto[];
+  createdAt: string;
+  updatedAt: string;
 }

@@ -4,24 +4,53 @@ import {
   ArgumentsHost,
   HttpException,
   HttpStatus,
+  Injectable,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+
+import { WriteAuditEventService } from 'src/core/audit/services/write-audit-event.service';
+import { WriteTechnicalLogService } from 'src/core/observability/services/write-technical-log.service';
+import { RequestContextService } from 'src/core/request-context/request-context.service';
+import { actorFromRequestUser } from 'src/core/request-context/utils';
+
 import { AppException } from '../base.exception';
 import { ErrorCode } from '../error-codes.enum';
 import { ErrorResponse } from '../interfaces/error-response.interface';
 
+/**
+ * Filtro global de exceções.
+ *
+ * O envelope `{ success: false, error }` é contrato público e não muda. O que
+ * o filtro acrescenta é o fechamento da request no contexto: ator (se algum
+ * guard já o validou), status e código para o registro técnico, e a auditoria
+ * de falha — uma só, porque o interceptor não roda quando o handler lança.
+ *
+ * Os serviços são opcionais para o filtro continuar construível com `new`
+ * nos testes e em qualquer bootstrap sem os módulos de auditoria.
+ */
+@Injectable()
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
 
+  constructor(
+    @Optional() private readonly requestContext?: RequestContextService,
+    @Optional() private readonly audit?: WriteAuditEventService,
+    @Optional() private readonly technicalLog?: WriteTechnicalLogService,
+  ) {}
+
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
-    const request = ctx.getRequest<Request>();
+    const request = ctx.getRequest<Request & { user?: unknown }>();
 
     const errorResponse = this.buildErrorResponse(exception, request);
     const status = this.getHttpStatus(exception);
+
+    this.requestContext?.assignActor(actorFromRequestUser(request.user));
+    this.requestContext?.assignOutcome(status, errorResponse.error.code);
 
     if (status >= 500) {
       this.logger.error(
@@ -32,9 +61,23 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       this.logger.warn(
         `[${errorResponse.error.code}] ${errorResponse.error.message} - ${request.method} ${request.url}`,
       );
+      // Erro do cliente também é erro: vai à observabilidade como `warn`,
+      // menos o ruído (401 e rota inexistente).
+      this.technicalLog?.reportClientError({
+        statusCode: status,
+        context: GlobalExceptionFilter.name,
+        message: `[${errorResponse.error.code}] ${errorResponse.error.message}`,
+        error: exception,
+      });
     }
 
     response.status(status).json(errorResponse);
+
+    this.audit?.recordHttpOutcome({
+      statusCode: status,
+      errorCode: errorResponse.error.code,
+      requestUrl: request.originalUrl ?? request.url ?? null,
+    });
   }
 
   private buildErrorResponse(

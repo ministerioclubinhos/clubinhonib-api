@@ -1,0 +1,38 @@
+@startuml
+skinparam backgroundColor #FAFAFA
+skinparam shadowing false
+title All AI provider calls through Redis / BullMQ
+actor Administrator
+participant "Feature orchestration\nLessons / Shared ideas / Model catalog" as Feature
+participant "AiRequestQueueService" as Queue
+queue "Redis\nllm-requests" as Redis
+participant "BullMQ workers\nGlobal concurrency = 1 by default" as Worker
+database "Provider settings\nMySQL" as DB
+participant "OpenAI / Gemini" as Provider
+Administrator -> Feature: Generate / revise / reprocess / list models
+Feature -> Queue: Typed JSON or multipart request
+Queue -> Queue: Validate endpoint / size / deadline
+Queue -> Redis: Enqueue without provider credentials
+Redis -> Worker: FIFO claim subject to global concurrency
+Worker -> Redis: Check cached result / cancellation / expiry
+alt Cached result exists
+  Worker -> Redis: Complete with result key
+else Request expired or cancelled
+  Worker -> Redis: Fail without provider call
+else Request eligible
+  Worker -> DB: Read current provider credential
+  Worker -> Provider: Execute request (bounded timeout)
+  Provider --> Worker: Response or sanitized failure
+  Worker -> Redis: Result key (5 minute TTL), clear job payload
+  Worker -> Redis: Complete with result key only
+end
+Redis --> Queue: Completion event
+Queue -> Redis: Consume result and remove terminal job
+Queue --> Feature: Typed response / provider error / queue error
+Feature --> Administrator: Existing feature status or response
+note over Queue, Provider
+Redis unavailable: no direct provider fallback.
+Feature retry policies enqueue a new request for every retry.
+Stalled work may recover; at-least-once delivery, not exactly-once billing.
+end note
+@enduml

@@ -2,24 +2,36 @@ import { Type, Transform } from 'class-transformer';
 import {
   IsInt,
   IsOptional,
+  Max,
   Min,
   IsString,
   IsIn,
   IsBoolean,
 } from 'class-validator';
 
+import {
+  CLUBS_DEFAULT_LIMIT,
+  CLUBS_DEFAULT_PAGE,
+  CLUBS_MAX_LIMIT,
+  CLUB_DEFAULT_ORDER,
+  CLUB_DEFAULT_SORT,
+  CLUB_SORT_FIELDS,
+} from '../constants';
+import { ClubSortField, ClubSortOrder } from '../types';
+
 export class QueryClubsDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  page?: number = 1;
+  page?: number = CLUBS_DEFAULT_PAGE;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  limit?: number = 10;
+  @Max(CLUBS_MAX_LIMIT)
+  limit?: number = CLUBS_DEFAULT_LIMIT;
 
   @IsOptional()
   @IsString()
@@ -35,25 +47,15 @@ export class QueryClubsDto {
   isActive?: boolean;
 
   @IsOptional()
-  @IsIn([
-    'number',
-    'weekday',
-    'time',
-    'createdAt',
-    'updatedAt',
-    'city',
-    'state',
-  ])
-  sort?:
-    | 'number'
-    | 'weekday'
-    | 'time'
-    | 'createdAt'
-    | 'updatedAt'
-    | 'city'
-    | 'state' = 'number';
+  @IsIn(CLUB_SORT_FIELDS)
+  sort?: ClubSortField = CLUB_DEFAULT_SORT;
 
+  // A ordem chega da URL em qualquer caixa; normalizar aqui evita espalhar
+  // `toUpperCase()` pelo repositório.
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.toUpperCase() : value,
+  )
   @IsOptional()
-  @IsIn(['ASC', 'DESC', 'asc', 'desc'])
-  order?: 'ASC' | 'DESC' | 'asc' | 'desc' = 'ASC';
+  @IsIn(['ASC', 'DESC'])
+  order?: ClubSortOrder = CLUB_DEFAULT_ORDER;
 }

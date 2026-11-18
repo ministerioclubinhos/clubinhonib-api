@@ -1,0 +1,40 @@
+@startuml
+title Notification center (bell) — facade over existing sources
+start
+:Authenticated user calls /notifications/me/*;
+:API loads current account (USER_INACTIVE if inactive);
+if (notification_center_v2 enabled for role?) then (no)
+  :403 FEATURE_DISABLED
+(frontend keeps the previous bell);
+  stop
+endif
+:Check source flag clubinho_feed for role;
+if (Source enabled?) then (no)
+  :Omit source: empty list/summary,
+404 for detail and read;
+  stop
+endif
+switch (Operation)
+case (summary)
+  :Aggregate total, unread, MAX(updatedAt);
+  :Return opaque revision +
+up to 10 recent unread (id, type, createdAt);
+case (list)
+  :Apply status filter in SQL, then paginate
+(createdAt DESC, id DESC);
+  :Return Paginated + unreadCount
+(no comment text or reason);
+case (detail)
+  :Find by id AND recipient (404 otherwise);
+  :Return comment text and reason;
+case (read)
+  :Conditional update readAt IS NULL
+(idempotent, keeps first readAt);
+case (read-all)
+  :Begin transaction;
+  :Lock snapshot of unread ids (FOR UPDATE);
+  :Update only snapshot ids in batches of 500;
+  :Commit and return updatedCount + summary;
+endswitch
+stop
+@enduml

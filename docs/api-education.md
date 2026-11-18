@@ -43,47 +43,249 @@ Checks the current status of the requested week (or current week if not specifie
 
 Aggregated metrics for the main dashboard.
 
+Every endpoint above requires the `admin` role — `ClubControlController` guards
+the whole class with `AdminRoleGuard`.
+
+### `GET /club-control/weekly-summary`
+
+The whole academic period seen from above: one row per academic week, one cell
+per club. It is the screen the Monday coordinator e-mail links to — the e-mail
+reports the week that closed, this answers "and the weeks before it?".
+
+- **Roles**: the transport guard is `AdminOrLeaderRoleGuard` — it lives in its
+  own controller because the class-level guard of `ClubControlController` is
+  admin-only and method guards add to it, never replace it. The **audience** is
+  the flag's, and the flag targets `coordinator` only.
+- **Feature flag**: `club_weekly_summary`, checked against the caller's role.
+  Out of the flag's audience answers `403 PERM_3003`, so today an `admin` call
+  is refused: the admin already has `/statistics`, which covers the whole base
+  in far more detail. Widening it is a change of `targetRoles` in the panel,
+  not a code change.
+- **Scope**: the clubs the caller already sees, resolved through
+  `GetClubsService.findAllSimple` — a coordinator gets their own clubs, an
+  admin gets every club. No id from the client widens that.
+- **Query**: `year` (defaults to the current academic year) and `clubId`
+  (narrows the set the session already sees; a club outside it answers `404`,
+  never an empty list).
+- **Cost**: three queries for the entire period — children, pagelas and
+  calendar exceptions — instead of the four-per-club-per-week that
+  `ClubWeekCheckService.checkClubWeek` costs.
+
+Response, abbreviated:
+
+```json
+{
+  "year": 2026,
+  "availableYears": [2026, 2025],
+  "currentWeek": 12,
+  "period": { "year": 2026, "startDate": "2026-03-02", "endDate": "2026-11-28", "totalWeeks": 40 },
+  "clubs": [{ "clubId": "…", "clubNumber": 12, "weekday": "wednesday", "isActive": true }],
+  "weeks": [
+    {
+      "week": 1,
+      "startDate": "2026-03-02",
+      "endDate": "2026-03-07",
+      "timeline": "past",
+      "counts": { "children": 10, "childrenWithPagela": 7, "childrenMissing": 3, "childrenPresent": 7, "completionRate": 70 },
+      "statusCounts": { "ok": 0, "partial": 1, "missing": 0, "pending": 0, "exception": 0, "inactive": 0, "outOfPeriod": 0 },
+      "clubs": [
+        {
+          "clubId": "…",
+          "clubNumber": 12,
+          "status": "partial",
+          "expectedDate": "2026-03-04",
+          "exceptionReason": null,
+          "counts": { "children": 10, "childrenWithPagela": 7, "childrenMissing": 3, "childrenPresent": 7, "completionRate": 70 }
+        }
+      ]
+    }
+  ],
+  "highlights": { "weeksElapsed": 12, "counts": { "…": 0 }, "bestWeek": 3, "worstWeek": 9, "weeksWithPendency": 4 }
+}
+```
+
+Rules the payload encodes:
+
+- `status` is the same seven-value enum the control panel uses, produced by the
+  same `ClubStatusService.determineStatus`.
+- A child only counts on a week whose expected date is on or after `joinedAt`;
+  a child who left counts on no week at all.
+- A deactivated club reports zeroed counts: charging a pagela to a club that
+  does not meet would invent a shortfall nobody can clear.
+- `highlights` covers only the weeks already elapsed. Future weeks start with
+  no pagela, and including them would make March look like a year behind.
+- A year with no registered period answers `200` with `period: null` and an
+  empty `weeks` list — it is a calendar that was never filled in, not an error.
+
 ---
 
 ## 2. Pagelas (Attendance)
 
 **Base URL**: `/pagelas`
+**Authentication**: Required (JWT)
 
-"Pagela" is the core record for a child's weekly activity (Attendance, Bible Verse, Meditation).
+"Pagela" is the core record for a child's weekly activity (attendance, Bible
+verse, meditation). One pagela per child per week of a year — the database
+enforces it, and a repeat answers `409` with `RESOURCE_ALREADY_EXISTS`.
 
-### Key Rules
+### Who sees what
 
-- Must be linked to a valid **Academic Week**.
-- Child must be **Active**.
+Every endpoint is scoped by the caller's role. The scope is applied in the
+repository, so it holds for reads and writes alike:
+
+| Role | Scope |
+| --- | --- |
+| `admin` | Every pagela. |
+| `coordinator` | Pagelas of children in the clubs they coordinate. |
+| `teacher` | Pagelas of children in the club where they teach. |
+| anything else | Nothing — `403 PERM_3001`. |
+
+A pagela outside the caller's scope answers `404`, not `403`: it must not be
+possible to learn that someone else's record exists. Writing a pagela for a
+child outside the scope answers `403 CHILD_7002`.
+
+### Academic period lock (2026-11-11)
+
+**A pagela can only be created or edited while today is inside an active
+academic period.** "Today" is the server's day in `America/Sao_Paulo`, never a
+date sent by the client. Before this rule the period was only checked when the
+body omitted `week` or `year` — and the app always sent both, so nothing was
+ever refused.
+
+| Situation | Answer |
+|---|---|
+| No active period around today, period not started, or period ended | `400 VAL_4007` (`ACADEMIC_PERIOD_CLOSED`) with a message naming the date |
+| `referenceDate` after today, or outside the period in progress | `400 VAL_4005` |
+| `year` different from the period in progress | `400 VAL_4005` |
+| `week` below 1 or above the current academic week (future week) | `400 VAL_4005` |
+
+**Authorship**: every pagela stores who created it and who last edited it,
+read from the session token. `PagelaResponseDto` carries `createdBy` and
+`updatedBy` as `{ id, name } | null` (`null` on records older than the columns).
+
+**Inactive children** (`isActive = false`) do not receive pagelas and their
+pagelas are not edited: `409 CHILD_7003`. Reactivate the child first.
+
+Deleting is not affected. Weekday exceptions (holidays, events) do not block a
+pagela: clubs meet on different weekdays and the pagela is a weekly record.
+
+### Week and year
+
+`week` and `year` are the **academic** week, counted from the start of the
+registered period (`/club-control` periods), not the ISO week.
+
+- On create, `week` is used as given when it has already happened (1 to the
+  current academic week) and `year` must be the year of the period in progress.
+  When absent, both are derived from `referenceDate`.
+- On update, only what the request **changes** is checked: a pagela from a
+  previous year can still have its flags and note corrected, but cannot be
+  moved to a future week or to a date outside the period. Changing only
+  `referenceDate` recalculates the week.
 
 ### Endpoints
 
+#### `GET /pagelas/launch-window`
+
+Tells the screen whether today accepts pagelas, so it can explain the refusal
+before the teacher fills the form. Roles: `admin`, `coordinator`, `teacher`.
+
+```typescript
+{
+  open: boolean;
+  reason: 'NO_PERIOD' | 'NOT_STARTED' | 'ENDED' | null;
+  message: string | null;      // ready-to-show explanation when closed
+  today: string;               // YYYY-MM-DD, America/Sao_Paulo
+  year: number | null;         // period in progress (or next/last when closed)
+  currentWeek: number | null;  // highest week that accepts a pagela
+  totalWeeks: number | null;
+  startDate: string | null;
+  endDate: string | null;
+}
+```
+
 #### `GET /pagelas/paginated`
 
-Powerful search endpoint for pagelas.
+Paginated list.
 
-- **See**: [Dashboard Endpoints Documentation](api-dashboard-endpoints.md) for full details.
+**Query parameters:**
+
+```typescript
+{
+  page?: number;              // Default: 1
+  limit?: number;             // Default: 20, max: 200
+  childId?: string;           // UUID
+  year?: number;              // 2000–9999
+  week?: number;              // 1–53
+  present?: boolean;          // "true" / "false" in the query string
+  didMeditation?: boolean;
+  recitedVerse?: boolean;
+  searchString?: string;      // "2026-48", "2026" or "48"
+}
+```
+
+**Response:** `Paginated<PagelaResponseDto>` — the shared envelope
+(`data`, `total`, `page`, `limit`, `pageCount`).
+
+#### `GET /pagelas`
+
+Same filters, no pagination. Still scoped by role.
+
+#### `GET /pagelas/:id`
+
+One pagela, if it is within the caller's scope.
 
 #### `POST /pagelas`
 
-Create/Submit a pagela for a child.
+**Body:**
 
-- **Body**:
+```typescript
+{
+  childId: string;              // UUID, required
+  referenceDate: string;        // YYYY-MM-DD, required
+  present: boolean;             // required
+  didMeditation: boolean;       // required
+  recitedVerse: boolean;        // required
+  week?: number;                // 1 to the current academic week; derived when absent
+  year?: number;                // year of the period in progress; derived when absent
+  teacherProfileId?: string;    // UUID
+  notes?: string;               // max 500 chars
+}
+```
 
-  ```json
-  {
-    "childId": "uuid...",
-    "year": 2025,
-    "week": 12,
-    "present": true,
-    "didMeditation": false,
-    "recitedVerse": true
-  }
-  ```
+**Response:** `PagelaResponseDto`
 
-#### `PUT /pagelas/:id`
+#### `PATCH /pagelas/:id`
 
-Correct an existing pagela.
+Every field optional. `null` clears: `notes: null` empties the note,
+`teacherProfileId: null` unlinks the teacher who recorded it.
+
+**Response:** `PagelaResponseDto`
+
+#### `DELETE /pagelas/:id`
+
+**Response:** `{ message: "Pagela removida com sucesso" }`
+
+### PagelaResponseDto
+
+```typescript
+{
+  id: string;
+  childId: string;
+  teacherProfileId: string | null;
+  referenceDate: string;        // YYYY-MM-DD
+  year: number;
+  week: number;
+  present: boolean;
+  didMeditation: boolean;
+  recitedVerse: boolean;
+  notes: string | null;
+  createdAt: string;            // ISO
+  updatedAt: string;            // ISO
+}
+```
+
+The frontend mirrors this in `src/features/pagelas/types.ts`, and
+`mappers.spec.ts` locks the exact key set on this side.
 
 ---
 

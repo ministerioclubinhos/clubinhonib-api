@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { EntityManager, In, Repository } from 'typeorm';
 import { MediaItemEntity } from './media-item/media-item.entity';
 
 @Injectable()
@@ -22,6 +22,28 @@ export class MediaItemRepository {
     return this.mediaRepo.find({ where: { targetId, targetType } });
   }
 
+  /** Mídias de um alvo em qualquer um dos tipos informados. */
+  async findByTargetAnyType(
+    targetId: string,
+    targetTypes: string[],
+  ): Promise<MediaItemEntity[]> {
+    if (targetTypes.length === 0) return [];
+    return this.mediaRepo.find({
+      where: { targetId, targetType: In(targetTypes) },
+    });
+  }
+
+  /** Mídias de vários alvos em qualquer um dos tipos informados. */
+  async findManyByTargetsAnyType(
+    targetIds: string[],
+    targetTypes: string[],
+  ): Promise<MediaItemEntity[]> {
+    if (targetIds.length === 0 || targetTypes.length === 0) return [];
+    return this.mediaRepo.find({
+      where: { targetId: In(targetIds), targetType: In(targetTypes) },
+    });
+  }
+
   async findManyByTargets(
     targetIds: string[],
     targetType: string,
@@ -35,6 +57,51 @@ export class MediaItemRepository {
         targetId: In(targetIds),
       },
     });
+  }
+
+  /** Mídias que apontam para alguma das URLs informadas. */
+  /** Uma mídia pelo id, ou `null` quando não existe. */
+  async findById(id: string): Promise<MediaItemEntity | null> {
+    return this.mediaRepo.findOneBy({ id });
+  }
+
+  /** Mídias de um alvo, lidas dentro da transação em curso. */
+  async findByTargetInTransaction(
+    manager: EntityManager,
+    targetId: string,
+    targetType: string,
+  ): Promise<MediaItemEntity[]> {
+    return manager.find(MediaItemEntity, { where: { targetId, targetType } });
+  }
+
+  /** Grava a mídia dentro da transação em curso. */
+  async saveInTransaction(
+    manager: EntityManager,
+    media: Partial<MediaItemEntity>,
+  ): Promise<MediaItemEntity> {
+    return manager.save(MediaItemEntity, media as MediaItemEntity);
+  }
+
+  /** Apaga uma mídia pelo id, dentro da transação em curso. */
+  async deleteByIdInTransaction(
+    manager: EntityManager,
+    id: string,
+  ): Promise<void> {
+    await manager.delete(MediaItemEntity, { id });
+  }
+
+  /** Apaga todas as mídias de um alvo, dentro da transação em curso. */
+  async deleteByTargetInTransaction(
+    manager: EntityManager,
+    targetId: string,
+    targetType: string,
+  ): Promise<void> {
+    await manager.delete(MediaItemEntity, { targetId, targetType });
+  }
+
+  async findByUrls(urls: string[]): Promise<MediaItemEntity[]> {
+    if (urls.length === 0) return [];
+    return this.mediaRepo.find({ where: { url: In(urls) } });
   }
 
   async save(media: MediaItemEntity): Promise<MediaItemEntity> {

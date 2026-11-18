@@ -1,31 +1,48 @@
-const { randomName, randomEmail, randomPhone } = require('../common/random');
-const { sleep } = require('../common/sleep');
+const { ensureRoleClients } = require('../common/role-users');
+const { createUserWithProfile } = require('../clubs/list-fix');
+const { expectHttpError } = require('../common/errors');
 
-async function run({ http, logger }) {
-  
-  const userDto = {
-    name: randomName(),
-    email: randomEmail('teacher'),
-    password: 'Senha123@',
-    phone: randomPhone(),
-    role: 'teacher',
-    active: true,
-    completed: true,
-  };
+/**
+ * O perfil de professor nasce com o usuário (`POST /users` role=teacher).
+ * Aqui: cria um professor, confere o perfil e o vincula a um clubinho.
+ */
+async function run({ http, logger, ctx }) {
+  logger.section('teacher-profiles/create');
+  const as = await ensureRoleClients({ http, logger, ctx });
+  const club = ctx.clubs?.[0];
 
-  logger.info(`[teacher-profiles/create] creating teacher user (${userDto.email})...`);
-  const userRes = await http.request('post', '/users', { data: userDto });
-  await sleep(600);
+  let created = null;
+  await logger.check('POST /users role=teacher cria o perfil de professor', async () => {
+    created = await createUserWithProfile({ http, role: 'teacher' });
+    if (created.profile.club) throw new Error('professor novo já nasceu com clubinho');
+    return `teacherProfileId=${created.profile.id}`;
+  });
 
-  
-  const page = await http.request('get', '/teacher-profiles', { params: { page: 1, limit: 2000 } });
-  const items = page.data?.items || page.data?.data || page.data || [];
-  const found = items.find((t) => t.user?.id === userRes.data?.id);
-  logger.info(`[teacher-profiles/create] OK created userId=${userRes.data?.id} teacherProfileId=${found?.id ?? 'n/a'}`);
+  if (created && club) {
+    await logger.check(`PATCH /teacher-profiles/:id/assign-club -> #${club.number}`, async () => {
+      const res = await http.request('patch', `/teacher-profiles/${created.profile.id}/assign-club`, { data: { clubId: club.id } });
+      const detail = await http.request('get', `/teacher-profiles/${created.profile.id}`);
+      if (detail.data?.club?.id !== club.id) throw new Error('club não refletiu no detalhe');
+      return res.data?.message;
+    });
+    ctx.extraTeacherProfileId = created.profile.id;
+  }
 
-  return { userId: userRes.data?.id, teacherProfileId: found?.id ?? null };
+  await logger.check('PATCH assign-club com clubId inexistente responde 404', () =>
+    expectHttpError(
+      () => http.request('patch', `/teacher-profiles/${created?.profile.id ?? '00000000-0000-4000-8000-000000000000'}/assign-club`, { data: { clubId: '00000000-0000-4000-8000-000000000000' } }),
+      [404, 400],
+      'assign inexistente',
+    ),
+  );
+
+  if (as.teacher && created) {
+    await logger.check('PATCH assign-club como professor responde 403', () =>
+      expectHttpError(() => as.teacher.request('patch', `/teacher-profiles/${created.profile.id}/assign-club`, { data: { clubId: club?.id } }), 403, 'assign teacher'),
+    );
+  }
+
+  return { teacherProfileId: created?.profile.id ?? null };
 }
 
 module.exports = { run };
-
-

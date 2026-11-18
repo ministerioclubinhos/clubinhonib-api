@@ -1,0 +1,40 @@
+@startuml Meditations Flow - Clubinho NIB API
+!theme plain
+hide footbox
+title Meditations — weekly content lifecycle
+
+actor "Authenticated reader / Admin" as Client
+participant MeditationController as Controller
+participant "Meditation operation service" as Service
+database "MySQL\nMeditations + media rows" as Repository
+participant RouteService as Route
+participant MediaItemProcessor as Media
+participant "AWS S3" as S3
+
+alt Read
+  Client -> Controller : list, detail or GET /this-week
+  Controller -> Service : query, id or current date
+  Service -> Repository : load meditation with weekday content
+  Service -> Media : load associated media
+  Service --> Client : DTO, page or null
+else Admin create or update
+  Client -> Controller : multipart POST/PATCH
+  Controller -> Service : validated period, days and media
+  Service -> Repository : reject overlapping period
+  Service -> Repository : transaction: meditation + days
+  Service -> Route : create/upsert route in same transaction
+  Service -> Media : synchronize media metadata
+  Media -> S3 : upload/replace changed file
+  Service --> Client : MeditationResponseDto
+else Admin delete
+  Service -> Media : remove media row
+  Media -> S3 : delete owned object
+  Service -> Route : remove route
+  Service -> Repository : remove days and meditation
+  Service --> Client : 204
+end
+
+note over Repository, S3
+  Rollback is followed by cleanup of persisted orphan media and uploads.
+end note
+@enduml

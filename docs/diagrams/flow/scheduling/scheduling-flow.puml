@@ -1,0 +1,35 @@
+@startuml Scheduling Flow - Clubinho NIB API
+!theme plain
+hide footbox
+title Scheduling — guarded job execution
+
+participant "@Cron job" as Cron
+participant JobRunnerService as Runner
+participant ActionBoundaryService as Audit
+participant "Job use case" as Task
+
+Cron -> Runner : run(jobName, task)
+
+alt SCHEDULER_ENABLED is false
+  Runner --> Cron : skipped: scheduler disabled
+else Same job is already running
+  Runner --> Cron : skipped: already running
+else Execute
+  Runner -> Audit : open scheduled-job audit boundary
+  Audit -> Task : execute task
+  alt Completed
+    Task --> Audit : success
+    Audit --> Runner : completed + duration
+  else Failed
+    Task --> Audit : error captured
+    Audit --> Runner : failed + duration; API stays running
+  end
+  Runner --> Cron : JobRunResult
+end
+
+note over Runner
+  The in-memory lock prevents overlap within the enabled scheduler instance.
+  Calendar and cron evaluation use the configured application timezone.
+  MySQL or S3 access belongs to the concrete job, not to this runner.
+end note
+@enduml

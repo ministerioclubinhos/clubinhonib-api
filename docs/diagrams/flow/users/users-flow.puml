@@ -1,0 +1,32 @@
+@startuml Users Flow - Clubinho NIB API
+!theme plain
+hide footbox
+title Users — administration and self-service
+
+actor "Admin / Account owner" as Client
+participant "UserController / ProfileController" as Controller
+participant "Operation-focused UserService" as Service
+database "MySQL\nUser + media repositories" as Repository
+participant "Teacher / Coordinator ProfileService" as RoleProfile
+participant "Media + Notification services" as SideEffects
+participant "AWS S3" as S3
+
+Client -> Controller : admin CRUD or own profile/password/image
+Controller -> Service : authenticated user + validated DTO
+
+alt Admin changes role or active state
+  Service -> Repository : update account
+  Service -> RoleProfile : create/remove role profile or mirror active state
+  note right of RoleProfile
+    Deactivation preserves the profile and club link.
+    Role change removes the old profile and creates the new one.
+  end note
+else Own profile, password or image
+  Service -> Repository : load and update own account
+  Service -> SideEffects : replace image safely when supplied
+  SideEffects -> S3 : upload replacement; delete old object after persistence
+end
+
+Service -> SideEffects : send account notice in background when applicable
+Service --> Client : explicit response DTO
+@enduml

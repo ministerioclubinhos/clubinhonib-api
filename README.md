@@ -99,3 +99,9 @@ $ npm run test:cov
 ## 📜 License
 
 This project is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+
+## AI provider queue
+
+All OpenAI/Gemini calls now require the shared Redis/BullMQ queue. The root
+`./run.sh local` prepares or reuses local Redis automatically. See
+[configuration, execution and recovery](docs/ai-request-queue.md).

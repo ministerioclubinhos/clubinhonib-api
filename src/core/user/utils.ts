@@ -1,0 +1,42 @@
+import { UserRole } from 'src/core/auth/auth.types';
+import { EmailRecipient } from 'src/shared/email';
+
+import { USER_ROLE_LABELS } from './constants';
+import type { MyEmailPreferencesResponseDto } from './dto/my-email-preferences.dto';
+import { UserEntity } from './entities/user.entity';
+
+/**
+ * O papel em português, para o corpo do e-mail.
+ *
+ * Um papel desconhecido devolve o próprio valor em vez de quebrar: um aviso com
+ * a palavra errada ainda avisa; um aviso que não sai, não.
+ */
+export function roleLabel(role: UserRole | string): string {
+  const key = String(role).toLowerCase().trim();
+  return (USER_ROLE_LABELS as Record<string, string>)[key] ?? String(role);
+}
+
+/**
+ * O recorte do usuário que o e-mail precisa.
+ *
+ * O `id` entra porque o rodapé leva um link de descadastro assinado para aquela
+ * pessoa — é o mesmo contrato de `findActiveRecipients`.
+ */
+export function toEmailRecipient(user: UserEntity): EmailRecipient {
+  // `active` viaja junto: é o que permite ao `EmailService` recusar um aviso
+  // endereçado a conta inativa sem precisar consultar o banco — e sem o módulo
+  // de e-mail passar a depender do de usuário.
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    active: user.active,
+  };
+}
+
+/** Quem não tem data de saída da lista recebe os avisos por e-mail. */
+export function toMyEmailPreferences(
+  noticesUnsubscribedAt: Date | null | undefined,
+): MyEmailPreferencesResponseDto {
+  return { noticesEnabled: !noticesUnsubscribedAt };
+}

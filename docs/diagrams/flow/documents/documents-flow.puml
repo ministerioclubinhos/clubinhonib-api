@@ -1,0 +1,40 @@
+@startuml Documents Flow - Clubinho NIB API
+!theme plain
+hide footbox
+title Documents — page, route and media lifecycle
+
+actor "Reader / Admin" as Client
+participant DocumentsController as Controller
+participant "Document operation service" as Service
+database "MySQL\nDocuments + media rows" as Repository
+participant RouteService as Route
+participant MediaItemProcessor as Media
+participant "AWS S3" as S3
+
+alt Read
+  Client -> Controller : GET /documents or /documents/:id
+  Controller -> Service : query or id
+  Service -> Repository : load document and route
+  Service -> Media : load document media
+  Service --> Client : page or DocumentResponseDto
+else Admin create or update
+  Client -> Controller : multipart POST/PATCH
+  Controller -> Service : validated documentData + optional file
+  Service -> Repository : transaction: persist document
+  Service -> Route : create/upsert route in same transaction
+  Service -> Media : synchronize media metadata
+  Media -> S3 : upload/replace file when supplied
+  Service --> Client : DocumentResponseDto
+else Admin delete
+  Service -> Media : remove media rows
+  Media -> S3 : delete owned objects
+  Service -> Route : remove owned route
+  Service -> Repository : remove document
+  Service --> Client : 204
+end
+
+note over Repository, S3
+  Failed writes roll back database work and discard unreferenced uploads.
+  Publication notification starts only after a successful commit.
+end note
+@enduml
