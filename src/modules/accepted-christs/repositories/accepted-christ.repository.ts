@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 
 import { ChildEntity } from 'src/modules/children/entities/child.entity';
 
@@ -37,7 +37,13 @@ export class AcceptedChristRepository extends Repository<AcceptedChristEntity> {
       createdBy: recordAuthorRef(data.createdByUserId),
     });
 
-    const saved = await this.save(entity);
+    // Registrar uma decisão é uma alteração na criança: decisão e autoria da
+    // alteração são gravadas juntas, ou nenhuma das duas.
+    const saved = await this.dataSource.transaction(async (manager) => {
+      const row = await manager.save(entity);
+      await this.touchChild(manager, data.childId, data.createdByUserId);
+      return row;
+    });
 
     // A gravação leva só o id; a resposta precisa do nome de quem registrou.
     return this.createQueryBuilder('ac')
@@ -68,7 +74,30 @@ export class AcceptedChristRepository extends Repository<AcceptedChristEntity> {
       .getOne();
   }
 
-  async deleteById(id: string): Promise<void> {
-    await this.delete(id);
+  /** Exclui a decisão e registra quem alterou a criança, na mesma transação. */
+  async deleteForChild(data: {
+    id: string;
+    childId: string;
+    updatedByUserId: string | null;
+  }): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      await manager.delete(AcceptedChristEntity, data.id);
+      await this.touchChild(manager, data.childId, data.updatedByUserId);
+    });
+  }
+
+  /**
+   * Marca a criança como alterada por `userId`.
+   *
+   * O `updatedAt` acompanha sozinho: a coluna é de atualização automática.
+   */
+  private async touchChild(
+    manager: EntityManager,
+    childId: string,
+    userId: string | null,
+  ): Promise<void> {
+    await manager.update(ChildEntity, childId, {
+      updatedBy: recordAuthorRef(userId),
+    });
   }
 }

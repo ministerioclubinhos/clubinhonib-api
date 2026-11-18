@@ -58,7 +58,11 @@ export class DeleteAcceptedChristService {
       );
     }
 
-    await this.acceptedChristRepository.deleteById(id);
+    await this.acceptedChristRepository.deleteForChild({
+      id,
+      childId: stored.child.id,
+      updatedByUserId: context.userId ?? null,
+    });
     this.logger.log(
       `Decisão excluída. id=${id} criança=${stored.child.id} por=${context.userId ?? '-'}`,
     );

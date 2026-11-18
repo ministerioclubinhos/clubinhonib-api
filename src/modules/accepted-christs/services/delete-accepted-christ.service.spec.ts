@@ -15,7 +15,7 @@ describe('DeleteAcceptedChristService', () => {
   const repository = {
     findByIdWithChild: jest.fn(),
     findDecisionsOfChild: jest.fn(),
-    deleteById: jest.fn(),
+    deleteForChild: jest.fn(),
   };
   const getChildrenService = { findEntityForContextOrFail: jest.fn() };
   const teacher: AccessContext = { role: UserRole.TEACHER, userId: 'user-1' };
@@ -43,7 +43,12 @@ describe('DeleteAcceptedChristService', () => {
   it('exclui a decisão de uma criança do próprio alcance', async () => {
     await service.remove(teacher, 'decision-1');
 
-    expect(repository.deleteById).toHaveBeenCalledWith('decision-1');
+    // Excluir também é alterar a criança: quem excluiu fica gravado.
+    expect(repository.deleteForChild).toHaveBeenCalledWith({
+      id: 'decision-1',
+      childId: 'child-1',
+      updatedByUserId: teacher.userId,
+    });
   });
 
   it('decisão de criança fora do alcance não existe', async () => {
@@ -54,7 +59,7 @@ describe('DeleteAcceptedChristService', () => {
     await expect(service.remove(teacher, 'decision-1')).rejects.toMatchObject({
       code: ErrorCode.DECISION_NOT_FOUND,
     });
-    expect(repository.deleteById).not.toHaveBeenCalled();
+    expect(repository.deleteForChild).not.toHaveBeenCalled();
   });
 
   it('decisão inexistente responde não encontrada', async () => {
@@ -74,7 +79,7 @@ describe('DeleteAcceptedChristService', () => {
     await expect(service.remove(teacher, 'decision-1')).rejects.toBeInstanceOf(
       AppConflictException,
     );
-    expect(repository.deleteById).not.toHaveBeenCalled();
+    expect(repository.deleteForChild).not.toHaveBeenCalled();
   });
 
   it('exclui a reconciliação sem mexer na aceitação', async () => {
@@ -86,7 +91,9 @@ describe('DeleteAcceptedChristService', () => {
 
     await service.remove(teacher, 'decision-2');
 
-    expect(repository.deleteById).toHaveBeenCalledWith('decision-2');
+    expect(repository.deleteForChild).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'decision-2', childId: 'child-1' }),
+    );
   });
 
   it('barra quem não registra decisões', async () => {
