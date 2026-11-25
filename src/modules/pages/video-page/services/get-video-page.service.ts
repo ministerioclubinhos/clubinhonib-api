@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
+import { GetPlayVideosService } from 'src/modules/play/services/get-play-videos.service';
 import { VideosPageRepository } from '../repositories/video-page.repository';
 import { VideosPage } from '../entities/video-page.entity';
 import { Paginated } from 'src/shared/dto/paginated.dto';
@@ -22,6 +23,7 @@ export class GetVideosPageService {
   constructor(
     private readonly videosPageRepo: VideosPageRepository,
     private readonly mediaItemProcessor: MediaItemProcessor,
+    private readonly playService: GetPlayVideosService,
   ) {}
 
   /** Carrega a página ou falha com o erro documentado. */
@@ -93,6 +95,7 @@ export class GetVideosPageService {
   async findOne(id: string): Promise<VideosPageResponseDto> {
     const page = await this.findEntityOrFail(id);
     const videos = await this.findVideosOf(page.id);
-    return toVideosPageResponse(page, videos);
+    const entries = await this.playService.findEntriesOf(page.id);
+    return toVideosPageResponse(page, videos, entries);
   }
 }

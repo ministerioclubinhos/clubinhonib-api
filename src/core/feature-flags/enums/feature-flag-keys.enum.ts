@@ -6,6 +6,10 @@
  */
 export enum FeatureFlagKeys {
   CHILDREN_AREA = 'children_area',
+  /** Plataforma de vídeos Clubinho Play na área do professor. */
+  CLUBINHO_PLAY = 'clubinho_play',
+  /** Envio de vídeos ao Clubinho Play por professores, coordenação e admin (vai para aprovação). */
+  PLAY_SUBMISSIONS = 'play_submissions',
   CLUB_PHOTO_UPLOAD = 'club_photo_upload',
   WEEKLY_MATERIALS = 'weekly_materials',
   SITE_FEEDBACK = 'site_feedback',

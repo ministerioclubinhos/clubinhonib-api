@@ -247,6 +247,22 @@ export const DEFAULT_FEATURE_FLAGS = [
     targetRoles: ['admin', 'coordinator', 'teacher'],
   },
   {
+    key: 'clubinho_play',
+    name: 'Clubinho Play',
+    description:
+      'Plataforma de vídeos da área do professor, com as galerias escolhidas pelo administrador.',
+    enabled: true,
+    targetRoles: ['admin', 'coordinator', 'teacher'],
+  },
+  {
+    key: 'play_submissions',
+    name: 'Envio de vídeos ao Clubinho Play',
+    description:
+      'Permite que professores, coordenação e administração enviem vídeos (link do YouTube ou arquivo) ao Clubinho Play. Todo envio fica aguardando a aprovação de um administrador. Desligada, ninguém envia; a fila de aprovação continua disponível.',
+    enabled: true,
+    targetRoles: ['admin', 'coordinator', 'teacher'],
+  },
+  {
     key: 'training_videos',
     name: 'Vídeos de Treinamento',
     description: 'Seção de vídeos de treinamento.',

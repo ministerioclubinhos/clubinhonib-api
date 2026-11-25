@@ -24,9 +24,9 @@ export function isUploadedVideo(item: MediaItemDto): boolean {
 }
 
 /** Preenche `fileField` a partir de `fieldKey` para as mídias enviadas. */
-export function normalizeIncomingVideos(
-  videos: MediaItemDto[] = [],
-): MediaItemDto[] {
+export function normalizeIncomingVideos<T extends MediaItemDto>(
+  videos: T[] = [],
+): T[] {
   return videos.map((item) => ({
     ...item,
     fileField: isUploadedVideo(item) ? item.fieldKey : undefined,

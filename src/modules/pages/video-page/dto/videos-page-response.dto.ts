@@ -5,6 +5,8 @@ import {
   UploadType,
 } from 'src/shared/media/media-item/media-item.entity';
 
+import { PlayScope } from 'src/modules/play/enums/play-scope.enum';
+
 /** Contrato público de um vídeo da galeria. */
 export class VideoItemResponseDto {
   id: string;
@@ -17,6 +19,12 @@ export class VideoItemResponseDto {
   isLocalFile: boolean;
   originalName?: string;
   size?: number;
+  /** Atributos do Play; só quando a galeria tem o Play configurado. */
+  inPlay?: boolean;
+  featured?: boolean;
+  position?: number | null;
+  thumbnailUrl?: string | null;
+  durationSeconds?: number | null;
 }
 
 /** Contrato público da rota que expõe a galeria. */
@@ -42,5 +50,6 @@ export class VideosPageResponseDto {
   createdAt: Date;
   updatedAt: Date;
   route: VideoRouteDto;
+  play: { scope: PlayScope; categoryId: string | null };
   videos: VideoItemResponseDto[];
 }

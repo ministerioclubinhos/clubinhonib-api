@@ -7,6 +7,8 @@ import {
   VideoRouteDto,
   VideosPageResponseDto,
 } from './dto/videos-page-response.dto';
+import { PlayVideoEntryEntity } from 'src/modules/play/entities/play-video-entry.entity';
+import { PlayScope } from 'src/modules/play/enums/play-scope.enum';
 import { VideoPageSummaryDto } from './dto/video-page-summary.dto';
 
 /**
@@ -15,7 +17,21 @@ import { VideoPageSummaryDto } from './dto/video-page-summary.dto';
  * A resposta antiga devolvia a entidade inteira, expondo colunas internas como
  * `targetId` e `targetType`.
  */
-export function toVideoResponse(item: MediaItemEntity): VideoItemResponseDto {
+export function toVideoResponse(
+  item: MediaItemEntity,
+  scope: PlayScope = PlayScope.NONE,
+  entry?: PlayVideoEntryEntity,
+): VideoItemResponseDto {
+  const play =
+    scope === PlayScope.NONE
+      ? {}
+      : {
+          ...(scope === PlayScope.SELECTED ? { inPlay: Boolean(entry) } : {}),
+          featured: entry?.featured ?? false,
+          position: entry?.position ?? null,
+          thumbnailUrl: entry?.thumbnailUrl ?? null,
+          durationSeconds: entry?.durationSeconds ?? null,
+        };
   return {
     id: item.id,
     title: item.title,
@@ -27,6 +43,7 @@ export function toVideoResponse(item: MediaItemEntity): VideoItemResponseDto {
     isLocalFile: item.isLocalFile,
     originalName: item.originalName,
     size: item.size,
+    ...play,
   };
 }
 
@@ -58,6 +75,7 @@ export function hasRoute(page: VideosPage): boolean {
 export function toVideosPageResponse(
   page: VideosPage,
   videos: MediaItemEntity[] = [],
+  entries: PlayVideoEntryEntity[] = [],
 ): VideosPageResponseDto {
   if (!hasRoute(page)) {
     throw new AppNotFoundException(
@@ -74,7 +92,17 @@ export function toVideosPageResponse(
     createdAt: page.createdAt,
     updatedAt: page.updatedAt,
     route: toRouteResponse(page.route),
-    videos: videos.map(toVideoResponse),
+    play: {
+      scope: page.playScope ?? PlayScope.NONE,
+      categoryId: page.playCategoryId ?? null,
+    },
+    videos: videos.map((video) =>
+      toVideoResponse(
+        video,
+        page.playScope,
+        entries.find((entry) => entry.mediaItemId === video.id),
+      ),
+    ),
   };
 }
 

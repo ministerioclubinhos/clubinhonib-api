@@ -7,6 +7,7 @@ import {
   MediaType,
   UploadType,
 } from 'src/shared/media/media-item/media-item.entity';
+import { GetPlayVideosService } from 'src/modules/play/services/get-play-videos.service';
 import { VideosPageRepository } from '../repositories/video-page.repository';
 import { VideosPage } from '../entities/video-page.entity';
 import { GetVideosPageService } from './get-video-page.service';
@@ -52,6 +53,7 @@ const buildVideo = (id: string, targetId: string): MediaItemEntity =>
   });
 
 describe('GetVideosPageService', () => {
+  const playService = { findEntriesOf: jest.fn().mockResolvedValue([]) };
   const videosPageRepo = { findAllPaginated: jest.fn(), findById: jest.fn() };
   const mediaItemProcessor = {
     findMediaItemsByTarget: jest.fn(),
@@ -68,6 +70,7 @@ describe('GetVideosPageService', () => {
         GetVideosPageService,
         { provide: VideosPageRepository, useValue: videosPageRepo },
         { provide: MediaItemProcessor, useValue: mediaItemProcessor },
+        { provide: GetPlayVideosService, useValue: playService },
       ],
     }).compile();
 

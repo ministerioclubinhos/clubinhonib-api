@@ -17,6 +17,9 @@ import {
   PlatformType,
   UploadType,
 } from 'src/shared/media/media-item/media-item.entity';
+import { SyncPlayEntriesService } from 'src/modules/play/services/sync-play-entries.service';
+import { GetPlayVideosService } from 'src/modules/play/services/get-play-videos.service';
+import { PlayScope } from 'src/modules/play/enums/play-scope.enum';
 import { VideosPageRepository } from '../repositories/video-page.repository';
 import { VideosPage } from '../entities/video-page.entity';
 import { UpdateVideosPageDto } from '../dto/update-videos-page.dto';
@@ -91,6 +94,8 @@ describe('UpdateVideosPageService', () => {
     savePage: jest.fn(),
   };
   const getService = { findEntityOrFail: jest.fn(), findVideosOf: jest.fn() };
+  const syncPlay = { validate: jest.fn(), execute: jest.fn() };
+  const playService = { findEntriesOf: jest.fn().mockResolvedValue([]) };
   const s3 = { upload: jest.fn(), delete: jest.fn() };
   const rotaMockBase = {
     findRouteByEntityId: jest.fn(),
@@ -122,6 +127,8 @@ describe('UpdateVideosPageService', () => {
 
     getService.findEntityOrFail.mockResolvedValue(buildPage());
     givenStored([]);
+    syncPlay.execute.mockResolvedValue({ entries: [], removedUrls: [] });
+    syncPlay.validate.mockResolvedValue(null);
     getRouteService.findRouteByEntityId.mockResolvedValue(route);
     updateRouteService.upsertRouteWithAvailablePath.mockResolvedValue(route);
     videosPageRepo.savePage.mockImplementation((page: VideosPage) => page);
@@ -145,6 +152,8 @@ describe('UpdateVideosPageService', () => {
         { provide: GetRouteService, useValue: getRouteService },
         { provide: UpdateRouteService, useValue: updateRouteService },
         { provide: MediaItemProcessor, useValue: mediaItemProcessor },
+        { provide: SyncPlayEntriesService, useValue: syncPlay },
+        { provide: GetPlayVideosService, useValue: playService },
       ],
     }).compile();
 
@@ -279,6 +288,57 @@ describe('UpdateVideosPageService', () => {
       expect.any(Function),
       manager,
     );
+  });
+
+  it('com `play`, vincula inPlay às mídias existentes e às recém-criadas pela posição', async () => {
+    const stored = buildVideo('v1');
+    givenStored([stored]);
+    mediaItemProcessor.processMediaItemsPolymorphic.mockResolvedValue([
+      { id: 'novo-1' },
+    ]);
+    const videos = [
+      {
+        id: 'v1',
+        title: 'A',
+        description: '',
+        uploadType: UploadType.LINK,
+        mediaType: MediaType.VIDEO,
+        isLocalFile: false,
+        url: 'https://youtube.com/embed/a',
+        inPlay: false,
+      },
+      {
+        title: 'Novo',
+        description: '',
+        uploadType: UploadType.LINK,
+        mediaType: MediaType.VIDEO,
+        isLocalFile: false,
+        url: 'https://youtube.com/embed/novo',
+        inPlay: true,
+      },
+    ];
+
+    await service.execute(
+      'page-id',
+      validDto({ play: { scope: PlayScope.SELECTED }, videos }),
+      {},
+    );
+
+    expect(syncPlay.execute).toHaveBeenCalledWith(
+      'page-id',
+      PlayScope.SELECTED,
+      ['v1', 'novo-1'],
+      expect.arrayContaining([expect.objectContaining({ inPlay: true })]),
+      manager,
+      {},
+      expect.any(Function),
+    );
+  });
+
+  it('sem `play`, não mexe no Play da galeria', async () => {
+    await service.execute('page-id', validDto(), {});
+
+    expect(syncPlay.execute).not.toHaveBeenCalled();
   });
 
   it('preserva o arquivo do upload que não foi trocado', async () => {

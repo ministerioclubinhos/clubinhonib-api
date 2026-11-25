@@ -10,6 +10,8 @@ import { CreateRouteService } from 'src/modules/routes/services/create-route.ser
 import { RouteType } from 'src/modules/routes/route-page.entity';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
+import { SyncPlayEntriesService } from 'src/modules/play/services/sync-play-entries.service';
+import { PlayScope } from 'src/modules/play/enums/play-scope.enum';
 import { VideosPageRepository } from '../repositories/video-page.repository';
 import { CreateVideosPageDto } from '../dto/create-videos-page.dto';
 import { VideosPageResponseDto } from '../dto/videos-page-response.dto';
@@ -38,6 +40,7 @@ export class CreateVideosPageService {
     private readonly s3: AwsS3Service,
     private readonly createRouteService: CreateRouteService,
     private readonly mediaItemProcessor: MediaItemProcessor,
+    private readonly syncPlay: SyncPlayEntriesService,
   ) {}
 
   async execute(
@@ -48,6 +51,12 @@ export class CreateVideosPageService {
     assertVideoLinks(incomingVideos);
     assertUploadFieldKeys(incomingVideos);
     assertUploadFilesPresent(incomingVideos, filesDict);
+    const playCategoryId = await this.syncPlay.validate(
+      dto.play,
+      incomingVideos,
+      filesDict,
+      null,
+    );
 
     // Cada arquivo enviado fica registrado: se a criação falhar depois do
     // upload, o objeto é apagado do bucket em vez de ficar órfão.
@@ -58,9 +67,13 @@ export class CreateVideosPageService {
     try {
       // A transação é aberta pelo repositório; aqui só se decide o que entra
       // nela. O rollback acontece sozinho quando o bloco lança.
-      const { page, videos } = await this.videosPageRepo.runInTransaction(
-        async (manager) => {
-          const created = await this.persistPageWithRoute(dto, manager);
+      const { page, videos, entries } =
+        await this.videosPageRepo.runInTransaction(async (manager) => {
+          const created = await this.persistPageWithRoute(
+            dto,
+            playCategoryId,
+            manager,
+          );
 
           const media =
             await this.mediaItemProcessor.processMediaItemsPolymorphic(
@@ -72,13 +85,23 @@ export class CreateVideosPageService {
               manager,
             );
 
-          return { page: created, videos: media };
-        },
-      );
+          // `media` volta na mesma ordem de `incomingVideos`.
+          const { entries: playEntries } = await this.syncPlay.execute(
+            created.id,
+            dto.play?.scope ?? PlayScope.NONE,
+            media.map((item) => item.id),
+            incomingVideos,
+            manager,
+            filesDict,
+            uploads.upload,
+          );
+
+          return { page: created, videos: media, entries: playEntries };
+        });
 
       this.logger.log(`Página de vídeos criada. ID=${page.id}`);
 
-      return toVideosPageResponse(page, videos);
+      return toVideosPageResponse(page, videos, entries);
     } catch (error: unknown) {
       await this.mediaItemProcessor.discardUnreferencedUploads(
         uploads.uploadedUrls,
@@ -101,6 +124,7 @@ export class CreateVideosPageService {
 
   private async persistPageWithRoute(
     dto: CreateVideosPageDto,
+    playCategoryId: string | null,
     manager: EntityManager,
   ): Promise<VideosPage> {
     const page = await this.videosPageRepo.createPage(
@@ -108,6 +132,8 @@ export class CreateVideosPageService {
         name: dto.title,
         description: dto.description,
         public: dto.public,
+        playScope: dto.play?.scope,
+        playCategoryId,
       },
       manager,
     );

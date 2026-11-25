@@ -12,6 +12,12 @@ import { EmailVerificationTokenEntity } from 'src/core/auth/entities/email-verif
 import { FeatureFlagEntity } from 'src/core/feature-flags/entities/feature-flag.entity';
 import { PersonalData } from 'src/core/profile/entities/personal-data.entity';
 import { UserPreferences } from 'src/core/profile/entities/user-preferences.entity';
+import { PlaySubmissionEntity } from 'src/modules/play-submissions/entities/play-submission.entity';
+import { PlayCategoryEntity } from 'src/modules/play/entities/play-category.entity';
+import { PlayFavoriteEntity } from 'src/modules/play/entities/play-favorite.entity';
+import { PlayVideoProgressEntity } from 'src/modules/play/entities/play-video-progress.entity';
+import { PlayVideoViewEntity } from 'src/modules/play/entities/play-video-view.entity';
+import { PlayVideoEntryEntity } from 'src/modules/play/entities/play-video-entry.entity';
 import { VideosPage } from 'src/modules/pages/video-page/entities/video-page.entity';
 import { WeekMaterialsPageEntity } from 'src/modules/pages/week-material-page/entities/week-material-page.entity';
 import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
@@ -67,6 +73,12 @@ export const DATABASE_ENTITIES = [
   PersonalData,
   UserPreferences,
   VideosPage,
+  PlayVideoEntryEntity,
+  PlayCategoryEntity,
+  PlaySubmissionEntity,
+  PlayVideoViewEntity,
+  PlayVideoProgressEntity,
+  PlayFavoriteEntity,
   WeekMaterialsPageEntity,
   MeditationEntity,
   DayEntity,

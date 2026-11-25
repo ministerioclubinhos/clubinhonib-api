@@ -12,6 +12,9 @@ import {
   MediaType,
   UploadType,
 } from 'src/shared/media/media-item/media-item.entity';
+import { SyncPlayEntriesService } from 'src/modules/play/services/sync-play-entries.service';
+import { GetPlayVideosService } from 'src/modules/play/services/get-play-videos.service';
+import { PlayScope } from 'src/modules/play/enums/play-scope.enum';
 import { VideosPageRepository } from '../repositories/video-page.repository';
 import { VideosPage } from '../entities/video-page.entity';
 import { CreateVideosPageDto } from '../dto/create-videos-page.dto';
@@ -48,6 +51,7 @@ describe('CreateVideosPageService', () => {
     createPage: jest.fn(),
     savePage: jest.fn(),
   };
+  const syncPlay = { validate: jest.fn(), execute: jest.fn() };
   const s3 = { upload: jest.fn(), delete: jest.fn() };
   const createRouteService = {
     generateAvailablePath: jest.fn(),
@@ -96,6 +100,8 @@ describe('CreateVideosPageService', () => {
     );
     createRouteService.createRouteWithManager.mockResolvedValue(route);
     mediaItemProcessor.processMediaItemsPolymorphic.mockResolvedValue([]);
+    syncPlay.execute.mockResolvedValue({ entries: [], removedUrls: [] });
+    syncPlay.validate.mockResolvedValue(null);
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -104,6 +110,7 @@ describe('CreateVideosPageService', () => {
         { provide: AwsS3Service, useValue: s3 },
         { provide: CreateRouteService, useValue: createRouteService },
         { provide: MediaItemProcessor, useValue: mediaItemProcessor },
+        { provide: SyncPlayEntriesService, useValue: syncPlay },
       ],
     }).compile();
 
@@ -119,6 +126,49 @@ describe('CreateVideosPageService', () => {
     );
     expect(videosPageRepo.runInTransaction).toHaveBeenCalledTimes(1);
     expect(result.id).toBe('page-id');
+  });
+
+  it('grava o Play com os ids das mídias criadas, na ordem do payload', async () => {
+    mediaItemProcessor.processMediaItemsPolymorphic.mockResolvedValue([
+      { id: 'm1' },
+    ]);
+    const dto = validDto({ play: { scope: PlayScope.ALL } });
+
+    await service.execute(dto, {});
+
+    expect(syncPlay.validate).toHaveBeenCalledWith(
+      dto.play,
+      dto.videos,
+      {},
+      null,
+    );
+    expect(videosPageRepo.createPage).toHaveBeenCalledWith(
+      expect.objectContaining({ playScope: PlayScope.ALL }),
+      manager,
+    );
+    expect(syncPlay.execute).toHaveBeenCalledWith(
+      'page-id',
+      PlayScope.ALL,
+      ['m1'],
+      dto.videos,
+      manager,
+      {},
+      expect.any(Function),
+    );
+  });
+
+  it('sem `play`, grava o escopo "none"', async () => {
+    await service.execute(validDto(), {});
+
+    expect(syncPlay.execute).toHaveBeenCalledWith(
+      'page-id',
+      PlayScope.NONE,
+      expect.anything(),
+      expect.anything(),
+      manager,
+      {},
+      expect.any(Function),
+    );
   });
 
   it('delega a persistência ao repositório, não ao query runner', async () => {

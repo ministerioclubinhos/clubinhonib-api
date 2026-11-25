@@ -21,6 +21,8 @@ import { NotificationModule } from './shared/providers/notification/notification
 import { DatabaseModule } from '../database/database.module';
 import { MeditationModule } from './modules/meditations/meditation.module';
 import { ImageModule } from './modules/pages/image-page/image-page.module';
+import { PlaySubmissionsModule } from './modules/play-submissions/play-submissions.module';
+import { PlayModule } from './modules/play/play.module';
 import { VideosPageModule } from './modules/pages/video-page/video-page.module';
 import { WeekMaterialsPageModule } from './modules/pages/week-material-page/week-material-page.module';
 import { ContactModule } from './modules/contacts/contact.module';
@@ -72,6 +74,8 @@ import { AiLessonsModule } from './modules/ai-lessons/ai-lessons.module';
     AuthModule,
     FeatureFlagsModule,
     VideosPageModule,
+    PlayModule,
+    PlaySubmissionsModule,
     WeekMaterialsPageModule,
     MeditationModule,
     ContactModule,

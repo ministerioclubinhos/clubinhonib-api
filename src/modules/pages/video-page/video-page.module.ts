@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { RouteModule } from 'src/modules/routes/route.module';
+import { PlayModule } from 'src/modules/play/play.module';
 import { MediaModule } from 'src/shared/media/media.module';
 
 import { VideosPage } from './entities/video-page.entity';
@@ -13,7 +14,12 @@ import { UpdateVideosPageService } from './services/update-video-page.service';
 import { DeleteVideosPageService } from './services/delete-video-page.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([VideosPage]), RouteModule, MediaModule],
+  imports: [
+    TypeOrmModule.forFeature([VideosPage]),
+    RouteModule,
+    MediaModule,
+    PlayModule,
+  ],
   controllers: [VideosPageController],
   providers: [
     VideosPageRepository,

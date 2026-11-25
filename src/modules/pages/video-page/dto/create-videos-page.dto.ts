@@ -1,13 +1,15 @@
 import {
   IsArray,
   IsBoolean,
+  IsOptional,
   IsString,
   Matches,
   MaxLength,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { MediaItemDto } from 'src/shared/share-dto/media-item-dto';
+import { PlayConfigDto } from 'src/modules/play/dto/play-config.dto';
+import { VideoItemDto } from './video-item.dto';
 import { VIDEO_TITLE_MAX_LENGTH } from '../constants';
 
 export class CreateVideosPageDto {
@@ -25,6 +27,12 @@ export class CreateVideosPageDto {
 
   @IsArray({ message: 'O campo "videos" deve ser um array.' })
   @ValidateNested({ each: true })
-  @Type(() => MediaItemDto)
-  videos: MediaItemDto[];
+  @Type(() => VideoItemDto)
+  videos: VideoItemDto[];
+
+  /** Ausente = não altera o Clubinho Play da galeria. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PlayConfigDto)
+  play?: PlayConfigDto;
 }

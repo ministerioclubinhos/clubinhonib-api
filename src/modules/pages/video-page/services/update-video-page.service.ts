@@ -15,6 +15,8 @@ import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
 import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
 import { MediaItemDto } from 'src/shared/share-dto/media-item-dto';
 import { assertOwnedUniqueIds } from 'src/shared/media/payload-validation';
+import { SyncPlayEntriesService } from 'src/modules/play/services/sync-play-entries.service';
+import { GetPlayVideosService } from 'src/modules/play/services/get-play-videos.service';
 import { VideosPageRepository } from '../repositories/video-page.repository';
 import { UpdateVideosPageDto } from '../dto/update-videos-page.dto';
 import { VideosPageResponseDto } from '../dto/videos-page-response.dto';
@@ -47,6 +49,8 @@ export class UpdateVideosPageService {
     private readonly getRouteService: GetRouteService,
     private readonly updateRouteService: UpdateRouteService,
     private readonly mediaItemProcessor: MediaItemProcessor,
+    private readonly syncPlay: SyncPlayEntriesService,
+    private readonly playService: GetPlayVideosService,
   ) {}
 
   async execute(
@@ -81,6 +85,12 @@ export class UpdateVideosPageService {
         }),
       );
       assertVideoLinks(incomingVideos);
+      const playCategoryId = await this.syncPlay.validate(
+        dto.play,
+        incomingVideos,
+        filesDict,
+        page.playCategoryId ?? null,
+      );
       this.assertFilesForNewUploads(incomingVideos, existingVideos, filesDict);
 
       const content: VideoPageContent = {
@@ -93,7 +103,7 @@ export class UpdateVideosPageService {
         async (manager: EntityManager) => {
           // Vídeos, rota e dados da página entram na mesma transação: uma
           // falha em qualquer ponto desfaz tudo, sem página pela metade.
-          await this.syncVideos(
+          const created = await this.syncVideos(
             page.id,
             incomingVideos,
             filesDict,
@@ -101,6 +111,26 @@ export class UpdateVideosPageService {
             manager,
             removedUrls,
           );
+
+          if (dto.play) {
+            // Ids na ordem do payload: o existente ou o da mídia recém-criada.
+            let next = 0;
+            const mediaIds = incomingVideos.map(
+              (video) => video.id ?? created[next++].id,
+            );
+            const played = await this.syncPlay.execute(
+              page.id,
+              dto.play.scope,
+              mediaIds,
+              incomingVideos,
+              manager,
+              filesDict,
+              uploads.upload,
+            );
+            removedUrls.push(...played.removedUrls);
+            page.playScope = dto.play.scope;
+            page.playCategoryId = playCategoryId;
+          }
 
           page.name = content.name;
           page.description = content.description;
@@ -121,7 +151,8 @@ export class UpdateVideosPageService {
       this.logger.log(`Página de vídeos atualizada. ID=${updatedPage.id}`);
 
       const videos = await this.getService.findVideosOf(updatedPage.id);
-      return toVideosPageResponse(updatedPage, videos);
+      const entries = await this.playService.findEntriesOf(updatedPage.id);
+      return toVideosPageResponse(updatedPage, videos, entries);
     } catch (error: unknown) {
       await this.mediaItemProcessor.discardUnreferencedUploads(
         uploads.uploadedUrls,
@@ -207,7 +238,7 @@ export class UpdateVideosPageService {
     uploads: S3UploadTracker,
     manager: EntityManager,
     removedUrls: string[],
-  ): Promise<void> {
+  ): Promise<MediaItemEntity[]> {
     const existingVideos =
       await this.mediaItemProcessor.findMediaItemsByTargetInTransaction(
         manager,
@@ -229,8 +260,9 @@ export class UpdateVideosPageService {
       );
     }
 
+    let created: MediaItemEntity[] = [];
     if (plan.toCreate.length > 0) {
-      await this.mediaItemProcessor.processMediaItemsPolymorphic(
+      created = await this.mediaItemProcessor.processMediaItemsPolymorphic(
         plan.toCreate,
         pageId,
         VIDEO_PAGE_ENTITY_TYPE,
@@ -254,6 +286,8 @@ export class UpdateVideosPageService {
         removedUrls,
       );
     }
+
+    return created;
   }
 
   private async updateExistingVideo(
