@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { AppModule } from './app.module';
@@ -229,6 +230,22 @@ describe('guardas dos controllers', () => {
         (route) => !open.has(route),
       ),
     ).toEqual([]);
+  });
+});
+
+describe('repositório', () => {
+  it('nenhum arquivo de src/ é escondido pelo .gitignore', () => {
+    // `audit` sem âncora ignorou o módulo `core/audit` inteiro: a aplicação
+    // compilava na máquina de quem escreveu e quebrava em um clone limpo.
+    const ignored = execFileSync(
+      'git',
+      ['ls-files', '--others', '--ignored', '--exclude-standard', '--', '.'],
+      { cwd: __dirname, encoding: 'utf8' },
+    )
+      .split('\n')
+      .filter(Boolean);
+
+    expect(ignored).toEqual([]);
   });
 });
 

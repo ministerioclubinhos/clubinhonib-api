@@ -5,8 +5,9 @@
 
 # Logs
 logs
-# Registros de auditoria locais (AUDIT_STORAGE=file)
-audit
+# Registros de auditoria locais (AUDIT_STORAGE=file). Ancorado na raiz: sem a
+# barra, a regra também escondia o módulo `src/core/audit` do repositório.
+/audit/
 *.log
 npm-debug.log*
 pnpm-debug.log*
