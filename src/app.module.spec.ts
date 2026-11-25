@@ -127,69 +127,108 @@ describe('entidades do TypeORM', () => {
 });
 
 /**
- * Controllers cuja ausência de guard é deliberada, com o motivo.
+ * Rotas deliberadamente abertas (sem sessão), com o motivo.
  *
- * Qualquer outro controller sem `@UseGuards` é uma rota aberta na internet — foi
- * assim que `POST /accepted-christs` deixou qualquer pessoa gravar que uma
- * criança aceitou a Jesus.
+ * A conferência é rota a rota: um controller com uma única rota protegida não
+ * pode esconder outra aberta — foi assim que `POST /accepted-christs` deixou
+ * qualquer pessoa gravar que uma criança aceitou a Jesus.
  */
-const INTENTIONALLY_PUBLIC: Record<string, string> = {
-  'app.controller.ts': 'sonda de saúde e raiz da API',
-  'email-preferences.controller.ts':
+const INTENTIONALLY_PUBLIC_ROUTES: Record<string, string> = {
+  'AppController.getHello': 'raiz da API',
+  'AppController.getHealth': 'sonda de saúde',
+  'AuthController.login': 'entrada',
+  'AuthController.googleLogin': 'entrada',
+  'AuthController.refresh': 'autorizado pelo refresh token',
+  'AuthController.completeRegister': 'cadastro',
+  'AuthController.register': 'cadastro',
+  'AuthController.forgotPassword': 'recuperação de senha',
+  'AuthController.verifyEmail': 'autorizado pelo token do e-mail',
+  'AuthController.resendVerification': 'cadastro ainda sem sessão',
+  'AuthController.validateResetToken': 'autorizado pelo token do e-mail',
+  'AuthController.resetPassword': 'autorizado pelo token do e-mail',
+  'FeatureFlagsController.getFlagsMap': 'o site monta o menu antes do login',
+  'FeatureFlagsController.check': 'o site consulta antes do login',
+  'EmailPreferencesController.unsubscribe':
     'descadastro pelo link do e-mail; quem autoriza é o token assinado',
-  'route.controller.ts':
-    'mapa de rotas que o site público monta antes do login',
+  'CommentController.findPublished': 'depoimentos publicados na home',
+  'ContactController.create': 'formulário de contato do site público',
+  'DocumentsController.findOne': 'documento aberto por página pública',
+  'FeedPhotoCommentsController.published': 'comentários aprovados da galeria',
+  'EventController.findAll': 'agenda pública',
+  'EventController.findUpcoming': 'agenda pública',
+  'EventController.findOne': 'agenda pública',
+  'IdeasPageController.findOne': 'página aberta por link compartilhado',
+  'ImageController.getPaginatedSections': 'galeria pública de fotos',
+  'ImageController.findOne': 'galeria pública de fotos',
+  'VideosPageController.findOne': 'galeria pública de vídeos',
+  'RouteController.findAll': 'mapa de rotas que o site monta antes do login',
+  'RouteController.findOne': 'mapa de rotas que o site monta antes do login',
 };
 
-/** Todos os controllers do código, com o texto do arquivo. */
-const controllers = (): { name: string; path: string; source: string }[] => {
-  const found: { name: string; path: string; source: string }[] = [];
+/** Metadados que o Nest grava com `@Controller`, `@Get` e `@UseGuards`. */
+const PATH_METADATA = 'path';
+const METHOD_METADATA = 'method';
+const GUARDS_METADATA = '__guards__';
 
-  const walk = (dir: string): void => {
-    for (const item of readdirSync(dir, { withFileTypes: true })) {
-      const full = join(dir, item.name);
-      if (item.isDirectory()) {
-        walk(full);
-        continue;
-      }
-      if (!item.name.endsWith('.controller.ts')) continue;
-      found.push({
-        name: item.name,
-        path: full,
-        source: readFileSync(full, 'utf8'),
-      });
-    }
-  };
-
-  walk(__dirname);
-  return found;
-};
-
-describe('guardas dos controllers', () => {
-  it('todo controller tem guarda, salvo os públicos declarados', () => {
-    const unguarded = controllers()
-      .filter(({ source }) => !source.includes('@UseGuards'))
-      .map(({ name }) => name)
-      .filter((name) => !(name in INTENTIONALLY_PUBLIC))
-      .sort();
-
-    expect(unguarded).toEqual([]);
+/** Todos os arquivos de controller do código. */
+const controllerFiles = (dir: string = __dirname): string[] =>
+  readdirSync(dir, { withFileTypes: true }).flatMap((item) => {
+    const full = join(dir, item.name);
+    if (item.isDirectory()) return controllerFiles(full);
+    return item.name.endsWith('.controller.ts') ? [full] : [];
   });
 
-  it('a lista de públicos não guarda nome que já ganhou guarda', () => {
-    // Um nome que sobra aqui esconde a próxima rota aberta: o teste acima
-    // passaria a ignorar um arquivo que hoje é público de novo.
-    const stillPublic = new Set(
-      controllers()
-        .filter(({ source }) => !source.includes('@UseGuards'))
-        .map(({ name }) => name),
-    );
+const hasGuards = (target: object): boolean =>
+  ((Reflect.getMetadata(GUARDS_METADATA, target) as unknown[]) ?? []).length >
+  0;
 
-    const obsolete = Object.keys(INTENTIONALLY_PUBLIC)
-      .filter((name) => !stillPublic.has(name))
-      .sort();
+/** `Controller.método` de toda rota sem guard na classe nem no método. */
+const openRoutes = (): string[] =>
+  controllerFiles()
+    .flatMap((file) =>
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      Object.values(require(file) as Record<string, unknown>),
+    )
+    .filter(
+      (exported): exported is { name: string; prototype: object } =>
+        typeof exported === 'function' &&
+        Reflect.getMetadata(PATH_METADATA, exported) !== undefined,
+    )
+    .filter((controller) => !hasGuards(controller))
+    .flatMap((controller) =>
+      Object.getOwnPropertyNames(controller.prototype)
+        .filter((key) => key !== 'constructor')
+        .filter((key) => {
+          const handler = Object.getOwnPropertyDescriptor(
+            controller.prototype,
+            key,
+          )?.value as unknown;
+          return (
+            typeof handler === 'function' &&
+            Reflect.getMetadata(METHOD_METADATA, handler) !== undefined &&
+            !hasGuards(handler)
+          );
+        })
+        .map((key) => `${controller.name}.${key}`),
+    )
+    .sort();
 
-    expect(obsolete).toEqual([]);
+describe('guardas dos controllers', () => {
+  it('toda rota tem guarda, salvo as públicas declaradas', () => {
+    expect(
+      openRoutes().filter((route) => !(route in INTENTIONALLY_PUBLIC_ROUTES)),
+    ).toEqual([]);
+  });
+
+  it('a lista de públicas não guarda rota que já ganhou guarda', () => {
+    // Um nome que sobra aqui deixaria a rota voltar a ser aberta sem aviso.
+    const open = new Set(openRoutes());
+
+    expect(
+      Object.keys(INTENTIONALLY_PUBLIC_ROUTES).filter(
+        (route) => !open.has(route),
+      ),
+    ).toEqual([]);
   });
 });
 
