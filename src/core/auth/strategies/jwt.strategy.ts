@@ -7,6 +7,8 @@ interface JwtPayload {
   sub: string;
   email: string;
   role: string;
+  /** Ausente em tokens emitidos antes de o nome entrar no payload. */
+  name?: string;
 }
 
 @Injectable()
@@ -22,12 +24,12 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   validate(payload: JwtPayload) {
-    const { sub: userId, email, role } = payload;
+    const { sub: userId, email, role, name } = payload;
 
     if (!role) {
       this.logger.warn(`Missing role in JWT payload (userId: ${userId})`);
     }
 
-    return { userId, email, role };
+    return { userId, email, role, name };
   }
 }

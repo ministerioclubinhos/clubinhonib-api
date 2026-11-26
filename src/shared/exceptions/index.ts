@@ -9,3 +9,4 @@ export * from './validation.exception';
 export * from './internal.exception';
 export * from './filters/global-exception.filter';
 export * from './interfaces/error-response.interface';
+export * from './log-failure.utils';

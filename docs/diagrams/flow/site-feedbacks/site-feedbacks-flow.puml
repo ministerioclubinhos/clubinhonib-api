@@ -1,0 +1,26 @@
+@startuml Site Feedbacks Flow - Clubinho NIB API
+!theme plain
+hide footbox
+title Site feedbacks — signed submission and review
+
+actor "Authenticated user / Admin" as Client
+participant SiteFeedbackController as Controller
+participant "Create / Get / Update / Delete FeedbackService" as Service
+participant GetUsersService as Users
+database "MySQL\nSiteFeedbacksRepository" as Repository
+participant NotificationService as Notify
+
+alt Submit feedback
+  Client -> Controller : POST /site-feedbacks
+  Controller -> Service : token userId + rating DTO
+  Service -> Users : load author name and e-mail
+  Service -> Repository : persist unread feedback with trusted identity
+  Service -> Notify : notify admins safely
+  Service --> Client : SiteFeedbackResponseDto
+else Admin review
+  Client -> Controller : list, detail, unread count, edit, mark or delete
+  Controller -> Service : admin request + filters
+  Service -> Repository : query or mutate feedback
+  Repository --> Client : page, DTO, count or message
+end
+@enduml

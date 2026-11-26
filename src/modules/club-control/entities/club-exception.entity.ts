@@ -23,6 +23,12 @@ export class ClubExceptionEntity extends BaseEntity {
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
 
-  @Column({ type: 'boolean', default: true })
+  /**
+   * Vale para o mesmo dia e mês em qualquer ano.
+   *
+   * Nasce desligado: uma exceção recorrente apaga aquele dia do calendário de
+   * todos os anos seguintes, e isso precisa ser escolha de quem cadastra.
+   */
+  @Column({ type: 'boolean', default: false })
   isRecurrent: boolean;
 }

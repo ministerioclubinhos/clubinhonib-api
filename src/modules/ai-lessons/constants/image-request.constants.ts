@@ -1,0 +1,6 @@
+export const IMAGE_REQUEST_RETRY_DELAY_MS = 1500;
+export const IMAGE_TRANSIENT_CONNECTION_CODES = [
+  'ECONNRESET',
+  'EPIPE',
+  'EAI_AGAIN',
+] as const;

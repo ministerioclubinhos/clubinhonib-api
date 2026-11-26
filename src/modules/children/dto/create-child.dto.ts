@@ -1,40 +1,61 @@
 import {
+  IsBoolean,
   IsDateString,
+  IsEnum,
   IsOptional,
   IsString,
-  Length,
   IsUUID,
+  Length,
   ValidateNested,
-  IsBoolean,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 
-class AddressDto {
-  @IsOptional() @IsString() street?: string;
-  @IsOptional() @IsString() number?: string;
-  @IsOptional() @IsString() district?: string;
-  @IsOptional() @IsString() city?: string;
-  @IsOptional() @IsString() state?: string;
-  @IsOptional() @IsString() postalCode?: string;
-  @IsOptional() @IsString() complement?: string;
-}
+import { CHILD_TEXT_MAX_LENGTH, CHILD_TEXT_MIN_LENGTH } from '../constants';
+import { Gender } from '../entities/gender.enum';
+import { CreateChildAddressDto } from './child-address.dto';
+
+/** Texto vazio equivale a campo não informado. */
+const emptyToUndefined = ({ value }: { value: unknown }): unknown =>
+  !value || (typeof value === 'string' && value.trim() === '')
+    ? undefined
+    : value;
 
 export class CreateChildDto {
-  @IsString() @Length(2, 255) name: string;
-  @IsDateString() birthDate: string;
+  @IsString()
+  @Length(CHILD_TEXT_MIN_LENGTH, CHILD_TEXT_MAX_LENGTH)
+  name: string;
 
-  @IsString() @Length(2, 255) guardianName: string;
-  @IsString() @Length(1, 255) gender: string;
-  @IsString() @Length(5, 32) guardianPhone: string;
+  @IsDateString()
+  birthDate: string;
 
-  @IsOptional() @IsDateString() joinedAt?: string;
+  @IsString()
+  @Length(CHILD_TEXT_MIN_LENGTH, CHILD_TEXT_MAX_LENGTH)
+  guardianName: string;
 
-  @IsOptional() @IsBoolean() isActive?: boolean;
+  @IsEnum(Gender)
+  gender: Gender;
 
-  @IsOptional() @IsUUID() clubId?: string;
+  @Transform(emptyToUndefined)
+  @IsOptional()
+  @IsString()
+  guardianPhone?: string;
+
+  @Transform(emptyToUndefined)
+  @IsOptional()
+  @IsDateString()
+  joinedAt?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  @Transform(emptyToUndefined)
+  @IsOptional()
+  @IsUUID()
+  clubId?: string;
 
   @IsOptional()
   @ValidateNested()
-  @Type(() => AddressDto)
-  address?: AddressDto;
+  @Type(() => CreateChildAddressDto)
+  address?: CreateChildAddressDto;
 }

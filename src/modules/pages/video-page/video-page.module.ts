@@ -1,25 +1,33 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { RouteModule } from 'src/modules/routes/route.module';
+import { PlayModule } from 'src/modules/play/play.module';
+import { MediaModule } from 'src/shared/media/media.module';
+
 import { VideosPage } from './entities/video-page.entity';
 import { VideosPageController } from './video-page.controller';
-import { VideosPageRepository } from './video-page.repository';
-import { RouteModule } from 'src/modules/routes/route.module';
-import { MediaModule } from 'src/shared/media/media.module';
-import { CreateVideosPageService } from './services/videos-page.create.service';
-import { DeleteVideosPageService } from './services/videos-page.delete.service';
-import { GetVideosPageService } from './services/videos-page.get.service';
-import { UpdateVideosPageService } from './services/videos-page.update.service';
+import { VideosPageRepository } from './repositories/video-page.repository';
+import { CreateVideosPageService } from './services/create-video-page.service';
+import { GetVideosPageService } from './services/get-video-page.service';
+import { UpdateVideosPageService } from './services/update-video-page.service';
+import { DeleteVideosPageService } from './services/delete-video-page.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([VideosPage]), RouteModule, MediaModule],
+  imports: [
+    TypeOrmModule.forFeature([VideosPage]),
+    RouteModule,
+    MediaModule,
+    PlayModule,
+  ],
   controllers: [VideosPageController],
   providers: [
+    VideosPageRepository,
     CreateVideosPageService,
-    DeleteVideosPageService,
     GetVideosPageService,
     UpdateVideosPageService,
-    VideosPageRepository,
+    DeleteVideosPageService,
   ],
+  exports: [GetVideosPageService],
 })
 export class VideosPageModule {}

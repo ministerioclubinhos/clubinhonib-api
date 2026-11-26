@@ -1,12 +1,16 @@
 import {
   IsEmail,
-  IsEnum,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
   MinLength,
 } from 'class-validator';
 import { UserRole } from '../auth.types';
+import {
+  SELF_REGISTRATION_ROLE_MESSAGE,
+  SELF_REGISTRATION_ROLES,
+} from '../constants';
 
 export class CompleteUserDto {
   @IsString()
@@ -27,6 +31,11 @@ export class CompleteUserDto {
   password?: string;
 
   @IsOptional()
-  @IsEnum(UserRole)
+  @IsIn(SELF_REGISTRATION_ROLES, { message: SELF_REGISTRATION_ROLE_MESSAGE })
   role?: UserRole;
+
+  /** Emitido por `/auth/google` quando o cadastro ainda está incompleto. */
+  @IsString()
+  @IsNotEmpty()
+  registrationToken: string;
 }

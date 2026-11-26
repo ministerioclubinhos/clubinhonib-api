@@ -1,0 +1,89 @@
+@startuml Pages Media Schema - Clubinho NIB API
+!theme plain
+top to bottom direction
+skinparam linetype ortho
+hide circle
+
+title MySQL + AWS S3 — pages and media
+
+entity "routes\n(content)" as e_route {
+  * id : UUID <<PK>>
+}
+
+entity "ideas_pages" as e_ideas_page {
+  * id : UUID <<PK>>
+  --
+  routeId : UUID? <<FK,UQ>>
+  public : boolean
+}
+
+entity "ideas_sections" as e_ideas_section {
+  * id : UUID <<PK>>
+  --
+  pageId : UUID? <<FK>>
+  public : boolean
+}
+
+entity "image_pages" as e_image_page {
+  * id : UUID <<PK>>
+  --
+  routeId : UUID <<FK,UQ>>
+  public : boolean
+}
+
+entity "users" as e_user {
+  * id : UUID <<PK>>
+  name : varchar
+}
+
+entity "image_sections" as e_image_section {
+  * id : UUID <<PK>>
+  --
+  authorId : UUID? <<FK>>
+  pageId : UUID? <<FK>>
+  public : boolean
+}
+
+entity "videos_pages" as e_video_page {
+  * id : UUID <<PK>>
+  --
+  routeId : UUID <<FK,UQ>>
+  public : boolean
+}
+
+entity "week_material_pages" as e_week_page {
+  * id : UUID <<PK>>
+  --
+  routeId : UUID <<FK,UQ>>
+  sourceLessonId : varchar(36)? <<UQ>>
+  currentWeek : boolean
+}
+
+entity "media_items" as e_media {
+  * id : UUID <<PK>>
+  --
+  targetId + targetType : logical target
+  url : varchar
+  isLocalFile : boolean
+  mediaType : enum
+}
+
+entity "AWS S3\n(external object store)" as e_s3 <<external>>
+
+e_route "0..1" -- "0..1" e_ideas_page
+e_route "1" -- "0..1" e_image_page
+e_route "1" -- "0..1" e_video_page
+e_route "1" -- "0..1" e_week_page
+e_ideas_page "0..1" -- "0..*" e_ideas_section
+e_image_page "0..1" -- "0..*" e_image_section
+e_user "0..1" -- "0..*" e_image_section : author / ON DELETE SET NULL
+e_media ..> e_s3 : url when isLocalFile=true
+
+note bottom of e_media
+  targetId + targetType is polymorphic and has no FK.
+  Owners include users, events, documents, meditations,
+  sections, video pages and week-material pages.
+  Page routes and attached sections use ON DELETE CASCADE.
+end note
+
+@enduml

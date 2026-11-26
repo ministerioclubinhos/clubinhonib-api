@@ -1,4 +1,11 @@
-import { IsOptional, IsString, IsEnum, IsInt, Min, Max } from 'class-validator';
+import {
+  IsOptional,
+  IsEnum,
+  IsInt,
+  Min,
+  Max,
+  IsDateString,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export enum PeriodShortcut {
@@ -17,11 +24,11 @@ export class PeriodFilterDto {
   period?: PeriodShortcut;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   startDate?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   endDate?: string;
 
   @IsOptional()
@@ -37,13 +44,20 @@ export class PeriodFilterDto {
 }
 
 export class PeriodCalculator {
+  private static formatDate(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
   static calculatePeriod(filter: PeriodFilterDto): {
     startDate: string;
     endDate: string;
     groupBy?: string;
   } {
     const now = new Date();
-    const today = now.toISOString().split('T')[0];
+    const today = this.formatDate(now);
 
     switch (filter.period) {
       case PeriodShortcut.TODAY:
@@ -55,13 +69,14 @@ export class PeriodCalculator {
 
       case PeriodShortcut.THIS_WEEK: {
         const startOfWeek = new Date(now);
-        startOfWeek.setDate(now.getDate() - now.getDay());
+        const daysSinceMonday = now.getDay() === 0 ? 6 : now.getDay() - 1;
+        startOfWeek.setDate(now.getDate() - daysSinceMonday);
         const endOfWeek = new Date(startOfWeek);
-        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        endOfWeek.setDate(startOfWeek.getDate() + 5);
 
         return {
-          startDate: startOfWeek.toISOString().split('T')[0],
-          endDate: endOfWeek.toISOString().split('T')[0],
+          startDate: this.formatDate(startOfWeek),
+          endDate: this.formatDate(endOfWeek),
           groupBy: 'day',
         };
       }
@@ -71,18 +86,18 @@ export class PeriodCalculator {
         const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
         return {
-          startDate: startOfMonth.toISOString().split('T')[0],
-          endDate: endOfMonth.toISOString().split('T')[0],
+          startDate: this.formatDate(startOfMonth),
+          endDate: this.formatDate(endOfMonth),
           groupBy: 'week',
         };
       }
 
       case PeriodShortcut.LAST_7_DAYS: {
         const sevenDaysAgo = new Date(now);
-        sevenDaysAgo.setDate(now.getDate() - 7);
+        sevenDaysAgo.setDate(now.getDate() - 6);
 
         return {
-          startDate: sevenDaysAgo.toISOString().split('T')[0],
+          startDate: this.formatDate(sevenDaysAgo),
           endDate: today,
           groupBy: 'day',
         };
@@ -90,10 +105,10 @@ export class PeriodCalculator {
 
       case PeriodShortcut.LAST_30_DAYS: {
         const thirtyDaysAgo = new Date(now);
-        thirtyDaysAgo.setDate(now.getDate() - 30);
+        thirtyDaysAgo.setDate(now.getDate() - 29);
 
         return {
-          startDate: thirtyDaysAgo.toISOString().split('T')[0],
+          startDate: this.formatDate(thirtyDaysAgo),
           endDate: today,
           groupBy: 'day',
         };
@@ -103,7 +118,7 @@ export class PeriodCalculator {
         const startOfYear = new Date(now.getFullYear(), 0, 1);
 
         return {
-          startDate: startOfYear.toISOString().split('T')[0],
+          startDate: this.formatDate(startOfYear),
           endDate: today,
           groupBy: 'month',
         };
@@ -123,7 +138,7 @@ export class PeriodCalculator {
         oneMonthAgo.setMonth(now.getMonth() - 1);
 
         return {
-          startDate: oneMonthAgo.toISOString().split('T')[0],
+          startDate: this.formatDate(oneMonthAgo),
           endDate: today,
           groupBy: 'day',
         };

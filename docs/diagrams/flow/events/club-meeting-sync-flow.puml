@@ -1,0 +1,51 @@
+@startuml Club Meeting Event Synchronization - Clubinho NIB API
+!theme plain
+hide footbox
+
+title Events — club meeting synchronization
+
+actor "Club operation" as change
+participant "Club services" as clubs
+participant SyncClubEventService as sync
+database "MySQL\nEventRepository" as db
+
+change -> clubs : create, update, toggle or delete club
+clubs -> sync : syncFromClub(club) or removeForClub(id)
+
+alt Inactive or deleted club
+  sync -> db : removeByClubId(club.id)
+else Active club
+  sync -> db : findByClubId(club.id)
+  alt Existing event
+    sync -> db : update generated meeting fields
+  else Missing event
+    sync -> db : create private recurring event
+  end
+end
+
+sync --> clubs : synchronized
+clubs --> change : club operation completed
+
+note over sync, db
+  Unique club_id guarantees one event definition per club.
+  Occurrences are calculated on read from weekday + academic periods
+  − exceptions; synchronization does not send e-mail.
+end note
+
+== Idempotent bootstrap reconciliation ==
+
+participant BackfillClubEventsService as backfill
+participant ReconcileClubEventsService as reconcile
+
+backfill -> reconcile : reconcile(all clubs)
+reconcile -> db : load club-event summaries
+reconcile -> sync : create missing, remove inactive, refresh stale
+sync --> reconcile : per-club result
+reconcile --> backfill : created / removed / refreshed / untouched totals
+
+note over backfill, reconcile
+  Correct rows remain unchanged; one club failure is logged
+  without stopping application bootstrap.
+end note
+
+@enduml

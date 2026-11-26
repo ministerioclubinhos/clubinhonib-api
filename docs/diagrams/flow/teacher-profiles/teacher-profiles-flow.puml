@@ -1,0 +1,28 @@
+@startuml Teacher Profiles Flow - Clubinho NIB API
+!theme plain
+hide footbox
+title Teacher profiles — scoped listing and club assignment
+
+actor "Admin / Coordinator" as Client
+participant TeacherProfilesController as Controller
+participant "Get / Update TeacherProfilesService" as Service
+database "MySQL\nTeacherProfilesRepository" as Repository
+
+alt List or detail
+  Client -> Controller : GET /teacher-profiles
+  Controller -> Service : filters + access context
+  Service -> Repository : query within role scope
+  Repository --> Client : paginated profile DTOs
+else Assign or unassign club
+  Client -> Controller : PATCH .../assign-club or unassign-club
+  Controller -> Service : teacherId + clubId + context
+  Service -> Service : require admin or coordinator over target club
+  Service -> Repository : move assignment or clear it
+  Repository --> Client : success message
+end
+
+note over Service, Repository
+  Assignment moves a teacher from the previous club.
+  Profile lifecycle itself is owned by the User module.
+end note
+@enduml

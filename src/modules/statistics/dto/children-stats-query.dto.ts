@@ -6,10 +6,14 @@ import {
   IsString,
   IsEnum,
   IsBoolean,
+  IsDateString,
+  IsUUID,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { Transform } from 'class-transformer';
 import { PeriodShortcut } from './period-filter.dto';
+import { DecisionType } from 'src/modules/accepted-christs/enums/decision-type.enum';
+import { parseStrictBoolean } from './query-transformers';
 
 export class ChildrenStatsQueryDto {
   @IsOptional()
@@ -24,28 +28,28 @@ export class ChildrenStatsQueryDto {
   year?: number;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   startDate?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   endDate?: string;
 
   @IsOptional()
-  @IsString()
+  @IsUUID()
   clubId?: string;
 
   @IsOptional()
-  @IsString()
+  @IsUUID()
   teacherId?: string;
 
   @IsOptional()
-  @IsString()
+  @IsUUID()
   coordinatorId?: string;
 
   @IsOptional()
-  @IsString()
-  gender?: string;
+  @IsEnum(['M', 'F'])
+  gender?: 'M' | 'F';
 
   @IsOptional()
   @Type(() => Number)
@@ -62,8 +66,8 @@ export class ChildrenStatsQueryDto {
   maxAge?: number;
 
   @IsOptional()
-  @IsString()
-  ageGroup?: string;
+  @IsEnum(['0-5', '6-10', '11-15', '16+'])
+  ageGroup?: '0-5' | '6-10' | '11-15' | '16+';
 
   @IsOptional()
   @IsString()
@@ -120,25 +124,25 @@ export class ChildrenStatsQueryDto {
   maxEngagementScore?: number;
 
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
+  @Transform(parseStrictBoolean)
   @IsBoolean()
   hasDecision?: boolean;
 
   @IsOptional()
-  @IsString()
-  decisionType?: string;
+  @IsEnum(DecisionType)
+  decisionType?: DecisionType;
 
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
+  @Transform(parseStrictBoolean)
   @IsBoolean()
   isActive?: boolean;
 
   @IsOptional()
-  @IsString()
-  sortBy?: string;
+  @IsEnum(['name', 'age', 'engagementScore', 'presenceRate'])
+  sortBy?: 'name' | 'age' | 'engagementScore' | 'presenceRate';
 
   @IsOptional()
-  @IsString()
+  @IsEnum(['ASC', 'DESC'])
   sortOrder?: 'ASC' | 'DESC';
 
   @IsOptional()
@@ -159,17 +163,17 @@ export class ChildrenStatsQueryDto {
   search?: string;
 
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
+  @Transform(parseStrictBoolean)
   @IsBoolean()
   hasLowEngagement?: boolean;
 
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
+  @Transform(parseStrictBoolean)
   @IsBoolean()
   isNewcomer?: boolean;
 
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
+  @Transform(parseStrictBoolean)
   @IsBoolean()
   isVeteran?: boolean;
 }

@@ -1,0 +1,71 @@
+@startuml
+title Clubinho Play — curadoria, categorias e engajamento
+hide circle
+skinparam linetype ortho
+entity "videos_pages" as pages {
+  * id : UUID <<PK>>
+  --
+  name, description, public
+  play_scope : none / all / selected (default none)
+  play_category_id : FK ON DELETE SET NULL
+}
+entity "media_items" as media {
+  * id : UUID <<PK>>
+  --
+  mediaType : video
+  targetType : VideosPage
+  targetId : videos_pages.id (sem FK)
+}
+entity "play_categories" as cats {
+  * id : UUID <<PK>>
+  --
+  name, slug (unique), position
+}
+entity "play_video_entries" as entries {
+  * id : UUID <<PK>>
+  --
+  videos_page_id : FK CASCADE
+  media_item_id : FK CASCADE, UNIQUE
+  featured, position
+  thumbnail_url, duration_seconds
+}
+entity "play_video_views" as views {
+  * id : UUID <<PK>>
+  --
+  media_item_id : FK CASCADE
+  user_id : FK CASCADE
+}
+entity "play_video_progress" as progress {
+  * id : UUID <<PK>>
+  --
+  media_item_id, user_id (UNIQUE par)
+  position_seconds, duration_seconds, completed
+}
+entity "play_favorites" as favs {
+  * id : UUID <<PK>>
+  --
+  media_item_id, user_id (UNIQUE par)
+}
+entity "play_submissions" as subs {
+  * id : UUID <<PK>>
+  --
+  submitted_by_id : FK users SET NULL
+  title, description, upload_type, platform_type
+  url, original_name, size, thumbnail_url, duration_seconds
+  status : pending / approved / rejected
+  rejection_reason, reviewed_by_id, reviewed_at
+  media_item_id : FK media_items SET NULL (vídeo criado ao aprovar)
+}
+media |o--o{ subs
+pages ||--o{ entries
+media ||--o| entries
+cats |o--o{ pages
+media ||--o{ views
+media ||--o{ progress
+media ||--o{ favs
+pages ..o{ media : targetId
+note bottom of entries
+  Visível no Play: play_scope = all
+  OU (play_scope = selected E existe linha).
+end note
+@enduml

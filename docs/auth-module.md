@@ -70,7 +70,7 @@ Registers a new user in the system.
 | `email` | `string` | Yes | `@IsEmail` | Valid email address. |
 | `phone` | `string` | Yes | `@IsString`, `@IsNotEmpty` | Contact phone number. |
 | `password` | `string` | Yes | `@MinLength(6)` | Password (min 6 characters). |
-| `role` | `enum` | Yes | `@IsEnum(UserRole)` | One of: `admin`, `teacher`, `coordinator`. |
+| `role` | `enum` | Yes | `@IsIn(SELF_REGISTRATION_ROLES)` | One of: `teacher`, `coordinator`. `admin` is refused (`400`): registration is public and e-mail confirmation activates the account, so the administrator role is only granted by another administrator. |
 
 #### Example Request JSON
 
@@ -127,7 +127,8 @@ Completes the registration for a user who might have been invited or partially c
 | `name` | `string` | Yes | `@IsNotEmpty` | Full Name. |
 | `phone` | `string` | Yes | `@IsNotEmpty` | Phone number. |
 | `password` | `string` | No | `@MinLength(6)` | Password (optional if already set). |
-| `role` | `enum` | No | `@IsEnum` | Role update (optional). |
+| `role` | `enum` | No | `@IsIn(SELF_REGISTRATION_ROLES)` | `teacher` or `coordinator`. |
+| `registrationToken` | `string` | Yes | `@IsString`, `@IsNotEmpty` | Proof returned by `POST /auth/google` while the registration is incomplete (30 min, bound to the account; signed with a key derived from `JWT_SECRET`, so it is never accepted as an access token). Without it, or with another account's token, or for an unknown e-mail: `401 TOKEN_INVALID`. |
 
 #### Example Request JSON
 
@@ -136,7 +137,8 @@ Completes the registration for a user who might have been invited or partially c
   "email": "invited@example.com",
   "name": "Invited User",
   "phone": "5511888887777",
-  "password": "finalPassword123"
+  "password": "finalPassword123",
+  "registrationToken": "eyJhbGciOiJIUzI1NiIs..."
 }
 ```
 
@@ -172,6 +174,7 @@ Authenticates a user via Google OAuth token.
 
 - **Status**: `201 Created`
 - Returns JWT Access Token + User Details.
+- While the account is new or incomplete there is no session: the body carries `newUser: true` and the `registrationToken` that authorizes `POST /auth/complete-register`.
 
 ---
 
@@ -289,7 +292,8 @@ Checks if a password reset token is valid/non-expired.
 
 - **Endpoint**: `GET /auth/reset-password/validate`
 - **Access**: Public
-- **Query Params**: `token=<string>`
+- **Query Params**: `token=<string>` (required, `ValidateResetTokenQueryDto`; a missing or empty value is `400` and never reaches the database)
+- Reset tokens are stored as SHA-256 hashes: the plain value exists only in the e-mailed link.
 
 ### Response
 

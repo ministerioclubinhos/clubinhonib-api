@@ -1,0 +1,30 @@
+@startuml Informatives Flow - Clubinho NIB API
+!theme plain
+hide footbox
+title Informatives — content and route lifecycle
+
+actor "Authenticated reader / Admin" as Client
+participant InformativeController as Controller
+participant "Informative operation service" as Service
+database "MySQL\nInformativesRepository" as Repository
+participant RouteService as Route
+participant AnnounceInformativeService as Notify
+
+alt Read
+  Client -> Controller : GET /informatives or /informatives/:id
+  Controller -> Service : query or id
+  Service -> Repository : load informative and route
+  Repository --> Client : page or InformativeResponseDto
+else Admin create or update
+  Client -> Controller : POST/PATCH
+  Controller -> Service : validated DTO
+  Service -> Repository : persist informative in transaction
+  Service -> Route : create/upsert route in same transaction
+  Service -> Notify : announce after commit
+  Service --> Client : InformativeResponseDto
+else Admin delete
+  Service -> Route : remove owned route
+  Service -> Repository : remove informative
+  Service --> Client : 204
+end
+@enduml

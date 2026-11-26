@@ -1,0 +1,22 @@
+@startuml Addresses Flow - Clubinho NIB API
+!theme plain
+hide footbox
+title Addresses — internal persistence flow
+
+participant "Children / Clubs service" as Caller
+participant "Create / Get / Update AddressService" as Service
+database "MySQL\nAddressesRepository" as Repository
+
+Caller -> Service : build, load or merge address
+alt New address
+  Service -> Repository : create and save AddressEntity
+else Existing address
+  Service -> Repository : findById or save merged fields
+end
+Repository --> Caller : AddressEntity
+
+note over Caller, Repository
+  AddressesModule has no public controller.
+  Address changes occur inside the owning feature flow.
+end note
+@enduml

@@ -1,0 +1,51 @@
+@startuml
+hide footbox
+title Ideas pages — sections and media
+
+actor "Reader / Admin" as Client
+participant IdeasPageController as Controller
+participant "IdeasPage operation service" as Service
+database "MySQL\nIdeas pages + media rows" as Repository
+participant RouteService as Route
+participant MediaItemProcessor as Media
+participant "AWS S3" as S3
+
+alt Read
+  Client -> Controller : authenticated list or public detail
+  Controller -> Service : query or id
+  Service -> Repository : load page with sections
+  Service -> Media : batch-load section media
+  Service --> Client : page summary or full DTO
+else Admin create or update
+  Client -> Controller : multipart POST/PATCH
+  Controller -> Controller : validate DTO and require at least one section
+  break invalid payload
+    Controller --> Client : 422 + fieldErrors\nsection/material position, no submitted values
+  end
+  Controller -> Service : page + complete section payload
+  Service -> Service : validate text, ownership and upload bindings
+  Service -> Repository : begin transaction: page + sections + media
+  Service -> Route : create/upsert private teacher-area route
+  Service -> Media : persist the section-media diff
+  Media -> S3 : upload new files (tracked)
+  Service -> Repository : commit all writes with the same manager
+  alt committed
+    Service -> Media : check old file references
+    Media -> S3 : delete unreferenced removed/replaced files
+  else failed write
+    Service -> Repository : rollback all writes
+    Media -> S3 : discard unreferenced new uploads only
+  end
+  Service --> Client : IdeasPageResponseDto
+else Admin delete
+  Service -> Media : remove all section media rows
+  Media -> S3 : delete owned objects
+  Service -> Route : remove route
+  Service -> Repository : remove sections and page
+  Service --> Client : 204
+end
+
+note over Repository, S3
+  Removed sections are cleaned with their media; failed uploads are compensated.
+end note
+@enduml

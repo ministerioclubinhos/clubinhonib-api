@@ -1,0 +1,33 @@
+@startuml Media Lifecycle Flow - Clubinho NIB API
+!theme plain
+hide footbox
+title Media — upload, replace and compensation
+
+participant "Owning feature service" as Owner
+participant S3UploadTracker as Tracker
+participant "AWS S3\nAwsS3Service" as S3
+participant MediaItemProcessor as Processor
+database "MySQL\nMediaItemRepository" as Repository
+
+Owner -> Tracker : upload(file)
+Tracker -> S3 : upload object
+S3 --> Tracker : URL
+Tracker --> Owner : URL recorded for compensation
+Owner -> Processor : create or synchronize media metadata
+Processor -> Repository : save/update media row for targetId + targetType
+Repository --> Owner : MediaItemEntity
+
+alt Replace or remove local media
+  Owner -> Processor : delete old media after replacement is saved
+  Processor -> S3 : delete old owned object
+  Processor -> Repository : remove old row
+else Owning operation fails
+  Owner -> Processor : discardUnreferencedUploads(tracked URLs)
+  Processor -> Repository : check whether each URL is referenced
+  Processor -> S3 : delete only unreferenced uploads
+end
+
+note over Owner, Repository
+  Upload happens before database confirmation; compensation prevents S3 orphans.
+end note
+@enduml

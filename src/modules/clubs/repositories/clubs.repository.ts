@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import {
   AppNotFoundException,
   AppConflictException,
-  AppBusinessException,
   ErrorCode,
 } from 'src/shared/exceptions';
 import {
@@ -18,16 +17,23 @@ import { CreateClubDto } from '../dto/create-club.dto';
 import { UpdateClubDto } from '../dto/update-club.dto';
 import { QueryClubsDto } from '../dto/query-clubs.dto';
 
-import { ClubEntity } from '../entities/club.entity/club.entity';
+import { ClubEntity } from '../entities/club.entity';
 import { AddressEntity } from 'src/modules/addresses/entities/address.entity/address.entity';
 import { CoordinatorProfileEntity } from 'src/modules/coordinator-profiles/entities/coordinator-profile.entity/coordinator-profile.entity';
 import { TeacherProfileEntity } from 'src/modules/teacher-profiles/entities/teacher-profile.entity/teacher-profile.entity';
+import { ClubSelectOptionDto } from '../dto/club-select-option.dto';
+import { toClubSelectOption } from '../mappers';
+import { ClubAccessContext as RoleCtx } from '../types';
 import {
-  ClubSelectOptionDto,
-  toClubSelectOption,
-} from '../dto/club-select-option.dto';
-
-type RoleCtx = { role?: string; userId?: string | null };
+  CLUBS_DEFAULT_LIMIT,
+  CLUBS_MAX_LIMIT,
+  CLUBS_DEFAULT_PAGE,
+  CLUB_DEFAULT_ORDER,
+  CLUB_DEFAULT_SORT,
+  CLUB_SORT_COLUMNS,
+} from '../constants';
+import { normalizeRole } from 'src/core/auth/role.utils';
+import { UserRole } from 'src/core/auth/auth.types';
 
 @Injectable()
 export class ClubsRepository {
@@ -79,13 +85,13 @@ export class ClubsRepository {
   }
 
   private applyRoleFilter(qb: SelectQueryBuilder<ClubEntity>, ctx?: RoleCtx) {
-    const role = ctx?.role?.toLowerCase();
+    const role = normalizeRole(ctx?.role);
     const userId = ctx?.userId;
-    if (!role || role === 'admin' || !userId) return;
+    if (!role || role === UserRole.ADMIN || !userId) return;
 
-    if (role === 'coordinator') {
+    if (role === UserRole.COORDINATOR) {
       qb.andWhere('coord_user.id = :uid', { uid: userId }).distinct(true);
-    } else if (role === 'teacher') {
+    } else if (role === UserRole.TEACHER) {
       qb.andWhere('teacher_user.id = :uid', { uid: userId }).distinct(true);
     } else {
       qb.andWhere('1 = 0');
@@ -128,12 +134,16 @@ export class ClubsRepository {
     ctx?: RoleCtx,
   ): Promise<{ items: ClubEntity[]; total: number }> {
     const {
-      page = 1,
-      limit = 10,
+      page = CLUBS_DEFAULT_PAGE,
+      limit: limitPedido = CLUBS_DEFAULT_LIMIT,
       searchString,
-      sort = 'number',
-      order = 'ASC',
+      sort = CLUB_DEFAULT_SORT,
+      order = CLUB_DEFAULT_ORDER,
     } = q;
+
+    // O `@Max` do DTO cobre quem chega pela rota; o teto aqui cobre quem chama
+    // o repositório por dentro, como `users` e `children` já fazem.
+    const limit = Math.min(Math.max(limitPedido, 1), CLUBS_MAX_LIMIT);
 
     const qb = this.buildClubBaseQB().distinct(true);
     this.applyRoleFilter(qb, ctx);
@@ -168,18 +178,8 @@ export class ClubsRepository {
       qb.andWhere('club.isActive = :isActive', { isActive: q.isActive });
     }
 
-    const sortMap: Record<string, string> = {
-      number: 'club.number',
-      weekday: 'club.weekday',
-      time: 'club.time',
-      createdAt: 'club.createdAt',
-      updatedAt: 'club.updatedAt',
-      city: 'address.city',
-      state: 'address.state',
-    };
-    const orderBy = sortMap[sort] ?? 'club.number';
-    const orderDir = (order || 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
-    qb.orderBy(orderBy, orderDir);
+    // O DTO já validou o campo e a direção; aqui só traduzimos para a coluna.
+    qb.orderBy(CLUB_SORT_COLUMNS[sort], order);
 
     qb.skip((page - 1) * limit).take(limit);
 
@@ -187,6 +187,12 @@ export class ClubsRepository {
     return { items, total };
   }
 
+  /**
+   * Lista leve, sem vínculos.
+   *
+   * O endereço vem inteiro porque é isso que `ClubSimpleResponseDto` promete;
+   * selecionar só parte dele devolveria campos vazios no contrato.
+   */
   async findAllSimple(ctx?: RoleCtx): Promise<ClubEntity[]> {
     const qb = this.buildClubBaseQB()
       .select([
@@ -195,9 +201,18 @@ export class ClubsRepository {
         'club.weekday',
         'club.time',
         'club.isActive',
+        'club.createdAt',
+        'club.updatedAt',
         'address.id',
+        'address.street',
+        'address.number',
+        'address.district',
         'address.city',
         'address.state',
+        'address.postalCode',
+        'address.complement',
+        'address.createdAt',
+        'address.updatedAt',
       ])
       .orderBy('club.number', 'ASC');
 
@@ -206,11 +221,48 @@ export class ClubsRepository {
     return qb.getMany();
   }
 
+  /**
+   * Opções dos seletores.
+   *
+   * Só o que o rótulo usa: número, bairro e a existência de coordenador.
+   */
   async list(ctx?: RoleCtx): Promise<ClubSelectOptionDto[]> {
-    const qb = this.buildClubBaseQB().orderBy('club.number', 'ASC');
+    const qb = this.buildClubBaseQB()
+      .select([
+        'club.id',
+        'club.number',
+        'address.id',
+        'address.district',
+        'coordinator.id',
+      ])
+      .orderBy('club.number', 'ASC');
+
     this.applyRoleFilter(qb, ctx);
+
     const items = await qb.getMany();
     return items.map(toClubSelectOption);
+  }
+
+  /**
+   * Onde cada professor está hoje.
+   *
+   * Vincular um professor a um clubinho o move do anterior, então o caso de uso
+   * precisa saber de onde ele viria para conferir o alcance de quem pediu.
+   */
+  async findCurrentClubIdsOfTeachers(
+    teacherProfileIds: string[],
+  ): Promise<Map<string, string | null>> {
+    if (!teacherProfileIds.length) return new Map();
+
+    const profiles = await this.teacherProfileRepo.find({
+      where: { id: In(teacherProfileIds) },
+      relations: { club: true },
+      select: { id: true },
+    });
+
+    return new Map(
+      profiles.map((profile) => [profile.id, profile.club?.id ?? null]),
+    );
   }
 
   async createClub(dto: CreateClubDto): Promise<ClubEntity> {
@@ -247,18 +299,7 @@ export class ClubsRepository {
         coordinator: coordinator ?? null,
       });
 
-      try {
-        await clubRepo.save(club);
-      } catch (e: unknown) {
-        const err = e as { code?: string };
-        if (err?.code === 'ER_DUP_ENTRY' || err?.code === '23505') {
-          throw new AppConflictException(
-            ErrorCode.CLUB_NUMBER_IN_USE,
-            'Já existe um Clubinho com esse número',
-          );
-        }
-        throw e;
-      }
+      await this.saveClubOrFailOnDuplicateNumber(clubRepo, club);
 
       if (dto.teacherProfileIds?.length) {
         const ids = Array.from(new Set(dto.teacherProfileIds));
@@ -276,16 +317,9 @@ export class ClubsRepository {
           );
         }
 
-        const alreadyAssigned = teachers.filter((t) => !!t.club);
-        if (alreadyAssigned.length) {
-          throw new AppBusinessException(
-            ErrorCode.PROFILE_INVALID_OPERATION,
-            `Alguns perfis de professores já estão vinculados a outro Clubinho: ${alreadyAssigned
-              .map((t) => t.id)
-              .join(', ')}`,
-          );
-        }
-
+        // Um professor vinculado a outro clubinho é movido, como acontece em
+        // `PATCH /teacher-profiles/:id/assign-club`. A recusa anterior fazia a
+        // mesma escolha responder coisas diferentes conforme a tela usada.
         await teacherRepo.update(
           { id: In(ids) },
           { club: { id: club.id } as Partial<ClubEntity> },
@@ -336,7 +370,7 @@ export class ClubsRepository {
 
       if (dto.coordinatorProfileId !== undefined) {
         if (dto.coordinatorProfileId === null) {
-          club.coordinator = null as unknown as CoordinatorProfileEntity;
+          club.coordinator = null;
         } else {
           const coordinator = await coordRepo.findOne({
             where: { id: dto.coordinatorProfileId },
@@ -351,7 +385,9 @@ export class ClubsRepository {
         }
       }
 
-      await clubRepo.save(club);
+      // A edição também pode esbarrar no número já usado; sem isto, trocar o
+      // número por um existente devolvia erro interno em vez de conflito.
+      await this.saveClubOrFailOnDuplicateNumber(clubRepo, club);
 
       if (dto.teacherProfileIds !== undefined) {
         await this.syncTeachersForClubTx(
@@ -363,6 +399,28 @@ export class ClubsRepository {
 
       return this.findOneOrFailForResponseTx(manager, club.id);
     });
+  }
+
+  /**
+   * Grava o clubinho traduzindo a violação de unicidade do número em conflito.
+   * O banco garante a regra; aqui ela vira uma resposta que o cliente entende.
+   */
+  private async saveClubOrFailOnDuplicateNumber(
+    repo: Repository<ClubEntity>,
+    club: ClubEntity,
+  ): Promise<void> {
+    try {
+      await repo.save(club);
+    } catch (error: unknown) {
+      const code = (error as { code?: string })?.code;
+      if (code === 'ER_DUP_ENTRY' || code === '23505') {
+        throw new AppConflictException(
+          ErrorCode.CLUB_NUMBER_IN_USE,
+          'Já existe um Clubinho com esse número',
+        );
+      }
+      throw error;
+    }
   }
 
   private async findOneOrFailForResponseTx(
@@ -414,18 +472,9 @@ export class ClubsRepository {
       );
     }
 
-    const attachedElsewhere = attachProfiles.filter(
-      (p) => p.club && p.club.id !== clubId,
-    );
-    if (attachedElsewhere.length) {
-      throw new AppBusinessException(
-        ErrorCode.PROFILE_INVALID_OPERATION,
-        `Alguns perfis de professores já estão vinculados a outro Clubinho: ${attachedElsewhere
-          .map((t) => t.id)
-          .join(', ')}`,
-      );
-    }
-
+    // Um professor vinculado a outro clubinho é movido, como acontece em
+    // `PATCH /teacher-profiles/:id/assign-club`. Quem confere o alcance de quem
+    // pediu é o caso de uso, antes de chegar aqui.
     if (attachProfiles.length) {
       await txTeacherRepo.update(
         { id: In(attachProfiles.map((p) => p.id)) },
@@ -434,10 +483,7 @@ export class ClubsRepository {
     }
 
     if (toDetach.length) {
-      await txTeacherRepo.update(
-        { id: In(toDetach) },
-        { club: null as unknown as ClubEntity },
-      );
+      await txTeacherRepo.update({ id: In(toDetach) }, { club: null });
     }
   }
 
@@ -460,7 +506,7 @@ export class ClubsRepository {
       if (club.teachers?.length) {
         await txTeacher.update(
           { id: In(club.teachers.map((t) => t.id)) },
-          { club: null as unknown as ClubEntity },
+          { club: null },
         );
       }
 
@@ -482,12 +528,12 @@ export class ClubsRepository {
   }
 
   async userHasAccessToClub(clubId: string, ctx?: RoleCtx): Promise<boolean> {
-    const role = ctx?.role?.toLowerCase();
+    const role = normalizeRole(ctx?.role);
     const userId = ctx?.userId;
-    if (!role || role === 'admin') return true;
+    if (!role || role === UserRole.ADMIN) return true;
     if (!userId) return false;
 
-    if (role !== 'coordinator') return false;
+    if (role !== UserRole.COORDINATOR) return false;
 
     const qb = this.clubRepo
       .createQueryBuilder('club')

@@ -6,6 +6,11 @@ export enum UserRole {
   COORDINATOR = 'coordinator',
 }
 
+/** Conteúdo do comprovante de cadastro emitido após o login com Google. */
+export type RegistrationTokenPayload = {
+  sub: string;
+};
+
 export type JwtPayload = {
   sub: string;
   email?: string;
@@ -20,4 +25,16 @@ export type AuthRequest = Omit<Request, 'user'> & {
     role: UserRole | string;
     email: string;
   };
+};
+
+/**
+ * Quem está pedindo a operação.
+ *
+ * Os casos de uso recebem isto, e não a requisição HTTP: quem lê o token é a
+ * camada que enxerga o transporte. Antes cada módulo declarava a sua própria
+ * cópia deste formato, e elas já haviam divergido no tipo do papel.
+ */
+export type AccessContext = {
+  role?: UserRole;
+  userId: string | null;
 };

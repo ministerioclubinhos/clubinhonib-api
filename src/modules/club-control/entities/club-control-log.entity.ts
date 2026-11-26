@@ -1,6 +1,6 @@
 import { BaseEntity } from 'src/shared/share-entity/base.entity';
 import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
-import { ClubEntity } from 'src/modules/clubs/entities/club.entity/club.entity';
+import { ClubEntity } from 'src/modules/clubs/entities/club.entity';
 
 @Entity('club_control_logs')
 export class ClubControlLogEntity extends BaseEntity {

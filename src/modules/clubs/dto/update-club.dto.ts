@@ -1,10 +1,10 @@
 import {
   IsOptional,
   IsUUID,
-  IsString,
   ValidateIf,
   ValidateNested,
   IsArray,
+  ArrayUnique,
   IsInt,
   Min,
   IsEnum,
@@ -12,17 +12,10 @@ import {
   IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { Weekday } from '../enums/weekday.enum/weekday.enum';
 
-export class AddressPatchDto {
-  @IsOptional() @IsString() street?: string;
-  @IsOptional() @IsString() number?: string;
-  @IsOptional() @IsString() district?: string;
-  @IsOptional() @IsString() city?: string;
-  @IsOptional() @IsString() state?: string;
-  @IsOptional() @IsString() postalCode?: string;
-  @IsOptional() @IsString() complement?: string;
-}
+import { Weekday } from '../entities/weekday.enum';
+import { CLUB_TIME_PATTERN } from '../constants';
+import { ClubAddressInputDto } from './club-address.dto';
 
 export class UpdateClubDto {
   @IsOptional()
@@ -35,9 +28,10 @@ export class UpdateClubDto {
   @IsEnum(Weekday)
   weekday?: Weekday;
 
+  // `null` limpa o horário; string precisa bater com o formato.
   @IsOptional()
-  @ValidateIf((_, v) => typeof v === 'string')
-  @Matches(/^([01]?\d|2[0-3]):([0-5]\d)$/, {
+  @ValidateIf((_, value) => typeof value === 'string')
+  @Matches(CLUB_TIME_PATTERN, {
     message: 'time deve ser H:mm ou HH:mm (0:00–23:59)',
   })
   time?: string | null;
@@ -46,18 +40,20 @@ export class UpdateClubDto {
   @IsBoolean()
   isActive?: boolean;
 
+  // `null` desvincula o coordenador.
   @IsOptional()
-  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @ValidateIf((_, value) => value !== null)
   @IsUUID()
   coordinatorProfileId?: string | null;
 
   @IsOptional()
   @ValidateNested()
-  @Type(() => AddressPatchDto)
-  address?: AddressPatchDto;
+  @Type(() => ClubAddressInputDto)
+  address?: ClubAddressInputDto;
 
   @IsOptional()
   @IsArray()
-  @IsUUID('4', { each: true })
+  @ArrayUnique()
+  @IsUUID(undefined, { each: true })
   teacherProfileIds?: string[];
 }

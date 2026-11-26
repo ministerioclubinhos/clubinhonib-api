@@ -1,34 +1,47 @@
 const { randomName, randomEmail, randomPhone } = require('../common/random');
+const { expectHttpError, errorStatus, errorMessage } = require('../common/errors');
 
-async function run({ http, logger }) {
-  const email = randomEmail('contact');
-  const dto = {
-    name: randomName(),
-    email,
-    phone: randomPhone(),
-    message: 'Mensagem de contato criada pela automação',
-  };
-  logger.info('[contact/create] creating contact (public POST)...');
-  try {
-    const res = await http.request('post', '/contact', { data: dto });
-    logger.info(`[contact/create] OK id=${res.data?.id ?? 'n/a'}`);
-    return { contact: res.data };
-  } catch (e) {
-    const status = e.response?.status;
-    const msg = e.response?.data?.message || e.message;
-    
-    if (status === 500 && String(msg).toLowerCase().includes('e-mail')) {
-      logger.warn(`[contact/create] API returned 500 on email sending; validating persistence via GET /contact...`);
-      const list = await http.request('get', '/contact');
-      const contacts = Array.isArray(list.data) ? list.data : [];
-      const created = contacts.find((c) => c?.email === email) || contacts[0];
-      logger.info(`[contact/create] OK persisted id=${created?.id ?? 'n/a'} (apesar do 500)`);
-      return { contact: created, persistedDespiteEmailError: true };
+/**
+ * Formulário público do site. O envio dispara o aviso por e-mail dentro da
+ * requisição; se o SMTP local falhar, confere que o contato foi gravado.
+ */
+async function run({ http, logger, ctx }) {
+  logger.section('contact/create');
+  const anonymous = http.anonymous();
+  const min = ctx?.minPagesItems ?? 5;
+  ctx.createdContacts = [];
+
+  const existing = await http.request('get', '/contact', { params: { page: 1, limit: 1 } });
+  const toCreate = Math.max(1, min - (existing.data.total ?? 0));
+  for (let i = 0; i < toCreate; i++) {
+    const email = randomEmail('contato');
+    const dto = { name: randomName(), email, phone: randomPhone(), message: `Olá! Gostaria de saber como levar o Clubinho para o meu bairro. (automação #${i + 1})` };
+    try {
+      const res = await anonymous.request('post', '/contact', { data: dto });
+      if (res.data.read !== false) throw new Error('contato novo deveria nascer não lido');
+      ctx.createdContacts.push(res.data);
+    } catch (e) {
+      if (errorStatus(e) === 500) {
+        logger.warn(`[contact/create] 500 no envio do e-mail; conferindo persistência: ${errorMessage(e)}`);
+        const list = await http.request('get', '/contact', { params: { searchString: email, page: 1, limit: 5 } });
+        const saved = list.data.data.find((c) => c.email === email);
+        if (saved) ctx.createdContacts.push(saved);
+        else logger.error(`[contact/create] contato ${email} não foi persistido`);
+      } else {
+        logger.error(`[contact/create] ${errorMessage(e)}`);
+      }
     }
-    throw e;
   }
+  logger.ok(`[contact/create] criados=${ctx.createdContacts.length}`);
+
+  await logger.check('POST /contact com mensagem curta responde 400/422', () =>
+    expectHttpError(() => anonymous.request('post', '/contact', { data: { name: 'Ana', email: 'ana@x.com', phone: '11999990000', message: 'curta' } }), [400, 422], 'contact curto'),
+  );
+  await logger.check('POST /contact com read no corpo responde 400/422 (whitelist)', () =>
+    expectHttpError(() => anonymous.request('post', '/contact', { data: { name: 'Ana', email: 'ana@x.com', phone: '11999990000', message: 'mensagem longa o bastante', read: true } }), [400, 422], 'contact whitelist'),
+  );
+
+  return { created: ctx.createdContacts };
 }
 
 module.exports = { run };
-
-

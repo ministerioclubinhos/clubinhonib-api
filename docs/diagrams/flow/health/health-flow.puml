@@ -1,0 +1,20 @@
+@startuml Health Flow - Clubinho NIB API
+!theme plain
+hide footbox
+
+title Core — process health probe
+
+actor "Load balancer / Client" as Client
+participant AppController as Controller
+participant "Node.js process" as Runtime
+
+Client -> Controller : GET /health
+Controller -> Runtime : read timestamp, uptime and environment
+Runtime --> Controller : process values
+Controller --> Client : 200 { status: "ok", ... }
+
+note over Controller, Runtime
+  Liveness only: this endpoint does not query MySQL, S3 or DynamoDB.
+end note
+
+@enduml

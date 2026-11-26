@@ -1,6 +1,6 @@
 import { IsString, IsOptional, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
-import { MediaItemDto } from 'src/shared/share-dto/media-item-dto';
+import { DocumentMediaDto } from './document-media.dto';
 
 export class CreateDocumentDto {
   @IsString({ message: 'name deve ser uma string' })
@@ -11,6 +11,6 @@ export class CreateDocumentDto {
   description?: string;
 
   @ValidateNested()
-  @Type(() => MediaItemDto)
-  media: MediaItemDto;
+  @Type(() => DocumentMediaDto)
+  media: DocumentMediaDto;
 }

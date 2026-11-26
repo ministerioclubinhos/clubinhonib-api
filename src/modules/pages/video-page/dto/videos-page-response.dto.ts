@@ -1,7 +1,33 @@
-import { MediaItemEntity } from 'src/shared/media/media-item/media-item.entity';
-import { RouteEntity } from 'src/modules/routes/route-page.entity';
-import { VideosPage } from '../entities/video-page.entity';
+import { RouteType } from 'src/modules/routes/route-page.entity';
+import {
+  MediaType,
+  PlatformType,
+  UploadType,
+} from 'src/shared/media/media-item/media-item.entity';
 
+import { PlayScope } from 'src/modules/play/enums/play-scope.enum';
+
+/** Contrato público de um vídeo da galeria. */
+export class VideoItemResponseDto {
+  id: string;
+  title: string;
+  description: string;
+  uploadType: UploadType;
+  mediaType: MediaType;
+  platformType?: PlatformType;
+  url: string;
+  isLocalFile: boolean;
+  originalName?: string;
+  size?: number;
+  /** Atributos do Play; só quando a galeria tem o Play configurado. */
+  inPlay?: boolean;
+  featured?: boolean;
+  position?: number | null;
+  thumbnailUrl?: string | null;
+  durationSeconds?: number | null;
+}
+
+/** Contrato público da rota que expõe a galeria. */
 export class VideoRouteDto {
   title: string;
   public: boolean;
@@ -12,24 +38,10 @@ export class VideoRouteDto {
   entityType: string;
   description: string;
   entityId: string;
-  type: string;
-
-  static fromEntity(route: RouteEntity): VideoRouteDto {
-    return {
-      title: route.title,
-      public: route.public,
-      subtitle: route.subtitle,
-      image: route.image,
-      idToFetch: route.idToFetch,
-      path: route.path,
-      entityType: route.entityType,
-      description: route.description,
-      entityId: route.entityId,
-      type: route.type,
-    };
-  }
+  type: RouteType;
 }
 
+/** Contrato público da galeria de vídeos. */
 export class VideosPageResponseDto {
   id: string;
   title: string;
@@ -38,27 +50,6 @@ export class VideosPageResponseDto {
   createdAt: Date;
   updatedAt: Date;
   route: VideoRouteDto;
-  videos: MediaItemEntity[];
-
-  static fromEntity(
-    page: VideosPage,
-    videos: MediaItemEntity[],
-  ): VideosPageResponseDto {
-    if (!page.route) {
-      throw new Error(
-        `A página de vídeos com id ${page.id} não possui rota associada.`,
-      );
-    }
-
-    return {
-      id: page.id,
-      title: page.name,
-      description: page.description,
-      public: page.public,
-      createdAt: page.createdAt,
-      updatedAt: page.updatedAt,
-      route: VideoRouteDto.fromEntity(page.route),
-      videos: videos,
-    };
-  }
+  play: { scope: PlayScope; categoryId: string | null };
+  videos: VideoItemResponseDto[];
 }

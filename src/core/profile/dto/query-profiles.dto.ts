@@ -1,55 +1,90 @@
-import { IsOptional, IsString, IsInt, Min, IsIn } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsEnum, IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+
+import { UserRole } from 'src/core/auth/auth.types';
+import { toOptionalInteger, toOptionalText } from 'src/shared/dto/query-transforms';
+
+import {
+  PROFILE_FILTERABLE_GENDERS,
+  PROFILES_DEFAULT_LIMIT,
+  PROFILES_DEFAULT_PAGE,
+  PROFILES_MAX_LIMIT,
+  PROFILE_DEFAULT_ORDER,
+  PROFILE_DEFAULT_SORT,
+  ProfileSortField,
+  ProfileSortOrder,
+} from '../constants';
 
 export class QueryProfilesDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  page?: number = 1;
+  page: number = PROFILES_DEFAULT_PAGE;
 
+  /**
+   * O teto existe para a listagem não virar um despejo do banco: a tela pedia
+   * mil perfis completos de uma vez para montar a faixa de aniversariantes.
+   */
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  limit?: number = 10;
+  @Max(PROFILES_MAX_LIMIT)
+  limit: number = PROFILES_DEFAULT_LIMIT;
 
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) => toOptionalText(value))
   @IsString()
   q?: string;
 
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) => toOptionalText(value))
   @IsString()
   name?: string;
 
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) => toOptionalText(value))
   @IsString()
   email?: string;
 
   @IsOptional()
-  @IsString()
-  @IsIn(['admin', 'teacher', 'coordinator'])
-  role?: string;
+  @IsEnum(UserRole)
+  role?: UserRole;
 
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) => toOptionalText(value))
   @IsString()
   loveLanguages?: string;
 
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) => toOptionalText(value))
   @IsString()
   temperaments?: string;
 
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) => toOptionalText(value))
   @IsString()
   favoriteColor?: string;
 
+  /** Gênero informado nos dados pessoais. */
   @IsOptional()
-  @IsString()
-  @IsIn(['name', 'email', 'createdAt', 'birthDate'])
-  sortBy?: string = 'name';
+  @IsIn(PROFILE_FILTERABLE_GENDERS)
+  gender?: (typeof PROFILE_FILTERABLE_GENDERS)[number];
+
+  /** Mês de aniversário, de 1 (janeiro) a 12 (dezembro). */
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) => toOptionalInteger(value))
+  @IsInt()
+  @Min(1)
+  @Max(12)
+  birthMonth?: number;
 
   @IsOptional()
-  @IsString()
-  @IsIn(['ASC', 'DESC'])
-  order?: 'ASC' | 'DESC' = 'ASC';
+  @IsEnum(ProfileSortField)
+  sortBy: ProfileSortField = PROFILE_DEFAULT_SORT;
+
+  @IsOptional()
+  @IsEnum(ProfileSortOrder)
+  order: ProfileSortOrder = PROFILE_DEFAULT_ORDER;
 }

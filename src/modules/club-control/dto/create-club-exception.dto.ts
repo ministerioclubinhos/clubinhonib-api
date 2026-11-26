@@ -4,15 +4,18 @@ import {
   IsEnum,
   IsBoolean,
   IsOptional,
+  IsDateString,
+  MaxLength,
 } from 'class-validator';
 
 export class CreateClubExceptionDto {
   @IsNotEmpty()
-  @IsString()
+  @IsDateString()
   exceptionDate: string;
 
   @IsNotEmpty()
   @IsString()
+  @MaxLength(255)
   reason: string;
 
   @IsOptional()
@@ -21,6 +24,7 @@ export class CreateClubExceptionDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   notes?: string;
 
   @IsOptional()

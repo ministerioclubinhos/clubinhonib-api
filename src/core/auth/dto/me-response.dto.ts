@@ -6,6 +6,8 @@ export type ClubLite = {
   weekday: string;
   time?: string | null;
   isActive: boolean;
+  district: string | null;
+  city: string | null;
 };
 
 export type TeacherProfileLite = {

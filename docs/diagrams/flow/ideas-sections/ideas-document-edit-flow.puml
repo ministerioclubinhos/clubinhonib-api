@@ -1,0 +1,41 @@
+@startuml
+hide footbox
+title Shared ideas — hand-editing the AI-enhanced document
+actor Admin
+participant "Ideas AI document services" as API
+database "MySQL: media results\n(editable_document_json)" as DB
+participant "IdeaTiptapDocxProvider\n(ideas-only converter)" as Docx
+participant "LibreOffice (PDF conversion)" as PDF
+participant "Media service / S3" as S3
+
+== Open the editor ==
+Admin -> API : GET /:id/ai-enhancement/medias/:sourceMediaId/document
+API -> DB : Current attempt + media result (DOCUMENT, ENHANCED)
+alt editable_document_json stored
+ API --> Admin : 200 {document, source: STORED, editedAt}
+else older result without JSON
+ API -> S3 : Download enhanced PDF (owned URL)
+ API -> API : Extract text -> one paragraph per line
+ API --> Admin : 200 {document, source: EXTRACTED}
+end
+
+== Generate the PDF ==
+Admin -> API : PUT same path {enhancementId, document}
+API -> API : Validate (shape, known nodes, depth, size, not empty)\n422 IDEA_AI_8629 otherwise
+API -> DB : Fail fast: attempt is current? result editable? (409 / 404)
+API -> Docx : TipTap JSON -> DOCX
+API -> PDF : DOCX -> PDF
+API -> S3 : Upload new PDF + DOCX (tracked)
+API -> DB : Transaction: lock idea
+alt published / AI working / attempt no longer current
+ API -> DB : Rollback
+ API -> S3 : Discard the new uploads (unreferenced)
+ API --> Admin : 409
+else ok
+ API -> DB : New media items; result points to them;\nsave JSON + document_edited_at
+ API -> DB : Old items deleted only if no other attempt result uses them
+ API -> S3 : After commit: delete old files no media row references
+ API --> Admin : 200 {document, source: STORED, editedAt}
+end
+note over API : The AI essence guard does not run on a human edit.
+@enduml

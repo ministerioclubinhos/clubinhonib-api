@@ -4,13 +4,18 @@ import {
   Get,
   Patch,
   Delete,
+  HttpCode,
+  HttpStatus,
   Param,
+  ParseUUIDPipe,
+  Query,
   Body,
   Logger,
   UseGuards,
 } from '@nestjs/common';
-import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
+import { Paginated } from 'src/shared/dto/paginated.dto';
 import { CreateInformativeDto } from './dto/create-informative.dto';
+import { QueryInformativesDto } from './dto/query-informatives.dto';
 import { UpdateInformativeDto } from './dto/update-informative.dto';
 import { InformativeResponseDto } from './dto/informative-response.dto';
 import { CreateInformativeService } from './services/create-informative.service';
@@ -43,27 +48,28 @@ export class InformativeController {
     return result;
   }
 
+  @Get()
+  @UseGuards(JwtAuthGuard)
+  async findAll(
+    @Query() query: QueryInformativesDto,
+  ): Promise<Paginated<InformativeResponseDto>> {
+    this.logger.log('📄 [GET /informatives] Listando banners');
+    return this.getService.findAllPaginated(query);
+  }
+
   @Get(':id')
   @UseGuards(JwtAuthGuard)
-  async findOne(@Param('id') id: string): Promise<InformativeResponseDto> {
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<InformativeResponseDto> {
     this.logger.log(`🔎 [GET /informatives/${id}] Buscando banner`);
-    const found = await this.getService.findOne(id);
-
-    if (!found) {
-      this.logger.warn(`⚠️ [GET /informatives/${id}] Banner não encontrado`);
-      throw new AppNotFoundException(
-        ErrorCode.INFORMATIVE_NOT_FOUND,
-        'Banner informativo não encontrado',
-      );
-    }
-
-    return found;
+    return this.getService.findOne(id);
   }
 
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Patch(':id')
   async update(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateInformativeDto,
   ): Promise<InformativeResponseDto> {
     this.logger.log(`✏️ [PATCH /informatives/${id}] Atualizando banner`);
@@ -74,16 +80,10 @@ export class InformativeController {
 
   @UseGuards(JwtAuthGuard, AdminRoleGuard)
   @Delete(':id')
-  async delete(@Param('id') id: string): Promise<void> {
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async delete(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     this.logger.log(`🗑️ [DELETE /informatives/${id}] Removendo banner`);
     await this.deleteService.execute(id);
     this.logger.log(`✅ Banner removido: ID=${id}`);
-  }
-
-  @Get()
-  @UseGuards(JwtAuthGuard)
-  async findAll(): Promise<InformativeResponseDto[]> {
-    this.logger.log('📄 [GET /informatives] Listando todos os banners');
-    return this.getService.findAll();
   }
 }

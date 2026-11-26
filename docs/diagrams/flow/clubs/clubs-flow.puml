@@ -1,0 +1,30 @@
+@startuml Clubs Flow - Clubinho NIB API
+!theme plain
+hide footbox
+title Clubs — scoped management
+
+actor "Admin / Coordinator / Teacher" as Client
+participant ClubsController as Controller
+participant "Create / Get / Update / Delete ClubsService" as Service
+database "MySQL\nClubsRepository" as Repository
+participant SyncClubEventService as Events
+
+Client -> Controller : list, detail or mutation
+Controller -> Service : DTO/query + role access context
+
+alt Read
+  Service -> Repository : query clubs within caller scope
+  Repository --> Client : paginated/list/detail DTO
+else Create, update or toggle active
+  Service -> Service : enforce role and coordinator scope
+  Service -> Repository : transactionally persist club relations
+  Repository --> Service : saved club
+  Service -> Events : synchronize recurring club event
+  Service --> Client : ClubResponseDto
+else Delete
+  Service -> Service : require admin
+  Service -> Events : remove recurring event first
+  Service -> Repository : delete club
+  Service --> Client : success message
+end
+@enduml

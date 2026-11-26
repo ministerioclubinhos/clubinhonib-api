@@ -1,0 +1,32 @@
+@startuml Log Records Flow - Clubinho NIB API
+!theme plain
+hide footbox
+title Log records — administrative query and deletion
+
+actor Admin
+participant "JWT + Admin guards" as Guards
+participant LogRecordsController as Controller
+participant "Get / Delete LogRecordsService" as Service
+participant LogStorageProvider as Storage
+database "AWS DynamoDB\nlog records" as DynamoDB
+
+Admin -> Guards : GET or DELETE /log-records/{stream}
+Guards -> Controller : authorized request
+Controller -> Service : validated range, page and filters
+
+alt Storage mode is file
+  Service --> Admin : 409 LOG_9101
+else Storage mode is DynamoDB
+  Service -> Storage : query or delete observability/audit records
+  Storage -> DynamoDB : Query / BatchWriteItem
+  DynamoDB --> Storage : items / deletion result
+  Storage --> Service : records, total or deleted count
+  Service -> Service : map allowlisted response fields
+  Service --> Admin : paginated DTO, 204 or deleted count
+end
+
+note over Controller, Service
+  Query ranges are mandatory and limited to 31 days.
+  Deleting audit roots also deletes their audit_repeat records.
+end note
+@enduml

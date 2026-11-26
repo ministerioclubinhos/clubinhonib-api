@@ -1,21 +1,35 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { RouteModule } from './modules/routes/route.module';
 import { UserModule } from './core/user/user.module';
 import { AuthModule } from './core/auth/auth.module';
+import { FeatureFlagsModule } from './core/feature-flags/feature-flags.module';
+import { RequestContextModule } from './core/request-context/request-context.module';
+import { RequestContextMiddleware } from './core/request-context/request-context.middleware';
+import { ObservabilityModule } from './core/observability/observability.module';
+import { AuditModule } from './core/audit/audit.module';
+import { LogRecordsModule } from './core/log-records/log-records.module';
+import { LogStorageModule } from './shared/providers/log-storage/log-storage.module';
 import { AwsModule } from './shared/providers/aws/aws.module';
+import { EmailModule } from './shared/email';
+import { SiteUrlModule } from './shared/site-url';
+import { SchedulingModule } from './shared/scheduling';
 import { TwilioModule } from './shared/providers/twilio/twilio.module';
 import { NotificationModule } from './shared/providers/notification/notification.module';
 import { DatabaseModule } from '../database/database.module';
 import { MeditationModule } from './modules/meditations/meditation.module';
 import { ImageModule } from './modules/pages/image-page/image-page.module';
+import { PlaySubmissionsModule } from './modules/play-submissions/play-submissions.module';
+import { PlayModule } from './modules/play/play.module';
 import { VideosPageModule } from './modules/pages/video-page/video-page.module';
 import { WeekMaterialsPageModule } from './modules/pages/week-material-page/week-material-page.module';
 import { ContactModule } from './modules/contacts/contact.module';
 import { EventModule } from './modules/pages/event-page/event.module';
 import { CommentModule } from './modules/comments/comment.module';
+import { FeedPhotoCommentsModule } from './modules/feed-photo-comments/feed-photo-comments.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { DocumentModule } from './modules/documents/documents.module';
 import { IdeasPageModule } from './modules/pages/ideas-page/ideas-page.module';
 import { InformativeModule } from './modules/informatives/informative.module';
@@ -32,26 +46,43 @@ import { AcceptedChristsModule } from './modules/accepted-christs/accepted-chris
 import { StatisticsModule } from './modules/statistics/statistics.module';
 import { ClubControlModule } from './modules/club-control/club-control.module';
 
+import { AiLessonsModule } from './modules/ai-lessons/ai-lessons.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: process.env.ENV_FILE || '.env',
     }),
+    // Contexto, storage, observabilidade e auditoria entram antes de tudo:
+    // são globais e todo módulo abaixo já nasce coberto por eles.
+    RequestContextModule,
+    LogStorageModule,
+    ObservabilityModule,
+    AuditModule,
+    LogRecordsModule,
     DatabaseModule,
     AwsModule,
+    EmailModule,
+    SiteUrlModule,
+    SchedulingModule,
     TwilioModule,
     NotificationModule,
     ImageModule,
     RouteModule,
     UserModule,
     AuthModule,
+    FeatureFlagsModule,
     VideosPageModule,
+    PlayModule,
+    PlaySubmissionsModule,
     WeekMaterialsPageModule,
     MeditationModule,
     ContactModule,
     EventModule,
     CommentModule,
+    FeedPhotoCommentsModule,
+    NotificationsModule,
     DocumentModule,
     IdeasPageModule,
     InformativeModule,
@@ -67,8 +98,14 @@ import { ClubControlModule } from './modules/club-control/club-control.module';
     AcceptedChristsModule,
     StatisticsModule,
     ClubControlModule,
+    AiLessonsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  /** O contexto de request precisa existir antes de qualquer guard ou rota. */
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(RequestContextMiddleware).forRoutes('*');
+  }
+}
