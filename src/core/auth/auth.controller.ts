@@ -34,6 +34,7 @@ import { CompleteUserDto } from './dto/complete-register.dto';
 import { AuthService } from './services/auth.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ValidateResetTokenQueryDto } from './dto/validate-reset-token-query.dto';
 import { LinkClubDto } from './dto/link-club.dto';
 
 import { PasswordRecoveryService } from './services/password-recovery.service';
@@ -145,7 +146,7 @@ export class AuthController {
 
   @Get('reset-password/validate')
   async validateResetToken(
-    @Query('token') token: string,
+    @Query() { token }: ValidateResetTokenQueryDto,
   ): Promise<ValidateResetTokenResponseDto> {
     this.logger.log(`Validating reset token`);
     return this.passwordRecoveryService.validateResetToken(token);

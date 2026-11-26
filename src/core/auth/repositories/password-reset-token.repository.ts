@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
 import { PasswordResetTokenEntity } from '../entities/password-reset-token.entity';
+import { hashAuthToken } from '../token.utils';
 
 @Injectable()
 export class PasswordResetTokenRepository extends Repository<PasswordResetTokenEntity> {
@@ -15,7 +16,7 @@ export class PasswordResetTokenRepository extends Repository<PasswordResetTokenE
   ): Promise<PasswordResetTokenEntity> {
     const newToken = this.create({
       userId,
-      token,
+      token: hashAuthToken(token),
       expiresAt,
     });
     return this.save(newToken);
@@ -24,8 +25,12 @@ export class PasswordResetTokenRepository extends Repository<PasswordResetTokenE
   async findValidToken(
     token: string,
   ): Promise<PasswordResetTokenEntity | null> {
+    // O TypeORM ignora condição `undefined` no `where` e devolveria a primeira
+    // linha da tabela — o token (e o e-mail) de outra pessoa.
+    if (!token) return null;
+
     const entity = await this.findOne({
-      where: { token },
+      where: { token: hashAuthToken(token) },
       relations: ['user'],
     });
 
@@ -36,7 +41,7 @@ export class PasswordResetTokenRepository extends Repository<PasswordResetTokenE
   }
 
   async deleteToken(token: string): Promise<void> {
-    await this.delete({ token });
+    await this.delete({ token: hashAuthToken(token) });
   }
 
   async invalidateTokensForUser(userId: string): Promise<void> {

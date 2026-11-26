@@ -18,6 +18,7 @@ import {
   EMAIL_VERIFICATION_RESEND_COOLDOWN_MINUTES,
   EMAIL_VERIFICATION_TTL_HOURS,
 } from '../constants';
+import { hashAuthToken } from '../token.utils';
 
 /** Bloco devolvido nas respostas de autenticação. */
 export interface EmailVerificationResult {
@@ -84,7 +85,7 @@ export class EmailVerificationService {
 
   /** Confirma o endereço e ativa a conta. */
   async verify(token: string): Promise<{ email: string }> {
-    const stored = await this.tokenRepo.findValidByHash(this.hash(token));
+    const stored = await this.tokenRepo.findValidByHash(hashAuthToken(token));
 
     if (!stored) {
       throw new AppBusinessException(
@@ -117,7 +118,7 @@ export class EmailVerificationService {
 
     // Só o hash é gravado; o valor original vive apenas no link do e-mail.
     await this.tokenRepo.deleteAllOfUser(user.id);
-    await this.tokenRepo.createToken(user.id, this.hash(token), expiresAt);
+    await this.tokenRepo.createToken(user.id, hashAuthToken(token), expiresAt);
 
     // `EmailService` não lança: devolve se a mensagem saiu.
     //
@@ -152,10 +153,6 @@ export class EmailVerificationService {
         ? EMAIL_VERIFICATION_MESSAGES.sent
         : EMAIL_VERIFICATION_MESSAGES.failed,
     };
-  }
-
-  private hash(token: string): string {
-    return crypto.createHash('sha256').update(token).digest('hex');
   }
 
   private isWithinCooldown(createdAt: Date): boolean {
