@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PdfLibreOfficeService } from 'src/modules/ai-lessons/services/pdf-libreoffice.service';
 import type { EnhancedIdeaDocumentDto } from '../dto/enhanced-idea.dto';
 import { ideaDocumentToTiptap } from '../idea-document.utils';
@@ -12,8 +12,11 @@ import { IdeaTiptapDocxProvider } from './idea-tiptap-docx.provider';
 import { createRequire } from 'node:module';
 import { IDEA_AI } from '../constants';
 import { countPdfImages } from '../pdf-images.utils';
+import { parsePdfWithRetry } from '../pdf-parse.utils';
 @Injectable()
 export class IdeaDocumentRendererProvider {
+  private readonly logger = new Logger(IdeaDocumentRendererProvider.name);
+
   constructor(
     private readonly pdf: PdfLibreOfficeService,
     private readonly tiptap: IdeaTiptapDocxProvider,
@@ -26,15 +29,33 @@ export class IdeaDocumentRendererProvider {
     ) as IdeaPdfParser;
     const images = countPdfImages(buffer, IDEA_AI.embeddedImageMinPixels);
     try {
-      return { ...(await parse(buffer)), images };
+      const parsed = await parsePdfWithRetry(
+        parse,
+        buffer,
+        IDEA_AI.pdfParseAttempts,
+        (attempt, error) =>
+          this.logger.warn(this.parseFailure(`tentativa ${attempt}`, error)),
+      );
+      return { ...parsed, images };
     } catch (error: unknown) {
       // O leitor de texto estoura em alguns PDFs com imagem (ex.: "bad XRef
       // entry"). Com imagens de verdade o documento é mantido como enviado;
       // sem elas, o erro continua sendo um erro.
-      if (images > 0) return { text: '', numpages: 0, images };
+      if (images > 0) {
+        this.logger.warn(
+          this.parseFailure('documento mantido como enviado', error),
+        );
+        return { text: '', numpages: 0, images };
+      }
       throw error;
     }
   }
+
+  private parseFailure(context: string, error: unknown): string {
+    const reason = error instanceof Error ? error.message : String(error);
+    return `Leitura do PDF falhou (${context}): ${reason}`;
+  }
+
   async toPdf(buffer: Buffer, name: string): Promise<Buffer> {
     if (name.toLowerCase().endsWith('.pdf')) return buffer;
     return this.pdf.convertToPdf(

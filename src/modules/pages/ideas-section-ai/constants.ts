@@ -28,6 +28,8 @@ export const IDEA_AI = {
   embeddedImageMinPixels: 40_000,
   /** PDF só de imagem: resolução da rasterização e qualidade do JPEG remontado. */
   scanDpi: 150,
+  /** Leituras do texto do PDF antes de dar o arquivo como ilegível. */
+  pdfParseAttempts: 3,
   scanJpegQuality: 92,
   maxFileBytes: 20 * 1024 * 1024,
   requestTimeoutMs: 180_000,

@@ -132,9 +132,9 @@ export interface IdeaTiptapDocument {
   type: 'doc';
   content: IdeaTiptapNode[];
 }
-export type IdeaPdfParser = (
-  data: Buffer,
-) => Promise<Omit<ParsedIdeaPdf, 'images'>>;
+export type ParsedIdeaPdfText = Omit<ParsedIdeaPdf, 'images'>;
+
+export type IdeaPdfParser = (data: Buffer) => Promise<ParsedIdeaPdfText>;
 
 export interface StagedIdeaAiMedia {
   result: IdeaAiMediaResult;
