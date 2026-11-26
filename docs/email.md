@@ -392,7 +392,8 @@ e nunca avisava o app: a conta ficava inativa esperando ativação manual.
    `EmailVerificationService.sendIfPending(user)`;
 2. o serviço sorteia um token, **grava só o hash SHA-256** e manda o valor
    original apenas no link;
-3. `POST /auth/verify-email` com o token ativa a conta (`user.active = true`) e
+3. O link abre `/confirmar-email/:token` no site, que chama
+   `POST /auth/verify-email` com o token; isso ativa a conta (`user.active = true`) e
    apaga os tokens do usuário.
 
 Detalhes: conta já ativa não recebe nada; um envio recente não é repetido antes

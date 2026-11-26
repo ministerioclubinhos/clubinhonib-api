@@ -16,7 +16,7 @@ New documents/images cannot be links. YouTube URLs must use an allowed host and 
 
 ## Admin endpoints
 
-Queue, details, decisions and manual enhancement require the existing administrator authorization. `idea_ai_enhancement` (seeded **false**; `./run.sh local` creates/enables it locally) governs the **whole** AI flow: with it off there is no automatic enqueue on submission, manual requests/regenerations return `403 FEATURE_DISABLED`, and the worker claims nothing (queued attempts wait until it is back on, or can be cancelled). It never hides moderation: review, cancellation, restoring an earlier result and publishing already generated results keep working. The detail exposes the state as `aiEnhancement.enabled`.
+Queue, details, decisions and manual enhancement require the existing administrator authorization. `idea_ai_enhancement` (seeded **false**; `./run.sh local` creates/enables it locally) governs the **whole** AI flow: with it off there is no automatic enqueue on submission, manual requests/regenerations return `403 FEATURE_DISABLED`, and the worker claims nothing (queued attempts wait until it is back on, or can be cancelled). It never hides moderation: the idea can still be reviewed and published with its original content. AI results are hidden while it is off (see below) and come back when it is turned on again.
 
 | Endpoint | Behavior |
 | --- | --- |
