@@ -12,16 +12,15 @@ import { AiQueueRequest, AiQueueResponse } from './types';
 import { aiQueueEndpoint, restoreAiBody, safeAiHeaders } from './utils';
 import { AiQueueException } from './ai-queue.exception';
 import { AI_PROVIDER_MODE_ENV, AI_QUEUE } from './constants';
-import {
-  fakeAiResponse,
-  resolveAiProviderMode,
-} from './fake-ai-response.utils';
+import { resolveAiProviderMode } from './fake-ai-response.utils';
+import { FakeAiProvider } from './fake-ai.provider';
 
 /** Only the queue worker may use this transport. Credentials never enter Redis. */
 @Injectable()
 export class AiProviderTransportProvider {
   private readonly logger = new Logger(AiProviderTransportProvider.name);
   readonly mode: AiProviderMode;
+  private readonly fake = new FakeAiProvider();
 
   constructor(
     private readonly settings: GetAiProviderSettingsService,
@@ -42,7 +41,7 @@ export class AiProviderTransportProvider {
     if (endpoint.provider !== request.provider)
       throw new AiQueueException(AiQueueFailure.INVALID_REQUEST);
     // Mesma validação de rota, mas sem rede, chave nem custo.
-    if (this.mode === AiProviderMode.FAKE) return fakeAiResponse(request);
+    if (this.mode === AiProviderMode.FAKE) return this.fake.respond(request);
     const settings =
       request.provider === AiQueueProviderName.OPENAI
         ? await this.settings.getInternalOpenAiSettings()

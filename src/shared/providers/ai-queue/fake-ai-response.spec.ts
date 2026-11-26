@@ -22,6 +22,7 @@ import {
   AI_FAKE_TEXT,
 } from './constants';
 import { AiQueueRequest } from './types';
+import { OLDER_MEDITATION_ACTIVITY_SCHEMA } from 'src/modules/ai-lessons/constants/older-meditation-contract.constants';
 import {
   IDEA_JUDGE_SCHEMA,
   IDEA_TEXT_SCHEMA,
@@ -43,6 +44,45 @@ const request = (overrides: Partial<AiQueueRequest>): AiQueueRequest => ({
   timeoutMs: 1000,
   maxContentLength: 1024,
   ...overrides,
+});
+
+describe('meditação dos maiores simulada', () => {
+  it('devolve uma folha que passa na validação local do Estúdio', () => {
+    const response = fakeAiResponse(
+      request({
+        body: {
+          kind: AiQueueBodyKind.JSON,
+          json: {
+            input: [{ content: sourceText }],
+            text: {
+              format: {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    activities: {
+                      type: 'array',
+                      items: OLDER_MEDITATION_ACTIVITY_SCHEMA,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      }),
+    );
+    const data = response.data as {
+      output: { content: { text: string }[] }[];
+    };
+    const meditation = JSON.parse(data.output[0].content[0].text) as {
+      activities: { mechanic: string; subitems: unknown[] }[];
+    };
+
+    expect(meditation.activities.length).toBeGreaterThanOrEqual(3);
+    expect(meditation.activities.every((a) => a.subitems.length > 0)).toBe(
+      true,
+    );
+  });
 });
 
 describe('AI provider mode', () => {

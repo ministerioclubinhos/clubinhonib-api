@@ -62,6 +62,36 @@ que recusam rodar contra `aiProviderMode=live`. Não rode, ao mesmo tempo, outra
 API em modo real contra o mesmo banco e Redis: os workers dela podem assumir os
 pedidos e chamar o provedor de verdade.
 
+### Falhas encenadas
+
+Para os testes percorrerem os caminhos de erro de ponta a ponta, o modo `fake`
+encena o cenário pedido por um marcador no texto enviado (por exemplo, na
+descrição de uma ideia): `[[ai-fake:<cenário>(:<vezes>)(#<id>)]]`. Com
+`:<vezes>`, só as primeiras chamadas falham e depois a resposta volta ao normal
+(retry e recuperação); o `#<id>` isola o contador de um teste.
+
+| Cenário        | O que acontece                                                          |
+| -------------- | ----------------------------------------------------------------------- |
+| `rate-limit`   | HTTP 429 `rate_limit_exceeded` / `RESOURCE_EXHAUSTED`, com `retry-after` |
+| `quota`        | HTTP 429 `insufficient_quota`                                           |
+| `auth`         | HTTP 401 `invalid_api_key`                                              |
+| `server-error` | HTTP 503                                                                |
+| `blocked`      | HTTP 400 `content_policy_violation`                                     |
+| `timeout`      | erro de rede `ECONNABORTED`, sem resposta                               |
+| `network`      | erro de rede `ECONNRESET`                                               |
+| `invalid-json` | resposta 200 com JSON quebrado                                          |
+| `truncated`    | resposta cortada (`incomplete: max_output_tokens` / `MAX_TOKENS`)       |
+| `polish`       | revisão fiel (maiúscula, espaços, ponto final): deve ser aprovada       |
+| `rewrite`      | texto trocado: as guardas de essência devem reprovar                    |
+| `slow`         | responde após alguns segundos (progresso e cancelamento)                |
+
+A meditação dos maiores tem regras que o JSON Schema não expressa; para ela a
+resposta vem de `older-meditation.fixture.ts`.
+
+Cada pedido simulado é registrado em `.tmp/ai-fake-journal.jsonl` (ignorado pelo
+git; anexos aparecem só pelo tamanho; truncado acima de 10 MB), para conferir os
+prompts enviados. Nada disso existe no modo real nem em produção.
+
 ## Execução, falha e retenção
 
 - Os destinos são restritos às APIs HTTPS suportadas de OpenAI/Gemini. Redirecionamentos, URLs com credenciais, query strings e destinos arbitrários são rejeitados.

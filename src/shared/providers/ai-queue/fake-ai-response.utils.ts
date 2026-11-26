@@ -1,3 +1,4 @@
+import { olderMeditationFixture } from 'src/modules/ai-lessons/fixtures/older-meditation.fixture';
 import {
   AI_FAKE_BOOLEANS,
   AI_FAKE_MEMORY_VERSE,
@@ -135,6 +136,31 @@ export function fakeFromSchema(
   }
 }
 
+/** O schema da meditação dos maiores: questões com subitens e gabarito. */
+function isOlderMeditationSchema(schema: unknown): boolean {
+  if (!isRecord(schema) || !isRecord(schema.properties)) return false;
+  const activities = schema.properties.activities;
+  const items = isRecord(activities) ? activities.items : undefined;
+  return (
+    isRecord(items) &&
+    isRecord(items.properties) &&
+    'subitems' in items.properties &&
+    'mechanic' in items.properties
+  );
+}
+
+/**
+ * O JSON da resposta. A meditação dos maiores tem regras que o schema não
+ * expressa (alternativas, gabarito, extensão da folha); um mínimo válido pelo
+ * schema seria recusado, o que um LLM real não faria. Ela vem da folha de
+ * referência, a mesma que valida o contrato.
+ */
+function fakeJson(schema: unknown, source: JsonRecord): unknown {
+  if (!isOlderMeditationSchema(schema)) return fakeFromSchema(schema, source);
+  const theme = typeof source.theme === 'string' ? source.theme : undefined;
+  return olderMeditationFixture(theme);
+}
+
 function openAiSchema(body: JsonRecord): unknown {
   const text = isRecord(body.text) ? body.text : {};
   const format = isRecord(text.format) ? text.format : {};
@@ -195,7 +221,7 @@ export function fakeAiResponse(request: AiQueueRequest): AiQueueResponse {
       return ok({ data: [{ b64_json: AI_FAKE_PNG_BASE64 }] });
     const schema = openAiSchema(json);
     const text = schema
-      ? JSON.stringify(fakeFromSchema(schema, source))
+      ? JSON.stringify(fakeJson(schema, source))
       : AI_FAKE_TEXT;
     return ok({
       id: AI_FAKE_RESPONSE_ID,
@@ -239,7 +265,7 @@ export function fakeAiResponse(request: AiQueueRequest): AiQueueResponse {
           parts: [
             {
               text: schema
-                ? JSON.stringify(fakeFromSchema(schema, source))
+                ? JSON.stringify(fakeJson(schema, source))
                 : AI_FAKE_TEXT,
             },
           ],

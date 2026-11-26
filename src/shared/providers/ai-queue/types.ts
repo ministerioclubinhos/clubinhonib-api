@@ -5,6 +5,7 @@ import {
   AiQueueMethod,
   AiQueueBodyKind,
   AiQueueFailure,
+  AiFakeScenario,
 } from './enums';
 export interface AiQueueRequestOptions {
   feature: AiQueueFeature;
@@ -37,6 +38,13 @@ export interface AiQueueRequest {
   timeoutMs: number;
   expiresAt: number;
   maxContentLength: number;
+}
+/** Cenário encontrado no pedido pelo marcador do modo `fake`. */
+export interface AiFakeFault {
+  marker: string;
+  scenario: AiFakeScenario;
+  /** Quantas chamadas falham antes de voltar ao normal; `null` = sempre. */
+  times: number | null;
 }
 export interface AiQueueResponse<T = unknown> {
   data: T;

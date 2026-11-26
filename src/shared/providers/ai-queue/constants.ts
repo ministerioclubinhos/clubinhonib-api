@@ -141,3 +141,54 @@ export const AI_FAKE_BOOLEANS: Readonly<Record<string, boolean>> = {
 /** Marcadores dos dados de origem que os pedidos de IA embutem no texto. */
 export const AI_SOURCE_DATA_START = 'SOURCE_DATA\n';
 export const AI_SOURCE_DATA_END = '\nEND_SOURCE_DATA';
+
+/**
+ * `[[ai-fake:rate-limit]]` falha sempre; `[[ai-fake:rate-limit:2#abc]]` falha as
+ * duas primeiras chamadas e depois responde. O `#id` isola um teste do outro.
+ */
+export const AI_FAKE_MARKER =
+  /\[\[ai-fake:([a-z-]+)(?::(\d{1,2}))?(?:#([\w-]{1,40}))?\]\]/;
+export const AI_FAKE_SLOW_MS = 6_000;
+export const AI_FAKE_RETRY_AFTER_SECONDS = '1';
+/** Máximo de marcadores com contador em memória. */
+export const AI_FAKE_MAX_COUNTERS = 500;
+export const AI_FAKE_REWRITE_TEXT =
+  'Texto completamente diferente, inventado pela simulação para trocar a ideia original.';
+export const AI_FAKE_INVALID_JSON = '{"title": "resposta incompleta"';
+/** Erros no formato HTTP de cada provedor. */
+export const AI_FAKE_HTTP_FAULTS = {
+  'rate-limit': {
+    status: 429,
+    code: 'rate_limit_exceeded',
+    geminiStatus: 'RESOURCE_EXHAUSTED',
+  },
+  quota: {
+    status: 429,
+    code: 'insufficient_quota',
+    geminiStatus: 'RESOURCE_EXHAUSTED',
+  },
+  auth: {
+    status: 401,
+    code: 'invalid_api_key',
+    geminiStatus: 'UNAUTHENTICATED',
+  },
+  'server-error': {
+    status: 503,
+    code: 'server_is_overloaded',
+    geminiStatus: 'UNAVAILABLE',
+  },
+  blocked: {
+    status: 400,
+    code: 'content_policy_violation',
+    geminiStatus: 'INVALID_ARGUMENT',
+  },
+} as const;
+export const AI_FAKE_NETWORK_FAULTS = {
+  timeout: 'ECONNABORTED',
+  network: 'ECONNRESET',
+} as const;
+/** Diário local dos pedidos simulados, relativo à pasta da API (ignorado pelo git). */
+export const AI_FAKE_JOURNAL_PATH = '.tmp/ai-fake-journal.jsonl';
+export const AI_FAKE_JOURNAL_MAX_BYTES = 10 * 1024 * 1024;
+/** Cadeias maiores (anexos em base64) viram só o tamanho no diário. */
+export const AI_FAKE_JOURNAL_MAX_STRING = 20_000;

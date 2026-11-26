@@ -36,3 +36,29 @@ export enum AiProviderMode {
   LIVE = 'live',
   FAKE = 'fake',
 }
+
+/**
+ * Falhas que o modo `fake` encena quando o pedido traz o marcador
+ * `[[ai-fake:<cenário>]]` nos dados de origem.
+ */
+export enum AiFakeScenario {
+  RATE_LIMIT = 'rate-limit',
+  QUOTA = 'quota',
+  AUTH = 'auth',
+  SERVER_ERROR = 'server-error',
+  TIMEOUT = 'timeout',
+  NETWORK = 'network',
+  BLOCKED = 'blocked',
+  INVALID_JSON = 'invalid-json',
+  /** Resposta cortada pelo limite de tokens. */
+  TRUNCATED = 'truncated',
+  /**
+   * Revisão fiel (maiúscula inicial, espaços e ponto final), sem conteúdo novo:
+   * é a melhoria que as guardas têm de aprovar e a tela tem de destacar.
+   */
+  POLISH = 'polish',
+  /** Troca o texto inteiro: é o que as guardas de essência têm de reprovar. */
+  REWRITE = 'rewrite',
+  /** Demora antes de responder, para observar progresso e cancelamento. */
+  SLOW = 'slow',
+}
