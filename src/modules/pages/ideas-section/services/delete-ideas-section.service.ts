@@ -5,6 +5,7 @@ import {
   AppBusinessException,
   AppInternalException,
   ErrorCode,
+  logRequestFailure,
 } from 'src/shared/exceptions';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaTargetType } from 'src/shared/media/media-target-type.enum';
@@ -87,7 +88,10 @@ export class DeleteIdeasSectionService {
       this.logger.log(`Ideia compartilhada removida. ID=${id}`);
     } catch (error: unknown) {
       const errStack = error instanceof Error ? error.stack : undefined;
-      this.logger.error(
+      logRequestFailure(
+        this.logger,
+        error,
+
         `Erro ao excluir ideia compartilhada. ID=${id}`,
         errStack,
       );

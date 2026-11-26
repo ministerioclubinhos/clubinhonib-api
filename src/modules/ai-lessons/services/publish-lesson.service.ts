@@ -9,6 +9,7 @@ import {
   AppConflictException,
   AppNotFoundException,
   ErrorCode,
+  logRequestFailure,
 } from 'src/shared/exceptions';
 import {
   MediaType,
@@ -359,7 +360,10 @@ export class PublishLessonService {
         weekMaterialId: page.id,
       };
     } catch (error: unknown) {
-      this.logger.error(
+      logRequestFailure(
+        this.logger,
+        error,
+
         `Publicação da lição ${id} falhou: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`,
       );
       const recoveredPageId = await this.settleFailedPublication(

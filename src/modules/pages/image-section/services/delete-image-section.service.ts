@@ -2,6 +2,7 @@ import {
   AppNotFoundException,
   AppInternalException,
   ErrorCode,
+  logRequestFailure,
 } from 'src/shared/exceptions';
 import { Injectable, Logger } from '@nestjs/common';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
@@ -62,7 +63,10 @@ export class ImageSectionDeleteService {
       this.logger.debug(`✅ Seção removida com sucesso: ID=${id}`);
     } catch (error: unknown) {
       const errStack = error instanceof Error ? error.stack : undefined;
-      this.logger.error(
+      logRequestFailure(
+        this.logger,
+        error,
+
         'Erro ao remover a seção. Rollback executado.',
         errStack,
       );

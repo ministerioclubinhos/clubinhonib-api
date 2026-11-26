@@ -3,6 +3,7 @@ import {
   AppNotFoundException,
   AppInternalException,
   ErrorCode,
+  logRequestFailure,
 } from 'src/shared/exceptions';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -152,7 +153,12 @@ export class ImageSectionUpdateService {
       );
 
       const errStack = error instanceof Error ? error.stack : undefined;
-      this.logger.error('Erro ao atualizar a seção', errStack);
+      logRequestFailure(
+        this.logger,
+        error,
+        'Erro ao atualizar a seção',
+        errStack,
+      );
       const hasCode = error && typeof error === 'object' && 'code' in error;
       if (hasCode) throw error as unknown as Error;
       throw new AppInternalException(

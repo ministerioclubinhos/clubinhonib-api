@@ -11,7 +11,11 @@ import { ImageSectionResponseDto } from '../dto/image-section-response.dto';
 import { toImageSectionResponse } from '../mappers';
 import { NotificationService } from 'src/shared/providers/notification/notification.service';
 import { UploadedFilesDict, ImageSectionAuthorInput } from '../types';
-import { AppInternalException, ErrorCode } from 'src/shared/exceptions';
+import {
+  AppInternalException,
+  ErrorCode,
+  logRequestFailure,
+} from 'src/shared/exceptions';
 
 @Injectable()
 export class ImageSectionCreateService {
@@ -112,7 +116,7 @@ export class ImageSectionCreateService {
       );
 
       const errStack = error instanceof Error ? error.stack : undefined;
-      this.logger.error('Erro ao criar seção', errStack);
+      logRequestFailure(this.logger, error, 'Erro ao criar seção', errStack);
       const hasCode = error && typeof error === 'object' && 'code' in error;
       if (hasCode) throw error as unknown as Error;
       throw new AppInternalException(

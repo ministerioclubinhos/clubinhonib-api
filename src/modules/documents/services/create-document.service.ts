@@ -4,6 +4,7 @@ import {
   AppInternalException,
   AppValidationException,
   ErrorCode,
+  logRequestFailure,
 } from 'src/shared/exceptions';
 import { EntityManager } from 'typeorm';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
@@ -79,7 +80,12 @@ export class CreateDocumentService {
       );
 
       const error = err instanceof Error ? err : new Error(String(err));
-      this.logger.error('💥  Transaction rolled‑back', error.stack);
+      logRequestFailure(
+        this.logger,
+        err,
+        '💥  Transaction rolled‑back',
+        error.stack,
+      );
       throw new AppBusinessException(
         ErrorCode.VALIDATION_ERROR,
         `Erro ao criar o documento: ${error.message}`,
@@ -165,7 +171,10 @@ export class CreateDocumentService {
         size = file.size;
       } catch (error: unknown) {
         const errStack = error instanceof Error ? error.stack : undefined;
-        this.logger.error(
+        logRequestFailure(
+          this.logger,
+          error,
+
           `❌ Erro no upload do arquivo: ${file.originalname}`,
           errStack,
         );

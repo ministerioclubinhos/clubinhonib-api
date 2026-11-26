@@ -5,6 +5,7 @@ import {
   AppInternalException,
   AppNotFoundException,
   ErrorCode,
+  logRequestFailure,
 } from 'src/shared/exceptions';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
@@ -148,7 +149,10 @@ export class AttachIdeasSectionService {
         (url: string) => this.awsS3Service.delete(url),
       );
 
-      this.logger.error(
+      logRequestFailure(
+        this.logger,
+        error,
+
         `Erro ao publicar ideia compartilhada. ID=${sectionId}`,
         error instanceof Error ? error.stack : undefined,
       );

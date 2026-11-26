@@ -1,3 +1,4 @@
+import { logRequestFailure } from 'src/shared/exceptions';
 import {
   Controller,
   Get,
@@ -58,7 +59,10 @@ export class StatisticsController {
       return result;
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      this.logger.error(
+      logRequestFailure(
+        this.logger,
+        err,
+
         `GET /statistics/pagelas/charts -> error in ${Date.now() - started}ms: ${errorMessage}`,
       );
       throw err;
@@ -82,7 +86,10 @@ export class StatisticsController {
       return result;
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      this.logger.error(
+      logRequestFailure(
+        this.logger,
+        err,
+
         `GET /statistics/accepted-christs/charts -> error in ${Date.now() - started}ms: ${errorMessage}`,
       );
       throw err;
@@ -106,7 +113,10 @@ export class StatisticsController {
       return result;
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      this.logger.error(
+      logRequestFailure(
+        this.logger,
+        err,
+
         `GET /statistics/insights -> error in ${Date.now() - started}ms: ${errorMessage}`,
       );
       throw err;
@@ -125,7 +135,10 @@ export class StatisticsController {
       return result;
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      this.logger.error(
+      logRequestFailure(
+        this.logger,
+        err,
+
         `GET /statistics/overview -> error in ${Date.now() - started}ms: ${errorMessage}`,
       );
       throw err;
@@ -148,7 +161,10 @@ export class StatisticsController {
       return result;
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      this.logger.error(
+      logRequestFailure(
+        this.logger,
+        err,
+
         `GET /statistics/pagelas -> error in ${Date.now() - started}ms: ${errorMessage}`,
       );
       throw err;
@@ -172,7 +188,10 @@ export class StatisticsController {
       return result;
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      this.logger.error(
+      logRequestFailure(
+        this.logger,
+        err,
+
         `GET /statistics/accepted-christs -> error in ${Date.now() - started}ms: ${errorMessage}`,
       );
       throw err;
@@ -196,7 +215,10 @@ export class StatisticsController {
       return result;
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      this.logger.error(
+      logRequestFailure(
+        this.logger,
+        err,
+
         `GET /statistics/children -> error in ${Date.now() - started}ms: ${errorMessage}`,
       );
       throw err;
@@ -218,7 +240,10 @@ export class StatisticsController {
       return result;
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      this.logger.error(
+      logRequestFailure(
+        this.logger,
+        err,
+
         `GET /statistics/clubs -> error in ${Date.now() - started}ms: ${errorMessage}`,
       );
       throw err;
@@ -242,7 +267,10 @@ export class StatisticsController {
       return result;
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      this.logger.error(
+      logRequestFailure(
+        this.logger,
+        err,
+
         `GET /statistics/teachers -> error in ${Date.now() - started}ms: ${errorMessage}`,
       );
       throw err;
@@ -274,7 +302,10 @@ export class StatisticsController {
       return result;
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      this.logger.error(
+      logRequestFailure(
+        this.logger,
+        err,
+
         `GET /statistics/attendance/club/${clubId} -> error in ${Date.now() - started}ms: ${errorMessage}`,
       );
       throw err;
@@ -303,7 +334,10 @@ export class StatisticsController {
       return result;
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      this.logger.error(
+      logRequestFailure(
+        this.logger,
+        err,
+
         `GET /statistics/attendance/week -> error in ${Date.now() - started}ms: ${errorMessage}`,
       );
       throw err;

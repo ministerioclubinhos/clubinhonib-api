@@ -840,3 +840,10 @@ An empty `sections` array also returns 422 `VALIDATION_ERROR` before persistence
 DTO errors include `details.fieldErrors: [{ field, message }]`; nested paths identify
 the affected section/material and the primary message describes the first issue
 in Portuguese. Submitted values and validation target objects are never returned.
+
+## Registro de falhas
+
+Use `logRequestFailure(logger, error, mensagem, stack)` ao registrar uma falha
+que será relançada: recusas esperadas (4xx) viram `warn`; só 5xx e erros não
+tratados viram `error`. `logger.error` em um 404 é gravado pela observabilidade
+como erro interno e esconde as falhas de verdade.

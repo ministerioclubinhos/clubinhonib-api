@@ -35,6 +35,7 @@ import {
   AppNotFoundException,
   AppConflictException,
   ErrorCode,
+  logRequestFailure,
 } from 'src/shared/exceptions';
 import {
   AuthGoogleLoginResponseDto,
@@ -263,7 +264,12 @@ export class AuthService {
       };
     } catch (error: unknown) {
       const err = error as Error;
-      this.logger.error(`Error during Google login: ${err.message}`, err.stack);
+      logRequestFailure(
+        this.logger,
+        error,
+        `Error during Google login: ${err.message}`,
+        err.stack,
+      );
 
       if (
         err.message?.includes('Token used too late') ||

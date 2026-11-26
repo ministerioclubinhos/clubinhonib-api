@@ -14,7 +14,11 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 import { AdminRoleGuard } from 'src/core/auth/guards/role-guard';
-import { AppNotFoundException, ErrorCode } from 'src/shared/exceptions';
+import {
+  AppNotFoundException,
+  ErrorCode,
+  logRequestFailure,
+} from 'src/shared/exceptions';
 import { ClubControlService } from '../services/club-control.service';
 import { CreateClubPeriodDto } from '../dto/create-club-period.dto';
 import { UpdateClubPeriodDto } from '../dto/update-club-period.dto';
@@ -86,7 +90,10 @@ export class ClubControlController {
       );
       return result;
     } catch (err: unknown) {
-      this.logger.error(
+      logRequestFailure(
+        this.logger,
+        err,
+
         `POST /club-control/periods -> error in ${Date.now() - started}ms: ${getErrorMessage(err)}`,
       );
       throw err;
@@ -107,7 +114,10 @@ export class ClubControlController {
       );
       return result;
     } catch (err: unknown) {
-      this.logger.error(
+      logRequestFailure(
+        this.logger,
+        err,
+
         `GET /club-control/periods/${year} -> error in ${Date.now() - started}ms: ${getErrorMessage(err)}`,
       );
       throw err;
@@ -135,7 +145,10 @@ export class ClubControlController {
       );
       return result;
     } catch (err: unknown) {
-      this.logger.error(
+      logRequestFailure(
+        this.logger,
+        err,
+
         `GET /club-control/periods -> error in ${Date.now() - started}ms: ${getErrorMessage(err)}`,
       );
       throw err;
@@ -157,7 +170,10 @@ export class ClubControlController {
       return result;
     } catch (err: unknown) {
       if (!(err instanceof AppNotFoundException)) {
-        this.logger.error(
+        logRequestFailure(
+          this.logger,
+          err,
+
           `PUT /club-control/periods/${id} -> error in ${Date.now() - started}ms: ${getErrorMessage(err)}`,
         );
       }
@@ -188,7 +204,10 @@ export class ClubControlController {
       return { success: true };
     } catch (err: unknown) {
       if (!(err instanceof AppNotFoundException)) {
-        this.logger.error(
+        logRequestFailure(
+          this.logger,
+          err,
+
           `DELETE /club-control/periods/${id} -> error in ${Date.now() - started}ms: ${getErrorMessage(err)}`,
         );
       }
@@ -211,7 +230,10 @@ export class ClubControlController {
       );
       return result;
     } catch (err: unknown) {
-      this.logger.error(
+      logRequestFailure(
+        this.logger,
+        err,
+
         `POST /club-control/exceptions -> error in ${Date.now() - started}ms: ${getErrorMessage(err)}`,
       );
       throw err;
@@ -233,7 +255,10 @@ export class ClubControlController {
       return result;
     } catch (err: unknown) {
       if (!(err instanceof AppNotFoundException)) {
-        this.logger.error(
+        logRequestFailure(
+          this.logger,
+          err,
+
           `PATCH /club-control/exceptions/${id} -> error in ${Date.now() - started}ms: ${getErrorMessage(err)}`,
         );
       }
@@ -255,7 +280,10 @@ export class ClubControlController {
       );
       return result;
     } catch (err: unknown) {
-      this.logger.error(
+      logRequestFailure(
+        this.logger,
+        err,
+
         `GET /club-control/exceptions/${date} -> error in ${Date.now() - started}ms: ${getErrorMessage(err)}`,
       );
       throw err;
@@ -287,7 +315,10 @@ export class ClubControlController {
       );
       return result;
     } catch (err: unknown) {
-      this.logger.error(
+      logRequestFailure(
+        this.logger,
+        err,
+
         `GET /club-control/exceptions -> error in ${Date.now() - started}ms: ${getErrorMessage(err)}`,
       );
       throw err;
@@ -317,7 +348,10 @@ export class ClubControlController {
       return { success: true };
     } catch (err: unknown) {
       if (!(err instanceof AppNotFoundException)) {
-        this.logger.error(
+        logRequestFailure(
+          this.logger,
+          err,
+
           `DELETE /club-control/exceptions/${id} -> error in ${Date.now() - started}ms: ${getErrorMessage(err)}`,
         );
       }
@@ -346,7 +380,10 @@ export class ClubControlController {
       );
       return result;
     } catch (err: unknown) {
-      this.logger.error(
+      logRequestFailure(
+        this.logger,
+        err,
+
         `GET /club-control/check/club/${clubId} -> error in ${Date.now() - started}ms: ${getErrorMessage(err)}`,
       );
       throw err;
@@ -401,7 +438,10 @@ export class ClubControlController {
       );
       return result;
     } catch (err: unknown) {
-      this.logger.error(
+      logRequestFailure(
+        this.logger,
+        err,
+
         `GET /club-control/check/week -> error in ${Date.now() - started}ms: ${getErrorMessage(err)}`,
       );
       throw err;
@@ -424,7 +464,10 @@ export class ClubControlController {
       );
       return result;
     } catch (err: unknown) {
-      this.logger.error(
+      logRequestFailure(
+        this.logger,
+        err,
+
         `GET /club-control/dashboard -> error in ${Date.now() - started}ms: ${getErrorMessage(err)}`,
       );
       throw err;
@@ -442,7 +485,10 @@ export class ClubControlController {
       );
       return result;
     } catch (err: unknown) {
-      this.logger.error(
+      logRequestFailure(
+        this.logger,
+        err,
+
         `GET /club-control/current-week -> error in ${Date.now() - started}ms: ${getErrorMessage(err)}`,
       );
       throw err;
@@ -483,7 +529,10 @@ export class ClubControlController {
       );
       return result;
     } catch (err: unknown) {
-      this.logger.error(
+      logRequestFailure(
+        this.logger,
+        err,
+
         `GET /club-control/indicators/detailed -> error in ${Date.now() - started}ms: ${getErrorMessage(err)}`,
       );
       throw err;

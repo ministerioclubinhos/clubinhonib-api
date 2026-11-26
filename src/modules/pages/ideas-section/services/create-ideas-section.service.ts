@@ -3,7 +3,11 @@ import { CreateIdeaAiEnhancementService } from '../../ideas-section-ai/services/
 import { IdeaSubmissionSnapshotSource } from '../../ideas-section-ai/enums/ideas-section-ai.enums';
 import { Injectable, Logger } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
-import { AppInternalException, ErrorCode } from 'src/shared/exceptions';
+import {
+  AppInternalException,
+  ErrorCode,
+  logRequestFailure,
+} from 'src/shared/exceptions';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
@@ -122,7 +126,12 @@ export class CreateIdeasSectionService {
 
       const errStack = error instanceof Error ? error.stack : undefined;
       const errMsg = error instanceof Error ? error.message : String(error);
-      this.logger.error('Transaction rolled-back', errStack);
+      logRequestFailure(
+        this.logger,
+        error,
+        'Transaction rolled-back',
+        errStack,
+      );
       const hasCode = error && typeof error === 'object' && 'code' in error;
       if (hasCode) throw error as unknown as Error;
       throw new AppInternalException(

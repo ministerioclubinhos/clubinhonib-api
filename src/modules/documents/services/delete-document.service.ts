@@ -3,6 +3,7 @@ import {
   AppNotFoundException,
   AppInternalException,
   ErrorCode,
+  logRequestFailure,
 } from 'src/shared/exceptions';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
@@ -57,7 +58,12 @@ export class DeleteDocumentService {
       this.logger.log(`✅ Documento removido com sucesso: ID=${id}`);
     } catch (error: unknown) {
       const errStack = error instanceof Error ? error.stack : undefined;
-      this.logger.error(`❌ Erro ao remover documento ID=${id}`, errStack);
+      logRequestFailure(
+        this.logger,
+        error,
+        `❌ Erro ao remover documento ID=${id}`,
+        errStack,
+      );
       throw new AppInternalException(
         ErrorCode.DATABASE_ERROR,
         'Erro ao remover documento.',

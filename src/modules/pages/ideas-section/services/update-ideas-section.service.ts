@@ -1,6 +1,10 @@
 import { UpdateIdeaAiPublicationService } from '../../ideas-section-ai/services/update-idea-ai-publication.service';
 import { Injectable, Logger } from '@nestjs/common';
-import { AppInternalException, ErrorCode } from 'src/shared/exceptions';
+import {
+  AppInternalException,
+  ErrorCode,
+  logRequestFailure,
+} from 'src/shared/exceptions';
 import { AwsS3Service } from 'src/shared/providers/aws/aws-s3.service';
 import { MediaItemProcessor } from 'src/shared/media/media-item-processor';
 import { S3UploadTracker } from 'src/shared/media/s3-upload-tracker';
@@ -119,7 +123,10 @@ export class UpdateIdeasSectionService {
         (url: string) => this.awsS3Service.delete(url),
       );
 
-      this.logger.error(
+      logRequestFailure(
+        this.logger,
+        error,
+
         `Erro ao atualizar ideia compartilhada. ID=${id}`,
         error instanceof Error ? error.stack : undefined,
       );
