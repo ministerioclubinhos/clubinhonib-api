@@ -31,8 +31,12 @@ export const DECISION_LABELS = {
 /** O que dizer quando a decisão não foi especificada no registro. */
 export const DECISION_UNSPECIFIED_LABEL = 'Decisão registrada';
 
-/** Tela do painel para onde o aviso da decisão aponta. */
-export const ACCEPTED_CHRIST_PANEL_PATH = 'adm/decisoes';
+/**
+ * Para onde o aviso da decisão aponta: a ficha da criança, que professores e
+ * coordenação abrem. O endereço antigo (`adm/decisoes`) não existe no site, e
+ * professor nem acessa o painel.
+ */
+export const ACCEPTED_CHRIST_CHILD_PATH = 'area-das-criancas';
 
 /**
  * Decisões que contam como "a criança já aceitou a Jesus".

@@ -74,6 +74,18 @@ describe('NotifyAcceptedChristService', () => {
     service = moduleRef.get(NotifyAcceptedChristService);
   });
 
+  it('o link leva à ficha da criança, que quem recebe consegue abrir', async () => {
+    // `adm/decisoes` não existia no site e professor nem acessa o painel.
+    await service.notify(decision(), child());
+
+    expect(emailService.sendAcceptedChristRegistered).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        panelLink: 'https://clubinhonib.com/area-das-criancas/child-1',
+      }),
+    );
+  });
+
   it('avisa o coordenador e os professores do clubinho da criança', async () => {
     await service.notify(decision(), child());
 

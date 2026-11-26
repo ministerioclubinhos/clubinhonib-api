@@ -36,7 +36,7 @@ export function acceptedChristRegisteredEmail(
           value: formatBrazilianDateTime(data.registeredAt),
         },
       ]),
-      data.panelLink ? button('Ver no painel', data.panelLink) : '',
+      data.panelLink ? button('Ver a criança', data.panelLink) : '',
       note('Que alegria. Continuem orando por ela.'),
     ]),
     unsubscribeUrl: data.unsubscribeUrl,

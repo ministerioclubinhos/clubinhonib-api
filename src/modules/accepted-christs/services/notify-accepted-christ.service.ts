@@ -5,7 +5,7 @@ import { GetClubRecipientsService } from 'src/modules/clubs/services/get-club-re
 import { EmailService } from 'src/shared/email';
 import { SiteUrlService } from 'src/shared/site-url';
 
-import { ACCEPTED_CHRIST_PANEL_PATH } from '../constants';
+import { ACCEPTED_CHRIST_CHILD_PATH } from '../constants';
 import { AcceptedChristEntity } from '../entities/accepted-christ.entity';
 import { decisionLabel } from '../utils';
 
@@ -75,7 +75,10 @@ export class NotifyAcceptedChristService {
       clubNumber: recipients.clubNumber,
       decision: decisionLabel(decision.decision),
       registeredAt: decision.createdAt,
-      panelLink: this.siteUrlService.buildUrl(ACCEPTED_CHRIST_PANEL_PATH),
+      panelLink: this.siteUrlService.buildUrl(
+        ACCEPTED_CHRIST_CHILD_PATH,
+        child.id,
+      ),
     });
   }
 }
