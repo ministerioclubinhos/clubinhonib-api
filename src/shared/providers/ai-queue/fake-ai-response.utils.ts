@@ -1,5 +1,6 @@
 import { olderMeditationFixture } from 'src/modules/ai-lessons/fixtures/older-meditation.fixture';
 import {
+  AI_FAKE_ARRAYS,
   AI_FAKE_BOOLEANS,
   AI_FAKE_MEMORY_VERSE,
   AI_FAKE_RESPONSE_ID,
@@ -117,6 +118,8 @@ export function fakeFromSchema(
     }
     case 'array': {
       if (Array.isArray(echoed)) return echoed;
+      if (key !== undefined && key in AI_FAKE_ARRAYS)
+        return [...AI_FAKE_ARRAYS[key]];
       const min = typeof schema.minItems === 'number' ? schema.minItems : 0;
       return Array.from({ length: min }, () =>
         fakeFromSchema(schema.items, {}, undefined),

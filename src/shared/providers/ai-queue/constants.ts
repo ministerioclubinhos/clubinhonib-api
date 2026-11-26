@@ -139,6 +139,10 @@ export const AI_FAKE_MODELS = {
  */
 export const AI_FAKE_STORY =
   'Um pastor cuidava de cem ovelhas. Certa tarde, uma delas se perdeu no campo. O pastor deixou as outras em segurança e saiu para procurar. Ele procurou entre as pedras até encontrar a ovelha. Cheio de alegria, colocou a ovelha nos ombros e voltou para casa. Assim também Deus nos ama e se alegra quando voltamos para perto dele.';
+/** Listas que um LLM preencheria: sem achado, nenhuma foto seria melhorada. */
+export const AI_FAKE_ARRAYS: Readonly<Record<string, readonly string[]>> = {
+  qualityIssues: ['Foto com pouco contraste e nitidez.'],
+};
 export const AI_FAKE_VISUALS = {
   storyKey: 'story',
   storyIdPrefix: 'visual',

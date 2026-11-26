@@ -52,6 +52,8 @@ formato do provedor (`fake-ai-response.utils.ts`).
   "melhorada" no modo simulado é idêntica ao original e passa nas guardas.
 - Booleanos conservadores: `preservesEssence: true`, `containsPeople: true`,
   `hasEssentialVisuals: true` (nenhuma foto ou documento é editado).
+- Fotos: a classificação traz um problema de qualidade (`qualityIssues`), e com
+  `containsPeople: true` só o ajuste determinístico real é aplicado.
 - Narrativa (`story`): um texto com várias frases, como o de um LLM real.
 - Visuais da história e kit de recortes (`fake-ai-visuals.utils.ts`): a divisão
   literal da lição em `visual-01…` e as pranchas `kit-01…` com as categorias
