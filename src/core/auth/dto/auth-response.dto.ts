@@ -69,6 +69,8 @@ export class AuthGoogleLoginResponseDto {
   active?: boolean;
   /** Nas formas sem sessão. */
   newUser?: boolean;
+  /** Só quando falta completar o cadastro; autoriza `complete-register`. */
+  registrationToken?: string;
   /** Na forma com sessão — mesmo sentido, outro nome. */
   isNewUser?: boolean;
 }

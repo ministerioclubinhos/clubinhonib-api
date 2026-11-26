@@ -18,7 +18,12 @@ import { AuthRepository } from '../auth.repository';
 import { CompleteUserDto } from '../dto/complete-register.dto';
 import { RegisterUserDto } from '../dto/register.dto';
 import { LoginDto } from '../dto/login.dto';
-import { UserRole, JwtPayload } from '../auth.types';
+import { UserRole, JwtPayload, RegistrationTokenPayload } from '../auth.types';
+import {
+  REGISTRATION_TOKEN_EXPIRES_IN,
+  REGISTRATION_TOKEN_INVALID_MESSAGE,
+  REGISTRATION_TOKEN_SECRET_SUFFIX,
+} from '../constants';
 import { EmailVerificationService } from './email-verification.service';
 import { UpdateTeacherProfilesService } from 'src/modules/teacher-profiles/services/update-teacher-profiles.service';
 import { NotificationService } from 'src/shared/providers/notification/notification.service';
@@ -100,6 +105,41 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
+  private registrationTokenSecret(): string {
+    return (
+      this.configService.getOrThrow<string>('JWT_SECRET') +
+      REGISTRATION_TOKEN_SECRET_SUFFIX
+    );
+  }
+
+  /** Comprova que quem completa o cadastro passou pelo Google daquela conta. */
+  private signRegistrationToken(userId: string): string {
+    const payload: RegistrationTokenPayload = { sub: userId };
+
+    return this.jwtService.sign(payload, {
+      secret: this.registrationTokenSecret(),
+      expiresIn: REGISTRATION_TOKEN_EXPIRES_IN,
+    });
+  }
+
+  private assertRegistrationToken(token: string, userId: string): void {
+    let subject: string | undefined;
+    try {
+      subject = this.jwtService.verify<RegistrationTokenPayload>(token, {
+        secret: this.registrationTokenSecret(),
+      }).sub;
+    } catch {
+      subject = undefined;
+    }
+
+    if (subject !== userId) {
+      throw new AppUnauthorizedException(
+        ErrorCode.TOKEN_INVALID,
+        REGISTRATION_TOKEN_INVALID_MESSAGE,
+      );
+    }
+  }
+
   async login({ email, password }: LoginDto): Promise<AuthLoginResponseDto> {
     const user = await this.authRepo.validateUser(email);
     if (!user || !(await bcrypt.compare(password, user.password))) {
@@ -176,6 +216,7 @@ export class AuthService {
           completed: user.completed,
           commonUser: user.commonUser,
           newUser: true,
+          registrationToken: this.signRegistrationToken(user.id),
           emailVerification,
         };
       }
@@ -189,6 +230,7 @@ export class AuthService {
           completed: false,
           commonUser: user.commonUser,
           newUser: true,
+          registrationToken: this.signRegistrationToken(user.id),
           emailVerification,
         };
       }
@@ -300,6 +342,9 @@ export class AuthService {
     data: CompleteUserDto,
   ): Promise<AuthRegisterResponseDto> {
     const user = await this.getUsersService.findByEmail(data.email);
+    // Conta inexistente responde como comprovante inválido: a rota é pública e
+    // não deve revelar quais e-mails têm cadastro.
+    this.assertRegistrationToken(data.registrationToken, user?.id ?? '');
     if (!user) {
       throw new AppNotFoundException(
         ErrorCode.USER_NOT_FOUND,

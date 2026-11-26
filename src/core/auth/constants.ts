@@ -1,3 +1,5 @@
+import { UserRole } from './auth.types';
+
 /** Bytes sorteados para os tokens enviados por e-mail. */
 export const AUTH_TOKEN_BYTES = 32;
 
@@ -45,3 +47,28 @@ export const AUTH_EMAIL_PATHS = {
   passwordReset: 'recuperar-senha',
   emailVerification: 'confirmar-email',
 } as const;
+
+/**
+ * Papéis que alguém pode escolher ao se cadastrar sozinho. Administrador só é
+ * concedido por outro administrador, no painel: o cadastro é público, e a
+ * confirmação do e-mail ativa a conta sem passar por ninguém.
+ */
+export const SELF_REGISTRATION_ROLES: readonly UserRole[] = [
+  UserRole.TEACHER,
+  UserRole.COORDINATOR,
+];
+
+export const SELF_REGISTRATION_ROLE_MESSAGE =
+  'Escolha o perfil Professor ou Coordenador.';
+
+/** Validade do comprovante que autoriza completar o cadastro do Google. */
+export const REGISTRATION_TOKEN_EXPIRES_IN = '30m';
+
+/**
+ * Sufixo da chave do comprovante de cadastro. A chave própria impede que ele
+ * seja aceito como token de acesso pelo guard.
+ */
+export const REGISTRATION_TOKEN_SECRET_SUFFIX = ':complete-registration';
+
+export const REGISTRATION_TOKEN_INVALID_MESSAGE =
+  'Sua sessão de cadastro expirou. Entre com o Google novamente.';

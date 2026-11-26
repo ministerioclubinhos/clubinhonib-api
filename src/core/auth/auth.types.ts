@@ -6,6 +6,11 @@ export enum UserRole {
   COORDINATOR = 'coordinator',
 }
 
+/** Conteúdo do comprovante de cadastro emitido após o login com Google. */
+export type RegistrationTokenPayload = {
+  sub: string;
+};
+
 export type JwtPayload = {
   sub: string;
   email?: string;
