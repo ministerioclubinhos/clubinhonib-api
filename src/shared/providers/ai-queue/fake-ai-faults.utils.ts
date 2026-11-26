@@ -100,12 +100,12 @@ function mapJson(text: string, change: (value: string) => string): string {
   }
 }
 
-/** Copidesque: sem o marcador, uma frase bem formada e nada além do original. */
+/**
+ * Copidesque: espaços, maiúscula inicial e ponto final. Nada é removido nem
+ * acrescentado (nem o marcador), como pede a guarda de essência.
+ */
 export function polishText(text: string): string {
-  const clean = text
-    .replace(new RegExp(AI_FAKE_MARKER, 'g'), '')
-    .replace(/[ \t]{2,}/g, ' ')
-    .trim();
+  const clean = text.replace(/[ \t]{2,}/g, ' ').trim();
   if (!clean) return clean;
   const first = clean.charAt(0).toLocaleUpperCase('pt-BR');
   const capitalized = `${first}${clean.slice(1)}`;

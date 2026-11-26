@@ -145,7 +145,10 @@ describe('FakeAiProvider', () => {
   it('polish só revisa o texto: nada é acrescentado nem trocado', async () => {
     const { data } = await provider.respond(request('[[ai-fake:polish#p]]'));
 
-    expect(JSON.parse(textOf(data))).toEqual({ title: 'Gincana.' });
+    // O marcador fica: a guarda reprovaria qualquer informação removida.
+    expect(JSON.parse(textOf(data))).toEqual({
+      title: 'Gincana [[ai-fake:polish#p]].',
+    });
   });
 
   it('marcador desconhecido é ignorado', async () => {
