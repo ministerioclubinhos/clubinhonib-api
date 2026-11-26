@@ -133,6 +133,19 @@ export const AI_FAKE_MODELS = {
  * conservador: a guarda aprova o que não mudou, fotos são tratadas como tendo
  * pessoas e documentos como tendo visuais essenciais (nada é editado).
  */
+/**
+ * A narrativa da lição simulada. Os visuais da história dividem este texto em
+ * trechos, então ele precisa ter frases bastantes, como o de um LLM real.
+ */
+export const AI_FAKE_STORY =
+  'Um pastor cuidava de cem ovelhas. Certa tarde, uma delas se perdeu no campo. O pastor deixou as outras em segurança e saiu para procurar. Ele procurou entre as pedras até encontrar a ovelha. Cheio de alegria, colocou a ovelha nos ombros e voltou para casa. Assim também Deus nos ama e se alegra quando voltamos para perto dele.';
+export const AI_FAKE_VISUALS = {
+  storyKey: 'story',
+  storyIdPrefix: 'visual',
+  cutoutIdPrefix: 'kit',
+  itemLabel: 'Elemento',
+  defaultQuantity: 4,
+} as const;
 export const AI_FAKE_BOOLEANS: Readonly<Record<string, boolean>> = {
   preservesEssence: true,
   containsPeople: true,

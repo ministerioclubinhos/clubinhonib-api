@@ -107,3 +107,11 @@ export interface LocalRedisDependencies {
   wait: () => Promise<void>;
   log: (message: string) => void;
 }
+
+export type JsonRecord = Record<string, unknown>;
+
+/** O que os visuais simulados precisam dos dados de origem. */
+export interface AiFakeStorySource {
+  story: string;
+  quantity: number;
+}

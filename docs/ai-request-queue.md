@@ -52,6 +52,11 @@ formato do provedor (`fake-ai-response.utils.ts`).
   "melhorada" no modo simulado é idêntica ao original e passa nas guardas.
 - Booleanos conservadores: `preservesEssence: true`, `containsPeople: true`,
   `hasEssentialVisuals: true` (nenhuma foto ou documento é editado).
+- Narrativa (`story`): um texto com várias frases, como o de um LLM real.
+- Visuais da história e kit de recortes (`fake-ai-visuals.utils.ts`): a divisão
+  literal da lição em `visual-01…` e as pranchas `kit-01…` com as categorias
+  obrigatórias — regras que o JSON Schema não expressa. O teste unitário passa o
+  kit pelo validador real. Assim os 8 itens são gerados, concluídos e aprovados.
 - Imagens: PNG 1×1. Listas de modelos: `fake-text-model` e `fake-image-model`.
 - Respostas trazem o cabeçalho `x-ai-provider-mode: fake`.
 - `GET /health` informa `aiProviderMode` (`live` ou `fake`).

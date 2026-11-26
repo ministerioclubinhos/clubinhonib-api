@@ -3,17 +3,23 @@ import {
   AI_FAKE_BOOLEANS,
   AI_FAKE_MEMORY_VERSE,
   AI_FAKE_RESPONSE_ID,
+  AI_FAKE_STORY,
   AI_FAKE_MODELS,
   AI_FAKE_PNG_BASE64,
   AI_FAKE_TEXT,
+  AI_FAKE_VISUALS,
   AI_SOURCE_DATA_END,
   AI_SOURCE_DATA_START,
 } from './constants';
 import { AiProviderMode, AiQueueMethod, AiQueueProviderName } from './enums';
-import { AiQueueRequest, AiQueueResponse } from './types';
+import { fakeCutoutKit, fakeStoryVisuals } from './fake-ai-visuals.utils';
+import {
+  AiFakeStorySource,
+  AiQueueRequest,
+  AiQueueResponse,
+  JsonRecord,
+} from './types';
 import { restoreAiBody } from './utils';
-
-type JsonRecord = Record<string, unknown>;
 
 function isRecord(value: unknown): value is JsonRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -130,7 +136,8 @@ export function fakeFromSchema(
           ? schema.minimum
           : 0;
     case 'string':
-      return typeof echoed === 'string' ? echoed : AI_FAKE_TEXT;
+      if (typeof echoed === 'string') return echoed;
+      return key === AI_FAKE_VISUALS.storyKey ? AI_FAKE_STORY : AI_FAKE_TEXT;
     default:
       return echoed ?? null;
   }
@@ -149,13 +156,39 @@ function isOlderMeditationSchema(schema: unknown): boolean {
   );
 }
 
+/** Propriedades de cada item de `assets`, quando o schema pede uma lista. */
+function assetProperties(schema: unknown): JsonRecord {
+  if (!isRecord(schema) || !isRecord(schema.properties)) return {};
+  const assets = schema.properties.assets;
+  const items = isRecord(assets) ? assets.items : undefined;
+  return isRecord(items) && isRecord(items.properties) ? items.properties : {};
+}
+
+/** A lição aprovada e a quantidade de imagens escolhida pelo administrador. */
+function storySource(source: JsonRecord): AiFakeStorySource {
+  const upstream = isRecord(source.approvedUpstream)
+    ? source.approvedUpstream
+    : {};
+  const config = isRecord(source.visualConfig) ? source.visualConfig : {};
+  return {
+    story: typeof upstream.story === 'string' ? upstream.story : AI_FAKE_STORY,
+    quantity:
+      typeof config.quantity === 'number'
+        ? config.quantity
+        : AI_FAKE_VISUALS.defaultQuantity,
+  };
+}
+
 /**
- * O JSON da resposta. A meditação dos maiores tem regras que o schema não
- * expressa (alternativas, gabarito, extensão da folha); um mínimo válido pelo
- * schema seria recusado, o que um LLM real não faria. Ela vem da folha de
- * referência, a mesma que valida o contrato.
+ * O JSON da resposta. A meditação dos maiores e os visuais têm regras que o
+ * schema não expressa; um mínimo válido pelo schema seria recusado, o que um
+ * LLM real não faria. A meditação vem da folha de referência, a mesma que
+ * valida o contrato.
  */
 function fakeJson(schema: unknown, source: JsonRecord): unknown {
+  const asset = assetProperties(schema);
+  if ('layoutPlan' in asset) return fakeCutoutKit(storySource(source));
+  if ('sourceExcerpt' in asset) return fakeStoryVisuals(storySource(source));
   if (!isOlderMeditationSchema(schema)) return fakeFromSchema(schema, source);
   const theme = typeof source.theme === 'string' ? source.theme : undefined;
   return olderMeditationFixture(theme);
